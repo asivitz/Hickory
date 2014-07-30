@@ -42,4 +42,4 @@ using your real name (sorry, no pseudonyms or anonymous contributions.)
 
 ## More Information
 
-The DCO originated in the Linux Kernal Project. For more information on its history and motivation, check out this informative [http://www.do-not-panic.com/2014/02/developer-certificate-of-origin.html](blog post).
+The DCO originated in the Linux Kernel Project. For more information on its history and motivation, check out this informative [blog post](http://www.do-not-panic.com/2014/02/developer-certificate-of-origin.html).
