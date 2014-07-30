@@ -36,18 +36,14 @@ data SysData = SysData {
              worldCamera :: Mat44,
              worldProjection :: Mat44,
              shaders :: RefStore (String,String) Shader,
-             starConfig :: Maybe VAOConfig,
-             vanillaShader :: Maybe Shader,
-             bgtex :: Maybe TexID
+             vanillaShader :: Maybe Shader
              }
 
 empty = SysData { window = Nothing,
                 screenSize = nullSize, 
                 worldCamera = mat44Identity,
                 worldProjection = mat44Identity,
-                bgtex = Nothing,
                 shaders = emptyRefStore,
-                starConfig = Nothing,
                 vanillaShader = Nothing }
 
 {-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
@@ -80,21 +76,10 @@ run draw delta =
                     window,
                     worldCamera,
                     worldProjection,
-                    bgtex,
-                    starConfig,
                     vanillaShader
                     } <- getSysData draw
 
             let model = mat44Scale 30 30 1 mat44Identity
-
-            whenMaybe starConfig $ \config ->
-                liftIO $ drawPoints config [170,240, 300, 20] (10.0 :: Double)
-            
-            whenMaybe bgtex $ \tex ->
-                whenMaybe vanillaShader $ \s -> do
-                    dc <- liftIO $ addDrawCommand model white white tex s worldLabel 0.0 False
-                    liftIO $ setTCCommand dc (fromList [0, 0, 0.1, 1.0]) 
-
 
             liftIO $ do
                 renderCommands worldProjection worldLabel
@@ -120,8 +105,6 @@ initS draw texes = do
             Nothing -> return (0,0)
             Just w -> liftIO $ GLFW.getFramebufferSize w
 
-        tid <- Textures.reserveTex texes "bg.png"
-
         {-liftIO $ GLFW.swapInterval 0-}
 
         liftIO $ do
@@ -133,20 +116,13 @@ initS draw texes = do
             glEnable gl_PROGRAM_POINT_SIZE -- for OSX
 
         vanilla <- reserveShader draw ("Shader.vsh", "Shader.fsh")
-        particles <- reserveShader draw ("ParticleShader.vsh", "ParticleShader.fsh")
 
         sd <- getSysData draw
         
-        vaoConfig <- case particles of
-                         Nothing -> return Nothing
-                         Just p -> liftIO $ createVAOConfig p [(VertexGroup [(Attachment sp_ATTR_POSITION 2)])] >>= return . Just
-
         let ortho = mat44Ortho 0 (fromIntegral fbWidth) 0 (fromIntegral fbHeight) (-20) 1
         putSysData draw sd {
                         screenSize = (Size fbWidth fbHeight),
                         worldProjection = ortho,
-                        starConfig = vaoConfig,
-                        bgtex = tid,
                         vanillaShader = vanilla
                         }
 

@@ -1,0 +1,35 @@
+require 'rake/clean'
+
+task :default => "main"
+
+EXECUTABLE = "example"
+
+GAME_HS_SOURCES = FileList.new("src/**/*.hs")
+ENGINE_PATH = "../"
+ENGINE_HS_SOURCES = FileList.new(ENGINE_PATH + "**/*.hs") do |fl|
+end
+
+ENGINE_C_SOURCES = FileList.new(ENGINE_PATH + "**/*.c")
+ENGINE_C_OBJECTS = ENGINE_C_SOURCES.ext(".o")
+
+ALL_HS_SOURCES = ENGINE_HS_SOURCES + GAME_HS_SOURCES
+
+LINK_FLAGS = "-lglfw3 -lpng16 -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo"
+
+header_paths = FileList[ENGINE_PATH + "/include"]
+include_args  = header_paths.pathmap("-I%p")
+
+library_paths = FileList["/usr/local/lib", "/usr/local/Cellar/libpng/1.6.10/lib/"]
+library_args  = library_paths.pathmap("-L%p")
+
+rule '.o' => '.c' do |t|
+   sh "cc #{include_args} -c #{t.source} -o #{t.name}"
+end
+
+GHC_FLAGS = "-i#{ENGINE_PATH} -i./src -Wall -fno-warn-unused-matches -fno-warn-missing-signatures -fno-warn-unused-do-bind"
+
+file 'main' => ENGINE_C_OBJECTS + ALL_HS_SOURCES do
+   sh "ghc #{GHC_FLAGS} --make #{LINK_FLAGS} -main-is Main -o #{EXECUTABLE} src/Main.hs #{ENGINE_C_OBJECTS.join(" ")}"
+end
+
+CLEAN.include ALL_HS_SOURCES.ext(".hi") + ALL_HS_SOURCES.ext(".o") + [EXECUTABLE] + ENGINE_C_OBJECTS
