@@ -8,16 +8,18 @@ Hickory is based on the concept of Entity-Systems. For more information on Entit
 
 Hickory uses the following packages available via Hackage:
 
-OpenGLRaw
-GLFW-b 
+- OpenGLRaw
+- GLFW-b 
 
 ## Documentation
 
 Look in the Example directory for a simple project.
 
+```Bash
 $ cd Example/
 $ rake # builds the engine then the Example
 $ ./example
+```
 
 ## Contributing
 
