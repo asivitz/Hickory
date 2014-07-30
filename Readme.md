@@ -1,12 +1,16 @@
 # Hickory
 
-A practical game engine built around an Entity-System and implemented in Haskell.
+A practical game engine built in Haskell.
 
-For more information on Entity-Systems, check out [these articles](http://entity-systems.wikidot.com/).
+Hickory is based on the concept of Entity-Systems. For more information on Entity-Systems, check out [these articles](http://entity-systems.wikidot.com/).
 
 ## Documentation
 
 Look in the Example directory for a simple project.
+
+$ cd Example/
+$ rake
+$ ./example
 
 ## Contributing
 
