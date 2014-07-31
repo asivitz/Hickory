@@ -23,6 +23,7 @@ import Data.Traversable
 import qualified Graphics.UI.GLFW          as GLFW
 
 import qualified Systems.Textures as Textures
+import qualified Systems.Camera as Camera
 
 import Foreign.C.String
 import Graphics.Drawing
@@ -53,7 +54,7 @@ makeDrawData = do
         win <- buildWindow 400 400 "Hi hi!"
         newIORef empty { window = win }
 
-make draw texes = System (run draw) (handleEv draw) (initS draw texes)
+make draw texes camera = System (run draw camera) (handleEv draw) (initS draw texes)
 
 runDrawable :: Double -> Entity -> Drawable -> SysMonad IO Drawable
 runDrawable delta e dr@(Square size color tex shader) = do
@@ -68,7 +69,7 @@ drawSquare (V2 x y) (Size w h) color tex shader =
 
 handleEv draw _ = return ()
 
-run draw delta = 
+run draw camera delta = 
         do
             upCompsM (runDrawable delta) drawables
             SysData {
@@ -79,7 +80,7 @@ run draw delta =
                     vanillaShader
                     } <- getSysData draw
 
-            let model = mat44Scale 30 30 1 mat44Identity
+            {-let model = mat44Scale 30 30 1 mat44Identity-}
 
             liftIO $ do
                 renderCommands worldProjection worldLabel

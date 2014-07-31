@@ -64,8 +64,18 @@ mat44Mul a b = buildMat44 $ \m ->
       withMat44 b $ \bp ->
          c'mat44Mul m ap bp
 
-mat44Ortho :: CFloat -> CFloat -> CFloat -> CFloat -> CFloat -> CFloat -> Mat44
-mat44Ortho l r b t n f = buildMat44 $ \m -> c'mat44Ortho m l r b t n f
+mat44Ortho :: Real a => a -> a -> a -> a -> a -> a -> Mat44
+mat44Ortho l r b t n f = buildMat44 $ \m -> c'mat44Ortho m (realToFrac l) (realToFrac r) 
+    (realToFrac b) (realToFrac t) 
+    (realToFrac n) (realToFrac f)
+
+mat44Perspective :: Real a => a -> a -> a -> a -> Mat44
+mat44Perspective fov aspect near far = 
+        buildMat44 $ \m ->
+           c'mat44Perspective m (realToFrac fov) (realToFrac aspect) (realToFrac near) (realToFrac far)
+
+foreign import ccall "mat4x4_perspective" c'mat44Perspective
+    :: Mat44Raw -> CFloat -> CFloat -> CFloat -> CFloat -> IO ()
 
 mat44ToList :: Mat44 -> [Float]
 mat44ToList m = unsafePerformIO $ 
@@ -85,7 +95,7 @@ mat44Translate x y z a = mat44Mul a $
       c'mat44Translate m (realToFrac x) (realToFrac y) (realToFrac z)
 
 foreign import ccall "mat4x4_identity" c'mat44Identity
-   :: (Ptr CFloat) -> IO ()
+   :: Mat44Raw -> IO ()
 
 foreign import ccall "mat4x4_mul" c'mat44Mul
    :: Mat44Raw -> Mat44Raw -> Mat44Raw -> IO ()
