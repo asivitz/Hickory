@@ -8,7 +8,8 @@ import qualified Systems.Draw as Draw
 import qualified Systems.Textures as Textures
 import qualified Systems.Input as Input
 import qualified Systems.DrawText as DrawText
-import qualified Systems.Camera as Camera
+import qualified Systems.WorldCamera as WorldCamera
+import qualified Systems.UICamera as UICamera
 
 main :: IO ()
 main = do 
@@ -19,7 +20,8 @@ main = do
         textures <- newIORef Textures.empty
         iosys <- Input.makeIO draw
         drawtext <- newIORef DrawText.empty
-        camera <- newIORef Camera.empty
+        worldcamera <- newIORef WorldCamera.empty
+        uicamera <- newIORef UICamera.empty
 
         let systems = [
                     FPSCounter.make fps,
@@ -27,8 +29,9 @@ main = do
                     Textures.make textures,
                     DrawText.make drawtext draw,
                     Simple.make simple fps textures drawtext draw,
-                    Camera.make camera,
-                    Draw.make draw textures camera,
+                    WorldCamera.make worldcamera,
+                    UICamera.make uicamera,
+                    Draw.make draw worldcamera uicamera,
                     iosys
                     ]
 

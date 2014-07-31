@@ -35,7 +35,7 @@ handleEv simple (SpawnEnt pos) = do
             liftIO $ print "Spawning ent"
             e <- spawnEntity
             addComp e $ DrawState pos
-            addComp e $ NewtonianMover (V2 10.0 0.0) (V2 0.0 0.0)
+            addComp e $ NewtonianMover (v3 10 0 0) (v3 0 0 0)
             addComp e $ Square (Size 20 10) (rgb 0.3 0.6 0.8) tid vanilla
        _ -> return ()
 
@@ -45,7 +45,7 @@ handleEv simple (Error msg) = do
 handleEv simple (InputTouchDown pos touchid) = return ()
       {-liftIO $ print $ "Input touch down!" ++ (show pos)-}
 handleEv simple (InputTouchUp pos touchid) = do
-      broadcast $ SpawnEnt pos
+      broadcast $ SpawnEnt (v2tov3 pos (-10))
       {-liftIO $ print $ "Input touch up!" ++ (show pos)-}
 
 handleEv simple (InputTouchLoc pos touchid) = do
@@ -57,7 +57,7 @@ run simple dt fps delta =
       do
           SysData { printer } <- getSysData simple
           whenMaybe printer $ \p ->
-            DrawText.drawText dt p DrawText.textcommand { text = "Hello World! :)", pos = V2 50 50, color = white }
+            DrawText.drawText dt p uiLabel DrawText.textcommand { text = "Hello World! :)", pos = v3 50 50 0, color = white }
           return ()
 
         {-
