@@ -28,9 +28,8 @@ shotMatrix :: Projection -> Float -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
         mat44Perspective fov screenRatio nearPlane farPlane
 shotMatrix Ortho { width, near, far } screenRatio =
-        mat44Ortho (negate hw) hw (negate hh) hh near far
-        where hw = width / 2
-              hh = (width / screenRatio) / 2
+        mat44Ortho 0 width 0 height near far
+        where height = width / screenRatio
 
 worldViewMatrix :: Projection -> Float -> Float -> Vec -> Mat44
 worldViewMatrix proj screenRatio zoom pos =

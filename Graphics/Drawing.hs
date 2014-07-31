@@ -51,6 +51,9 @@ type Label = CInt
 worldLabel :: Label
 worldLabel = 0
 
+uiLabel :: Label
+uiLabel = 1
+
 boolToCInt :: Bool -> CInt
 boolToCInt b = if b then 1 else 0
 

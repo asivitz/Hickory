@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Camera (empty, make, SysData(..)) where
+module Systems.WorldCamera (empty, make, SysData(..)) where
 
 import Engine.System
 import Math.Vector
@@ -13,8 +13,7 @@ data SysData = SysData {
              }
 
 make camera = System (run camera) nullHandleEvent nullInit
-empty = SysData (Camera (Ortho 400 (-20) 1) (Route pZero Nothing))
-{-empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route (V2 0 0) Nothing))-}
+empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route (V2 0 0) Nothing))
 
 
 run camera delta =

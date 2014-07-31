@@ -25,13 +25,13 @@ import Data.Text.IO as TextIO
 
 data SysData = SysData { 
              printerids :: RefStore String Int,
-             commands :: [(Printer Int, [TextCommand])],
+             printerpairs :: [(Printer Int, [(Label, [TextCommand])])],
              perVertColorShader :: Maybe Shader
              }
 
 data Printer a = Printer (Font a) TexID VAOConfig
 
-empty = SysData { printerids = emptyRefStore, commands = [], perVertColorShader = Nothing }
+empty = SysData { printerids = emptyRefStore, printerpairs = [], perVertColorShader = Nothing }
 
 reservePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe Int)
 reservePrinter drawtext texes name = do
@@ -62,7 +62,7 @@ createPrinterVAOConfig shader = do
 
 loadPrinterID :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe Int)
 loadPrinterID drawtext texes name = do
-        sd@SysData { commands, perVertColorShader } <- getSysData drawtext
+        sd@SysData { printerpairs, perVertColorShader } <- getSysData drawtext
         case perVertColorShader of
             Nothing -> return Nothing
             Just pvcShader -> do
@@ -70,9 +70,9 @@ loadPrinterID drawtext texes name = do
                 case mprinter of
                     Nothing -> return Nothing
                     Just printer -> do
-                        let commands' = (commands ++ [(printer, [])])
-                        putSysData drawtext sd { commands = commands' }
-                        return $ Just $ length commands
+                        let printerpairs' = (printerpairs ++ [(printer, [])])
+                        putSysData drawtext sd { printerpairs = printerpairs' }
+                        return $ Just $ length printerpairs
 
 loadPrinter :: IORef Textures.SysData -> Shader -> String -> SysMonad IO (Maybe (Printer Int))
 loadPrinter texes shader name = do
@@ -103,29 +103,37 @@ modIndex (x:xs) i f = x : modIndex xs (i - 1) f
 unloadPrinter :: IORef SysData -> IORef Textures.SysData -> String -> Int -> SysMonad IO ()
 unloadPrinter dt texes path pid = do
         Textures.releaseTex texes path
-        sd@SysData { commands } <- getSysData dt
-        putSysData dt sd { commands = deleteIndex commands pid }
+        sd@SysData { printerpairs } <- getSysData dt
+        putSysData dt sd { printerpairs = deleteIndex printerpairs pid }
 
-drawText dt pid command = do
-        sd@SysData { commands } <- getSysData dt
-        let commands' = modIndex commands pid (\(printer, clst) -> (printer, (command:clst)))
-        putSysData dt sd { commands = commands' }
+
+appendToAL :: Eq key => [(key, [a])] -> key -> a -> [(key, [a])]
+appendToAL [] key val = [(key, [val])]
+appendToAL (x@(k, vals):xs) key val
+        | k == key = ((k, val:vals):xs)
+        | otherwise = (x:(appendToAL xs key val))
+
+drawText :: IORef SysData -> Int -> Label -> TextCommand -> SysMonad IO ()
+drawText dt pid label command = do
+        sd@SysData { printerpairs } <- getSysData dt
+        let printerpairs' = modIndex printerpairs pid (\(printer, labellst) -> (printer, appendToAL labellst label command))
+        putSysData dt sd { printerpairs = printerpairs' }
 
 textcommand :: TextCommand
 textcommand = TextCommand { 
                           text = "",
                           pos = (V2 0 0),
-                          fontSize = 12,
+                          fontSize = 4,
                           align = AlignCenter,
                           valign = Middle,
                           color = black,
                           leftBump = 0 }
 
 run drawtext delta = do
-        sd@SysData { commands, perVertColorShader } <- getSysData drawtext
+        sd@SysData { printerpairs, perVertColorShader } <- getSysData drawtext
         whenMaybe perVertColorShader $ \pvc -> do
-            liftIO $ renderTextCommands pvc commands
-        putSysData drawtext sd { commands = map (\(printer, tcoms) -> (printer, [])) commands }
+            liftIO $ renderTextCommands pvc printerpairs
+        putSysData drawtext sd { printerpairs = map (\(printer, tcoms) -> (printer, [])) printerpairs }
 
 initS drawtext draw = do
         sd <- getSysData drawtext
@@ -133,11 +141,13 @@ initS drawtext draw = do
         putSysData drawtext sd { perVertColorShader = shader }
 
 renderTextCommands shader printerPairs =
-        mapM_ (\(printer, commands) -> printCommands shader printer commands) printerPairs
+        mapM_ (\(printer, labellst) -> mapM_ (\(label, commands) ->
+            printCommands shader label printer commands) labellst)
+            printerPairs
 
-printCommands :: Real a => Shader -> Printer a -> [TextCommand] -> IO ()
-printCommands _ _ [] = return ()
-printCommands shader (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
+printCommands :: Real a => Shader -> Label -> Printer a -> [TextCommand] -> IO ()
+printCommands _ _ _ [] = return ()
+printCommands shader label (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
         let squarelists = transformTextCommandsToVerts commands font
             numsquares = length squarelists
             floats = map realToFrac (foldl (++) [] squarelists)
@@ -147,7 +157,7 @@ printCommands shader (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, 
         numBlockIndices <- bufferSquareIndices ivbo numsquares
         unbindVAO
 
-        dc <- addDrawCommand mat44Identity white white texid shader worldLabel 0.0 True
+        dc <- addDrawCommand mat44Identity white white texid shader label 0.0 True
         vao_payload <- setVAOCommand dc vao numBlockIndices gl_TRIANGLE_STRIP
         return ()
-printCommands _ _ _ = return ()
+printCommands _ _ _ _ = return ()

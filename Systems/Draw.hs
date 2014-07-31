@@ -25,7 +25,8 @@ import qualified Graphics.UI.GLFW          as GLFW
 import Camera.Camera
 
 import qualified Systems.Textures as Textures
-import qualified Systems.Camera as Camera
+import qualified Systems.WorldCamera as WorldCamera
+import qualified Systems.UICamera as UICamera
 
 import Foreign.C.String
 import Graphics.Drawing
@@ -52,7 +53,7 @@ makeDrawData = do
         win <- buildWindow 400 400 "Hi hi!"
         newIORef empty { window = win }
 
-make draw camera = System (run draw camera) (handleEv draw) (initS draw)
+make draw worldcamera uicamera = System (run draw worldcamera uicamera) (handleEv draw) (initS draw)
 
 runDrawable :: Double -> Entity -> Drawable -> SysMonad IO Drawable
 runDrawable delta e dr@(Square size color tex shader) = do
@@ -67,7 +68,11 @@ drawSquare (V2 x y) (Size w h) color tex shader =
 
 handleEv draw _ = return ()
 
-run draw camera delta = 
+renderCommandsWithCamera :: Camera -> Label -> Float -> IO ()
+renderCommandsWithCamera cam label aspect = renderCommands matrix label
+    where matrix = cameraMatrix cam aspect
+
+run draw worldcamera uicamera delta = 
         do
             upCompsM (runDrawable delta) drawables
             SysData {
@@ -76,14 +81,16 @@ run draw camera delta =
                     vanillaShader
                     } <- getSysData draw
 
-            Camera.SysData { Camera.camera = cam } <- getSysData camera
+            WorldCamera.SysData { WorldCamera.camera = worldcam } <- getSysData worldcamera
+            UICamera.SysData { UICamera.camera = uicam } <- getSysData uicamera
 
             {-let model = mat44Scale 30 30 1 mat44Identity-}
 
             liftIO $ do
-                let worldViewMatrix = cameraMatrix cam (aspectRatio screenSize)
-                renderCommands worldViewMatrix worldLabel
-                {-renderCommands uiProjection 1 -}
+                let ar = aspectRatio screenSize
+                renderCommandsWithCamera worldcam worldLabel ar
+                renderCommandsWithCamera uicam uiLabel ar
+
                 resetRenderer
 
                 traverse GLFW.swapBuffers window
