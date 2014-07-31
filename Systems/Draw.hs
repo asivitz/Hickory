@@ -120,7 +120,7 @@ initS draw texes = do
 
         sd <- getSysData draw
         
-        let ortho = mat44Ortho 0 (fromIntegral fbWidth) 0 (fromIntegral fbHeight) (-20) 1
+        let ortho = mat44Ortho (0 :: Float) (fromIntegral fbWidth) (0 :: Float) (fromIntegral fbHeight) (-20) 1
         putSysData draw sd {
                         screenSize = (Size fbWidth fbHeight),
                         worldProjection = ortho,
