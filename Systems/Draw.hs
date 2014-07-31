@@ -22,6 +22,8 @@ import Data.IORef
 import Data.Traversable
 import qualified Graphics.UI.GLFW          as GLFW
 
+import Camera.Camera
+
 import qualified Systems.Textures as Textures
 import qualified Systems.Camera as Camera
 
@@ -34,16 +36,12 @@ import Graphics.GLFWUtils
 data SysData = SysData { 
              window :: Maybe (GLFW.Window),
              screenSize :: Size Int,
-             worldCamera :: Mat44,
-             worldProjection :: Mat44,
              shaders :: RefStore (String,String) Shader,
              vanillaShader :: Maybe Shader
              }
 
 empty = SysData { window = Nothing,
                 screenSize = nullSize, 
-                worldCamera = mat44Identity,
-                worldProjection = mat44Identity,
                 shaders = emptyRefStore,
                 vanillaShader = Nothing }
 
@@ -54,7 +52,7 @@ makeDrawData = do
         win <- buildWindow 400 400 "Hi hi!"
         newIORef empty { window = win }
 
-make draw texes camera = System (run draw camera) (handleEv draw) (initS draw texes)
+make draw camera = System (run draw camera) (handleEv draw) (initS draw)
 
 runDrawable :: Double -> Entity -> Drawable -> SysMonad IO Drawable
 runDrawable delta e dr@(Square size color tex shader) = do
@@ -73,17 +71,18 @@ run draw camera delta =
         do
             upCompsM (runDrawable delta) drawables
             SysData {
-                    screenSize = (Size w h),
+                    screenSize,
                     window,
-                    worldCamera,
-                    worldProjection,
                     vanillaShader
                     } <- getSysData draw
+
+            Camera.SysData { Camera.camera = cam } <- getSysData camera
 
             {-let model = mat44Scale 30 30 1 mat44Identity-}
 
             liftIO $ do
-                renderCommands worldProjection worldLabel
+                let worldViewMatrix = cameraMatrix cam (aspectRatio screenSize)
+                renderCommands worldViewMatrix worldLabel
                 {-renderCommands uiProjection 1 -}
                 resetRenderer
 
@@ -99,7 +98,7 @@ run draw camera delta =
 
             return ()
 
-initS draw texes = do
+initS draw = do
         SysData {window = win} <- getSysData draw
         
         (fbWidth, fbHeight) <- case win of
@@ -120,10 +119,8 @@ initS draw texes = do
 
         sd <- getSysData draw
         
-        let ortho = mat44Ortho (0 :: Float) (fromIntegral fbWidth) (0 :: Float) (fromIntegral fbHeight) (-20) 1
         putSysData draw sd {
                         screenSize = (Size fbWidth fbHeight),
-                        worldProjection = ortho,
                         vanillaShader = vanilla
                         }
 
