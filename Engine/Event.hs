@@ -9,11 +9,11 @@ import Control.Monad.State
 type SysMonad m r = StateT (World, EventStore) m r
 
 data Event = PrintAll 
-           | SpawnEnt Vec
+           | SpawnEnt V3
            | Error String
-           | InputTouchDown Vec Int
-           | InputTouchUp Vec Int
-           | InputTouchLoc Vec Int
+           | InputTouchDown V2 Int
+           | InputTouchUp V2 Int
+           | InputTouchLoc V2 Int
            | Quit
 
 type EventStore = [Event]

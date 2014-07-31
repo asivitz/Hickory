@@ -56,8 +56,8 @@ touchIdent button = case button of
                        GLFW.MouseButton'7 -> 7
                        GLFW.MouseButton'8 -> 8
 
-touchPosToScreenPos :: Size Int -> (Double, Double) -> Vec
-touchPosToScreenPos (Size w h) (x,y) = V2 (realToFrac x) ((fromIntegral h) - (realToFrac y))
+touchPosToScreenPos :: Size Int -> (Double, Double) -> V2
+touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) ((fromIntegral h) - (realToFrac y))
 
 mouseButtonCallback :: IORef SysData -> Size Int -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback input screenSize win button buttonState modkeys =

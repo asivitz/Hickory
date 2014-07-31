@@ -15,12 +15,12 @@ empty = SysData
 make = System run nullHandleEvent nullInit
 
 runDS :: Double -> Entity -> DrawState -> SysMonad IO DrawState
-runDS deltad e ds@(DrawState (V2 x y)) = do
+runDS deltad e ds@(DrawState p) = do
       nm <- compForEnt e
       let delta = realToFrac deltad
       {-liftIO $ print ds-}
       case nm of
-         Just (NewtonianMover (V2 vx vy) (V2 ax ay)) -> return (DrawState (V2 (x + vx * delta) (y + vy * delta)))
+         Just (NewtonianMover v a) -> return (DrawState (p + v |* delta))
          Nothing -> return ds
 
 run delta = 

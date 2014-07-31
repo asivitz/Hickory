@@ -13,7 +13,7 @@ data SysData = SysData {
              }
 
 make camera = System (run camera) nullHandleEvent nullInit
-empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route (V2 0 0) Nothing))
+empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))
 
 
 run camera delta =

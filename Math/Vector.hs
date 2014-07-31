@@ -1,28 +1,51 @@
-module Math.Vector where
+module Math.Vector 
+    (
+    module Data.Vector.V2,
+    module Data.Vector.V3,
+    module Data.Vector.V4,
+    module Data.Vector.Class,
+    V2,
+    V3,
+    V4,
+    v2,
+    v3,
+    v4,
+    pZero,
+    mat44TranslateV,
+    withVec4,
+    v2tov3
+    )
+    where
 
-data V2 a = V2 a a deriving (Eq)
-type Vec = V2 Float
 
-pZero :: Num a => V2 a
-pZero = (V2 0 0)
+import Data.Vector.V2
+import Data.Vector.V3
+import Data.Vector.V4
+import Data.Vector.Class
+import Math.Matrix
+import Foreign.Ptr
+import Foreign.C.Types
+import Foreign.Marshal.Array
 
-instance Show a => Show (V2 a) where
-  show (V2 x y) = "<" ++ (show x) ++ ", " ++ (show y) ++ ">"
+type V2 = Vector2
+type V3 = Vector3
+type V4 = Vector4
 
-mapV2 f (V2 x y) = (V2 (f x) (f y))
-zipV2 f (V2 x y) (V2 x' y') = V2 (f x x') (f y y')
+v2 = Vector2
+v3 = Vector3
+v4 = Vector4
 
-scaleV2 :: Num a => a -> V2 a -> V2 a
-scaleV2 a = mapV2 (a*)
+pZero :: BasicVector a => a
+pZero = vpromote 0
 
-instance Num a => Num (V2 a) where
-  (+) = zipV2 (+)
-  (-) = zipV2 (-)
-  (*) = zipV2 (*)
-  abs = mapV2 abs
-  signum = mapV2 signum
-  negate = mapV2 negate
-  fromInteger i = V2 (fromInteger i) (fromInteger i)
+v2tov3 :: V2 -> Scalar -> V3
+v2tov3 (Vector2 x y) z = v3 x y z
 
-lerp :: Num a => a -> V2 a -> V2 a -> V2 a
-lerp fraction a b = (scaleV2 (1 - fraction) a) + (scaleV2 fraction b)
+mat44TranslateV :: V3 -> Mat44 -> Mat44
+mat44TranslateV (Vector3 x y z) m = 
+    mat44Translate (realToFrac x) (realToFrac y) (realToFrac z) $ m
+
+withVec4 :: Vector4 -> (Ptr CFloat -> IO b) -> IO b
+withVec4 v func = let lst = map realToFrac $ vunpack v in
+    withArray lst func
+

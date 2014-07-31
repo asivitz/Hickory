@@ -14,27 +14,10 @@ type Mat44Raw = (Ptr CFloat)
 instance Show Mat44 where
       show m = show $ mat44ToList m
 
-newtype Vec4 = Vec4 (ForeignPtr CFloat)
-type Vec4Raw = (Ptr CFloat)
-
-instance Show Vec4 where
-      show v = show $ vec4ToList v
-
 withMat44 :: Mat44 -> (Ptr CFloat -> IO b) -> IO b
 withMat44 (Mat44 fptr) func =
       withForeignPtr fptr $ \ptr ->
          func ptr
-
-withVec4 (Vec4 fptr) func =
-      withForeignPtr fptr $ \ptr ->
-         func ptr
-
-fromList :: [Float] -> Vec4
-fromList lst = buildVec4 $ \m ->
-   pokeArray m $ fmap realToFrac lst
-
-toList :: Vec4 -> [Float]
-toList = (map realToFrac) . vec4ToList
 
 buildMat44 :: (Mat44Raw -> IO ()) -> Mat44
 buildMat44 f = unsafePerformIO $
@@ -42,18 +25,6 @@ buildMat44 f = unsafePerformIO $
       f ptr
       fptr <- newForeignPtr finalizerFree ptr
       return $ Mat44 fptr
-
-buildVec4 :: (Vec4Raw -> IO ()) -> Vec4
-buildVec4 f = unsafePerformIO $
-   do ptr <- mallocArray 4
-      f ptr
-      fptr <- newForeignPtr finalizerFree ptr
-      return $ Vec4 fptr
-
-vec4ToList :: Vec4 -> [CFloat]
-vec4ToList v = unsafePerformIO $ 
-                  withVec4 v $ \ptr ->
-                        peekArray 4 ptr
 
 mat44Identity :: Mat44
 mat44Identity = buildMat44 c'mat44Identity

@@ -15,12 +15,12 @@ data Projection = Perspective {
                      far :: Float }
 
 data Target = Target {
-            tpos :: Vec,
+            tpos :: V3,
             moveTime :: Double,
             moveDuration :: Double
             }
 
-data Route = Route Vec (Maybe Target)
+data Route = Route V3 (Maybe Target)
 
 data Camera = Camera Projection Route
 
@@ -31,23 +31,23 @@ shotMatrix Ortho { width, near, far } screenRatio =
         mat44Ortho 0 width 0 height near far
         where height = width / screenRatio
 
-worldViewMatrix :: Projection -> Float -> Float -> Vec -> Mat44
-worldViewMatrix proj screenRatio zoom pos =
+worldViewMatrix :: Projection -> Float -> V3 -> Mat44
+worldViewMatrix proj screenRatio pos =
         let worldMatrix = shotMatrix proj screenRatio
-            camera = cameraPosMatrix zoom pos in
+            camera = cameraPosMatrix pos in
                 mat44Mul worldMatrix camera
 
-cameraPosMatrix :: Float -> Vec -> Mat44
-cameraPosMatrix cameraZoom (V2 x y) = 
-    mat44Translate (negate x) (negate y) (negate cameraZoom) $ mat44Identity
+cameraPosMatrix :: V3 -> Mat44
+cameraPosMatrix pos = 
+    mat44TranslateV (negate pos) mat44Identity
 
-cameraCenter :: Route -> Vec
+cameraCenter :: Route -> V3
 cameraCenter (Route pos Nothing ) = pos
-cameraCenter (Route pos (Just (Target tarpos time duration))) = lerp (realToFrac (time / duration)) pos tarpos
+cameraCenter (Route pos (Just (Target tarpos time duration))) = vlinear (realToFrac (time / duration)) pos tarpos
 
 
 cameraMatrix :: Camera -> Float -> Mat44
-cameraMatrix (Camera proj route) screenRatio = worldViewMatrix proj screenRatio 0 (cameraCenter route)
+cameraMatrix (Camera proj route) screenRatio = worldViewMatrix proj screenRatio (cameraCenter route)
 
 checkTarget :: Route -> Double -> Route
 checkTarget r@(Route pos Nothing) _ = r

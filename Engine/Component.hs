@@ -14,8 +14,8 @@ class Show c => Component c where
       addComponent :: ComponentStore -> Entity -> c -> ComponentStore
       addComponent store ent comp = updateComponents store $ HashMap.insert ent comp (getComponents store)
 
-data DrawState = DrawState Vec deriving (Show)
-data NewtonianMover = NewtonianMover Vec Vec deriving (Show)
+data DrawState = DrawState V3 deriving (Show)
+data NewtonianMover = NewtonianMover V3 V3 deriving (Show)
 data Drawable = Square FSize Color TexID Shader deriving (Show)
 
 instance Component DrawState where

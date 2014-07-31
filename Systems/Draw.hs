@@ -61,10 +61,10 @@ runDrawable delta e dr@(Square size color tex shader) = do
       liftIO $ whenMaybe ds $ \(DrawState pos) -> drawSquare pos size color tex shader
       return dr
 
-drawSquare :: Vec -> FSize -> Color -> TexID -> Shader -> IO ()
-drawSquare (V2 x y) (Size w h) color tex shader = 
+drawSquare :: V3 -> FSize -> Color -> TexID -> Shader -> IO ()
+drawSquare pos (Size w h) color tex shader = 
       addDrawCommand model color color tex shader worldLabel 0.0 True >> return ()
-         where model = mat44Scale w h 1 $ mat44Translate x y 0 $ mat44Identity
+         where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 
 handleEv draw _ = return ()
 

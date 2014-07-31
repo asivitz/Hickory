@@ -1,17 +1,19 @@
 module Types.Color where
 
-import Math.Matrix
+import Math.Vector
 
-type Color = Vec4
+type Color = Vector4
 
 white :: Color
-white = fromList [1, 1, 1, 1]
+white = Vector4 1 1 1 1
 
 black :: Color
-black = fromList [0, 0, 0, 1]
+black = Vector4 0 0 0 1
 
-rgb :: Float -> Float -> Float -> Color
+rgb :: Scalar -> Scalar -> Scalar -> Color
 rgb r g b = rgba r g b 1
 
-rgba :: Float -> Float -> Float -> Float -> Color
-rgba r g b a = fromList $ fmap realToFrac [r,g,b,a]
+rgba :: Scalar -> Scalar -> Scalar -> Scalar -> Color
+rgba r g b a = case vpack $ fmap realToFrac [r,g,b,a] of
+                   Just v -> v
+                   Nothing -> error "Should never happen"

@@ -10,6 +10,8 @@ Hickory uses the following packages available via Hackage:
 
 - OpenGLRaw
 - GLFW-b 
+- AC-Vector
+- pngload-fixed
 
 ## Documentation
 

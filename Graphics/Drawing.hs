@@ -4,6 +4,7 @@ module Graphics.Drawing where
 
 import Types.Color
 import Math.Matrix
+import Math.Vector
 import Foreign.Marshal.Alloc
 import Foreign.C.Types
 import Foreign.C.String
@@ -71,15 +72,15 @@ addDrawCommand mat color1 color2 (TexID texid) (Shader shader) label depth blend
                c'addDrawCommand matptr color1ptr color2ptr texid shader label depth (boolToCInt blend)
                
 foreign import ccall "add_draw_command" c'addDrawCommand
-   :: Mat44Raw -> Vec4Raw -> Vec4Raw -> CInt -> CUInt -> CInt -> CFloat -> CInt -> IO (DrawCommandHandle)
+   :: Mat44Raw -> Ptr CFloat -> Ptr CFloat -> CInt -> CUInt -> CInt -> CFloat -> CInt -> IO (DrawCommandHandle)
 
-setTCCommand :: DrawCommandHandle -> Vec4 -> IO ()
+setTCCommand :: DrawCommandHandle -> V4 -> IO ()
 setTCCommand dc vec =
       withVec4 vec $ \ptr ->
          c'setTCCommand dc ptr
 
 foreign import ccall "set_tc_command" c'setTCCommand
-   :: DrawCommandHandle -> Vec4Raw -> IO ()
+   :: DrawCommandHandle -> Ptr CFloat -> IO ()
 
 newtype Attribute = Attribute CInt deriving (Eq, Ord, Show)
 

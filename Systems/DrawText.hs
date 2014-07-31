@@ -54,7 +54,7 @@ make drawtext draw = System (run drawtext) nullHandleEvent (initS drawtext draw)
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do
         vaoConfig <- createVAOConfig shader 
-            [(VertexGroup [(Attachment sp_ATTR_POSITION 2),
+            [(VertexGroup [(Attachment sp_ATTR_POSITION 3),
                            (Attachment sp_ATTR_TEX_COORDS 2),
                            (Attachment sp_ATTR_COLOR 4)])]
         config' <- indexVAOConfig vaoConfig
@@ -122,7 +122,7 @@ drawText dt pid label command = do
 textcommand :: TextCommand
 textcommand = TextCommand { 
                           text = "",
-                          pos = (V2 0 0),
+                          pos = pZero,
                           fontSize = 4,
                           align = AlignCenter,
                           valign = Middle,
