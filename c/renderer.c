@@ -406,7 +406,6 @@ void engage_shader(ShaderProgram * program, float * view_mat)
 
 void render_commands(float view_mat[16], int label)
 {
-   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 //   glEnable(GL_DEPTH_TEST);
    
    //We're not blending, so sort by shader and go nuts

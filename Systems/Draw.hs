@@ -33,6 +33,7 @@ import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import Graphics.GLFWUtils
+import Data.Bits
 
 data SysData = SysData { 
              window :: Maybe (GLFW.Window),
@@ -93,6 +94,7 @@ run draw worldcamera uicamera delta =
             putSysData draw sd { worldMatrix = worldMatrix' }
 
             liftIO $ do
+                glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
                 renderCommands worldMatrix' worldLabel
                 renderCommandsWithCamera uicam uiLabel ar
 
