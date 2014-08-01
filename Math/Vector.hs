@@ -100,9 +100,9 @@ viewUnproject (Vector3 wx wy wz) modelView (Vector4 vpx vpy vpw vph) =
 -- plane, and then interpolates between them at the specified depth.
 -- Use this to pick a specific point in 3D space from a screen position.
 lerpUnproject :: V2 -> Scalar -> Mat44 -> V4 -> V3
-lerpUnproject (Vector2 x y) depth modelView vp@(Vector4 vpx vpy vpw vph) =
-        let winnear = v3 x (vph - y) 0
-            winfar = v3 x (vph - y) 1
+lerpUnproject (Vector2 x y) depth modelView vp =
+        let winnear = v3 x y 0
+            winfar = v3 x y 1
             upnear = viewUnproject winnear modelView vp
             upfar = viewUnproject winfar modelView vp
             u = (depth - (v3z upnear)) / ((v3z upfar) - (v3z upnear)) in
