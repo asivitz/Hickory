@@ -1,11 +1,3 @@
-/*
- *  Drawing.c
- *
- *  Created by Axis Sivitz on 10/19/10.
- *  Copyright 2010 Axis Sivitz. All rights reserved.
- *
- */
-
 #include "drawing.h"
 #include "shaderprogram.h"
 #include "platform.h"

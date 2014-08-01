@@ -4,7 +4,6 @@ module Systems.WorldCamera (empty, make, SysData(..)) where
 
 import Engine.System
 import Math.Vector
-import Math.Matrix
 
 import Camera.Camera
 

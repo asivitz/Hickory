@@ -7,7 +7,6 @@ import Types.Color
 import qualified Data.HashMap.Strict as HashMap
 import Data.Char (ord)
 import Data.Maybe
-import Math.Matrix
 import Math.Vector
 import qualified Data.Text as Text
 import Data.Hashable

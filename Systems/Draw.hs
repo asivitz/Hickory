@@ -38,13 +38,16 @@ data SysData = SysData {
              window :: Maybe (GLFW.Window),
              screenSize :: Size Int,
              shaders :: RefStore (String,String) Shader,
-             vanillaShader :: Maybe Shader
+             vanillaShader :: Maybe Shader,
+             worldMatrix :: Mat44
              }
 
 empty = SysData { window = Nothing,
                 screenSize = nullSize, 
                 shaders = emptyRefStore,
-                vanillaShader = Nothing }
+                vanillaShader = Nothing,
+                worldMatrix = mat44Identity
+                }
 
 {-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
 
@@ -75,7 +78,7 @@ renderCommandsWithCamera cam label aspect = renderCommands matrix label
 run draw worldcamera uicamera delta = 
         do
             upCompsM (runDrawable delta) drawables
-            SysData {
+            sd@SysData {
                     screenSize,
                     window,
                     vanillaShader
@@ -84,11 +87,13 @@ run draw worldcamera uicamera delta =
             WorldCamera.SysData { WorldCamera.camera = worldcam } <- getSysData worldcamera
             UICamera.SysData { UICamera.camera = uicam } <- getSysData uicamera
 
-            {-let model = mat44Scale 30 30 1 mat44Identity-}
+            let ar = aspectRatio screenSize
+                worldMatrix' = cameraMatrix worldcam ar
+
+            putSysData draw sd { worldMatrix = worldMatrix' }
 
             liftIO $ do
-                let ar = aspectRatio screenSize
-                renderCommandsWithCamera worldcam worldLabel ar
+                renderCommands worldMatrix' worldLabel
                 renderCommandsWithCamera uicam uiLabel ar
 
                 resetRenderer
