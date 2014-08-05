@@ -37,6 +37,7 @@ reservePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad 
 reservePrinter drawtext texes name = do
         SysData { printerids } <- getSysData drawtext
         (newprinterids, pid) <- reserve printerids name (loadPrinterID drawtext texes)
+        whenNothing pid $ liftIO $ print ("Couldn't load printer: " ++ name)
         sd <- getSysData drawtext {- re-get it bc printer has been added to command pairs -}
         putSysData drawtext sd { printerids = newprinterids }
         return pid
@@ -64,11 +65,11 @@ loadPrinterID :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad I
 loadPrinterID drawtext texes name = do
         sd@SysData { printerpairs, perVertColorShader } <- getSysData drawtext
         case perVertColorShader of
-            Nothing -> return Nothing
+            Nothing -> liftIO $ print "Can't load printer: No shader" >> return Nothing
             Just pvcShader -> do
                 mprinter <- loadPrinter texes pvcShader name
                 case mprinter of
-                    Nothing -> return Nothing
+                    Nothing -> liftIO $ print "Load printer failed" >> return Nothing
                     Just printer -> do
                         let printerpairs' = (printerpairs ++ [(printer, [])])
                         putSysData drawtext sd { printerpairs = printerpairs' }

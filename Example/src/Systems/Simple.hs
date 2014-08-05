@@ -20,44 +20,42 @@ import qualified Systems.Textures as Textures
 import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
 
-make simple fps texes dt draw = System (run simple dt fps) (handleEv simple) (initS simple dt texes draw)
+make simple texes dt draw = System (run simple dt draw) (handleEv simple draw) (initS simple dt texes draw)
 
 starTex = "filled_star.png"
 
-handleEv simple (PrintAll) = do
-   mydata <- getSysData simple
-   liftIO $ print mydata
+handleEv simple draw event =
+        case event of
+            PrintAll -> do
+                mydata <- getSysData simple
+                liftIO $ print mydata
+            (SpawnEnt pos) -> spawnEnt pos simple draw
+            (Error msg) -> liftIO $ putStrLn ("ERROR: " ++ msg)
+            (InputTouchUp pos touchid) -> do
+                Draw.SysData { Draw.screenSize, Draw.worldMatrix } <- getSysData draw
+                let pos' = lerpUnproject pos (-5) worldMatrix (viewportFromSize screenSize)
+                liftIO $ print pos'
+                broadcast $ SpawnEnt pos'
+            (InputTouchLoc pos touchid) -> liftIO $ print $ "Input ping " ++ (show pos)
+            _ -> return ()
 
-handleEv simple (SpawnEnt pos) = do
+spawnEnt pos simple draw = do
    sd <- getSysData simple
    case sd of
        SysData (Just tid) _ (Just vanilla) -> do
-            liftIO $ print "Spawning ent"
-            e <- spawnEntity
-            addComp e $ DrawState pos
-            addComp e $ NewtonianMover (v3 10 0 0) (v3 0 0 0)
-            addComp e $ Square (Size 20 10) (rgb 0.3 0.6 0.8) tid vanilla
+           liftIO $ print "Spawning ent"
+           e <- spawnEntity
+           addComp e $ DrawState pos
+           addComp e $ NewtonianMover (v3 1 0 0) (v3 0 0 0)
+           addComp e $ Square (Size 1 1) (rgb 0.3 0.6 0.8) tid vanilla
        _ -> return ()
 
-handleEv simple (Error msg) = do
-      liftIO $ putStrLn ("ERROR: " ++ msg)
-
-handleEv simple (InputTouchDown pos touchid) = return ()
-      {-liftIO $ print $ "Input touch down!" ++ (show pos)-}
-handleEv simple (InputTouchUp pos touchid) = do
-      broadcast $ SpawnEnt (v2tov3 pos (-10))
-      {-liftIO $ print $ "Input touch up!" ++ (show pos)-}
-
-handleEv simple (InputTouchLoc pos touchid) = do
-      liftIO $ print $ "Input ping " ++ (show pos)
-
-handleEv _ _ = return ()
-
-run simple dt fps delta =
+run simple dt draw delta =
       do
           SysData { printer } <- getSysData simple
+          Draw.SysData { Draw.screenSize } <- getSysData draw
           whenMaybe printer $ \p ->
-            DrawText.drawText dt p uiLabel DrawText.textcommand { text = "Hello World! :)", pos = v3 50 50 0, color = white }
+            DrawText.drawText dt p uiLabel DrawText.textcommand { text = "Hello World!", fontSize = 6, pos = (screenPos screenSize SMiddle SCenter), color = white }
           return ()
 
         {-

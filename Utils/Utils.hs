@@ -11,5 +11,9 @@ whenMaybe2 a b f = case a of
                        Nothing -> return ()
                        Just a' -> maybe (return ()) (f a') b
 
+whenNothing a f = case a of
+                      Nothing -> f
+                      Just b -> return ()
+
 justOrM :: Monad m => a -> Maybe a -> m a
 justOrM def val = return $ maybe def id val

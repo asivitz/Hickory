@@ -7,7 +7,8 @@ module Types.Types
    screenPos,
    YScreenLoc(..),
    XScreenLoc(..),
-   fracSize
+   fracSize,
+   viewportFromSize
    ) where
 
 import Math.Vector
@@ -22,6 +23,9 @@ nullSize = (Size 0 0)
 aspectRatio :: (Real a, Fractional b) => Size a -> b
 aspectRatio (Size w h) = w' / h'
     where (Size w' h') = (Size (realToFrac w) (realToFrac h))
+
+viewportFromSize :: Integral a => Size a -> V4
+viewportFromSize (Size w h) = v4 0 0 (fromIntegral w) (fromIntegral h)
 
 fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
