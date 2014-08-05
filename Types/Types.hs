@@ -6,7 +6,8 @@ module Types.Types
    aspectRatio,
    screenPos,
    YScreenLoc(..),
-   XScreenLoc(..)
+   XScreenLoc(..),
+   fracSize
    ) where
 
 import Math.Vector
@@ -21,6 +22,9 @@ nullSize = (Size 0 0)
 aspectRatio :: (Real a, Fractional b) => Size a -> b
 aspectRatio (Size w h) = w' / h'
     where (Size w' h') = (Size (realToFrac w) (realToFrac h))
+
+fracSize :: (Real a, Fractional b) => Size a -> Size b
+fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
 data YScreenLoc a = STop a
                   | SBottom a

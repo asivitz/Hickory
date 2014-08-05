@@ -24,7 +24,6 @@ import qualified Graphics.UI.GLFW          as GLFW
 
 import Camera.Camera
 
-import qualified Systems.Textures as Textures
 import qualified Systems.WorldCamera as WorldCamera
 import qualified Systems.UICamera as UICamera
 
@@ -49,8 +48,6 @@ empty = SysData { window = Nothing,
                 vanillaShader = Nothing,
                 worldMatrix = mat44Identity
                 }
-
-{-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
 
 makeDrawData :: IO (IORef SysData)
 makeDrawData = do
@@ -95,6 +92,7 @@ run draw worldcamera uicamera delta =
 
             liftIO $ do
                 glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+                renderCommandsWithCamera uicam backgroundLabel ar
                 renderCommands worldMatrix' worldLabel
                 renderCommandsWithCamera uicam uiLabel ar
 

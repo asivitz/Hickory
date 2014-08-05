@@ -24,6 +24,9 @@ data Route = Route V3 (Maybe Target)
 
 data Camera = Camera Projection Route
 
+getRoute :: Camera -> Route
+getRoute (Camera _ r) = r
+
 shotMatrix :: Projection -> Float -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
         mat44Perspective fov screenRatio nearPlane farPlane
