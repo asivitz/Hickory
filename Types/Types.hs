@@ -8,7 +8,8 @@ module Types.Types
    YScreenLoc(..),
    XScreenLoc(..),
    fracSize,
-   viewportFromSize
+   viewportFromSize,
+   Rect(..)
    ) where
 
 import Math.Vector
@@ -29,6 +30,8 @@ viewportFromSize (Size w h) = v4 0 0 (fromIntegral w) (fromIntegral h)
 
 fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
+
+data Rect = Rect V2 (Size Scalar)
 
 data YScreenLoc a = STop a
                   | SBottom a

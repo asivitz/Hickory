@@ -10,6 +10,7 @@ import qualified Systems.Input as Input
 import qualified Systems.DrawText as DrawText
 import qualified Systems.WorldCamera as WorldCamera
 import qualified Systems.UICamera as UICamera
+import qualified Systems.Menus as Menus
 
 coreData = do
         draw <- Draw.makeDrawData
@@ -19,12 +20,14 @@ coreData = do
         drawtext <- newIORef DrawText.empty
         worldcamera <- newIORef WorldCamera.empty
         uicamera <- newIORef UICamera.empty
+        menus <- newIORef Menus.empty
 
         let systems = [
                     FPSCounter.make fps,
                     DrawState.make,
                     Textures.make textures,
                     DrawText.make drawtext draw,
+                    Menus.make menus,
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,
                     Draw.make draw worldcamera uicamera,
