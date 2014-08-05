@@ -27,11 +27,11 @@ coreData = do
                     DrawState.make,
                     Textures.make textures,
                     DrawText.make drawtext draw,
-                    Menus.make menus,
+                    Menus.make menus draw,
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,
                     Draw.make draw worldcamera uicamera,
                     iosys
                     ]
 
-        return ((draw, textures, drawtext, worldcamera, uicamera), systems)
+        return ((draw, textures, drawtext, worldcamera, uicamera, menus), systems)

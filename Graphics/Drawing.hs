@@ -13,6 +13,7 @@ import Graphics.GLUtils
 import Foreign.Ptr
 import Graphics.Rendering.OpenGL.Raw.Core31
 import qualified Data.Foldable as Fold
+import Types.Types
 
 newtype Shader = Shader CUInt deriving (Eq, Ord, Show)
 
@@ -234,3 +235,6 @@ foreign import ccall "attach_vertex_array" attachVertexArray
 foreign import ccall "getMainVAO" getMainVAO
     :: IO CUInt
 
+data DrawSpec = Square FSize Color TexID Shader
+              | SolidSquare FSize Color Shader
+              deriving (Show)

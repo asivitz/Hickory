@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Draw (SysData(..), make, makeDrawData, empty, nullSize, createVAOConfig, indexVAOConfig, reserveShader, releaseShader) where
+module Systems.Draw (SysData(..), make, makeDrawData, empty, nullSize, createVAOConfig, indexVAOConfig, reserveShader, releaseShader, drawSpec) where
 import Control.Monad.State
 
 import Engine.Entity
@@ -57,14 +57,18 @@ makeDrawData = do
 make draw worldcamera uicamera = System (run draw worldcamera uicamera) (handleEv draw) (initS draw)
 
 runDrawable :: Double -> Entity -> Drawable -> SysMonad IO Drawable
-runDrawable delta e dr@(Square size color tex shader) = do
+runDrawable delta e dr@(Drawable spec) = do
       ds <- compForEnt e
-      liftIO $ whenMaybe ds $ \(DrawState pos) -> drawSquare pos size color tex shader
+      liftIO $ whenMaybe ds $ \(DrawState pos) -> drawSpec pos worldLabel spec
       return dr
 
-drawSquare :: V3 -> FSize -> Color -> TexID -> Shader -> IO ()
-drawSquare pos (Size w h) color tex shader = 
-      addDrawCommand model color color tex shader worldLabel 0.0 True >> return ()
+
+drawSpec :: Vector3 -> Label -> DrawSpec -> IO ()
+drawSpec pos label (Square (Size w h) color tex shader) = 
+      addDrawCommand model color color tex shader label 0.0 True >> return ()
+         where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
+drawSpec pos label (SolidSquare (Size w h) color shader) = 
+      addDrawCommand model color color nullTex shader label 0.0 True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 
 handleEv draw _ = return ()

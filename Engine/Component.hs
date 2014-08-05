@@ -16,7 +16,7 @@ class Show c => Component c where
 
 data DrawState = DrawState V3 deriving (Show)
 data NewtonianMover = NewtonianMover V3 V3 deriving (Show)
-data Drawable = Square FSize Color TexID Shader deriving (Show)
+data Drawable = Drawable DrawSpec deriving (Show)
 
 instance Component DrawState where
       getComponents store = drawStates store

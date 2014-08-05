@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Systems.Menus where
 
 import Math.Vector
@@ -7,6 +9,8 @@ import Engine.System
 
 import Control.Monad.State
 
+import qualified Systems.Draw as Draw
+
 data MenuScreen = MenuScreen [UIElement] Scalar
 
 data ScreenAction = PushScreen MenuScreen
@@ -15,9 +19,12 @@ data ScreenAction = PushScreen MenuScreen
 
 data Button = Button Rect (Maybe Event, Maybe ScreenAction)
 
-type DrawFunc = IO ()
+type DrawFunc = Size Int -> SysMonad IO ()
 
-data UIElement = UIElement DrawFunc (Maybe Button)
+data UIElement = UIElement (Maybe Button) DrawFunc
+
+makeLabel :: DrawFunc -> UIElement
+makeLabel f = UIElement Nothing f
 
 posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
         ((abs (ox - px)) < (w/2)) && ((abs (oy - py)) < (h/2))
@@ -26,10 +33,14 @@ data SysData = SysData [MenuScreen]
 
 empty = SysData []
 
-make menus = System (run menus) nullHandleEvent nullInit
+make menus draw = System (run menus draw) nullHandleEvent nullInit
 
-run menus delta = do
+run menus draw delta = do
         SysData navstack <- getSysData menus
-        liftIO $ mapM_ (\(MenuScreen elements duration) -> mapM_ renderElement elements) navstack
+        Draw.SysData { Draw.screenSize } <- getSysData draw
+        mapM_ (\(MenuScreen elements duration) -> mapM_ (\(UIElement _ df) -> df screenSize) elements) navstack
 
-renderElement (UIElement drawfunc _) = drawfunc
+pushScreen menus screen = do
+        SysData navstack <- getSysData menus
+        putSysData menus (SysData (screen:navstack))
+
