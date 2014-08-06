@@ -6,10 +6,11 @@ import Graphics.Drawing
 import Graphics.GLUtils
 import Graphics.DrawText
 import Math.Vector
+import Types.Color
 
 data Button = Button Rect (Maybe Event, Maybe ScreenAction)
 
-data MenuDrawCommand = SquareMenuDrawCommand DrawSpec
+data MenuDrawCommand = SquareMenuDrawCommand (RelativePos Float Int, RelativePos Float Int) Color (Maybe TexID) Shader
                      | TextMenuDrawCommand PrinterID TextCommand
 
 data MenuResources = MenuResources [TexID] [PrinterID] [Shader]

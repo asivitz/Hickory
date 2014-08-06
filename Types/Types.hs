@@ -10,7 +10,8 @@ module Types.Types
    fracSize,
    viewportFromSize,
    Rect(..),
-   posInRect
+   posInRect,
+   transform
    ) where
 
 import Math.Vector
@@ -43,11 +44,11 @@ data RelativePos a b = RPos a b
 transform :: (Fractional a, Real b) => RelativePos a b -> b -> a
 transform (RPos fract offset) val = fract * (realToFrac val) + (realToFrac offset)
 
-beg :: a -> RelativePos Scalar a
+beg :: Num b => a -> RelativePos b a
 beg a = RPos 0 a
-end :: Num a => a -> RelativePos Scalar a
+end :: (Num b, Num a) => a -> RelativePos b a
 end a = RPos 1 (negate a)
-center :: a -> RelativePos Scalar a
+center :: Fractional b => a -> RelativePos b a
 center a = RPos 0.5 a
 
 screenPos :: (Real a) => Size a -> RelativePos Scalar a -> RelativePos Scalar a -> V3

@@ -29,8 +29,13 @@ empty = SysData []
 
 make menus draw texes dt = System (run menus draw dt) (handleEv menus draw texes dt) nullInit
 
-menuRender dt pos (SquareMenuDrawCommand spec) = liftIO $ Draw.drawSpec pos uiLabel spec
-menuRender dt pos (TextMenuDrawCommand pid tc) = DrawText.drawText dt pid uiLabel (PositionedTextCommand pos tc)
+menuRender dt (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = liftIO $ Draw.drawSpec pos uiLabel spec
+    where size = Size (transform rpw w) (transform rph h)
+          spec = case mtex of
+                     Nothing -> SolidSquare size color sh
+                     Just tex -> Square size color tex sh
+
+menuRender dt screenSize pos (TextMenuDrawCommand pid tc) = DrawText.drawText dt pid uiLabel (PositionedTextCommand pos tc)
 
 handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes dt scr
 handleAction menus draw texes dt RefreshScreen = return ()
@@ -59,7 +64,7 @@ run menus draw dt delta = do
         Draw.SysData { Draw.screenSize } <- getSysData draw
         mapM_ (\(ResolvedMenuScreen elements duration) -> 
             mapM_ (\(ResolvedUIElement _ uirender) -> 
-                mapM_ (\(yloc, xloc, mdc) -> menuRender dt (screenPos screenSize yloc xloc) mdc) uirender)
+                mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) uirender)
                 elements)
             navstack
 
