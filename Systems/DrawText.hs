@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawText (SysData(..), make, empty, drawText, PrinterID, PositionedTextCommand(..), textcommand, reservePrinter, releasePrinter) where
+module Systems.DrawText (SysData(..), make, empty, drawText, PositionedTextCommand(..), textcommand, reservePrinter, releasePrinter) where
 import Control.Monad.State
 
 import Engine.System
@@ -22,8 +22,6 @@ import qualified Systems.Draw as Draw
 
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.Text.IO as TextIO
-
-type PrinterID = Int
 
 data SysData = SysData { 
              printerids :: RefStore String PrinterID,

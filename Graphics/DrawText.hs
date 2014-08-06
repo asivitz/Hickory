@@ -144,3 +144,6 @@ transformTextCommandsToVerts commands font = foldl processCommand [] commands
                                              (accum (cddr lst) (+ left-bump embedded-tex-x-advance) color-verts res)
                                              )])
                                              -}
+
+type PrinterID = Int
+
