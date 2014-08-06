@@ -45,11 +45,12 @@ handleEv menus draw texes dt event =
         case event of
             (InputTouchUp pos touchid) -> do
                 SysData navstack <- getSysData menus
+                Draw.SysData { Draw.screenSize } <- getSysData draw
                 mapM_ (\(ResolvedMenuScreen elements duration) -> 
                     mapM_ (\(ResolvedUIElement but _) -> 
                             case but of
-                                Just (Button rect (mevent, maction)) -> do
-                                    when (posInRect pos rect) $ do
+                                Just (Button rrect (mevent, maction)) -> do
+                                    when (posInRect pos (transformRect rrect screenSize)) $ do
                                         whenMaybe mevent $ \e -> broadcast e
                                         whenMaybe maction $ \a -> handleAction menus draw texes dt a
                                 Nothing -> return ()

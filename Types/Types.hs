@@ -11,7 +11,9 @@ module Types.Types
    viewportFromSize,
    Rect(..),
    posInRect,
-   transform
+   transform,
+   RelativeRect(..),
+   transformRect
    ) where
 
 import Math.Vector
@@ -34,6 +36,12 @@ fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
 data Rect = Rect V2 (Size Scalar) deriving (Show)
+
+data RelativeRect a b = RRect (RelativePos a b, RelativePos a b) (RelativePos a b, RelativePos a b)
+
+transformRect :: Real b => RelativeRect Scalar b -> Size b -> Rect
+transformRect (RRect (rx, ry) (rw, rh)) (Size w h) =
+        Rect (v2 (transform rx w) (transform ry h)) (Size (transform rw w) (transform rh h))
 
 posInRect :: V2 -> Rect -> Bool
 posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =

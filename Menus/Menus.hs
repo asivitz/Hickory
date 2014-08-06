@@ -8,7 +8,7 @@ import Graphics.DrawText
 import Math.Vector
 import Types.Color
 
-data Button = Button Rect (Maybe Event, Maybe ScreenAction)
+data Button = Button (RelativeRect Scalar Int) (Maybe Event, Maybe ScreenAction)
 
 data MenuDrawCommand = SquareMenuDrawCommand (RelativePos Float Int, RelativePos Float Int) Color (Maybe TexID) Shader
                      | TextMenuDrawCommand PrinterID TextCommand
