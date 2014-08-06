@@ -27,7 +27,7 @@ coreData = do
                     DrawState.make,
                     Textures.make textures,
                     DrawText.make drawtext draw,
-                    Menus.make menus draw drawtext,
+                    Menus.make menus draw textures drawtext,
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,
                     Draw.make draw worldcamera uicamera,

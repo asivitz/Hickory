@@ -16,7 +16,7 @@ data MenuResources = MenuResources [TexID] [PrinterID] [Shader]
 
 type MenuResourceNames = ([String], [String], [(String, String)])
 
-type UIRender a = [(YScreenLoc a, XScreenLoc a, MenuDrawCommand)]
+type UIRender a = [(RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand)]
 
 data MenuRenderSpec = MenuRenderSpec MenuResourceNames (MenuResources -> UIRender Int)
 
@@ -34,6 +34,3 @@ data ScreenAction = PushScreen MenuScreen
 
 makeLabel :: MenuRenderSpec -> UIElement
 makeLabel s = UIElement Nothing s
-
-posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
-        ((abs (ox - px)) < (w/2)) && ((abs (oy - py)) < (h/2))

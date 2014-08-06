@@ -9,6 +9,8 @@ import Types.Types
 import Engine.Event
 import Engine.System
 
+import Utils.Utils
+
 import Graphics.Drawing
 import Graphics.DrawText
 import Graphics.GLUtils
@@ -25,10 +27,32 @@ data SysData = SysData [ResolvedMenuScreen]
 
 empty = SysData []
 
-make menus draw dt = System (run menus draw dt) nullHandleEvent nullInit
+make menus draw texes dt = System (run menus draw dt) (handleEv menus draw texes dt) nullInit
 
 menuRender dt pos (SquareMenuDrawCommand spec) = liftIO $ Draw.drawSpec pos uiLabel spec
 menuRender dt pos (TextMenuDrawCommand pid tc) = DrawText.drawText dt pid uiLabel (PositionedTextCommand pos tc)
+
+handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes dt scr
+handleAction menus draw texes dt RefreshScreen = return ()
+handleAction menus draw texes dt PopScreen = popScreen menus
+
+handleEv menus draw texes dt event =
+        case event of
+            (InputTouchUp pos touchid) -> do
+                SysData navstack <- getSysData menus
+                mapM_ (\(ResolvedMenuScreen elements duration) -> 
+                    mapM_ (\(ResolvedUIElement but _) -> 
+                            case but of
+                                Just (Button rect (mevent, maction)) -> do
+                                    when (posInRect pos rect) $ do
+                                        whenMaybe mevent $ \e -> broadcast e
+                                        whenMaybe maction $ \a -> handleAction menus draw texes dt a
+                                Nothing -> return ()
+                        )
+                        elements
+                    )
+                    navstack
+            _ -> return ()
 
 run menus draw dt delta = do
         SysData navstack <- getSysData menus
@@ -61,3 +85,9 @@ pushScreen menus draw texes dt screen = do
         SysData navstack <- getSysData menus
         screen' <- (resolveScreen draw texes dt) screen
         putSysData menus (SysData (screen':navstack))
+
+popScreen menus = do
+        SysData navstack <- getSysData menus
+        case navstack of
+            (x:xs) -> putSysData menus (SysData xs)
+            _ -> return ()

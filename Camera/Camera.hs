@@ -4,6 +4,7 @@ module Camera.Camera where
 
 import Math.Vector
 import Math.Matrix
+import Math.VectorMatrix
 
 data Projection = Perspective {
                      fov :: Float,

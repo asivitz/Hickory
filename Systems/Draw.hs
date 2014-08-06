@@ -18,6 +18,7 @@ import Utils.Utils
 import Graphics.GLUtils
 import Math.Matrix
 import Math.Vector
+import Math.VectorMatrix
 import Data.IORef
 import Data.Traversable
 import qualified Graphics.UI.GLFW          as GLFW

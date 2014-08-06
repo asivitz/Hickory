@@ -5,11 +5,12 @@ module Types.Types
    nullSize,
    aspectRatio,
    screenPos,
-   YScreenLoc(..),
-   XScreenLoc(..),
+   RelativePos(..),
+   beg, end, center,
    fracSize,
    viewportFromSize,
-   Rect(..)
+   Rect(..),
+   posInRect
    ) where
 
 import Math.Vector
@@ -31,25 +32,23 @@ viewportFromSize (Size w h) = v4 0 0 (fromIntegral w) (fromIntegral h)
 fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
-data Rect = Rect V2 (Size Scalar)
+data Rect = Rect V2 (Size Scalar) deriving (Show)
 
-data YScreenLoc a = STop a
-                  | SBottom a
-                  | SMiddle
+posInRect :: V2 -> Rect -> Bool
+posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
+        ((abs (ox - px)) < (w/2)) && ((abs (oy - py)) < (h/2))
 
-data XScreenLoc a = SLeft a
-                  | SRight a
-                  | SCenter
+data RelativePos a b = RPos a b
 
-xScreenPos :: (Real a, Fractional b) => a -> XScreenLoc a -> b
-xScreenPos w (SLeft l) = realToFrac l
-xScreenPos w (SRight r) = realToFrac (w - r)
-xScreenPos w SCenter = (realToFrac w)/2
+transform :: (Fractional a, Real b) => RelativePos a b -> b -> a
+transform (RPos fract offset) val = fract * (realToFrac val) + (realToFrac offset)
 
-yScreenPos :: (Real a, Fractional b) => a -> YScreenLoc a -> b
-yScreenPos h (STop t) = realToFrac (h - t)
-yScreenPos h (SBottom b) = realToFrac b
-yScreenPos h SMiddle = (realToFrac h)/2
+beg :: a -> RelativePos Scalar a
+beg a = RPos 0 a
+end :: Num a => a -> RelativePos Scalar a
+end a = RPos 1 (negate a)
+center :: a -> RelativePos Scalar a
+center a = RPos 0.5 a
 
-screenPos :: Real a => Size a -> YScreenLoc a -> XScreenLoc a -> V3
-screenPos (Size w h) yl xl = v3 (xScreenPos w xl) (yScreenPos h yl) 0
+screenPos :: (Real a) => Size a -> RelativePos Scalar a -> RelativePos Scalar a -> V3
+screenPos (Size w h) yl xl = v3 (transform xl w) (transform yl h) 0
