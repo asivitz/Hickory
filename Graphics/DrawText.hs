@@ -74,12 +74,13 @@ lineShiftY _ _ Top = 0
 
 data TextCommand = TextCommand {
                  text :: String,
-                 pos :: V3,
                  fontSize :: Scalar,
                  align :: XAlign,
                  valign :: YAlign,
                  color :: Color,
                  leftBump :: Scalar } deriving Show
+
+data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
 
 fontGlyphs :: Real a => String -> Font a -> [Glyph a]
 fontGlyphs text (Font _ chartable _) = catMaybes $ map (\x -> HashMap.lookup x chartable) idents
@@ -95,8 +96,8 @@ displayWidth kerningtable glyphs = fst $ foldl accum (0,Null) glyphs
           accum (width,prev) g@(Control _) = (width,g)
           accum (width,prev) g@(Null) = (width,g)
 
-transformTextCommandToVerts :: Real a => TextCommand -> Font a -> [[Float]]
-transformTextCommandToVerts (TextCommand text (Vector3 x y z) fontSize align valign color commandBump) 
+transformTextCommandToVerts :: Real a => PositionedTextCommand -> Font a -> [[Float]]
+transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand text fontSize align valign color commandBump) )
                             font@(Font FontInfo { lineHeight } chartable kerningtable) = 
         let fsize = fontSize / 12
             glyphs = fontGlyphs text font
@@ -126,9 +127,9 @@ transformTextCommandToVerts (TextCommand text (Vector3 x y z) fontSize align val
             (_, vert_result, _) = foldl accum (xoffset, [], (vunpack color)) glyphs
             in map (map realToFrac) vert_result
 
-transformTextCommandsToVerts :: Real a => [TextCommand] -> Font a -> [[Float]]
+transformTextCommandsToVerts :: Real a => [PositionedTextCommand] -> Font a -> [[Float]]
 transformTextCommandsToVerts commands font = foldl processCommand [] commands
-    where processCommand :: [[Float]] -> TextCommand -> [[Float]]
+    where processCommand :: [[Float]] -> PositionedTextCommand -> [[Float]]
           processCommand verts command = (transformTextCommandToVerts command font) ++ verts
 
                     {- Embedded textures

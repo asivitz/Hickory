@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawText (SysData(..), make, empty, drawText, textcommand, reservePrinter, releasePrinter) where
+module Systems.DrawText (SysData(..), make, empty, drawText, PrinterID, PositionedTextCommand(..), textcommand, reservePrinter, releasePrinter) where
 import Control.Monad.State
 
 import Engine.System
@@ -23,9 +23,11 @@ import qualified Systems.Draw as Draw
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.Text.IO as TextIO
 
+type PrinterID = Int
+
 data SysData = SysData { 
-             printerids :: RefStore String Int,
-             printerpairs :: [(Printer Int, [(Label, [TextCommand])])],
+             printerids :: RefStore String PrinterID,
+             printerpairs :: [(Printer Int, [(Label, [PositionedTextCommand])])],
              perVertColorShader :: Maybe Shader
              }
 
@@ -33,7 +35,7 @@ data Printer a = Printer (Font a) TexID VAOConfig
 
 empty = SysData { printerids = emptyRefStore, printerpairs = [], perVertColorShader = Nothing }
 
-reservePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe Int)
+reservePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe PrinterID)
 reservePrinter drawtext texes name = do
         SysData { printerids } <- getSysData drawtext
         (newprinterids, pid) <- reserve printerids name (loadPrinterID drawtext texes)
@@ -61,7 +63,7 @@ createPrinterVAOConfig shader = do
         config' <- indexVAOConfig vaoConfig
         return config'
 
-loadPrinterID :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe Int)
+loadPrinterID :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe PrinterID)
 loadPrinterID drawtext texes name = do
         sd@SysData { printerpairs, perVertColorShader } <- getSysData drawtext
         case perVertColorShader of
@@ -101,7 +103,7 @@ modIndex [] _ _ = []
 modIndex (x:xs) 0 f = f x : xs
 modIndex (x:xs) i f = x : modIndex xs (i - 1) f
 
-unloadPrinter :: IORef SysData -> IORef Textures.SysData -> String -> Int -> SysMonad IO ()
+unloadPrinter :: IORef SysData -> IORef Textures.SysData -> String -> PrinterID -> SysMonad IO ()
 unloadPrinter dt texes path pid = do
         Textures.releaseTex texes path
         sd@SysData { printerpairs } <- getSysData dt
@@ -114,7 +116,7 @@ appendToAL (x@(k, vals):xs) key val
         | k == key = ((k, val:vals):xs)
         | otherwise = (x:(appendToAL xs key val))
 
-drawText :: IORef SysData -> Int -> Label -> TextCommand -> SysMonad IO ()
+drawText :: IORef SysData -> PrinterID -> Label -> PositionedTextCommand -> SysMonad IO ()
 drawText dt pid label command = do
         sd@SysData { printerpairs } <- getSysData dt
         let printerpairs' = modIndex printerpairs pid (\(printer, labellst) -> (printer, appendToAL labellst label command))
@@ -123,7 +125,6 @@ drawText dt pid label command = do
 textcommand :: TextCommand
 textcommand = TextCommand { 
                           text = "",
-                          pos = pZero,
                           fontSize = 4,
                           align = AlignCenter,
                           valign = Middle,
@@ -146,7 +147,7 @@ renderTextCommands shader printerPairs =
             printCommands shader label printer commands) labellst)
             printerPairs
 
-printCommands :: Real a => Shader -> Label -> Printer a -> [TextCommand] -> IO ()
+printCommands :: Real a => Shader -> Label -> Printer a -> [PositionedTextCommand] -> IO ()
 printCommands _ _ _ [] = return ()
 printCommands shader label (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
         let squarelists = transformTextCommandsToVerts commands font
