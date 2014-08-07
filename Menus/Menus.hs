@@ -19,11 +19,11 @@ type MenuResourceNames = ([String], [String], [(String, String)])
 
 type UIRender a = [(RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand a)]
 
-data MenuRenderSpec a = MenuRenderSpec MenuResourceNames (MenuResources -> Double -> UIRender a)
+data MenuRenderSpec a = MenuRenderSpec MenuResourceNames (MenuResources -> Double -> Bool -> UIRender a)
 
 data UIElement a = UIElement (Maybe (Button a)) (MenuRenderSpec a)
 
-data ResolvedUIElement a = ResolvedUIElement (Maybe (Button a)) (Double -> UIRender a)
+data ResolvedUIElement a = ResolvedUIElement (Maybe (Button a)) (Double -> Bool -> UIRender a)
 
 data MenuScreen a = MenuScreen [UIElement a] Scalar
 

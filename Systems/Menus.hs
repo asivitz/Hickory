@@ -72,20 +72,21 @@ menuRender dt (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = 
 
 menuRender dt screenSize pos (TextMenuDrawCommand pid tc) = DrawText.drawText dt pid uiLabel (PositionedTextCommand pos tc)
 
-drawElements :: Real a => IORef DrawText.SysData -> Size a -> [ResolvedUIElement Scalar] -> Double -> SysMonad IO ()
-drawElements dt screenSize elements fraction = mapM_ (\(ResolvedUIElement _ renderfunc) -> 
-    mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) (renderfunc fraction))
+drawElements :: Real a => IORef DrawText.SysData -> Size a -> [ResolvedUIElement Scalar] -> Double -> Bool -> SysMonad IO ()
+drawElements dt screenSize elements fraction incoming = mapM_ (\(ResolvedUIElement _ renderfunc) -> 
+    mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) (renderfunc fraction incoming))
         elements
 
 drawMenus :: Real a => SysData -> IORef DrawText.SysData -> Size a -> SysMonad IO ()
 drawMenus sd@(SysData navstack time leaving) dt screenSize = do
         whenMaybe (incomingScreen sd) $ \(ResolvedMenuScreen incEles duration) -> do
             let fraction = time / duration
+                pushing = isNothing leaving
             when (fraction < 1) $ do
                 let leavScreen = leavingScreen sd
-                whenMaybe leavScreen $ \(ResolvedMenuScreen eles _) -> drawElements dt screenSize eles (1 - fraction)
+                whenMaybe leavScreen $ \(ResolvedMenuScreen eles _) -> drawElements dt screenSize eles (1 - fraction) pushing
 
-            drawElements dt screenSize incEles (min 1 fraction)
+            drawElements dt screenSize incEles (min 1 fraction) (not pushing)
 
 run menus draw dt delta = do
         SysData navstack time leaving <- getSysData menus
