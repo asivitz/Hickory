@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Systems.Simple (empty, make, SysData) where
@@ -13,14 +12,18 @@ import Types.Types
 import Types.Color
 import Utils.Utils
 import Math.Vector
+import Math.VectorMatrix
 
 import Graphics.DrawText
 import Graphics.Drawing
+import Menus.Menus
+import Menus.Construction
 import qualified Systems.Textures as Textures
 import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
+import qualified Systems.Menus as Menus
 
-make simple texes dt draw = System (run simple dt draw) (handleEv simple draw) (initS simple dt texes draw)
+make simple texes dt draw menus = System (run simple dt draw) (handleEv simple draw) (initS simple dt texes draw menus)
 
 starTex = "filled_star.png"
 
@@ -47,15 +50,13 @@ spawnEnt pos simple draw = do
            e <- spawnEntity
            addComp e $ DrawState pos
            addComp e $ NewtonianMover (v3 1 0 0) (v3 0 0 0)
-           addComp e $ Square (Size 1 1) (rgb 0.3 0.6 0.8) tid vanilla
+           addComp e $ Drawable $ Square (Size 1 1) (rgb 0.3 0.6 0.8) tid vanilla
        _ -> return ()
 
 run simple dt draw delta =
       do
-          SysData { printer } <- getSysData simple
-          Draw.SysData { Draw.screenSize } <- getSysData draw
-          whenMaybe printer $ \p ->
-            DrawText.drawText dt p uiLabel DrawText.textcommand { text = "Hello World!", fontSize = 6, pos = (screenPos screenSize SMiddle SCenter), color = white }
+          {-SysData { printer } <- getSysData simple-}
+          {-Draw.SysData { Draw.screenSize } <- getSysData draw-}
           return ()
 
         {-
@@ -68,8 +69,9 @@ run simple dt draw delta =
                     liftIO $ setTCCommand dc (fromList [0, 0, 0.1, 1.0]) 
                     -}
 
+font = "goudy_bookletter_1911"
 
-initS simple dt texes draw = do
+initS simple dt texes draw menus = do
         tid <- Textures.reserveTex texes starTex
         {-bgtid <- Textures.reserveTex texes "bg.png"-}
 
@@ -79,10 +81,28 @@ initS simple dt texes draw = do
                          Just p -> liftIO $ createVAOConfig p [(VertexGroup [(Attachment sp_ATTR_POSITION 2)])] >>= return . Just
                          -}
 
-        pid <- DrawText.reservePrinter dt texes "goudy_bookletter_1911"
+        pid <- DrawText.reservePrinter dt texes font
         nilla <- Draw.reserveShader draw ("Shader.vsh", "Shader.fsh")
         putSysData simple SysData { texid = tid, printer = pid, vanilla = nilla }
+        Menus.pushScreen menus draw texes dt mainMenu
 
 data SysData = SysData { texid :: Maybe TexID, printer :: Maybe Int, vanilla :: Maybe Shader } deriving (Show)
 
 empty = SysData Nothing Nothing Nothing
+
+mainMenu :: MenuScreen Scalar
+mainMenu = MenuScreen [simpleMenuButton 0 "Start" (PushScreen subMenu),
+                      simpleMenuButton 1 "Next" RefreshScreen,
+                      simpleMenuButton 2 "Then" RefreshScreen
+                      ]
+                      0.5
+
+subMenu = MenuScreen [simpleMenuButton 0 "Back" PopScreen] 0.5
+
+simpleMenuButton :: Int -> String -> ScreenAction Scalar -> UIElement Scalar
+simpleMenuButton idx txt action = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (Nothing, Just action))) $ 
+    MenuRenderSpec ([], [font], []) $ \(MenuResources _ [pid] _) ->
+        \fraction incoming ->
+            let frac' = constrainInterval fraction idx in
+            [(beg (40 * (realToFrac (1 + idx))), center 0, 
+                TextMenuDrawCommand pid DrawText.textcommand { text = txt, fontSize = 6, color = rgba 1 1 1 frac' })]
