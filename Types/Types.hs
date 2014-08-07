@@ -39,7 +39,7 @@ data Rect = Rect V2 (Size Scalar) deriving (Show)
 
 data RelativeRect a b = RRect (RelativePos a b, RelativePos a b) (RelativePos a b, RelativePos a b)
 
-transformRect :: Real b => RelativeRect Scalar b -> Size b -> Rect
+transformRect :: (Real b, Real a) => RelativeRect Scalar b -> Size a -> Rect
 transformRect (RRect (rx, ry) (rw, rh)) (Size w h) =
         Rect (v2 (transform rx w) (transform ry h)) (Size (transform rw w) (transform rh h))
 
@@ -49,7 +49,7 @@ posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
 
 data RelativePos a b = RPos a b
 
-transform :: (Fractional a, Real b) => RelativePos a b -> b -> a
+transform :: (Fractional a, Real b, Real c) => RelativePos a b -> c -> a
 transform (RPos fract offset) val = fract * (realToFrac val) + (realToFrac offset)
 
 beg :: Num b => a -> RelativePos b a
@@ -59,5 +59,5 @@ end a = RPos 1 (negate a)
 center :: Fractional b => a -> RelativePos b a
 center a = RPos 0.5 a
 
-screenPos :: (Real a) => Size a -> RelativePos Scalar a -> RelativePos Scalar a -> V3
+screenPos :: (Real a, Real b) => Size a -> RelativePos Scalar b -> RelativePos Scalar b -> V3
 screenPos (Size w h) yl xl = v3 (transform xl w) (transform yl h) 0
