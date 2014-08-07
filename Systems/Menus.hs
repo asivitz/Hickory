@@ -4,7 +4,6 @@ module Systems.Menus where
 
 import Menus.Menus
 
-import Math.Vector
 import Types.Types
 import Engine.Event
 import Engine.System
@@ -13,7 +12,6 @@ import Utils.Utils
 
 import Graphics.Drawing
 import Graphics.DrawText
-import Graphics.GLUtils
 
 import Control.Monad.State
 import Data.Maybe
@@ -37,7 +35,7 @@ menuRender dt (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = 
 
 menuRender dt screenSize pos (TextMenuDrawCommand pid tc) = DrawText.drawText dt pid uiLabel (PositionedTextCommand pos tc)
 
-handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes dt scr
+handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes dt scr 
 handleAction menus draw texes dt RefreshScreen = return ()
 handleAction menus draw texes dt PopScreen = popScreen menus
 
@@ -46,28 +44,29 @@ handleEv menus draw texes dt event =
             (InputTouchUp pos touchid) -> do
                 SysData navstack <- getSysData menus
                 Draw.SysData { Draw.screenSize } <- getSysData draw
-                mapM_ (\(ResolvedMenuScreen elements duration) -> 
-                    mapM_ (\(ResolvedUIElement but _) -> 
-                            case but of
-                                Just (Button rrect (mevent, maction)) -> do
-                                    when (posInRect pos (transformRect rrect screenSize)) $ do
-                                        whenMaybe mevent $ \e -> broadcast e
-                                        whenMaybe maction $ \a -> handleAction menus draw texes dt a
-                                Nothing -> return ()
+
+                whenMaybe (listToMaybe navstack) $
+                    (\(ResolvedMenuScreen elements duration) -> 
+                        mapM_ (\(ResolvedUIElement but _) -> 
+                                case but of
+                                    Just (Button rrect (mevent, maction)) -> do
+                                        when (posInRect pos (transformRect rrect screenSize)) $ do
+                                            whenMaybe mevent $ \e -> broadcast e
+                                            whenMaybe maction $ \a -> handleAction menus draw texes dt a
+                                    Nothing -> return ()
+                            )
+                            elements
                         )
-                        elements
-                    )
-                    navstack
             _ -> return ()
 
 run menus draw dt delta = do
         SysData navstack <- getSysData menus
         Draw.SysData { Draw.screenSize } <- getSysData draw
-        mapM_ (\(ResolvedMenuScreen elements duration) -> 
-            mapM_ (\(ResolvedUIElement _ uirender) -> 
-                mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) uirender)
-                elements)
-            navstack
+        whenMaybe (listToMaybe navstack) $
+            (\(ResolvedMenuScreen elements duration) -> 
+                mapM_ (\(ResolvedUIElement _ uirender) -> 
+                    mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) uirender)
+                    elements)
 
 resolveUIElement :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> UIElement -> SysMonad IO (Maybe ResolvedUIElement)
 resolveUIElement draw texes dt (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
@@ -96,4 +95,4 @@ popScreen menus = do
         SysData navstack <- getSysData menus
         case navstack of
             (x:xs) -> putSysData menus (SysData xs)
-            _ -> return ()
+            _ -> liftIO $ print "Can't pop menu navstack." >> return ()
