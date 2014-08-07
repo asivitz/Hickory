@@ -21,9 +21,9 @@ import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
 import qualified Systems.Textures as Textures
 
-data SysData = SysData [ResolvedMenuScreen]
+data SysData = SysData [ResolvedMenuScreen] Double (Maybe ResolvedMenuScreen)
 
-empty = SysData []
+empty = SysData [] 0 Nothing
 
 make menus draw texes dt = System (run menus draw dt) (handleEv menus draw texes dt) nullInit
 
@@ -42,31 +42,55 @@ handleAction menus draw texes dt PopScreen = popScreen menus
 handleEv menus draw texes dt event =
         case event of
             (InputTouchUp pos touchid) -> do
-                SysData navstack <- getSysData menus
-                Draw.SysData { Draw.screenSize } <- getSysData draw
-
-                whenMaybe (listToMaybe navstack) $
-                    (\(ResolvedMenuScreen elements duration) -> 
-                        mapM_ (\(ResolvedUIElement but _) -> 
-                                case but of
-                                    Just (Button rrect (mevent, maction)) -> do
-                                        when (posInRect pos (transformRect rrect screenSize)) $ do
-                                            whenMaybe mevent $ \e -> broadcast e
-                                            whenMaybe maction $ \a -> handleAction menus draw texes dt a
-                                    Nothing -> return ()
-                            )
-                            elements
-                        )
+                SysData navstack time leaving <- getSysData menus
+                whenMaybe (listToMaybe navstack) $ \(ResolvedMenuScreen elements duration) -> 
+                    when (time > duration) $
+                        handleScreenClick menus draw texes dt pos elements
             _ -> return ()
 
-run menus draw dt delta = do
-        SysData navstack <- getSysData menus
+drawElements dt screenSize elements = mapM_ (\(ResolvedUIElement _ uirender) -> 
+    mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) uirender)
+        elements
+
+handleScreenClick menus draw texes dt pos elements = do
         Draw.SysData { Draw.screenSize } <- getSysData draw
-        whenMaybe (listToMaybe navstack) $
-            (\(ResolvedMenuScreen elements duration) -> 
-                mapM_ (\(ResolvedUIElement _ uirender) -> 
-                    mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) uirender)
-                    elements)
+        mapM_ (\(ResolvedUIElement but _) -> 
+                case but of
+                    Just (Button rrect (mevent, maction)) -> do
+                        when (posInRect pos (transformRect rrect screenSize)) $ do
+                            whenMaybe mevent $ \e -> broadcast e
+                            whenMaybe maction $ \a -> handleAction menus draw texes dt a
+                    Nothing -> return ()
+            )
+            elements
+
+incomingScreen :: SysData -> Maybe ResolvedMenuScreen
+incomingScreen (SysData [] _ _) = Nothing
+incomingScreen (SysData (x:_) _ _) = Just x
+
+leavingScreen :: SysData -> Maybe ResolvedMenuScreen
+leavingScreen (SysData _ _ (Just x)) = Just x
+leavingScreen (SysData (x:y:_) _ Nothing) = Just y
+leavingScreen (SysData _ _ _) = Nothing
+
+drawMenus sd@(SysData navstack time leaving) dt screenSize = do
+        whenMaybe (incomingScreen sd) $ \(ResolvedMenuScreen incEles duration) -> do
+            let fraction = time / duration
+            when (fraction < 1) $ do
+                let leavScreen = leavingScreen sd
+                whenMaybe leavScreen $ \(ResolvedMenuScreen eles _) -> drawElements dt screenSize eles
+
+            drawElements dt screenSize incEles
+
+run menus draw dt delta = do
+        SysData navstack time leaving <- getSysData menus
+        let sd' = SysData navstack (time + delta) leaving
+        putSysData menus sd'
+
+        Draw.SysData { Draw.screenSize } <- getSysData draw
+        drawMenus sd' dt screenSize
+
+
 
 resolveUIElement :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> UIElement -> SysMonad IO (Maybe ResolvedUIElement)
 resolveUIElement draw texes dt (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
@@ -87,12 +111,12 @@ resolveScreen draw texes dt (MenuScreen eles dur) = do
                                                        return $ ResolvedMenuScreen (catMaybes res_eles) dur
 
 pushScreen menus draw texes dt screen = do
-        SysData navstack <- getSysData menus
+        SysData navstack time leaving <- getSysData menus
         screen' <- (resolveScreen draw texes dt) screen
-        putSysData menus (SysData (screen':navstack))
+        putSysData menus (SysData (screen':navstack) 0 Nothing)
 
 popScreen menus = do
-        SysData navstack <- getSysData menus
+        SysData navstack time _ <- getSysData menus
         case navstack of
-            (x:xs) -> putSysData menus (SysData xs)
+            (x:xs) -> putSysData menus (SysData xs 0 (Just x))
             _ -> liftIO $ print "Can't pop menu navstack." >> return ()
