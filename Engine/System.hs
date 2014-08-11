@@ -37,6 +37,11 @@ putRPC rpc = do
         (w, _) <- get
         put (w, rpc)
 
+registerRPC :: Monad m => (RPC -> RPC) -> SysMonad m ()
+registerRPC f = do
+        rpc <- getRPC
+        putRPC (f rpc)
+
 spawnEntity :: Monad m => SysMonad m Entity
 spawnEntity = do
       (w, rpc) <- get

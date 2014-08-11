@@ -24,6 +24,11 @@ initS fps = do
         rpc@RPC { printAll = pa } <- getRPC
         putRPC rpc { printAll = (printAll' fps) : pa }
 
+initS fps = do
+        registerRPC $ \rpc@RPC { printAll = pa } -> rpc { printAll = (printAll' fps) : pa }
+        {-rpc@RPC { printAll = pa } <- getRPC-}
+        {-putRPC rpc { printAll = (printAll' fps) : pa }-}
+
 printAll' fps = do
       mydata <- getSysData fps
       liftIO $ print mydata

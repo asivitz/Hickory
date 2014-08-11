@@ -31,8 +31,7 @@ empty = SysData { textures = emptyRefStore }
 make textures = System run (initS textures)
 
 initS textures = do
-        rpc <- getRPC
-        putRPC rpc { reserveTex = reserveTex' textures }
+        registerRPC $ \rpc -> rpc { reserveTex = reserveTex' textures }
 
 loadTexture :: String -> IO (Maybe TexID)
 loadTexture path = do
