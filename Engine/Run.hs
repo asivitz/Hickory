@@ -20,27 +20,27 @@ governFPS initialTime = do
       threadDelay $ floor (millisecondsEarly * 1000)
       -}
 
-simulate :: World -> [System] -> EventStore -> Double -> IO (World, EventStore)
-simulate world systems events delta = do
-      (newWorld, newEvents) <- execStateT (mapM_ (\s -> (runSys s) delta) systems) (world, emptyEventStore)
-      (newWorld', newEvents') <- execStateT (mapM_ (handleEvents events) systems) (newWorld, newEvents)
+simulate :: World -> [System] -> EventStore -> RPC -> Double -> IO (World, EventStore)
+simulate world systems events rpc delta = do
+      (newWorld, _, newEvents) <- execStateT (mapM_ (\s -> (runSys s) delta) systems) (world, rpc, emptyEventStore)
+      (newWorld', _, newEvents') <- execStateT (mapM_ (handleEvents events) systems) (newWorld, rpc, newEvents)
       return (newWorld', newEvents')
 
-iter :: World -> [System] -> EventStore -> UTCTime -> IO ()
-iter !world !systems !events !prev_time = do
+iter :: World -> [System] -> EventStore -> RPC -> UTCTime -> IO ()
+iter !world !systems !events !rpc !prev_time = do
       current_time <- getCurrentTime
       let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-      (newWorld, newEvents) <- simulate world systems events delta
+      (newWorld, newEvents) <- simulate world systems events rpc delta
 
       {-governFPS current_time-}
 
       unless (any (\e -> case e of Quit -> True; _ -> False) newEvents) $ 
-        iter newWorld systems newEvents current_time
+        iter newWorld systems newEvents rpc current_time
 
-run :: [System] -> IO ()
-run systems = do
+run :: [System] -> RPC -> IO ()
+run systems rpc = do
         ct <- getCurrentTime
 
-        (w, es) <- execStateT (mapM_ initSys systems) (emptyWorld, emptyEventStore)
-        iter w systems es ct
+        (w, _, es) <- execStateT (mapM_ initSys systems) (emptyWorld, rpc, emptyEventStore)
+        iter w systems es rpc ct

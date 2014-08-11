@@ -31,26 +31,31 @@ handleEvents es system = mapM_ (handleEvent system) es
 
 broadcast :: (Monad m) => Event -> SysMonad m ()
 broadcast e = do
-      (w, es) <- get
+      (w, rpc, es) <- get
       let es' = addToEventStore es e
-      put (w, es')
+      put (w, rpc, es')
 
 getWorld :: Monad m => SysMonad m World
 getWorld = do
-      (w, _) <- get
+      (w, _, _) <- get
       return w
+
+getRPC :: Monad m => SysMonad m RPC
+getRPC = do
+        (_, rpc, _) <- get
+        return rpc
 
 spawnEntity :: Monad m => SysMonad m Entity
 spawnEntity = do
-      (w, es) <- get
+      (w, rpc, es) <- get
       let (e, w') = addNewEntity w
-      put (w', es)
+      put (w', rpc, es)
       return e
 
 putComponentStore :: Monad m => ComponentStore -> SysMonad m ()
 putComponentStore cs' = do
-      ((World ens cs), es) <- get
-      put ((World ens cs'), es)
+      ((World ens cs), rpc, es) <- get
+      put ((World ens cs'), rpc, es)
 
 upComps :: (Component c, Monad m) => (c -> c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad m ()
 upComps f g = do

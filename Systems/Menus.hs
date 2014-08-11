@@ -33,13 +33,23 @@ handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes 
 handleAction menus draw texes dt RefreshScreen = return ()
 handleAction menus draw texes dt PopScreen = popScreen menus
 
+register menus draw texes dt rpc@RPC { inputTouchUp = itu } = rpc { inputTouchUp = (inputTouchUp' menus draw texes dt) : itu }
+
+inputTouchUp' menus draw texes dt pos touchid = do
+        SysData navstack time leaving <- getSysData menus
+        whenMaybe (listToMaybe navstack) $ \(ResolvedMenuScreen elements duration) -> 
+            when (time > duration) $
+                handleScreenClick menus draw texes dt pos elements
+
 handleEv menus draw texes dt event =
         case event of
+            {-
             (InputTouchUp pos touchid) -> do
                 SysData navstack time leaving <- getSysData menus
                 whenMaybe (listToMaybe navstack) $ \(ResolvedMenuScreen elements duration) -> 
                     when (time > duration) $
                         handleScreenClick menus draw texes dt pos elements
+                        -}
             _ -> return ()
 
 handleScreenClick menus draw texes dt pos elements = do
