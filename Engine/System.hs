@@ -32,6 +32,11 @@ getRPC = do
         (_, rpc) <- get
         return rpc
 
+putRPC :: Monad m => RPC -> SysMonad m ()
+putRPC rpc = do
+        (w, _) <- get
+        put (w, rpc)
+
 spawnEntity :: Monad m => SysMonad m Entity
 spawnEntity = do
       (w, rpc) <- get
@@ -41,7 +46,7 @@ spawnEntity = do
 
 putComponentStore :: Monad m => ComponentStore -> SysMonad m ()
 putComponentStore cs' = do
-      ((World ens cs), rpc) <- get
+      ((World ens _), rpc) <- get
       put ((World ens cs'), rpc)
 
 upComps :: (Component c, Monad m) => (c -> c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad m ()

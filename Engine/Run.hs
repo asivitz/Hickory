@@ -42,9 +42,9 @@ iter !world !systems !platform !rpc !prev_time = do
         when running $
             iter newWorld systems platform rpc current_time
 
-run :: [System] -> IORef Platform.SysData -> RPC -> IO ()
-run systems platform rpc = do
+run :: [System] -> IORef Platform.SysData -> IO ()
+run systems platform = do
         ct <- getCurrentTime
 
-        (w, _) <- execStateT (mapM_ initSys systems) (emptyWorld, rpc)
-        iter w systems platform rpc ct
+        (w, rpc') <- execStateT (mapM_ initSys systems) (emptyWorld, emptyRPC)
+        iter w systems platform rpc' ct

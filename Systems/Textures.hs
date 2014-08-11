@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Textures (SysData(..), empty, make, register, releaseTex) where
+module Systems.Textures (SysData(..), empty, make, releaseTex) where
 
 import Engine.System
 import Engine.Event
@@ -28,7 +28,11 @@ data SysData = SysData {
 empty :: SysData
 empty = SysData { textures = emptyRefStore }
 
-make textures = System run nullInit
+make textures = System run (initS textures)
+
+initS textures = do
+        rpc <- getRPC
+        putRPC rpc { reserveTex = reserveTex' textures }
 
 loadTexture :: String -> IO (Maybe TexID)
 loadTexture path = do
@@ -67,8 +71,6 @@ resourcePath = do
 
 deleteTexture :: TexID -> IO ()
 deleteTexture texid = return ()
-
-register texes rpc = rpc { reserveTex = reserveTex' texes }
 
 reserveTex' :: IORef SysData -> String -> SysMonad IO (Maybe TexID)
 reserveTex' texes path = do

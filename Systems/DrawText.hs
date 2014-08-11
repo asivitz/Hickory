@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawText (SysData(..), make, empty, drawText, PositionedTextCommand(..), textcommand, register, releasePrinter) where
+module Systems.DrawText (SysData(..), make, empty, drawText, PositionedTextCommand(..), textcommand, releasePrinter) where
 import Control.Monad.State
 
 import Engine.System
@@ -32,8 +32,6 @@ data Printer a = Printer (Font a) TexID VAOConfig
 
 empty = SysData { printerids = emptyRefStore, printerpairs = [], perVertColorShader = Nothing }
 
-register dt texes rpc = rpc { reservePrinter = reservePrinter' dt texes }
-
 reservePrinter' :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe PrinterID)
 reservePrinter' drawtext texes name = do
         SysData { printerids } <- getSysData drawtext
@@ -51,7 +49,7 @@ releasePrinter drawtext texes name = do
 
 {-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
 
-make drawtext draw = System (run drawtext) (initS drawtext draw)
+make drawtext texes draw = System (run drawtext) (initS drawtext texes draw)
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do
@@ -137,7 +135,9 @@ run drawtext delta = do
             liftIO $ renderTextCommands pvc printerpairs
         putSysData drawtext sd { printerpairs = map (\(printer, tcoms) -> (printer, [])) printerpairs }
 
-initS drawtext draw = do
+initS drawtext texes draw = do
+        rpc <- getRPC
+        putRPC rpc { reservePrinter = reservePrinter' drawtext texes }
         sd <- getSysData drawtext
         shader <- Draw.reserveShader draw ("perVertColor.vsh", "perVertColor.fsh")
         putSysData drawtext sd { perVertColorShader = shader }

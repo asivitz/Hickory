@@ -13,6 +13,8 @@ empty = SysData { running = True }
 
 quit' platform = putSysData platform SysData { running = False }
 
-register platform rpc@RPC { quit = q } = rpc { quit = (quit' platform) : q }
+make platform = System nullRun (initS platform)
 
-make platform = System nullRun nullInit
+initS platform = do
+        rpc@RPC { quit = q } <- getRPC
+        putRPC rpc { quit = (quit' platform) : q }

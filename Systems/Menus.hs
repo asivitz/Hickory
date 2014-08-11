@@ -26,14 +26,18 @@ data SysData = SysData [ResolvedMenuScreen Scalar] Double (Maybe (ResolvedMenuSc
 
 empty = SysData [] 0 Nothing
 
-make menus draw texes dt = System (run menus draw dt) nullInit
+make menus draw texes dt = System (run menus draw dt) (initS menus draw texes dt)
 
 
 handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes dt scr 
 handleAction menus draw texes dt RefreshScreen = return ()
 handleAction menus draw texes dt PopScreen = popScreen menus
 
-register menus draw texes dt rpc@RPC { inputTouchUp = itu } = rpc { inputTouchUp = (inputTouchUp' menus draw texes dt) : itu }
+initS menus draw texes dt = do
+        rpc@RPC { inputTouchUp = itu } <- getRPC
+        putRPC rpc { 
+                   inputTouchUp = (inputTouchUp' menus draw texes dt) : itu
+                   }
 
 inputTouchUp' menus draw texes dt pos touchid = do
         SysData navstack time leaving <- getSysData menus

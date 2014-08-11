@@ -26,3 +26,7 @@ whenNothing a f = case a of
 
 justOrM :: Monad m => a -> Maybe a -> m a
 justOrM def val = return $ maybe def id val
+
+applyList :: [a -> a] -> a -> a
+applyList [] arg = arg
+applyList (x:xs) arg = x (applyList xs arg)
