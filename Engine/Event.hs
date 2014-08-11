@@ -11,12 +11,14 @@ import Graphics.DrawText
 data RPC = RPC {
          inputTouchUp :: [V2 -> Int -> SysMonad IO ()],
          inputTouchDown :: [V2 -> Int -> SysMonad IO ()],
+         inputTouchLoc :: [V2 -> Int -> SysMonad IO ()],
          reserveTex :: String -> SysMonad IO (Maybe TexID),
          reservePrinter :: String -> SysMonad IO (Maybe PrinterID)
          }
 
 emptyRPC = RPC { inputTouchUp = [],
                inputTouchDown = [],
+               inputTouchLoc = [],
                reserveTex = \_ -> return Nothing,
                reservePrinter = \_ -> return Nothing
                }
@@ -24,8 +26,8 @@ emptyRPC = RPC { inputTouchUp = [],
 type SysMonad m r = StateT (World, RPC, EventStore) m r
 
 data Event = PrintAll 
-           | SpawnEnt V3
-           | Error String
+           {-| SpawnEnt V3-}
+           {-| Error String-}
            {-| InputTouchDown V2 Int-}
            {-| InputTouchUp V2 Int-}
            | InputTouchLoc V2 Int

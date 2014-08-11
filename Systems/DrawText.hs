@@ -14,7 +14,6 @@ import Data.IORef
 import Graphics.GLUtils
 import Graphics.Drawing
 import Math.Matrix
-import Math.Vector
 
 import Graphics.DrawText
 import qualified Systems.Textures as Textures
