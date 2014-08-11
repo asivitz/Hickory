@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawText (SysData(..), make, empty, drawText, PositionedTextCommand(..), textcommand, reservePrinter, releasePrinter) where
+module Systems.DrawText (SysData(..), make, empty, drawText, PositionedTextCommand(..), textcommand, register, releasePrinter) where
 import Control.Monad.State
 
 import Engine.System
@@ -33,8 +33,10 @@ data Printer a = Printer (Font a) TexID VAOConfig
 
 empty = SysData { printerids = emptyRefStore, printerpairs = [], perVertColorShader = Nothing }
 
-reservePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe PrinterID)
-reservePrinter drawtext texes name = do
+register dt texes rpc = rpc { reservePrinter = reservePrinter' dt texes }
+
+reservePrinter' :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe PrinterID)
+reservePrinter' drawtext texes name = do
         SysData { printerids } <- getSysData drawtext
         (newprinterids, pid) <- reserve printerids name (loadPrinterID drawtext texes)
         whenNothing pid $ liftIO $ print ("Couldn't load printer: " ++ name)
@@ -67,7 +69,7 @@ loadPrinterID drawtext texes name = do
         case perVertColorShader of
             Nothing -> liftIO $ print "Can't load printer: No shader" >> return Nothing
             Just pvcShader -> do
-                mprinter <- loadPrinter texes pvcShader name
+                mprinter <- loadPrinter pvcShader name
                 case mprinter of
                     Nothing -> liftIO $ print "Load printer failed" >> return Nothing
                     Just printer -> do
@@ -75,9 +77,10 @@ loadPrinterID drawtext texes name = do
                         putSysData drawtext sd { printerpairs = printerpairs' }
                         return $ Just $ length printerpairs
 
-loadPrinter :: IORef Textures.SysData -> Shader -> String -> SysMonad IO (Maybe (Printer Int))
-loadPrinter texes shader name = do
-        texid <- Textures.reserveTex texes $ name ++ ".png"
+loadPrinter :: Shader -> String -> SysMonad IO (Maybe (Printer Int))
+loadPrinter shader name = do
+        RPC { reserveTex } <- getRPC
+        texid <- reserveTex $ name ++ ".png"
         case texid of
             Nothing -> return Nothing
             Just tid -> do

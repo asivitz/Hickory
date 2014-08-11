@@ -110,8 +110,9 @@ run menus draw dt delta = do
 
 resolveUIElement :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> UIElement Scalar -> SysMonad IO (Maybe (ResolvedUIElement Scalar))
 resolveUIElement draw texes dt (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
-        tids <- mapM (Textures.reserveTex texes) tidnames
-        pids <- mapM (DrawText.reservePrinter dt texes) printernames
+        RPC { reserveTex, reservePrinter } <- getRPC
+        tids <- mapM reserveTex tidnames
+        pids <- mapM reservePrinter printernames
         shaders <- mapM (Draw.reserveShader draw) shadernames
         
         if any isNothing tids ||

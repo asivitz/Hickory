@@ -29,7 +29,9 @@ broadcastTouchLoc win screenSize touchid = do
       let pos = touchPosToScreenPos screenSize curPos
       broadcast $ InputTouchLoc pos touchid
 
-processInputEv (InputTouchDown pos touchid) = return ()
+processInputEv (InputTouchDown pos touchid) = do
+        RPC { inputTouchDown } <- getRPC
+        mapM_ (\x -> x pos touchid) inputTouchDown
 processInputEv (InputTouchUp pos touchid) = do
         RPC { inputTouchUp } <- getRPC
         mapM_ (\x -> x pos touchid) inputTouchUp
