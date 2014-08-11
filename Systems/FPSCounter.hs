@@ -1,7 +1,6 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.FPSCounter (empty, make, SysData(..)) where
+module Systems.FPSCounter (empty, make, SysData(..), register) where
 import Control.Monad.State
 import Text.Printf
 import System.IO
@@ -12,7 +11,7 @@ import Engine.Event
 
 reportInterval = 5.0 :: Double
 
-make fps = System (run fps) (handleEv fps) nullInit
+make fps = System (run fps) nullHandleEvent nullInit
 
 data SysData = SysData { 
              time :: Double,
@@ -21,12 +20,11 @@ data SysData = SysData {
 
 empty = SysData 0.0 0
 
-handleEv :: IORef SysData -> Event -> SysMonad IO ()
-handleEv fps (PrintAll) = do
+register fps rpc@RPC { printAll = pa } = rpc { printAll = (printAll' fps) : pa }
+
+printAll' fps = do
       mydata <- getSysData fps
       liftIO $ print mydata
-
-handleEv fps _ = return ()
 
 run :: IORef SysData -> Double -> SysMonad IO ()
 run fps delta = 

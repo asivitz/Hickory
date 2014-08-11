@@ -58,7 +58,7 @@ handleScreenClick menus draw texes dt pos elements = do
                 case but of
                     Just (Button rrect (mevent, maction)) -> do
                         when (posInRect pos (transformRect rrect screenSize)) $ do
-                            whenMaybe mevent $ \e -> broadcast e
+                            sequence_ mevent
                             whenMaybe maction $ \a -> handleAction menus draw texes dt a
                     Nothing -> return ()
             )

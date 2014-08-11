@@ -13,25 +13,28 @@ data RPC = RPC {
          inputTouchDown :: [V2 -> Int -> SysMonad IO ()],
          inputTouchLoc :: [V2 -> Int -> SysMonad IO ()],
          reserveTex :: String -> SysMonad IO (Maybe TexID),
-         reservePrinter :: String -> SysMonad IO (Maybe PrinterID)
+         reservePrinter :: String -> SysMonad IO (Maybe PrinterID),
+         printAll :: [SysMonad IO ()]
          }
 
 emptyRPC = RPC { inputTouchUp = [],
                inputTouchDown = [],
                inputTouchLoc = [],
                reserveTex = \_ -> return Nothing,
-               reservePrinter = \_ -> return Nothing
+               reservePrinter = \_ -> return Nothing,
+               printAll = []
                }
 
 type SysMonad m r = StateT (World, RPC, EventStore) m r
 
-data Event = PrintAll 
+data Event = 
+           {-PrintAll -}
            {-| SpawnEnt V3-}
            {-| Error String-}
            {-| InputTouchDown V2 Int-}
            {-| InputTouchUp V2 Int-}
-           | InputTouchLoc V2 Int
-           | Quit
+           {-| InputTouchLoc V2 Int-}
+           Quit
 
 type EventStore = [Event]
 
