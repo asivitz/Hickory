@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Engine.System where
 
@@ -8,6 +9,7 @@ import Engine.Event
 import Engine.Entity
 import Control.Monad.State
 import Data.IORef
+import Control.Lens
 
 import qualified Data.HashMap.Strict as HashMap
 
@@ -41,6 +43,17 @@ registerRPC :: Monad m => (RPC -> RPC) -> SysMonad m ()
 registerRPC f = do
         rpc <- getRPC
         putRPC (f rpc)
+
+
+registerResource :: Monad m => Lens' RPC a -> a -> SysMonad m ()
+registerResource l f = do
+        rpc <- getRPC
+        putRPC (set l f rpc)
+
+registerEvent :: Monad m => Lens' RPC [a] -> a -> SysMonad m ()
+registerEvent l f = do
+        rpc <- getRPC
+        putRPC (over l (f:) rpc)
 
 spawnEntity :: Monad m => SysMonad m Entity
 spawnEntity = do

@@ -16,5 +16,4 @@ quit' platform = putSysData platform SysData { running = False }
 make platform = System nullRun (initS platform)
 
 initS platform = do
-        rpc@RPC { quit = q } <- getRPC
-        putRPC rpc { quit = (quit' platform) : q }
+        registerEvent quit (quit' platform)

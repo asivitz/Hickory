@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Engine.Event where
 
@@ -7,24 +8,28 @@ import Math.Vector
 import Control.Monad.State
 import Graphics.GLUtils
 import Graphics.DrawText
-
-data RPC = RPC {
-         inputTouchUp :: [V2 -> Int -> SysMonad IO ()],
-         inputTouchDown :: [V2 -> Int -> SysMonad IO ()],
-         inputTouchLoc :: [V2 -> Int -> SysMonad IO ()],
-         reserveTex :: String -> SysMonad IO (Maybe TexID),
-         reservePrinter :: String -> SysMonad IO (Maybe PrinterID),
-         printAll :: [SysMonad IO ()],
-         quit :: [SysMonad IO ()]
-         }
-
-emptyRPC = RPC { inputTouchUp = [],
-               inputTouchDown = [],
-               inputTouchLoc = [],
-               reserveTex = \_ -> return Nothing,
-               reservePrinter = \_ -> return Nothing,
-               printAll = [],
-               quit = []
-               }
+import Control.Lens
 
 type SysMonad m r = StateT (World, RPC) m r
+
+data RPC = RPC {
+         _inputTouchUp :: [V2 -> Int -> SysMonad IO ()],
+         _inputTouchDown :: [V2 -> Int -> SysMonad IO ()],
+         _inputTouchLoc :: [V2 -> Int -> SysMonad IO ()],
+         _reserveTex :: String -> SysMonad IO (Maybe TexID),
+         _reservePrinter :: String -> SysMonad IO (Maybe PrinterID),
+         _printAll :: [SysMonad IO ()],
+         _quit :: [SysMonad IO ()]
+         }
+
+makeLenses ''RPC
+
+emptyRPC = RPC { 
+               _inputTouchUp = [],
+               _inputTouchDown = [],
+               _inputTouchLoc = [],
+               _reserveTex = \_ -> return Nothing,
+               _reservePrinter = \_ -> return Nothing,
+               _printAll = [],
+               _quit = []
+               }

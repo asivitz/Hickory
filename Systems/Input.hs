@@ -27,15 +27,15 @@ data SysData = SysData {
 broadcastTouchLoc win screenSize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
         let pos = touchPosToScreenPos screenSize curPos
-        RPC { inputTouchLoc } <- getRPC
-        mapM_ (\x -> x pos touchid) inputTouchLoc
+        RPC { _inputTouchLoc } <- getRPC
+        mapM_ (\x -> x pos touchid) _inputTouchLoc
 
 processInputEv (InputTouchDown pos touchid) = do
-        RPC { inputTouchDown } <- getRPC
-        mapM_ (\x -> x pos touchid) inputTouchDown
+        RPC { _inputTouchDown } <- getRPC
+        mapM_ (\x -> x pos touchid) _inputTouchDown
 processInputEv (InputTouchUp pos touchid) = do
-        RPC { inputTouchUp } <- getRPC
-        mapM_ (\x -> x pos touchid) inputTouchUp
+        RPC { _inputTouchUp } <- getRPC
+        mapM_ (\x -> x pos touchid) _inputTouchUp
 
 run draw input delta = do
       Draw.SysData { Draw.window, Draw.screenSize } <- getSysData draw

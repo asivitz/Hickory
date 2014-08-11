@@ -21,13 +21,7 @@ data SysData = SysData {
 empty = SysData 0.0 0
 
 initS fps = do
-        rpc@RPC { printAll = pa } <- getRPC
-        putRPC rpc { printAll = (printAll' fps) : pa }
-
-initS fps = do
-        registerRPC $ \rpc@RPC { printAll = pa } -> rpc { printAll = (printAll' fps) : pa }
-        {-rpc@RPC { printAll = pa } <- getRPC-}
-        {-putRPC rpc { printAll = (printAll' fps) : pa }-}
+        registerEvent printAll (printAll' fps)
 
 printAll' fps = do
       mydata <- getSysData fps

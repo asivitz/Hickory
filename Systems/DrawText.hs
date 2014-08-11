@@ -76,8 +76,8 @@ loadPrinterID drawtext texes name = do
 
 loadPrinter :: Shader -> String -> SysMonad IO (Maybe (Printer Int))
 loadPrinter shader name = do
-        RPC { reserveTex } <- getRPC
-        texid <- reserveTex $ name ++ ".png"
+        RPC { _reserveTex } <- getRPC
+        texid <- _reserveTex $ name ++ ".png"
         case texid of
             Nothing -> return Nothing
             Just tid -> do
@@ -136,8 +136,7 @@ run drawtext delta = do
         putSysData drawtext sd { printerpairs = map (\(printer, tcoms) -> (printer, [])) printerpairs }
 
 initS drawtext texes draw = do
-        rpc <- getRPC
-        putRPC rpc { reservePrinter = reservePrinter' drawtext texes }
+        registerResource reservePrinter (reservePrinter' drawtext texes)
         sd <- getSysData drawtext
         shader <- Draw.reserveShader draw ("perVertColor.vsh", "perVertColor.fsh")
         putSysData drawtext sd { perVertColorShader = shader }
