@@ -55,7 +55,7 @@ makeDrawData = do
         win <- buildWindow 400 400 "Hi hi!"
         newIORef empty { window = win }
 
-make draw worldcamera uicamera = System (run draw worldcamera uicamera) (handleEv draw) (initS draw)
+make draw worldcamera uicamera = System (run draw worldcamera uicamera) (initS draw)
 
 runDrawable :: Double -> Entity -> Drawable -> SysMonad IO Drawable
 runDrawable delta e dr@(Drawable spec) = do
@@ -71,8 +71,6 @@ drawSpec pos label (Square (Size w h) color tex shader) =
 drawSpec pos label (SolidSquare (Size w h) color shader) = 
       addDrawCommand model color color nullTex shader label 0.0 True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
-
-handleEv draw _ = return ()
 
 renderCommandsWithCamera :: Camera -> Label -> Float -> IO ()
 renderCommandsWithCamera cam label aspect = renderCommands matrix label

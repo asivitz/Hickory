@@ -28,7 +28,7 @@ data SysData = SysData {
 empty :: SysData
 empty = SysData { textures = emptyRefStore }
 
-make textures = System run nullHandleEvent nullInit
+make textures = System run nullInit
 
 loadTexture :: String -> IO (Maybe TexID)
 loadTexture path = do

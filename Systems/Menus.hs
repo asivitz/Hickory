@@ -26,7 +26,7 @@ data SysData = SysData [ResolvedMenuScreen Scalar] Double (Maybe (ResolvedMenuSc
 
 empty = SysData [] 0 Nothing
 
-make menus draw texes dt = System (run menus draw dt) (handleEv menus draw texes dt) nullInit
+make menus draw texes dt = System (run menus draw dt) nullInit
 
 
 handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes dt scr 
@@ -40,17 +40,6 @@ inputTouchUp' menus draw texes dt pos touchid = do
         whenMaybe (listToMaybe navstack) $ \(ResolvedMenuScreen elements duration) -> 
             when (time > duration) $
                 handleScreenClick menus draw texes dt pos elements
-
-handleEv menus draw texes dt event =
-        case event of
-            {-
-            (InputTouchUp pos touchid) -> do
-                SysData navstack time leaving <- getSysData menus
-                whenMaybe (listToMaybe navstack) $ \(ResolvedMenuScreen elements duration) -> 
-                    when (time > duration) $
-                        handleScreenClick menus draw texes dt pos elements
-                        -}
-            _ -> return ()
 
 handleScreenClick menus draw texes dt pos elements = do
         Draw.SysData { Draw.screenSize } <- getSysData draw

@@ -11,7 +11,7 @@ data SysData = SysData {
              camera :: Camera
              }
 
-make camera = System (run camera) nullHandleEvent nullInit
+make camera = System (run camera) nullInit
 empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))
 
 

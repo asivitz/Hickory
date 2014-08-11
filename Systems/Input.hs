@@ -17,7 +17,7 @@ import Control.Monad.State
 
 makeIO draw = do
       sd <- newIORef $ SysData [] empty
-      return $ System (run draw sd) nullHandleEvent (initS draw sd)
+      return $ System (run draw sd) (initS draw sd)
 
 data SysData = SysData { 
              evlist :: [InputEv],

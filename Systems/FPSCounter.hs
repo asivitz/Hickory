@@ -11,7 +11,7 @@ import Engine.Event
 
 reportInterval = 5.0 :: Double
 
-make fps = System (run fps) nullHandleEvent nullInit
+make fps = System (run fps) nullInit
 
 data SysData = SysData { 
              time :: Double,

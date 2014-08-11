@@ -15,4 +15,4 @@ quit' platform = putSysData platform SysData { running = False }
 
 register platform rpc@RPC { quit = q } = rpc { quit = (quit' platform) : q }
 
-make platform = System nullRun nullHandleEvent nullInit
+make platform = System nullRun nullInit

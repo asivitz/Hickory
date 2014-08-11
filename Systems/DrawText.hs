@@ -51,7 +51,7 @@ releasePrinter drawtext texes name = do
 
 {-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
 
-make drawtext draw = System (run drawtext) nullHandleEvent (initS drawtext draw)
+make drawtext draw = System (run drawtext) (initS drawtext draw)
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do

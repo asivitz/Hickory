@@ -13,49 +13,36 @@ import qualified Data.HashMap.Strict as HashMap
 
 data System = System {
       runSys :: Double -> SysMonad IO (),
-      handleEvent :: Event -> SysMonad IO (),
       initSys :: SysMonad IO ()
       }
 
 nullRun :: Double -> SysMonad IO ()
 nullRun _ = return ()
 
-nullHandleEvent :: Event -> SysMonad IO ()
-nullHandleEvent _ = return ()
-
 nullInit :: SysMonad IO ()
 nullInit = return ()
 
-handleEvents :: EventStore -> System -> SysMonad IO ()
-handleEvents es system = mapM_ (handleEvent system) es
-
-broadcast :: (Monad m) => Event -> SysMonad m ()
-broadcast e = do
-      (w, rpc, es) <- get
-      let es' = addToEventStore es e
-      put (w, rpc, es')
-
 getWorld :: Monad m => SysMonad m World
 getWorld = do
-      (w, _, _) <- get
+      (w, _) <- get
       return w
 
 getRPC :: Monad m => SysMonad m RPC
 getRPC = do
-        (_, rpc, _) <- get
+        (_, rpc) <- get
         return rpc
 
 spawnEntity :: Monad m => SysMonad m Entity
 spawnEntity = do
-      (w, rpc, es) <- get
+      (w, rpc) <- get
       let (e, w') = addNewEntity w
-      put (w', rpc, es)
+      put (w', rpc)
       return e
 
 putComponentStore :: Monad m => ComponentStore -> SysMonad m ()
 putComponentStore cs' = do
-      ((World ens cs), rpc, es) <- get
-      put ((World ens cs'), rpc, es)
+      ((World ens cs), rpc) <- get
+      put ((World ens cs'), rpc)
 
 upComps :: (Component c, Monad m) => (c -> c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad m ()
 upComps f g = do

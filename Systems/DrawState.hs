@@ -12,7 +12,7 @@ data SysData = SysData deriving (Show)
 
 empty = SysData
 
-make = System run nullHandleEvent nullInit
+make = System run nullInit
 
 runDS :: Double -> Entity -> DrawState -> SysMonad IO DrawState
 runDS deltad e ds@(DrawState p) = do
