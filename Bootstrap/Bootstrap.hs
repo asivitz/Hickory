@@ -11,6 +11,7 @@ import qualified Systems.DrawText as DrawText
 import qualified Systems.WorldCamera as WorldCamera
 import qualified Systems.UICamera as UICamera
 import qualified Systems.Menus as Menus
+import qualified Systems.Platform as Platform
 
 coreData = do
         draw <- Draw.makeDrawData
@@ -21,6 +22,7 @@ coreData = do
         worldcamera <- newIORef WorldCamera.empty
         uicamera <- newIORef UICamera.empty
         menus <- newIORef Menus.empty
+        platform <- newIORef Platform.empty
 
         let systems = [
                     FPSCounter.make fps,
@@ -31,7 +33,8 @@ coreData = do
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,
                     Draw.make draw worldcamera uicamera,
-                    iosys
+                    iosys,
+                    Platform.make platform
                     ]
 
-        return ((draw, textures, drawtext, worldcamera, uicamera, menus), systems)
+        return ((platform, draw, textures, drawtext, worldcamera, uicamera, menus), systems)
