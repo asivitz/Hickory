@@ -4,13 +4,11 @@ import Engine.Entity
 import Engine.Component
 
 data World = World {
-           entitySet :: EntitySet,
-           componentStore :: ComponentStore
+           entitySet :: EntitySet
            } deriving (Show)
 
 emptyWorld :: World
-emptyWorld = World { entitySet = newEntitySet, 
-                 componentStore = emptyComponentStore
+emptyWorld = World { entitySet = newEntitySet
                  }
 
 addNewEntity :: World -> (Entity, World)

@@ -4,13 +4,16 @@
 module Engine.Event where
 
 import Engine.World
+import Engine.Component
 import Math.Vector
 import Control.Monad.State
 import Graphics.GLUtils
 import Graphics.DrawText
 import Control.Lens
 
-type SysMonad m r = StateT (World, RPC) m r
+data SystemContext = SystemContext ComponentStore RPC
+
+type SysMonad m r = StateT (World, SystemContext) m r
 
 data RPC = RPC {
          _inputTouchUp :: [V2 -> Int -> SysMonad IO ()],
@@ -33,3 +36,6 @@ emptyRPC = RPC {
                _printAll = [],
                _quit = []
                }
+
+
+emptySystemContext = SystemContext emptyComponentStore emptyRPC
