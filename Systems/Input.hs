@@ -3,7 +3,7 @@
 module Systems.Input (makeIO) where
 
 import Engine.System
-import Engine.Event
+import Engine.World
 import Types.Types
 import Utils.Utils
 import Math.Vector

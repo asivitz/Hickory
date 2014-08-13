@@ -3,7 +3,7 @@
 module Systems.Platform where
 
 import Engine.System
-import Engine.Event
+import Engine.World
 
 data SysData = SysData { 
              running :: Bool

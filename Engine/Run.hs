@@ -5,7 +5,6 @@ module Engine.Run where
 
 import Engine.System
 import Engine.World
-import Engine.Event
 import Data.Time
 import Control.Monad.State
 import qualified Systems.Platform as Platform
@@ -23,28 +22,28 @@ governFPS initialTime = do
       threadDelay $ floor (millisecondsEarly * 1000)
       -}
 
-simulate :: World -> [System c] -> (SystemContext c, c) -> Double -> IO (World, (SystemContext c, c))
-simulate world systems c delta = do
-      (newWorld, c') <- execStateT (mapM_ (\s -> (runSys s) delta) systems) (world, c)
-      return (newWorld, c')
+simulate :: World c -> [System c] -> Double -> IO (World c)
+simulate world systems delta = do
+      newWorld <- execStateT (mapM_ (\s -> (runSys s) delta) systems) world
+      return newWorld
 
-iter :: World -> [System c] -> IORef Platform.SysData -> (SystemContext c, c) -> UTCTime -> IO ()
-iter !world !systems !platform !sc !prev_time = do
+iter :: World c -> [System c] -> IORef Platform.SysData -> UTCTime -> IO ()
+iter !world !systems !platform !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-        (newWorld, newContext) <- simulate world systems sc delta
+        newWorld <- simulate world systems delta
 
         {-governFPS current_time-}
 
         Platform.SysData { Platform.running } <- readIORef platform
         
         when running $
-            iter newWorld systems platform newContext current_time
+            iter newWorld systems platform current_time
 
 run :: [System c] -> c -> IORef Platform.SysData -> IO ()
 run systems userContext platform = do
         ct <- getCurrentTime
 
-        (w, sc') <- execStateT (mapM_ initSys systems) (emptyWorld, (emptySystemContext, userContext))
-        iter w systems platform sc' ct
+        w <- execStateT (mapM_ initSys systems) (emptyWorld userContext)
+        iter w systems platform ct

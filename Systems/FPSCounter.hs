@@ -6,7 +6,7 @@ import Text.Printf
 import System.IO
 
 import Engine.System
-import Engine.Event
+import Engine.World
 
 reportInterval = 5.0 :: Double
 

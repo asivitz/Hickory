@@ -4,7 +4,7 @@
 module Systems.Textures (SysData(..), empty, make, releaseTex) where
 
 import Engine.System
-import Engine.Event
+import Engine.World
 import Graphics.GLUtils
 import Control.Monad.State
 import Foreign.C.String

@@ -6,7 +6,7 @@ import Control.Monad.State
 
 import Engine.Entity
 import Engine.System
-import Engine.Event
+import Engine.World
 import Engine.Component
 
 import Types.Types

@@ -1,7 +1,7 @@
 module Menus.Menus where
 
 import Types.Types
-import Engine.Event
+import Engine.World
 import Graphics.Drawing
 import Graphics.GLUtils
 import Graphics.DrawText

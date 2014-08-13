@@ -5,7 +5,6 @@ module Engine.System where
 
 import Engine.Component
 import Engine.World
-import Engine.Event
 import Engine.Entity
 import Control.Monad.State
 import Data.IORef
@@ -24,26 +23,25 @@ nullRun _ = return ()
 nullInit :: SysMonad c IO ()
 nullInit = return ()
 
-getWorld :: Monad m => SysMonad c m World
+getWorld :: Monad m => SysMonad c m (World c)
 getWorld = do
-      (w, _) <- get
+      w <- get
       return w
 
 getRPC :: Monad m => SysMonad c m (RPC c)
 getRPC = do
-        (_, (SystemContext _ rpc, _)) <- get
+        World { systemContext = (SystemContext _ rpc) } <- get
         return rpc
 
 putRPC :: Monad m => (RPC c) -> SysMonad c m ()
 putRPC rpc = do
-        (w, (SystemContext cs _, uc)) <- get
-        put (w, (SystemContext cs rpc, uc))
+        w@World { systemContext = (SystemContext cs _) } <- get
+        put w { systemContext = (SystemContext cs rpc) }
 
 registerRPC :: Monad m => (RPC c -> RPC c) -> SysMonad c m ()
 registerRPC f = do
         rpc <- getRPC
         putRPC (f rpc)
-
 
 registerResource :: Monad m => Lens' (RPC c) a -> a -> SysMonad c m ()
 registerResource l f = do
@@ -57,19 +55,19 @@ registerEvent l f = do
 
 spawnEntity :: Monad m => SysMonad c m Entity
 spawnEntity = do
-      (w, c) <- get
+      w <- get
       let (e, w') = addNewEntity w
-      put (w', c)
+      put w'
       return e
 
 putComponentStore :: Monad m => ComponentStore -> SysMonad c m ()
 putComponentStore cs' = do
-      (w, (SystemContext _ rpc, uc)) <- get
-      put (w, (SystemContext cs' rpc, uc))
+      w@World { systemContext = (SystemContext _ rpc) } <- get
+      put w { systemContext = (SystemContext cs' rpc) }
 
 getComponentStore :: Monad m => SysMonad c m ComponentStore
 getComponentStore = do
-        (_, (SystemContext cs _, _)) <- get
+        World { systemContext = (SystemContext cs _) } <- get
         return cs
 
 upComps :: (Component c, Monad m) => (c -> c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad r m ()

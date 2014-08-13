@@ -5,7 +5,7 @@ module Systems.DrawText (SysData(..), make, empty, drawText, PositionedTextComma
 import Control.Monad.State
 
 import Engine.System
-import Engine.Event
+import Engine.World
 
 import Types.Color
 import Utils.Resources
