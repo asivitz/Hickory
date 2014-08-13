@@ -8,7 +8,7 @@ import Engine.World
 import Engine.Entity
 import Control.Monad.State
 import Data.IORef
-import Control.Lens
+import Control.Lens hiding (Context)
 
 import qualified Data.HashMap.Strict as HashMap
 
@@ -30,13 +30,13 @@ getWorld = do
 
 getRPC :: Monad m => SysMonad c m (RPC c)
 getRPC = do
-        World { systemContext = (SystemContext _ rpc) } <- get
+        World { systemContext = (Context _ rpc) } <- get
         return rpc
 
 putRPC :: Monad m => (RPC c) -> SysMonad c m ()
 putRPC rpc = do
-        w@World { systemContext = (SystemContext cs _) } <- get
-        put w { systemContext = (SystemContext cs rpc) }
+        w@World { systemContext = (Context cs _) } <- get
+        put w { systemContext = (Context cs rpc) }
 
 registerRPC :: Monad m => (RPC c -> RPC c) -> SysMonad c m ()
 registerRPC f = do
@@ -62,12 +62,12 @@ spawnEntity = do
 
 putComponentStore :: Monad m => ComponentStore -> SysMonad c m ()
 putComponentStore cs' = do
-      w@World { systemContext = (SystemContext _ rpc) } <- get
-      put w { systemContext = (SystemContext cs' rpc) }
+      w@World { systemContext = (Context _ rpc) } <- get
+      put w { systemContext = (Context cs' rpc) }
 
 getComponentStore :: Monad m => SysMonad c m ComponentStore
 getComponentStore = do
-        World { systemContext = (SystemContext cs _) } <- get
+        World { systemContext = (Context cs _) } <- get
         return cs
 
 upComps :: (Component c, Monad m) => (c -> c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad r m ()

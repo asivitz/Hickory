@@ -9,7 +9,7 @@ import Math.Vector
 import Control.Monad.State
 import Graphics.GLUtils
 import Graphics.DrawText
-import Control.Lens
+import Control.Lens hiding (Context)
 
 data World c = World {
            entitySet :: EntitySet,
@@ -43,9 +43,14 @@ emptyRPC = RPC {
                _quit = []
                }
 
-data SystemContext c = SystemContext ComponentStore (RPC c) deriving (Show)
+data Context compStore rpc = Context compStore rpc
 
-emptySystemContext = SystemContext emptyComponentStore emptyRPC
+instance Show c => Show (Context c r) where
+        show (Context c r) = "Context -- CompStore: " ++ (show c)
+
+type SystemContext c = Context ComponentStore (RPC c)
+
+emptySystemContext = Context emptyComponentStore emptyRPC
 
 
 emptyWorld :: c -> World c
