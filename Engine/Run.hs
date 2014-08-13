@@ -23,12 +23,12 @@ governFPS initialTime = do
       threadDelay $ floor (millisecondsEarly * 1000)
       -}
 
-simulate :: World -> [System c] -> SystemContext c -> Double -> IO (World, SystemContext c)
-simulate world systems sc delta = do
-      (newWorld, sc') <- execStateT (mapM_ (\s -> (runSys s) delta) systems) (world, sc)
-      return (newWorld, sc')
+simulate :: World -> [System c] -> (SystemContext c, c) -> Double -> IO (World, (SystemContext c, c))
+simulate world systems c delta = do
+      (newWorld, c') <- execStateT (mapM_ (\s -> (runSys s) delta) systems) (world, c)
+      return (newWorld, c')
 
-iter :: World -> [System c] -> IORef Platform.SysData -> SystemContext c -> UTCTime -> IO ()
+iter :: World -> [System c] -> IORef Platform.SysData -> (SystemContext c, c) -> UTCTime -> IO ()
 iter !world !systems !platform !sc !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
@@ -46,5 +46,5 @@ run :: [System c] -> c -> IORef Platform.SysData -> IO ()
 run systems userContext platform = do
         ct <- getCurrentTime
 
-        (w, sc') <- execStateT (mapM_ initSys systems) (emptyWorld, emptySystemContext userContext)
+        (w, sc') <- execStateT (mapM_ initSys systems) (emptyWorld, (emptySystemContext, userContext))
         iter w systems platform sc' ct

@@ -31,13 +31,13 @@ getWorld = do
 
 getRPC :: Monad m => SysMonad c m (RPC c)
 getRPC = do
-        (_, SystemContext _ rpc _) <- get
+        (_, (SystemContext _ rpc, _)) <- get
         return rpc
 
 putRPC :: Monad m => (RPC c) -> SysMonad c m ()
 putRPC rpc = do
-        (w, SystemContext cs _ uc) <- get
-        put (w, SystemContext cs rpc uc)
+        (w, (SystemContext cs _, uc)) <- get
+        put (w, (SystemContext cs rpc, uc))
 
 registerRPC :: Monad m => (RPC c -> RPC c) -> SysMonad c m ()
 registerRPC f = do
@@ -57,19 +57,19 @@ registerEvent l f = do
 
 spawnEntity :: Monad m => SysMonad c m Entity
 spawnEntity = do
-      (w, sc) <- get
+      (w, c) <- get
       let (e, w') = addNewEntity w
-      put (w', sc)
+      put (w', c)
       return e
 
 putComponentStore :: Monad m => ComponentStore -> SysMonad c m ()
 putComponentStore cs' = do
-      (w, SystemContext _ rpc uc) <- get
-      put (w, SystemContext cs' rpc uc)
+      (w, (SystemContext _ rpc, uc)) <- get
+      put (w, (SystemContext cs' rpc, uc))
 
 getComponentStore :: Monad m => SysMonad c m ComponentStore
 getComponentStore = do
-        (_, SystemContext cs _ _) <- get
+        (_, (SystemContext cs _, _)) <- get
         return cs
 
 upComps :: (Component c, Monad m) => (c -> c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad r m ()

@@ -11,9 +11,9 @@ import Graphics.GLUtils
 import Graphics.DrawText
 import Control.Lens
 
-data SystemContext c = SystemContext ComponentStore (RPC c) c
+data SystemContext c = SystemContext ComponentStore (RPC c)
 
-type SysMonad c m r = StateT (World, SystemContext c) m r
+type SysMonad c m r = StateT (World, (SystemContext c, c)) m r
 
 data RPC c = RPC {
          _inputTouchUp :: [V2 -> Int -> SysMonad c IO ()],
@@ -38,4 +38,4 @@ emptyRPC = RPC {
                }
 
 
-emptySystemContext uc = SystemContext emptyComponentStore emptyRPC uc
+emptySystemContext = SystemContext emptyComponentStore emptyRPC
