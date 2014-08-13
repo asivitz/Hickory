@@ -71,7 +71,7 @@ resourcePath = do
 deleteTexture :: TexID -> IO ()
 deleteTexture texid = return ()
 
-reserveTex' :: IORef SysData -> String -> SysMonad IO (Maybe TexID)
+reserveTex' :: IORef SysData -> String -> SysMonad c IO (Maybe TexID)
 reserveTex' texes path = do
    mydata@SysData { textures } <- getSysData texes
    (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
@@ -80,7 +80,7 @@ reserveTex' texes path = do
    putSysData texes mydata { textures = newtexes }
    return texid
 
-releaseTex :: IORef SysData -> String -> SysMonad IO ()
+releaseTex :: IORef SysData -> String -> SysMonad c IO ()
 releaseTex texes path = do
    mydata@SysData { textures } <- getSysData texes
    newtexes <- liftIO $ release textures path deleteTexture

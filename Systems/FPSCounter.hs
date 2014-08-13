@@ -4,7 +4,6 @@ module Systems.FPSCounter (empty, make, SysData(..)) where
 import Control.Monad.State
 import Text.Printf
 import System.IO
-import Data.IORef
 
 import Engine.System
 import Engine.Event
@@ -27,7 +26,6 @@ printAll' fps = do
       mydata <- getSysData fps
       liftIO $ print mydata
 
-run :: IORef SysData -> Double -> SysMonad IO ()
 run fps delta = 
       do
          SysData { time, frames } <- getSysData fps

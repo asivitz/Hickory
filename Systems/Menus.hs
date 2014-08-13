@@ -22,7 +22,7 @@ import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
 import qualified Systems.Textures as Textures
 
-data SysData = SysData [ResolvedMenuScreen Scalar] Double (Maybe (ResolvedMenuScreen Scalar))
+data SysData c = SysData [ResolvedMenuScreen Scalar c] Double (Maybe (ResolvedMenuScreen Scalar c))
 
 empty = SysData [] 0 Nothing
 
@@ -54,16 +54,16 @@ handleScreenClick menus draw texes dt pos elements = do
             )
             elements
 
-incomingScreen :: SysData -> Maybe (ResolvedMenuScreen Scalar)
+incomingScreen :: SysData c -> Maybe (ResolvedMenuScreen Scalar c)
 incomingScreen (SysData [] _ _) = Nothing
 incomingScreen (SysData (x:_) _ _) = Just x
 
-leavingScreen :: SysData -> Maybe (ResolvedMenuScreen Scalar)
+leavingScreen :: SysData c -> Maybe (ResolvedMenuScreen Scalar c)
 leavingScreen (SysData _ _ (Just x)) = Just x
 leavingScreen (SysData (x:y:_) _ Nothing) = Just y
 leavingScreen (SysData _ _ _) = Nothing
 
-menuRender :: Real a => IORef DrawText.SysData -> Size a -> V3 -> MenuDrawCommand Scalar -> SysMonad IO ()
+menuRender :: Real a => IORef DrawText.SysData -> Size a -> V3 -> MenuDrawCommand Scalar -> SysMonad c IO ()
 menuRender dt (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = liftIO $ Draw.drawSpec pos uiLabel spec
     where size = Size (transform rpw w) (transform rph h)
           spec = case mtex of
@@ -72,12 +72,12 @@ menuRender dt (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = 
 
 menuRender dt screenSize pos (TextMenuDrawCommand pid tc) = DrawText.drawText dt pid uiLabel (PositionedTextCommand pos tc)
 
-drawElements :: Real a => IORef DrawText.SysData -> Size a -> [ResolvedUIElement Scalar] -> Double -> Bool -> SysMonad IO ()
+drawElements :: Real a => IORef DrawText.SysData -> Size a -> [ResolvedUIElement Scalar c] -> Double -> Bool -> SysMonad c IO ()
 drawElements dt screenSize elements fraction incoming = mapM_ (\(ResolvedUIElement _ renderfunc) -> 
     mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) (renderfunc fraction incoming))
         elements
 
-drawMenus :: Real a => SysData -> IORef DrawText.SysData -> Size a -> SysMonad IO ()
+drawMenus :: Real a => SysData c -> IORef DrawText.SysData -> Size a -> SysMonad c IO ()
 drawMenus sd@(SysData navstack time leaving) dt screenSize = do
         whenMaybe (incomingScreen sd) $ \(ResolvedMenuScreen incEles duration) -> do
             let fraction = time / duration
@@ -98,7 +98,7 @@ run menus draw dt delta = do
 
 
 
-resolveUIElement :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> UIElement Scalar -> SysMonad IO (Maybe (ResolvedUIElement Scalar))
+resolveUIElement :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> UIElement Scalar c -> SysMonad c IO (Maybe (ResolvedUIElement Scalar c))
 resolveUIElement draw texes dt (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
         RPC { _reserveTex, _reservePrinter } <- getRPC
         tids <- mapM _reserveTex tidnames
@@ -112,7 +112,7 @@ resolveUIElement draw texes dt (UIElement but (MenuRenderSpec (tidnames, printer
             else
                 return $ Just $ ResolvedUIElement but (func (MenuResources (catMaybes tids) (catMaybes pids) (catMaybes shaders)))
 
-resolveScreen :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> (MenuScreen Scalar) -> SysMonad IO (ResolvedMenuScreen Scalar)
+resolveScreen :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> (MenuScreen Scalar c) -> SysMonad c IO (ResolvedMenuScreen Scalar c)
 resolveScreen draw texes dt (MenuScreen eles dur) = do 
                                                        res_eles <- mapM (resolveUIElement draw texes dt) eles
                                                        return $ ResolvedMenuScreen (catMaybes res_eles) dur

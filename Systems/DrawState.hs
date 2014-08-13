@@ -2,9 +2,7 @@
 
 module Systems.DrawState (empty, make, SysData(..)) where
 
-import Engine.Entity
 import Engine.System
-import Engine.Event
 import Engine.Component
 import Math.Vector
 
@@ -14,7 +12,6 @@ empty = SysData
 
 make = System run nullInit
 
-runDS :: Double -> Entity -> DrawState -> SysMonad IO DrawState
 runDS deltad e ds@(DrawState p) = do
       nm <- compForEnt e
       let delta = realToFrac deltad

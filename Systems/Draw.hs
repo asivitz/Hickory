@@ -9,7 +9,6 @@ import Engine.System
 import Engine.Event
 import Engine.Component
 
-import Types.Color
 import Types.Types
 
 import Utils.Resources
@@ -57,7 +56,7 @@ makeDrawData = do
 
 make draw worldcamera uicamera = System (run draw worldcamera uicamera) (initS draw)
 
-runDrawable :: Double -> Entity -> Drawable -> SysMonad IO Drawable
+runDrawable :: Double -> Entity -> Drawable -> SysMonad c IO Drawable
 runDrawable delta e dr@(Drawable spec) = do
       ds <- compForEnt e
       liftIO $ whenMaybe ds $ \(DrawState pos) -> drawSpec pos worldLabel spec
@@ -140,14 +139,14 @@ initS draw = do
                         vanillaShader = vanilla
                         }
 
-reserveShader :: IORef SysData -> (String,String) -> SysMonad IO (Maybe Shader)
+reserveShader :: IORef SysData -> (String,String) -> SysMonad c IO (Maybe Shader)
 reserveShader draw vertfragpair = do
    mydata@SysData { shaders } <- getSysData draw
    (newshaders, shader) <- liftIO $ reserve shaders vertfragpair (\(v,f) -> loadShader v f)
    putSysData draw mydata { shaders = newshaders }
    return shader
 
-releaseShader :: IORef SysData -> (String,String) -> SysMonad IO ()
+releaseShader :: IORef SysData -> (String,String) -> SysMonad c IO ()
 releaseShader draw pair = do
    mydata@SysData { shaders } <- getSysData draw
    newshaders <- liftIO $ release shaders pair deleteShader
@@ -162,7 +161,7 @@ getUniformLoc (Shader s) name =
         withCString name $ \ptrname ->
             glGetUniformLocation s ptrname
 
-reserveParticleShader :: IORef SysData -> SysMonad IO (Maybe ParticleShader)
+reserveParticleShader :: IORef SysData -> SysMonad c IO (Maybe ParticleShader)
 reserveParticleShader  draw = do
         shader <- reserveShader draw ("ParticleShader.vsh", "ParticleShader.fsh")
         case shader of

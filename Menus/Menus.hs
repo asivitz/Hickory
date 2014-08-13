@@ -8,7 +8,7 @@ import Graphics.DrawText
 import Math.Vector
 import Types.Color
 
-data Button a = Button (RelativeRect Scalar a) ([SysMonad IO ()], Maybe (ScreenAction a))
+data Button a c = Button (RelativeRect Scalar a) ([SysMonad c IO ()], Maybe (ScreenAction a c))
 
 data MenuDrawCommand a = SquareMenuDrawCommand (RelativePos Float a, RelativePos Float a) Color (Maybe TexID) Shader
                      | TextMenuDrawCommand PrinterID TextCommand
@@ -21,17 +21,17 @@ type UIRender a = [(RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand 
 
 data MenuRenderSpec a = MenuRenderSpec MenuResourceNames (MenuResources -> Double -> Bool -> UIRender a)
 
-data UIElement a = UIElement (Maybe (Button a)) (MenuRenderSpec a)
+data UIElement a c = UIElement (Maybe (Button a c)) (MenuRenderSpec a)
 
-data ResolvedUIElement a = ResolvedUIElement (Maybe (Button a)) (Double -> Bool -> UIRender a)
+data ResolvedUIElement a c = ResolvedUIElement (Maybe (Button a c)) (Double -> Bool -> UIRender a)
 
-data MenuScreen a = MenuScreen [UIElement a] Scalar
+data MenuScreen a c = MenuScreen [UIElement a c] Scalar
 
-data ResolvedMenuScreen a = ResolvedMenuScreen [ResolvedUIElement a] Scalar
+data ResolvedMenuScreen a c = ResolvedMenuScreen [ResolvedUIElement a c] Scalar
 
-data ScreenAction a = PushScreen (MenuScreen a)
+data ScreenAction a c = PushScreen (MenuScreen a c)
                   | RefreshScreen
                   | PopScreen
 
-makeLabel :: MenuRenderSpec a -> UIElement a
+makeLabel :: MenuRenderSpec a -> UIElement a c
 makeLabel s = UIElement Nothing s

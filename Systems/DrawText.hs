@@ -32,7 +32,7 @@ data Printer a = Printer (Font a) TexID VAOConfig
 
 empty = SysData { printerids = emptyRefStore, printerpairs = [], perVertColorShader = Nothing }
 
-reservePrinter' :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe PrinterID)
+reservePrinter' :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad c IO (Maybe PrinterID)
 reservePrinter' drawtext texes name = do
         SysData { printerids } <- getSysData drawtext
         (newprinterids, pid) <- reserve printerids name (loadPrinterID drawtext texes)
@@ -41,7 +41,7 @@ reservePrinter' drawtext texes name = do
         putSysData drawtext sd { printerids = newprinterids }
         return pid
 
-releasePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO ()
+releasePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad c IO ()
 releasePrinter drawtext texes name = do
         sd@SysData { printerids } <- getSysData drawtext
         newprinterids <- release printerids name (unloadPrinter drawtext texes (name ++ ".png"))
@@ -60,7 +60,7 @@ createPrinterVAOConfig shader = do
         config' <- indexVAOConfig vaoConfig
         return config'
 
-loadPrinterID :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad IO (Maybe PrinterID)
+loadPrinterID :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad c IO (Maybe PrinterID)
 loadPrinterID drawtext texes name = do
         sd@SysData { printerpairs, perVertColorShader } <- getSysData drawtext
         case perVertColorShader of
@@ -74,7 +74,7 @@ loadPrinterID drawtext texes name = do
                         putSysData drawtext sd { printerpairs = printerpairs' }
                         return $ Just $ length printerpairs
 
-loadPrinter :: Shader -> String -> SysMonad IO (Maybe (Printer Int))
+loadPrinter :: Shader -> String -> SysMonad c IO (Maybe (Printer Int))
 loadPrinter shader name = do
         RPC { _reserveTex } <- getRPC
         texid <- _reserveTex $ name ++ ".png"
@@ -101,7 +101,7 @@ modIndex [] _ _ = []
 modIndex (x:xs) 0 f = f x : xs
 modIndex (x:xs) i f = x : modIndex xs (i - 1) f
 
-unloadPrinter :: IORef SysData -> IORef Textures.SysData -> String -> PrinterID -> SysMonad IO ()
+unloadPrinter :: IORef SysData -> IORef Textures.SysData -> String -> PrinterID -> SysMonad c IO ()
 unloadPrinter dt texes path pid = do
         Textures.releaseTex texes path
         sd@SysData { printerpairs } <- getSysData dt
@@ -114,7 +114,7 @@ appendToAL (x@(k, vals):xs) key val
         | k == key = ((k, val:vals):xs)
         | otherwise = (x:(appendToAL xs key val))
 
-drawText :: IORef SysData -> PrinterID -> Label -> PositionedTextCommand -> SysMonad IO ()
+drawText :: IORef SysData -> PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO ()
 drawText dt pid label command = do
         sd@SysData { printerpairs } <- getSysData dt
         let printerpairs' = modIndex printerpairs pid (\(printer, labellst) -> (printer, appendToAL labellst label command))

@@ -11,18 +11,18 @@ import Graphics.GLUtils
 import Graphics.DrawText
 import Control.Lens
 
-data SystemContext = SystemContext ComponentStore RPC
+data SystemContext c = SystemContext ComponentStore (RPC c) c
 
-type SysMonad m r = StateT (World, SystemContext) m r
+type SysMonad c m r = StateT (World, SystemContext c) m r
 
-data RPC = RPC {
-         _inputTouchUp :: [V2 -> Int -> SysMonad IO ()],
-         _inputTouchDown :: [V2 -> Int -> SysMonad IO ()],
-         _inputTouchLoc :: [V2 -> Int -> SysMonad IO ()],
-         _reserveTex :: String -> SysMonad IO (Maybe TexID),
-         _reservePrinter :: String -> SysMonad IO (Maybe PrinterID),
-         _printAll :: [SysMonad IO ()],
-         _quit :: [SysMonad IO ()]
+data RPC c = RPC {
+         _inputTouchUp :: [V2 -> Int -> SysMonad c IO ()],
+         _inputTouchDown :: [V2 -> Int -> SysMonad c IO ()],
+         _inputTouchLoc :: [V2 -> Int -> SysMonad c IO ()],
+         _reserveTex :: String -> SysMonad c IO (Maybe TexID),
+         _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID),
+         _printAll :: [SysMonad c IO ()],
+         _quit :: [SysMonad c IO ()]
          }
 
 makeLenses ''RPC
@@ -38,4 +38,4 @@ emptyRPC = RPC {
                }
 
 
-emptySystemContext = SystemContext emptyComponentStore emptyRPC
+emptySystemContext uc = SystemContext emptyComponentStore emptyRPC uc
