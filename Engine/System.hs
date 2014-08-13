@@ -115,3 +115,13 @@ getSysData a = liftIO $ readIORef a
 
 putSysData :: IORef a -> a -> SysMonad c IO ()
 putSysData a d = liftIO $ writeIORef a d
+
+getGameContext :: Monad m => SysMonad c m c
+getGameContext = do
+        World { gameContext = gc } <- get
+        return gc
+        
+putGameContext :: Monad m => c -> SysMonad c m ()
+putGameContext gc = do
+        w <- get
+        put w { gameContext = gc }
