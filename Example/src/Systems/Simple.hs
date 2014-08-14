@@ -10,7 +10,6 @@ import Engine.World
 import Engine.Component
 import Types.Types
 import Types.Color
-import Utils.Utils
 import Math.Vector
 import Math.VectorMatrix
 
@@ -20,7 +19,6 @@ import Graphics.DrawText
 import Graphics.Drawing
 import Menus.Menus
 import Menus.Construction
-import qualified Systems.Textures as Textures
 import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
 import qualified Systems.Menus as Menus
@@ -46,9 +44,9 @@ spawnEnt simple pos = do
        SysData (Just tid) _ (Just vanilla) -> do
            liftIO $ print "Spawning ent"
            e <- spawnEntity
-           addComp e $ DrawState pos
-           addComp e $ NewtonianMover (v3 1 0 0) (v3 0 0 0)
-           addComp e $ Drawable $ Square (Size 1 1) (rgb 0.3 0.6 0.8) tid vanilla
+           addComp e drawStates $ DrawState pos
+           addComp e newtonianMovers $ NewtonianMover (v3 1 0 0) (v3 0 0 0)
+           addComp e drawables $ Drawable $ Square (Size 1 1) (rgb 0.3 0.6 0.8) tid vanilla
        _ -> return ()
 
 run simple dt draw delta =
