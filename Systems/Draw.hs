@@ -4,7 +4,6 @@
 module Systems.Draw (SysData(..), make, makeDrawData, empty, nullSize, createVAOConfig, indexVAOConfig, reserveShader, releaseShader, drawSpec) where
 import Control.Monad.State
 
-import Engine.Entity
 import Engine.System
 import Engine.World
 import Engine.Component
@@ -12,7 +11,6 @@ import Engine.Component
 import Types.Types
 
 import Utils.Resources
-import Utils.Utils
 
 import Graphics.GLUtils
 import Math.Matrix
@@ -56,12 +54,10 @@ makeDrawData = do
 
 make draw worldcamera uicamera = System (run draw worldcamera uicamera) (initS draw)
 
-runDrawable :: Double -> Entity -> Drawable -> SysMonad c IO Drawable
-runDrawable delta e dr@(Drawable spec) = do
-      ds <- compForEnt e
-      liftIO $ whenMaybe ds $ \(DrawState pos) -> drawSpec pos worldLabel spec
+runDrawable :: Double -> Drawable -> DrawState -> SysMonad c IO Drawable
+runDrawable delta dr@(Drawable spec) (DrawState pos) = do
+      liftIO $ drawSpec pos worldLabel spec
       return dr
-
 
 drawSpec :: Vector3 -> Label -> DrawSpec -> IO ()
 drawSpec pos label (Square (Size w h) color tex shader) = 
@@ -78,7 +74,7 @@ renderCommandsWithCamera cam label aspect = renderCommands matrix label
 run draw worldcamera uicamera delta = 
         do
             RPC { _quit } <- getRPC
-            upCompsM (runDrawable delta) drawables
+            updateCompsM2 (runDrawable delta) drawables drawStates
             sd@SysData {
                     screenSize,
                     window,

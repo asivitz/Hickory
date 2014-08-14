@@ -1,9 +1,12 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Engine.Component where
 
 import Engine.Entity
 import Data.HashMap.Strict as HashMap
 import Math.Vector
 import Graphics.Drawing
+import Control.Lens
 
 class Show c => Component c where
       getComponents :: ComponentStore -> HashMap Entity c
@@ -16,24 +19,26 @@ data NewtonianMover = NewtonianMover V3 V3 deriving (Show)
 data Drawable = Drawable DrawSpec deriving (Show)
 
 instance Component DrawState where
-      getComponents store = drawStates store
-      updateComponents store comps = store { drawStates = comps }
+      getComponents store = _drawStates store
+      updateComponents store comps = store { _drawStates = comps }
 
 instance Component NewtonianMover where
-      getComponents store = newtonianMovers store
-      updateComponents store comps = store { newtonianMovers = comps }
+      getComponents store = _newtonianMovers store
+      updateComponents store comps = store { _newtonianMovers = comps }
 
 instance Component Drawable where
-      getComponents store = drawables store
-      updateComponents store comps = store { drawables = comps }
+      getComponents store = _drawables store
+      updateComponents store comps = store { _drawables = comps }
 
 data ComponentStore = ComponentStore { 
-                    drawStates :: HashMap Entity DrawState,
-                    newtonianMovers :: HashMap Entity NewtonianMover,
-                    drawables :: HashMap Entity Drawable
+                    _drawStates :: HashMap Entity DrawState,
+                    _newtonianMovers :: HashMap Entity NewtonianMover,
+                    _drawables :: HashMap Entity Drawable
                     } deriving (Show)
 
+makeLenses ''ComponentStore
+
 emptyComponentStore = ComponentStore { 
-                                     drawStates = empty, 
-                                     newtonianMovers = empty, 
-                                     drawables = empty }
+                                     _drawStates = empty, 
+                                     _newtonianMovers = empty, 
+                                     _drawables = empty }

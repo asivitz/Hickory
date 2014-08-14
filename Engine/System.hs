@@ -70,28 +70,6 @@ getComponentStore = do
         World { systemContext = (Context cs _) } <- get
         return cs
 
-upComps :: (Component c, Monad m) => (c -> c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad r m ()
-upComps f g = do
-        cs <- getComponentStore
-        let new_ds = HashMap.map f (g cs)
-            cs' = updateComponents cs new_ds
-        putComponentStore cs'
-
-doMap :: (Component c, Monad m) => (Entity -> c -> SysMonad r m c) -> (Entity, c) -> SysMonad r m (Entity, c)
-doMap map_func (k,c) = do
-      r <- map_func k c
-      return (k,r)
-
-upCompsM :: (Component c, Monad m) => (Entity -> c -> SysMonad r m c) -> (ComponentStore -> HashMap.HashMap Entity c) -> SysMonad r m ()
-upCompsM map_func retrieve_func = do
-        cs <- getComponentStore
-        let kv_list = HashMap.toList (retrieve_func cs)
-        new_kv <- mapM (doMap map_func) kv_list
-        let new_kv_hashmap = HashMap.fromList new_kv
-
-        let cs' = updateComponents cs new_kv_hashmap
-        putComponentStore cs'
-
 addComp :: (Component c, Monad m) => Entity -> c -> SysMonad r m ()
 addComp e c = do
         cs <- getComponentStore
@@ -125,3 +103,53 @@ putGameContext :: Monad m => c -> SysMonad c m ()
 putGameContext gc = do
         w <- get
         put w { gameContext = gc }
+
+type CompLens c = Lens' ComponentStore (HashMap.HashMap Entity c)
+
+updateCompsM :: Monad m => (c -> SysMonad r m c) -> CompLens c -> SysMonad r m ()
+updateCompsM f lp = do
+        cs <- getComponentStore
+
+        let kv_list = HashMap.toList (view lp cs)
+            up1 orig@(e, c) = do
+                r <- f c
+                return (e, r)
+        updated <- mapM up1 kv_list
+        putComponentStore (set lp (HashMap.fromList updated) cs)
+
+updateCompsM2 :: Monad m => (c -> d -> SysMonad r m c) -> CompLens c -> CompLens d -> SysMonad r m ()
+updateCompsM2 f lp ls = do
+        cs <- getComponentStore
+
+        let kv_list = HashMap.toList (view lp cs)
+            additional = view ls cs
+            up1 orig@(e, c) = let maybeadd = HashMap.lookup e additional in
+                case maybeadd of
+                    Nothing -> return orig
+                    Just add -> do
+                        r <- f c add
+                        return (e, r)
+        updated <- mapM up1 kv_list
+        putComponentStore (set lp (HashMap.fromList updated) cs)
+
+updateComps :: Monad m => (c -> c) -> CompLens c -> SysMonad r m ()
+updateComps f lp = do
+        cs <- getComponentStore
+
+        let kv_list = HashMap.toList (view lp cs)
+            up1 orig@(e, c) = (e, f c)
+            updated = map up1 kv_list
+        putComponentStore (set lp (HashMap.fromList updated) cs)
+
+updateComps2 :: Monad m => (c -> d -> c) -> CompLens c -> CompLens d -> SysMonad r m ()
+updateComps2 f lp ls = do
+        cs <- getComponentStore
+
+        let kv_list = HashMap.toList (view lp cs)
+            additional = view ls cs
+            up1 orig@(e, c) = let maybeadd = HashMap.lookup e additional in
+                case maybeadd of
+                    Nothing -> orig
+                    Just add -> (e, f c add)
+            updated = map up1 kv_list
+        putComponentStore (set lp (HashMap.fromList updated) cs)

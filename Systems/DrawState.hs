@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Systems.DrawState (empty, make, SysData(..)) where
 
@@ -12,14 +13,10 @@ empty = SysData
 
 make = System run nullInit
 
-runDS deltad e ds@(DrawState p) = do
-      nm <- compForEnt e
-      let delta = realToFrac deltad
-      {-liftIO $ print ds-}
-      case nm of
-         Just (NewtonianMover v a) -> return (DrawState (p + v |* delta))
-         Nothing -> return ds
-
 run delta = 
       do
-         upCompsM (runDS delta) drawStates
+         updateComps2 (upDS delta) drawStates newtonianMovers
+
+upDS delta (DrawState p) (NewtonianMover v a) =
+      let delta' = realToFrac delta in
+          (DrawState (p + v |* delta'))
