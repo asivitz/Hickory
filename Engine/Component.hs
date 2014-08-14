@@ -2,10 +2,7 @@ module Engine.Component where
 
 import Engine.Entity
 import Data.HashMap.Strict as HashMap
-import Types.Types
 import Math.Vector
-import Types.Color
-import Graphics.GLUtils
 import Graphics.Drawing
 
 class Show c => Component c where

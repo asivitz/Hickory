@@ -6,13 +6,15 @@ import Control.Monad.State
 import Graphics.GLUtils
 
 import Engine.System
-import Engine.Event
+import Engine.World
 import Engine.Component
 import Types.Types
 import Types.Color
 import Utils.Utils
 import Math.Vector
 import Math.VectorMatrix
+
+import Context.Game
 
 import Graphics.DrawText
 import Graphics.Drawing
@@ -23,26 +25,22 @@ import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
 import qualified Systems.Menus as Menus
 
-make simple texes dt draw menus = System (run simple dt draw) (handleEv simple draw) (initS simple dt texes draw menus)
+make simple texes dt draw menus = System (run simple dt draw) (initS simple dt texes draw menus)
 
 starTex = "filled_star.png"
 
-handleEv simple draw event =
-        case event of
-            PrintAll -> do
-                mydata <- getSysData simple
-                liftIO $ print mydata
-            (SpawnEnt pos) -> spawnEnt pos simple draw
-            (Error msg) -> liftIO $ putStrLn ("ERROR: " ++ msg)
-            (InputTouchUp pos touchid) -> do
-                Draw.SysData { Draw.screenSize, Draw.worldMatrix } <- getSysData draw
-                let pos' = lerpUnproject pos (-5) worldMatrix (viewportFromSize screenSize)
-                liftIO $ print pos'
-                broadcast $ SpawnEnt pos'
-            (InputTouchLoc pos touchid) -> liftIO $ print $ "Input ping " ++ (show pos)
-            _ -> return ()
+inputTouchUp' simple draw pos touchid = do
+        Draw.SysData { Draw.screenSize, Draw.worldMatrix } <- getSysData draw
+        let pos' = lerpUnproject pos (-5) worldMatrix (viewportFromSize screenSize)
+        spawnEnt simple pos'
 
-spawnEnt pos simple draw = do
+inputTouchLoc' pos touchid = liftIO $ print $ "Input ping " ++ (show pos)
+
+printAll' simple = do
+        mydata <- getSysData simple
+        liftIO $ print mydata
+
+spawnEnt simple pos = do
    sd <- getSysData simple
    case sd of
        SysData (Just tid) _ (Just vanilla) -> do
@@ -72,7 +70,13 @@ run simple dt draw delta =
 font = "goudy_bookletter_1911"
 
 initS simple dt texes draw menus = do
-        tid <- Textures.reserveTex texes starTex
+        registerEvent printAll (printAll' simple)
+        registerEvent inputTouchUp (inputTouchUp' simple draw)
+        registerEvent inputTouchLoc (inputTouchLoc')
+
+        RPC { _reserveTex, _reservePrinter } <- getRPC
+
+        tid <- _reserveTex starTex
         {-bgtid <- Textures.reserveTex texes "bg.png"-}
 
         {-
@@ -81,7 +85,7 @@ initS simple dt texes draw menus = do
                          Just p -> liftIO $ createVAOConfig p [(VertexGroup [(Attachment sp_ATTR_POSITION 2)])] >>= return . Just
                          -}
 
-        pid <- DrawText.reservePrinter dt texes font
+        pid <- _reservePrinter font
         nilla <- Draw.reserveShader draw ("Shader.vsh", "Shader.fsh")
         putSysData simple SysData { texid = tid, printer = pid, vanilla = nilla }
         Menus.pushScreen menus draw texes dt mainMenu
@@ -90,17 +94,17 @@ data SysData = SysData { texid :: Maybe TexID, printer :: Maybe Int, vanilla :: 
 
 empty = SysData Nothing Nothing Nothing
 
-mainMenu :: MenuScreen Scalar
-mainMenu = MenuScreen [simpleMenuButton 0 "Start" (PushScreen subMenu),
-                      simpleMenuButton 1 "Next" RefreshScreen,
-                      simpleMenuButton 2 "Then" RefreshScreen
+mainMenu :: MenuScreen Scalar EXGameContext
+mainMenu = MenuScreen [simpleMenuButton 0 "Start" (PushScreen subMenu) [],
+                      simpleMenuButton 1 "Next" RefreshScreen [],
+                      simpleMenuButton 2 "Then" RefreshScreen []
                       ]
                       0.5
 
-subMenu = MenuScreen [simpleMenuButton 0 "Back" PopScreen] 0.5
+subMenu = MenuScreen [simpleMenuButton 0 "Back" PopScreen []] 0.5
 
-simpleMenuButton :: Int -> String -> ScreenAction Scalar -> UIElement Scalar
-simpleMenuButton idx txt action = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (Nothing, Just action))) $ 
+simpleMenuButton :: Int -> String -> ScreenAction Scalar EXGameContext -> [SysMonad EXGameContext IO ()] -> UIElement Scalar EXGameContext
+simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (events, Just action))) $ 
     MenuRenderSpec ([], [font], []) $ \(MenuResources _ [pid] _) ->
         \fraction incoming ->
             let frac' = constrainInterval fraction idx in
