@@ -70,16 +70,17 @@ getComponentStore = do
         World { systemContext = (Context cs _) } <- get
         return cs
 
-addComp :: (Component c, Monad m) => Entity -> c -> SysMonad r m ()
-addComp e c = do
+addComp :: (Monad m) => Entity -> CompLens c -> c -> SysMonad r m ()
+addComp e comps c = do
         cs <- getComponentStore
-        let cs' = addComponent cs e c
+
+        let cs' = over comps (\m -> HashMap.insert e c m) cs
         putComponentStore cs'
 
-compForEnt :: (Monad m, Component c) => Entity -> SysMonad r m (Maybe c)
-compForEnt e = do
+compForEnt :: (Monad m) => Entity -> CompLens c -> SysMonad r m (Maybe c)
+compForEnt e l = do
         cs <- getComponentStore
-        let comps = getComponents cs
+        let comps = view l cs
             c = HashMap.lookup e comps
         return c
 
