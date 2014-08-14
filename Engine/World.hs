@@ -21,7 +21,7 @@ data World c = World {
 type SysMonad c m r = StateT (World c) m r
 
 data RPC c = RPC {
-         _inputTouchUp :: [V2 -> Int -> SysMonad c IO ()],
+         _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],
          _inputTouchDown :: [V2 -> Int -> SysMonad c IO ()],
          _inputTouchLoc :: [V2 -> Int -> SysMonad c IO ()],
          _reserveTex :: String -> SysMonad c IO (Maybe TexID),

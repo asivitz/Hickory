@@ -38,21 +38,29 @@ initS menus draw texes dt = do
 
 inputTouchUp' menus draw texes dt pos touchid = do
         SysData navstack time leaving <- getSysData menus
-        whenMaybe (listToMaybe navstack) $ \(ResolvedMenuScreen elements duration) -> 
-            when (time > duration) $
-                handleScreenClick menus draw texes dt pos elements
+        case (listToMaybe navstack) of
+            Just (ResolvedMenuScreen elements duration) -> 
+                if (time > duration) then
+                                     handleScreenClick menus draw texes dt pos elements
+                                     else return False
+            Nothing -> return False
 
 handleScreenClick menus draw texes dt pos elements = do
         Draw.SysData { Draw.screenSize } <- getSysData draw
-        mapM_ (\(ResolvedUIElement but _) -> 
+        res <- mapM (\(ResolvedUIElement but _) -> 
                 case but of
                     Just (Button rrect (mevent, maction)) -> do
-                        when (posInRect pos (transformRect rrect screenSize)) $ do
-                            sequence_ mevent
-                            whenMaybe maction $ \a -> handleAction menus draw texes dt a
-                    Nothing -> return ()
+                        if (posInRect pos (transformRect rrect screenSize)) 
+                            then do
+                                sequence_ mevent
+                                whenMaybe maction $ \a -> handleAction menus draw texes dt a
+                                return True
+                            else
+                                return False
+                    Nothing -> return False
             )
             elements
+        return $ and res
 
 incomingScreen :: SysData c -> Maybe (ResolvedMenuScreen Scalar c)
 incomingScreen (SysData [] _ _) = Nothing

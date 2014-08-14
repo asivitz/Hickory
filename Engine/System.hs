@@ -154,3 +154,12 @@ updateComps2 f lp ls = do
                     Just add -> (e, f c add)
             updated = map up1 kv_list
         putComponentStore (set lp (HashMap.fromList updated) cs)
+
+{-_inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],-}
+                  {-a ->-}
+
+{-runInterruptableEvent :: Monad m => ((a -> SysMonad c m Bool) -> SysMonad c m Bool) -> Lens' (RPC c) [a -> SysMonad c m Bool] -> SysMonad c m ()-}
+runInterruptableEvent appf l = do
+        rpc <- getRPC
+        let evs = view l rpc
+        mapM_ appf evs

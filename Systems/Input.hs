@@ -34,8 +34,7 @@ processInputEv (InputTouchDown pos touchid) = do
         RPC { _inputTouchDown } <- getRPC
         mapM_ (\x -> x pos touchid) _inputTouchDown
 processInputEv (InputTouchUp pos touchid) = do
-        RPC { _inputTouchUp } <- getRPC
-        mapM_ (\x -> x pos touchid) _inputTouchUp
+        runInterruptableEvent (\x -> x pos touchid) inputTouchUp
 
 run draw input delta = do
       Draw.SysData { Draw.window, Draw.screenSize } <- getSysData draw
