@@ -10,6 +10,7 @@ import Control.Monad.State
 import Graphics.GLUtils
 import Graphics.DrawText
 import Graphics.Drawing
+import Menus.Menus
 import Control.Lens hiding (Context)
 
 data World c = World {
@@ -28,6 +29,8 @@ data RPC c = RPC {
            _reserveTex :: String -> SysMonad c IO (Maybe TexID),
            _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID),
            _reserveShader :: (String, String) -> SysMonad c IO (Maybe Shader),
+           _pushMenuScreen :: MenuScreen Scalar (SysMonad c IO ()) -> SysMonad c IO (),
+           _drawText :: PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO (),
            _printAll :: [SysMonad c IO ()],
            _quit :: [SysMonad c IO ()]
            }
@@ -42,6 +45,8 @@ emptyRPC = RPC {
                _reserveTex = \_ -> return Nothing,
                _reservePrinter = \_ -> return Nothing,
                _reserveShader = \_ -> return Nothing,
+               _pushMenuScreen = \_ -> return (),
+               _drawText = \_ _ _ -> return (),
                _printAll = [],
                _quit = []
                }

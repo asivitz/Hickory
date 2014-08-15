@@ -9,14 +9,13 @@ import Engine.System
 import Engine.World
 
 import Graphics.Drawing
-import qualified Systems.Draw as Draw
 import Graphics.Rendering.OpenGL.Raw.Core31
 
-make fcgame draw = System (run fcgame draw) (initS fcgame draw)
+make fcgame = System (run fcgame) (initS fcgame)
 
 starTex = "filled_star.png"
 
-inputTouchUp' fcgame draw pos touchid = do
+inputTouchUp' fcgame pos touchid = do
         return False
 
 inputTouchLoc' pos touchid = do
@@ -27,20 +26,20 @@ printAll' fcgame = do
         mydata <- getSysData fcgame
         liftIO $ print mydata
 
-run fcgame draw delta =
+run fcgame delta =
       do
           return ()
 
-initS fcgame draw = do
+initS fcgame = do
         liftIO $ glClearColor 0 0.5 0 1
         registerEvent printAll (printAll' fcgame)
-        registerEvent inputTouchUp (inputTouchUp' fcgame draw)
+        registerEvent inputTouchUp (inputTouchUp' fcgame)
         registerEvent inputTouchLoc (inputTouchLoc')
 
-        RPC { _reserveTex, _reservePrinter } <- getRPC
+        RPC { _reserveTex, _reservePrinter, _reserveShader } <- getRPC
 
         tid <- _reserveTex starTex
-        nilla <- Draw.reserveShader draw ("Shader.vsh", "Shader.fsh")
+        nilla <- _reserveShader ("Shader.vsh", "Shader.fsh")
 
         putSysData fcgame SysData { texid = tid, vanilla = nilla }
 

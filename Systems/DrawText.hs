@@ -113,8 +113,8 @@ appendToAL (x@(k, vals):xs) key val
         | k == key = ((k, val:vals):xs)
         | otherwise = (x:(appendToAL xs key val))
 
-drawText :: IORef SysData -> PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO ()
-drawText dt pid label command = do
+drawText' :: IORef SysData -> PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO ()
+drawText' dt pid label command = do
         sd@SysData { printerpairs } <- getSysData dt
         let printerpairs' = modIndex printerpairs pid (\(printer, labellst) -> (printer, appendToAL labellst label command))
         putSysData dt sd { printerpairs = printerpairs' }
@@ -137,6 +137,7 @@ run drawtext delta = do
 initS drawtext texes = do
         RPC { _reserveShader } <- getRPC
         registerResource reservePrinter (reservePrinter' drawtext texes)
+        registerResource drawText (drawText' drawtext)
         sd <- getSysData drawtext
         shader <- _reserveShader ("perVertColor.vsh", "perVertColor.fsh")
         putSysData drawtext sd { perVertColorShader = shader }

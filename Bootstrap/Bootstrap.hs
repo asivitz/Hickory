@@ -30,7 +30,7 @@ coreData = do
                     Draw.make draw worldcamera uicamera,
                     Textures.make textures,
                     DrawText.make drawtext textures,
-                    Menus.make menus draw drawtext,
+                    Menus.make menus draw,
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,
                     iosys,

@@ -13,22 +13,24 @@ import Context.Game
 import Graphics.DrawText
 import Menus.Menus
 import Menus.Construction
-import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
 import qualified Systems.Menus as Menus
 
-make texes dt draw menus = System nullRun (initS dt texes draw menus)
+make = System nullRun initS
 
 font = "goudy_bookletter_1911"
 
-initS dt texes draw menus = do
-        Menus.pushScreen menus draw texes dt mainMenu
+initS = do
+        RPC { _pushMenuScreen } <- getRPC
+        _pushMenuScreen mainMenu
 
-mainMenu :: MenuScreen Scalar EXGameContext
+mainMenu :: MenuScreen Scalar (EXEvent IO)
 mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen []]
                       0.5
 
-simpleMenuButton :: Int -> String -> ScreenAction Scalar EXGameContext -> [SysMonad EXGameContext IO ()] -> UIElement Scalar EXGameContext
+type EXEvent m = Menus.MenuEvent EXGameContext m
+
+simpleMenuButton :: Int -> String -> ScreenAction Scalar (EXEvent IO) -> [EXEvent IO] -> UIElement Scalar (EXEvent IO)
 simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (events, Just action))) $ 
     MenuRenderSpec ([], [font], []) $ \(MenuResources _ [pid] _) ->
         \fraction incoming ->
