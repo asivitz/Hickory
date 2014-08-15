@@ -20,7 +20,8 @@ import Data.IORef
 
 import qualified Systems.Draw as Draw
 import qualified Systems.DrawText as DrawText
-import qualified Systems.Textures as Textures
+
+type MenuEvent c = SysMonad c IO ()
 
 data SysData c = SysData [ResolvedMenuScreen Scalar c] Double (Maybe (ResolvedMenuScreen Scalar c))
 
@@ -80,12 +81,12 @@ menuRender dt (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = 
 
 menuRender dt screenSize pos (TextMenuDrawCommand pid tc) = DrawText.drawText dt pid uiLabel (PositionedTextCommand pos tc)
 
-drawElements :: Real a => IORef DrawText.SysData -> Size a -> [ResolvedUIElement Scalar c] -> Double -> Bool -> SysMonad c IO ()
+drawElements :: Real a => IORef DrawText.SysData -> Size a -> [ResolvedUIElement Scalar (MenuEvent c)] -> Double -> Bool -> SysMonad c IO ()
 drawElements dt screenSize elements fraction incoming = mapM_ (\(ResolvedUIElement _ renderfunc) -> 
     mapM_ (\(yloc, xloc, mdc) -> menuRender dt screenSize (screenPos screenSize yloc xloc) mdc) (renderfunc fraction incoming))
         elements
 
-drawMenus :: Real a => SysData c -> IORef DrawText.SysData -> Size a -> SysMonad c IO ()
+drawMenus :: Real a => SysData (MenuEvent c) -> IORef DrawText.SysData -> Size a -> SysMonad c IO ()
 drawMenus sd@(SysData navstack time leaving) dt screenSize = do
         whenMaybe (incomingScreen sd) $ \(ResolvedMenuScreen incEles duration) -> do
             let fraction = time / duration
@@ -106,7 +107,7 @@ run menus draw dt delta = do
 
 
 
-resolveUIElement :: UIElement Scalar c -> SysMonad c IO (Maybe (ResolvedUIElement Scalar c))
+resolveUIElement :: UIElement Scalar (MenuEvent c) -> SysMonad c IO (Maybe (ResolvedUIElement Scalar (MenuEvent c)))
 resolveUIElement (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
         RPC { _reserveTex, _reservePrinter, _reserveShader } <- getRPC
         tids <- mapM _reserveTex tidnames
@@ -120,7 +121,7 @@ resolveUIElement (UIElement but (MenuRenderSpec (tidnames, printernames, shadern
             else
                 return $ Just $ ResolvedUIElement but (func (MenuResources (catMaybes tids) (catMaybes pids) (catMaybes shaders)))
 
-resolveScreen :: (MenuScreen Scalar c) -> SysMonad c IO (ResolvedMenuScreen Scalar c)
+resolveScreen :: (MenuScreen Scalar (MenuEvent c)) -> SysMonad c IO (ResolvedMenuScreen Scalar (MenuEvent c))
 resolveScreen (MenuScreen eles dur) = do 
                                                        res_eles <- mapM resolveUIElement eles
                                                        return $ ResolvedMenuScreen (catMaybes res_eles) dur

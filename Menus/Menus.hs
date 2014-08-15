@@ -1,14 +1,13 @@
 module Menus.Menus where
 
 import Types.Types
-import Engine.World
 import Graphics.Drawing
 import Graphics.GLUtils
 import Graphics.DrawText
 import Math.Vector
 import Types.Color
 
-data Button a c = Button (RelativeRect Scalar a) ([SysMonad c IO ()], Maybe (ScreenAction a c))
+data Button a c = Button (RelativeRect Scalar a) ([c], Maybe (ScreenAction a c))
 
 data MenuDrawCommand a = SquareMenuDrawCommand (RelativePos Float a, RelativePos Float a) Color (Maybe TexID) Shader
                      | TextMenuDrawCommand PrinterID TextCommand
