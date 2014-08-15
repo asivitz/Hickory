@@ -17,7 +17,6 @@ import Math.Matrix
 
 import Graphics.DrawText
 import qualified Systems.Textures as Textures
-import qualified Systems.Draw as Draw
 
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.Text.IO as TextIO
@@ -49,7 +48,7 @@ releasePrinter drawtext texes name = do
 
 {-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
 
-make drawtext texes draw = System (run drawtext) (initS drawtext texes draw)
+make drawtext texes = System (run drawtext) (initS drawtext texes)
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do
@@ -135,10 +134,11 @@ run drawtext delta = do
             liftIO $ renderTextCommands pvc printerpairs
         putSysData drawtext sd { printerpairs = map (\(printer, tcoms) -> (printer, [])) printerpairs }
 
-initS drawtext texes draw = do
+initS drawtext texes = do
+        RPC { _reserveShader } <- getRPC
         registerResource reservePrinter (reservePrinter' drawtext texes)
         sd <- getSysData drawtext
-        shader <- Draw.reserveShader draw ("perVertColor.vsh", "perVertColor.fsh")
+        shader <- _reserveShader ("perVertColor.vsh", "perVertColor.fsh")
         putSysData drawtext sd { perVertColorShader = shader }
 
 renderTextCommands shader printerPairs =

@@ -9,6 +9,7 @@ import Math.Vector
 import Control.Monad.State
 import Graphics.GLUtils
 import Graphics.DrawText
+import Graphics.Drawing
 import Control.Lens hiding (Context)
 
 data World c = World {
@@ -26,6 +27,7 @@ data RPC c = RPC {
            _inputTouchLoc :: [V2 -> Int -> SysMonad c IO Bool],
            _reserveTex :: String -> SysMonad c IO (Maybe TexID),
            _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID),
+           _reserveShader :: (String, String) -> SysMonad c IO (Maybe Shader),
            _printAll :: [SysMonad c IO ()],
            _quit :: [SysMonad c IO ()]
            }
@@ -39,6 +41,7 @@ emptyRPC = RPC {
                _inputTouchLoc = [],
                _reserveTex = \_ -> return Nothing,
                _reservePrinter = \_ -> return Nothing,
+               _reserveShader = \_ -> return Nothing,
                _printAll = [],
                _quit = []
                }

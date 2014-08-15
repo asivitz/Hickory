@@ -28,7 +28,7 @@ coreData = do
                     FPSCounter.make fps,
                     DrawState.make,
                     Textures.make textures,
-                    DrawText.make drawtext textures draw,
+                    DrawText.make drawtext textures,
                     Menus.make menus draw textures drawtext,
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,

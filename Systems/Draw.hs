@@ -110,6 +110,7 @@ run draw worldcamera uicamera delta =
             return ()
 
 initS draw = do
+        registerResource reserveShader (reserveShader' draw)
         SysData {window = win} <- getSysData draw
         
         (fbWidth, fbHeight) <- case win of
@@ -126,7 +127,7 @@ initS draw = do
             
             glEnable gl_PROGRAM_POINT_SIZE -- for OSX
 
-        vanilla <- reserveShader draw ("Shader.vsh", "Shader.fsh")
+        vanilla <- reserveShader' draw ("Shader.vsh", "Shader.fsh")
 
         sd <- getSysData draw
         
@@ -135,8 +136,8 @@ initS draw = do
                         vanillaShader = vanilla
                         }
 
-reserveShader :: IORef SysData -> (String,String) -> SysMonad c IO (Maybe Shader)
-reserveShader draw vertfragpair = do
+reserveShader' :: IORef SysData -> (String,String) -> SysMonad c IO (Maybe Shader)
+reserveShader' draw vertfragpair = do
    mydata@SysData { shaders } <- getSysData draw
    (newshaders, shader) <- liftIO $ reserve shaders vertfragpair (\(v,f) -> loadShader v f)
    putSysData draw mydata { shaders = newshaders }
@@ -159,7 +160,7 @@ getUniformLoc (Shader s) name =
 
 reserveParticleShader :: IORef SysData -> SysMonad c IO (Maybe ParticleShader)
 reserveParticleShader  draw = do
-        shader <- reserveShader draw ("ParticleShader.vsh", "ParticleShader.fsh")
+        shader <- reserveShader' draw ("ParticleShader.vsh", "ParticleShader.fsh")
         case shader of
             Nothing -> return Nothing
             Just s -> do
