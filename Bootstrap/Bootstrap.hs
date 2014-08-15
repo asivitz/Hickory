@@ -27,12 +27,12 @@ coreData = do
         let systems = [
                     FPSCounter.make fps,
                     DrawState.make,
+                    Draw.make draw worldcamera uicamera,
                     Textures.make textures,
                     DrawText.make drawtext textures,
-                    Menus.make menus draw textures drawtext,
+                    Menus.make menus draw drawtext,
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,
-                    Draw.make draw worldcamera uicamera,
                     iosys,
                     Platform.make platform
                     ]

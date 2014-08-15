@@ -26,26 +26,26 @@ data SysData c = SysData [ResolvedMenuScreen Scalar c] Double (Maybe (ResolvedMe
 
 empty = SysData [] 0 Nothing
 
-make menus draw texes dt = System (run menus draw dt) (initS menus draw texes dt)
+make menus draw dt = System (run menus draw dt) (initS menus draw)
 
 
-handleAction menus draw texes dt (PushScreen scr) = pushScreen menus draw texes dt scr 
-handleAction menus draw texes dt RefreshScreen = return ()
-handleAction menus draw texes dt PopScreen = popScreen menus
+handleAction menus (PushScreen scr) = pushScreen menus scr 
+handleAction menus RefreshScreen = return ()
+handleAction menus PopScreen = popScreen menus
 
-initS menus draw texes dt = do
-        registerEvent inputTouchUp (inputTouchUp' menus draw texes dt)
+initS menus draw = do
+        registerEvent inputTouchUp (inputTouchUp' menus draw)
 
-inputTouchUp' menus draw texes dt pos touchid = do
+inputTouchUp' menus draw pos touchid = do
         SysData navstack time leaving <- getSysData menus
         case (listToMaybe navstack) of
             Just (ResolvedMenuScreen elements duration) -> 
                 if (time > duration) then
-                                     handleScreenClick menus draw texes dt pos elements
+                                     handleScreenClick menus draw pos elements
                                      else return False
             Nothing -> return False
 
-handleScreenClick menus draw texes dt pos elements = do
+handleScreenClick menus draw pos elements = do
         Draw.SysData { Draw.screenSize } <- getSysData draw
         res <- mapM (\(ResolvedUIElement but _) -> 
                 case but of
@@ -53,7 +53,7 @@ handleScreenClick menus draw texes dt pos elements = do
                         if (posInRect pos (transformRect rrect screenSize)) 
                             then do
                                 sequence_ mevent
-                                whenMaybe maction $ \a -> handleAction menus draw texes dt a
+                                whenMaybe maction $ \a -> handleAction menus a
                                 return True
                             else
                                 return False
@@ -106,8 +106,8 @@ run menus draw dt delta = do
 
 
 
-resolveUIElement :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> UIElement Scalar c -> SysMonad c IO (Maybe (ResolvedUIElement Scalar c))
-resolveUIElement draw texes dt (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
+resolveUIElement :: UIElement Scalar c -> SysMonad c IO (Maybe (ResolvedUIElement Scalar c))
+resolveUIElement (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
         RPC { _reserveTex, _reservePrinter, _reserveShader } <- getRPC
         tids <- mapM _reserveTex tidnames
         pids <- mapM _reservePrinter printernames
@@ -120,14 +120,14 @@ resolveUIElement draw texes dt (UIElement but (MenuRenderSpec (tidnames, printer
             else
                 return $ Just $ ResolvedUIElement but (func (MenuResources (catMaybes tids) (catMaybes pids) (catMaybes shaders)))
 
-resolveScreen :: IORef Draw.SysData -> IORef Textures.SysData -> IORef DrawText.SysData -> (MenuScreen Scalar c) -> SysMonad c IO (ResolvedMenuScreen Scalar c)
-resolveScreen draw texes dt (MenuScreen eles dur) = do 
-                                                       res_eles <- mapM (resolveUIElement draw texes dt) eles
+resolveScreen :: (MenuScreen Scalar c) -> SysMonad c IO (ResolvedMenuScreen Scalar c)
+resolveScreen (MenuScreen eles dur) = do 
+                                                       res_eles <- mapM resolveUIElement eles
                                                        return $ ResolvedMenuScreen (catMaybes res_eles) dur
 
-pushScreen menus draw texes dt screen = do
+pushScreen menus screen = do
         SysData navstack time leaving <- getSysData menus
-        screen' <- (resolveScreen draw texes dt) screen
+        screen' <- resolveScreen screen
         putSysData menus (SysData (screen':navstack) 0 Nothing)
 
 popScreen menus = do
