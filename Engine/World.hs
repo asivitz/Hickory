@@ -21,14 +21,14 @@ data World c = World {
 type SysMonad c m r = StateT (World c) m r
 
 data RPC c = RPC {
-         _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],
-         _inputTouchDown :: [V2 -> Int -> SysMonad c IO ()],
-         _inputTouchLoc :: [V2 -> Int -> SysMonad c IO ()],
-         _reserveTex :: String -> SysMonad c IO (Maybe TexID),
-         _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID),
-         _printAll :: [SysMonad c IO ()],
-         _quit :: [SysMonad c IO ()]
-         }
+           _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],
+           _inputTouchDown :: [V2 -> Int -> SysMonad c IO Bool],
+           _inputTouchLoc :: [V2 -> Int -> SysMonad c IO Bool],
+           _reserveTex :: String -> SysMonad c IO (Maybe TexID),
+           _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID),
+           _printAll :: [SysMonad c IO ()],
+           _quit :: [SysMonad c IO ()]
+           }
 
 instance Show (RPC c) where
         show rpc = "RPC"

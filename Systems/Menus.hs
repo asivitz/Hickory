@@ -60,7 +60,7 @@ handleScreenClick menus draw texes dt pos elements = do
                     Nothing -> return False
             )
             elements
-        return $ and res
+        return $ or res
 
 incomingScreen :: SysData c -> Maybe (ResolvedMenuScreen Scalar c)
 incomingScreen (SysData [] _ _) = Nothing

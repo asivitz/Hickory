@@ -27,12 +27,10 @@ data SysData = SysData {
 broadcastTouchLoc win screenSize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
         let pos = touchPosToScreenPos screenSize curPos
-        RPC { _inputTouchLoc } <- getRPC
-        mapM_ (\x -> x pos touchid) _inputTouchLoc
+        runInterruptableEvent (\x -> x pos touchid) inputTouchLoc
 
 processInputEv (InputTouchDown pos touchid) = do
-        RPC { _inputTouchDown } <- getRPC
-        mapM_ (\x -> x pos touchid) _inputTouchDown
+        runInterruptableEvent (\x -> x pos touchid) inputTouchDown
 processInputEv (InputTouchUp pos touchid) = do
         runInterruptableEvent (\x -> x pos touchid) inputTouchUp
 
