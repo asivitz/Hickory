@@ -32,6 +32,7 @@ make textures = System run (initS textures)
 
 initS textures = do
         registerResource reserveTex (reserveTex' textures)
+        registerResource releaseTex (releaseTex' textures)
 
 loadTexture :: String -> IO (Maybe TexID)
 loadTexture path = do
@@ -80,8 +81,8 @@ reserveTex' texes path = do
    putSysData texes mydata { textures = newtexes }
    return texid
 
-releaseTex :: IORef SysData -> String -> SysMonad c IO ()
-releaseTex texes path = do
+releaseTex' :: IORef SysData -> String -> SysMonad c IO ()
+releaseTex' texes path = do
    mydata@SysData { textures } <- getSysData texes
    newtexes <- liftIO $ release textures path deleteTexture
    putSysData texes mydata { textures = newtexes }

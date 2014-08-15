@@ -16,7 +16,6 @@ import Graphics.Drawing
 import Math.Matrix
 
 import Graphics.DrawText
-import qualified Systems.Textures as Textures
 
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.Text.IO as TextIO
@@ -31,24 +30,24 @@ data Printer a = Printer (Font a) TexID VAOConfig
 
 empty = SysData { printerids = emptyRefStore, printerpairs = [], perVertColorShader = Nothing }
 
-reservePrinter' :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad c IO (Maybe PrinterID)
-reservePrinter' drawtext texes name = do
+reservePrinter' :: IORef SysData -> String -> SysMonad c IO (Maybe PrinterID)
+reservePrinter' drawtext name = do
         SysData { printerids } <- getSysData drawtext
-        (newprinterids, pid) <- reserve printerids name (loadPrinterID drawtext texes)
+        (newprinterids, pid) <- reserve printerids name (loadPrinterID drawtext)
         whenNothing pid $ liftIO $ print ("Couldn't load printer: " ++ name)
         sd <- getSysData drawtext {- re-get it bc printer has been added to command pairs -}
         putSysData drawtext sd { printerids = newprinterids }
         return pid
 
-releasePrinter :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad c IO ()
-releasePrinter drawtext texes name = do
+releasePrinter :: IORef SysData -> String -> SysMonad c IO ()
+releasePrinter drawtext name = do
         sd@SysData { printerids } <- getSysData drawtext
-        newprinterids <- release printerids name (unloadPrinter drawtext texes (name ++ ".png"))
+        newprinterids <- release printerids name (unloadPrinter drawtext (name ++ ".png"))
         putSysData drawtext sd { printerids = newprinterids }
 
 {-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
 
-make drawtext texes = System (run drawtext) (initS drawtext texes)
+make drawtext = System (run drawtext) (initS drawtext)
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do
@@ -59,8 +58,8 @@ createPrinterVAOConfig shader = do
         config' <- indexVAOConfig vaoConfig
         return config'
 
-loadPrinterID :: IORef SysData -> IORef Textures.SysData -> String -> SysMonad c IO (Maybe PrinterID)
-loadPrinterID drawtext texes name = do
+loadPrinterID :: IORef SysData -> String -> SysMonad c IO (Maybe PrinterID)
+loadPrinterID drawtext name = do
         sd@SysData { printerpairs, perVertColorShader } <- getSysData drawtext
         case perVertColorShader of
             Nothing -> liftIO $ print "Can't load printer: No shader" >> return Nothing
@@ -100,9 +99,10 @@ modIndex [] _ _ = []
 modIndex (x:xs) 0 f = f x : xs
 modIndex (x:xs) i f = x : modIndex xs (i - 1) f
 
-unloadPrinter :: IORef SysData -> IORef Textures.SysData -> String -> PrinterID -> SysMonad c IO ()
-unloadPrinter dt texes path pid = do
-        Textures.releaseTex texes path
+unloadPrinter :: IORef SysData -> String -> PrinterID -> SysMonad c IO ()
+unloadPrinter dt path pid = do
+        RPC { _releaseTex } <- getRPC
+        _releaseTex path
         sd@SysData { printerpairs } <- getSysData dt
         putSysData dt sd { printerpairs = deleteIndex printerpairs pid }
 
@@ -134,9 +134,9 @@ run drawtext delta = do
             liftIO $ renderTextCommands pvc printerpairs
         putSysData drawtext sd { printerpairs = map (\(printer, tcoms) -> (printer, [])) printerpairs }
 
-initS drawtext texes = do
+initS drawtext = do
         RPC { _reserveShader } <- getRPC
-        registerResource reservePrinter (reservePrinter' drawtext texes)
+        registerResource reservePrinter (reservePrinter' drawtext)
         registerResource drawText (drawText' drawtext)
         sd <- getSysData drawtext
         shader <- _reserveShader ("perVertColor.vsh", "perVertColor.fsh")
