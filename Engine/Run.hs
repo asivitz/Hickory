@@ -7,8 +7,6 @@ import Engine.System
 import Engine.World
 import Data.Time
 import Control.Monad.State
-import qualified Systems.GLFWPlatform as GLFWPlatform
-import Data.IORef
 
 {-
 governFPS :: UTCTime -> IO ()
@@ -42,9 +40,8 @@ iter !world !systems !prev_time = do
         when shouldRun $
             iter newWorld systems current_time
 
-run :: [System c] -> c -> IO ()
-run systems userContext = do
+run :: World c -> [System c] -> IO ()
+run world systems = do
         ct <- getCurrentTime
 
-        w <- execStateT (mapM_ initSys systems) (emptyWorld userContext)
-        iter w systems ct
+        iter world systems ct

@@ -16,13 +16,13 @@ import Menus.Construction
 import qualified Systems.DrawText as DrawText
 import qualified Systems.Menus as Menus
 
-make = System nullRun initS
-
-font = "goudy_bookletter_1911"
-
-initS = do
+make :: SysMonad EXGameContext IO (System c)
+make = do
         RPC { _pushMenuScreen } <- getRPC
         _pushMenuScreen mainMenu
+        return $ System nullRun
+
+font = "goudy_bookletter_1911"
 
 mainMenu :: MenuScreen Scalar (EXEvent IO)
 mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen []]

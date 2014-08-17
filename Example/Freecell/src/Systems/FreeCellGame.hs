@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.FreeCellGame (empty, make, SysData) where
+module Systems.FreeCellGame (make) where
 
 import Control.Monad.State
 import Graphics.GLUtils
@@ -10,8 +10,13 @@ import Engine.World
 
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
+import Data.IORef
 
-make fcgame = System (run fcgame) (initS fcgame)
+make :: SysMonad c IO (System c)
+make = do
+        fcgame <- liftIO $ newIORef empty
+        initS fcgame
+        return $ System (run fcgame)
 
 starTex = "filled_star.png"
 

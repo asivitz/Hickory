@@ -1,16 +1,22 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.FPSCounter (empty, make, SysData(..)) where
+module Systems.FPSCounter (make) where
 import Control.Monad.State
 import Text.Printf
 import System.IO
 
 import Engine.System
 import Engine.World
+import Data.IORef
 
 reportInterval = 5.0 :: Double
 
-make fps = System (run fps) (initS fps)
+make :: SysMonad c IO (System c)
+make = do
+        fps <- liftIO $ newIORef empty
+        registerEvent printAll (printAll' fps)
+
+        return $ System (run fps)
 
 data SysData = SysData { 
              time :: Double,
@@ -18,9 +24,6 @@ data SysData = SysData {
             } deriving (Show)
 
 empty = SysData 0.0 0
-
-initS fps = do
-        registerEvent printAll (printAll' fps)
 
 printAll' fps = do
       mydata <- getSysData fps

@@ -26,32 +26,38 @@ data SysData c = SysData [ResolvedMenuScreen Scalar c] Double (Maybe (ResolvedMe
 
 empty = SysData [] 0 Nothing
 
-make menus draw = System (run menus draw) (initS menus draw)
+make :: SysMonad c IO (System c)
+make = do
+        menus <- liftIO $ newIORef empty
+        initS menus
+        return $ System (run menus)
 
 
 handleAction menus (PushScreen scr) = pushScreen menus scr 
 handleAction menus RefreshScreen = return ()
 handleAction menus PopScreen = popScreen menus
 
-initS menus draw = do
-        registerEvent inputTouchUp (inputTouchUp' menus draw)
+initS menus = do
+        registerEvent inputTouchUp (inputTouchUp' menus)
         registerResource pushMenuScreen (pushScreen menus)
 
-inputTouchUp' menus draw pos touchid = do
+inputTouchUp' menus pos touchid = do
         SysData navstack time leaving <- getSysData menus
         case (listToMaybe navstack) of
             Just (ResolvedMenuScreen elements duration) -> 
                 if (time > duration) then
-                                     handleScreenClick menus draw pos elements
+                                     handleScreenClick menus pos elements
                                      else return False
             Nothing -> return False
 
-handleScreenClick menus draw pos elements = do
-        Draw.SysData { Draw.screenSize } <- getSysData draw
+handleScreenClick menus pos elements = do
+        RPC { _screenSize } <- getRPC
+        sSize <- _screenSize
+
         res <- mapM (\(ResolvedUIElement but _) -> 
                 case but of
                     Just (Button rrect (mevent, maction)) -> do
-                        if (posInRect pos (transformRect rrect screenSize)) 
+                        if (posInRect pos (transformRect rrect sSize)) 
                             then do
                                 sequence_ mevent
                                 whenMaybe maction $ \a -> handleAction menus a
@@ -79,33 +85,34 @@ menuRender (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = lif
                      Nothing -> SolidSquare size color sh
                      Just tex -> Square size color tex sh
 
-menuRender screenSize pos (TextMenuDrawCommand pid tc) = do
+menuRender screensize pos (TextMenuDrawCommand pid tc) = do
         RPC { _drawText } <- getRPC
         _drawText pid uiLabel (PositionedTextCommand pos tc)
 
 drawElements :: (Real a, Monad m) => Size a -> [ResolvedUIElement Scalar (MenuEvent c m)] -> Double -> Bool -> SysMonad c IO ()
-drawElements screenSize elements fraction incoming = mapM_ (\(ResolvedUIElement _ renderfunc) -> 
-    mapM_ (\(yloc, xloc, mdc) -> menuRender screenSize (screenPos screenSize yloc xloc) mdc) (renderfunc fraction incoming))
+drawElements screensize elements fraction incoming = mapM_ (\(ResolvedUIElement _ renderfunc) -> 
+    mapM_ (\(yloc, xloc, mdc) -> menuRender screensize (screenPos screensize yloc xloc) mdc) (renderfunc fraction incoming))
         elements
 
 drawMenus :: (Real a, Monad m) => SysData (MenuEvent c m) -> Size a -> SysMonad c IO ()
-drawMenus sd@(SysData navstack time leaving) screenSize = do
+drawMenus sd@(SysData navstack time leaving) screensize = do
         whenMaybe (incomingScreen sd) $ \(ResolvedMenuScreen incEles duration) -> do
             let fraction = time / duration
                 pushing = isNothing leaving
             when (fraction < 1) $ do
                 let leavScreen = leavingScreen sd
-                whenMaybe leavScreen $ \(ResolvedMenuScreen eles _) -> drawElements screenSize eles (1 - fraction) pushing
+                whenMaybe leavScreen $ \(ResolvedMenuScreen eles _) -> drawElements screensize eles (1 - fraction) pushing
 
-            drawElements screenSize incEles (min 1 fraction) (not pushing)
+            drawElements screensize incEles (min 1 fraction) (not pushing)
 
-run menus draw delta = do
+run menus delta = do
         SysData navstack time leaving <- getSysData menus
         let sd' = SysData navstack (time + delta) leaving
         putSysData menus sd'
 
-        Draw.SysData { Draw.screenSize } <- getSysData draw
-        drawMenus sd' screenSize
+        RPC { _screenSize } <- getRPC
+        ss <- _screenSize
+        drawMenus sd' ss
 
 
 

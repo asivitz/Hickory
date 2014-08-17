@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawText (SysData(..), make, empty, drawText, PositionedTextCommand(..), textcommand, releasePrinter) where
+module Systems.DrawText (make, PositionedTextCommand(..), textcommand, releasePrinter) where
 import Control.Monad.State
 
 import Engine.System
@@ -47,7 +47,10 @@ releasePrinter drawtext name = do
 
 {-empty = SysData { screenSize = (Size 0 0), window = fromC nullPtr }-}
 
-make drawtext = System (run drawtext) (initS drawtext)
+make = do
+        drawtext <- liftIO $ newIORef empty
+        initS drawtext
+        return $ System (run drawtext)
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do

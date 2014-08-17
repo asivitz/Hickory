@@ -1,9 +1,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.WorldCamera (empty, make, SysData(..)) where
+module Systems.WorldCamera (make) where
 
+import Engine.World
 import Engine.System
 import Math.Vector
+import Control.Monad.State
+import Data.IORef
 
 import Camera.Camera
 
@@ -11,9 +14,17 @@ data SysData = SysData {
              camera :: Camera
              }
 
-make camera = System (run camera) nullInit
-empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))
+camera' worldcam = do
+        SysData { camera } <- getSysData worldcam
+        return $ Just camera
 
+make :: SysMonad c IO (System c)
+make = do
+        worldcam <- liftIO $ newIORef empty
+        registerResource worldCamera (camera' worldcam)
+        return $ System (run worldcam)
+
+empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))
 
 run camera delta =
         do

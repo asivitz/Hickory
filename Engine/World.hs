@@ -12,6 +12,8 @@ import Graphics.DrawText
 import Graphics.Drawing
 import Menus.Menus
 import Control.Lens hiding (Context)
+import Types.Types
+import Camera.Camera
 
 data World c = World {
            entitySet :: EntitySet,
@@ -33,7 +35,10 @@ data RPC c = RPC {
            _pushMenuScreen :: MenuScreen Scalar (SysMonad c IO ()) -> SysMonad c IO (),
            _drawText :: PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO (),
            _printAll :: [SysMonad c IO ()],
-           _running :: IO Bool
+           _running :: IO Bool,
+           _screenSize :: SysMonad c IO (Size Int),
+           _worldCamera :: SysMonad c IO (Maybe Camera),
+           _uiCamera :: SysMonad c IO (Maybe Camera)
            }
 
 instance Show (RPC c) where
@@ -50,7 +55,10 @@ emptyRPC = RPC {
                _pushMenuScreen = \_ -> return (),
                _drawText = \_ _ _ -> return (),
                _printAll = [],
-               _running = return True
+               _running = return True,
+               _screenSize = return nullSize,
+               _worldCamera = return Nothing,
+               _uiCamera = return Nothing
                }
 
 data Context compStore rpc = Context compStore rpc

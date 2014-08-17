@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Draw (SysData(..), make, makeDrawData, empty, nullSize, createVAOConfig, indexVAOConfig, reserveShader, releaseShader, drawSpec) where
+module Systems.Draw (make, createVAOConfig, indexVAOConfig, reserveShader, releaseShader, drawSpec) where
 import Control.Monad.State
 
 import Engine.System
@@ -11,48 +11,38 @@ import Engine.Component
 import Types.Types
 
 import Utils.Resources
+import Utils.Utils
 
 import Graphics.GLUtils
 import Math.Matrix
 import Math.Vector
 import Math.VectorMatrix
 import Data.IORef
-import Data.Traversable
-import qualified Graphics.UI.GLFW          as GLFW
 
 import Camera.Camera
-
-import qualified Systems.WorldCamera as WorldCamera
-import qualified Systems.UICamera as UICamera
 
 import Foreign.C.String
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
-import Graphics.GLFWUtils
 import Data.Bits
 
 data SysData = SysData { 
-             window :: Maybe (GLFW.Window),
-             screenSize :: Size Int,
              shaders :: RefStore (String,String) Shader,
              vanillaShader :: Maybe Shader,
              worldMatrix :: Mat44
              }
 
-empty = SysData { window = Nothing,
-                screenSize = nullSize, 
-                shaders = emptyRefStore,
+empty = SysData { shaders = emptyRefStore,
                 vanillaShader = Nothing,
                 worldMatrix = mat44Identity
                 }
 
-makeDrawData :: IO (IORef SysData)
-makeDrawData = do
-        win <- buildWindow 400 400 "Hi hi!"
-        newIORef empty { window = win }
-
-make draw worldcamera uicamera = System (run draw worldcamera uicamera) (initS draw)
+make :: SysMonad c IO (System c)
+make = do
+        draw <- liftIO $ newIORef empty
+        initS draw
+        return $ System (run draw)
 
 runDrawable :: Double -> Drawable -> DrawState -> SysMonad c IO Drawable
 runDrawable delta dr@(Drawable spec) (DrawState pos) = do
@@ -71,52 +61,37 @@ renderCommandsWithCamera :: Camera -> Label -> Float -> IO ()
 renderCommandsWithCamera cam label aspect = renderCommands matrix label
     where matrix = cameraMatrix cam aspect
 
-run draw worldcamera uicamera delta = 
+run draw delta = 
         do
-            {-RPC { _quit } <- getRPC-}
+            RPC { _screenSize, _worldCamera, _uiCamera } <- getRPC
             updateCompsM2 (runDrawable delta) drawables drawStates
-            sd@SysData {
-                    screenSize,
-                    window,
-                    vanillaShader
-                    } <- getSysData draw
+            sd <- getSysData draw
 
-            WorldCamera.SysData { WorldCamera.camera = worldcam } <- getSysData worldcamera
-            UICamera.SysData { UICamera.camera = uicam } <- getSysData uicamera
+            ss <- _screenSize
 
-            let ar = aspectRatio screenSize
-                worldMatrix' = cameraMatrix worldcam ar
+            mworldCam <- _worldCamera
+            muiCam <- _uiCamera
 
-            putSysData draw sd { worldMatrix = worldMatrix' }
+            whenMaybe2 mworldCam muiCam $ \worldcam uicam -> do
 
-            liftIO $ do
-                glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-                renderCommandsWithCamera uicam backgroundLabel ar
-                renderCommands worldMatrix' worldLabel
-                renderCommandsWithCamera uicam uiLabel ar
+                let ar = aspectRatio ss
+                    worldMatrix' = cameraMatrix worldcam ar
 
-                resetRenderer
+                putSysData draw sd { worldMatrix = worldMatrix' }
 
-                traverse GLFW.swapBuffers window
-                GLFW.pollEvents
-
-            q <- liftIO $ traverse GLFW.windowShouldClose window
-            when (maybe False id q) $ do
-                {-sequence_ _quit-}
                 liftIO $ do
-                    traverse GLFW.destroyWindow window
-                    GLFW.terminate
+                    glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+                    renderCommandsWithCamera uicam backgroundLabel ar
+                    renderCommands worldMatrix' worldLabel
+                    renderCommandsWithCamera uicam uiLabel ar
 
-            return ()
+                    resetRenderer
+
+                return ()
 
 initS draw = do
         registerResource reserveShader (reserveShader' draw)
-        SysData {window = win} <- getSysData draw
         
-        (fbWidth, fbHeight) <- case win of
-            Nothing -> return (0,0)
-            Just w -> liftIO $ GLFW.getFramebufferSize w
-
         {-liftIO $ GLFW.swapInterval 0-}
 
         liftIO $ do
@@ -132,7 +107,6 @@ initS draw = do
         sd <- getSysData draw
         
         putSysData draw sd {
-                        screenSize = (Size fbWidth fbHeight),
                         vanillaShader = vanilla
                         }
 

@@ -13,8 +13,7 @@ import Control.Lens hiding (Context)
 import qualified Data.HashMap.Strict as HashMap
 
 data System c = System {
-      runSys :: Double -> SysMonad c IO (),
-      initSys :: SysMonad c IO ()
+      runSys :: Double -> SysMonad c IO ()
       }
 
 nullRun :: Double -> SysMonad c IO ()

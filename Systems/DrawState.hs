@@ -1,17 +1,17 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Rank2Types #-}
 
-module Systems.DrawState (empty, make, SysData(..)) where
+module Systems.DrawState (make) where
 
+import Engine.World
 import Engine.System
 import Engine.Component
 import Math.Vector
 
 data SysData = SysData deriving (Show)
 
-empty = SysData
-
-make = System run nullInit
+make :: SysMonad c IO (System c)
+make = return $ System run
 
 run delta = 
       do

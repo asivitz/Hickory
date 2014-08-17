@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Textures (SysData(..), empty, make, releaseTex) where
+module Systems.Textures (make, releaseTex) where
 
 import Engine.System
 import Engine.World
@@ -28,11 +28,13 @@ data SysData = SysData {
 empty :: SysData
 empty = SysData { textures = emptyRefStore }
 
-make textures = System run (initS textures)
-
-initS textures = do
+make :: SysMonad c IO (System c)
+make = do
+        textures <- liftIO $ newIORef empty
         registerResource reserveTex (reserveTex' textures)
         registerResource releaseTex (releaseTex' textures)
+
+        return $ System nullRun
 
 loadTexture :: String -> IO (Maybe TexID)
 loadTexture path = do
@@ -86,7 +88,3 @@ releaseTex' texes path = do
    mydata@SysData { textures } <- getSysData texes
    newtexes <- liftIO $ release textures path deleteTexture
    putSysData texes mydata { textures = newtexes }
-
-run delta = 
-   do
-      return ()
