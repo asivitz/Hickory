@@ -38,9 +38,16 @@ empty = SysData { shaders = emptyRefStore,
                 worldMatrix = mat44Identity
                 }
 
+worldmat' draw = do
+        SysData { worldMatrix } <- getSysData draw
+        return worldMatrix
+
 make :: SysMonad c IO (System c)
 make = do
         draw <- liftIO $ newIORef empty
+
+        registerResource drawnWorldMatrix (worldmat' draw)
+
         initS draw
         return $ System (run draw)
 

@@ -14,6 +14,7 @@ import Menus.Menus
 import Control.Lens hiding (Context)
 import Types.Types
 import Camera.Camera
+import Math.Matrix
 
 data World c = World {
            entitySet :: EntitySet,
@@ -38,6 +39,7 @@ data RPC c = RPC {
            _running :: IO Bool,
            _screenSize :: SysMonad c IO (Size Int),
            _worldCamera :: SysMonad c IO (Maybe Camera),
+           _drawnWorldMatrix :: SysMonad c IO Mat44,
            _uiCamera :: SysMonad c IO (Maybe Camera)
            }
 
@@ -58,6 +60,7 @@ emptyRPC = RPC {
                _running = return True,
                _screenSize = return nullSize,
                _worldCamera = return Nothing,
+               _drawnWorldMatrix = return mat44Identity,
                _uiCamera = return Nothing
                }
 
