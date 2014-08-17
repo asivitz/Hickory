@@ -56,16 +56,17 @@ make = do
         return $ System (run sd)
 
 run platform delta = do
+        liftIO GLFW.pollEvents
+
         sd@SysData { window, fbSize, evlist, touches } <- getSysData platform
+
+        liftIO $ traverse GLFW.swapBuffers window
 
         whenMaybe window $ \win -> do
             mapM_ (broadcastTouchLoc win fbSize) $ HashSet.toList touches
             mapM_ processInputEv evlist
 
         isRunning' <- liftIO $ do
-            traverse GLFW.swapBuffers window
-            GLFW.pollEvents
-            
             q <- traverse GLFW.windowShouldClose window
             case q of
                 Nothing -> return True
@@ -75,6 +76,7 @@ run platform delta = do
                     GLFW.terminate
                     return False
 
+        -- Just remove processed events!
         putSysData platform sd { isRunning = isRunning', evlist = [] }
 
 mouseButtonCallback :: IORef SysData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
@@ -113,7 +115,7 @@ touchPosToScreenPos :: Size Int -> (Double, Double) -> V2
 touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) ((fromIntegral h) - (realToFrac y))
 
 data InputEv = InputTouchDown V2 Int
-             | InputTouchUp V2 Int
+             | InputTouchUp V2 Int deriving (Show)
 
 broadcastTouchLoc win screensize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
