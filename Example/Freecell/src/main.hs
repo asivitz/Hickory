@@ -14,4 +14,4 @@ main = do
           let fcgameSys = FCGame.make fcgame
               fcmenuSys = FCMenu.make 
               systems = (coreSystems ++ [fcgameSys, fcmenuSys])
-          run systems emptyGameContext platform
+          run systems emptyGameContext

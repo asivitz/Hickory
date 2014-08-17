@@ -73,7 +73,7 @@ renderCommandsWithCamera cam label aspect = renderCommands matrix label
 
 run draw worldcamera uicamera delta = 
         do
-            RPC { _quit } <- getRPC
+            {-RPC { _quit } <- getRPC-}
             updateCompsM2 (runDrawable delta) drawables drawStates
             sd@SysData {
                     screenSize,
@@ -102,7 +102,7 @@ run draw worldcamera uicamera delta =
 
             q <- liftIO $ traverse GLFW.windowShouldClose window
             when (maybe False id q) $ do
-                sequence_ _quit
+                {-sequence_ _quit-}
                 liftIO $ do
                     traverse GLFW.destroyWindow window
                     GLFW.terminate

@@ -33,7 +33,7 @@ data RPC c = RPC {
            _pushMenuScreen :: MenuScreen Scalar (SysMonad c IO ()) -> SysMonad c IO (),
            _drawText :: PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO (),
            _printAll :: [SysMonad c IO ()],
-           _quit :: [SysMonad c IO ()]
+           _running :: IO Bool
            }
 
 instance Show (RPC c) where
@@ -50,7 +50,7 @@ emptyRPC = RPC {
                _pushMenuScreen = \_ -> return (),
                _drawText = \_ _ _ -> return (),
                _printAll = [],
-               _quit = []
+               _running = return True
                }
 
 data Context compStore rpc = Context compStore rpc

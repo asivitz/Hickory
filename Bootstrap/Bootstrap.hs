@@ -11,7 +11,7 @@ import qualified Systems.DrawText as DrawText
 import qualified Systems.WorldCamera as WorldCamera
 import qualified Systems.UICamera as UICamera
 import qualified Systems.Menus as Menus
-import qualified Systems.Platform as Platform
+import qualified Systems.GLFWPlatform as GLFWPlatform
 
 coreData = do
         draw <- Draw.makeDrawData
@@ -22,7 +22,7 @@ coreData = do
         worldcamera <- newIORef WorldCamera.empty
         uicamera <- newIORef UICamera.empty
         menus <- newIORef Menus.empty
-        platform <- newIORef Platform.empty
+        platform <- newIORef GLFWPlatform.empty
 
         let systems = [
                     FPSCounter.make fps,
@@ -34,7 +34,7 @@ coreData = do
                     Menus.make menus draw,
                     WorldCamera.make worldcamera,
                     UICamera.make uicamera,
-                    Platform.make platform
+                    GLFWPlatform.make platform
                     ]
 
         return ((platform, draw, textures, drawtext, worldcamera, uicamera, menus), systems)

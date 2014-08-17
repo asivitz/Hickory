@@ -7,7 +7,7 @@ import Engine.System
 import Engine.World
 import Data.Time
 import Control.Monad.State
-import qualified Systems.Platform as Platform
+import qualified Systems.GLFWPlatform as GLFWPlatform
 import Data.IORef
 
 {-
@@ -27,23 +27,24 @@ simulate world systems delta = do
       newWorld <- execStateT (mapM_ (\s -> (runSys s) delta) systems) world
       return newWorld
 
-iter :: World c -> [System c] -> IORef Platform.SysData -> UTCTime -> IO ()
-iter !world !systems !platform !prev_time = do
+iter :: World c -> [System c] -> UTCTime -> IO ()
+iter !world !systems !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
         newWorld <- simulate world systems delta
 
+        shouldRun <- case newWorld of
+                         World { systemContext = (Context _ RPC { _running } ) } -> _running
+
         {-governFPS current_time-}
 
-        Platform.SysData { Platform.running } <- readIORef platform
-        
-        when running $
-            iter newWorld systems platform current_time
+        when shouldRun $
+            iter newWorld systems current_time
 
-run :: [System c] -> c -> IORef Platform.SysData -> IO ()
-run systems userContext platform = do
+run :: [System c] -> c -> IO ()
+run systems userContext = do
         ct <- getCurrentTime
 
         w <- execStateT (mapM_ initSys systems) (emptyWorld userContext)
-        iter w systems platform ct
+        iter w systems ct
