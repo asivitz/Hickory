@@ -9,6 +9,7 @@ import Types.Color
 import Math.Vector
 
 import Context.Game
+import Engine.GameContext
 
 import Graphics.DrawText
 import Menus.Menus
@@ -19,14 +20,14 @@ import qualified Systems.Menus as Menus
 make :: SysMonad EXGameContext IO (System c)
 make = do
         RPC { _pushMenuScreen } <- getRPC
-        _pushMenuScreen mainMenu
+        gamerpc <- getGameRPC
+        _pushMenuScreen (mainMenu gamerpc)
         return $ System nullRun
 
 font = "goudy_bookletter_1911"
 
-mainMenu :: MenuScreen Scalar (EXEvent IO)
-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen []]
-                      0.5
+mainMenu :: GameRPC -> MenuScreen Scalar (EXEvent IO)
+mainMenu GameRPC { _newGame } = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5
 
 type EXEvent m = Menus.MenuEvent EXGameContext m
 

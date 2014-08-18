@@ -17,6 +17,7 @@ import Data.Array.Storable
 import Graphics.Rendering.OpenGL.Raw.Core31
 
 import Utils.Resources
+import Utils.Utils
 
 import Codec.Image.PNG
 
@@ -76,12 +77,15 @@ deleteTexture texid = return ()
 
 reserveTex' :: IORef SysData -> String -> SysMonad c IO (Maybe TexID)
 reserveTex' texes path = do
-   mydata@SysData { textures } <- getSysData texes
-   (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
-                                                                  rp <- resourcePath
-                                                                  loadTexture $ rp ++ "/images/" ++ p
-   putSysData texes mydata { textures = newtexes }
-   return texid
+        mydata@SysData { textures } <- getSysData texes
+        (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
+                                                                       rp <- resourcePath
+                                                                       loadTexture $ rp ++ "/images/" ++ p
+
+        whenNothing texid $ liftIO $ print ("Couldn't load texture: " ++ path)
+
+        putSysData texes mydata { textures = newtexes }
+        return texid
 
 releaseTex' :: IORef SysData -> String -> SysMonad c IO ()
 releaseTex' texes path = do

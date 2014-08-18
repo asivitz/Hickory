@@ -13,13 +13,15 @@ emptyGameComponentStore = []
 type EXGameContext = Context GameComponentStore GameRPC
 
 data GameRPC = GameRPC {
-         _test :: [SysMonad EXGameContext IO ()]
+         _test :: [SysMonad EXGameContext IO ()],
+         _newGame :: [SysMonad EXGameContext IO ()]
          }
 
 makeLenses ''GameRPC
 
 emptyGameRPC = GameRPC { 
-               _test = []
+               _test = [],
+               _newGame = []
                }
 
 emptyGameContext = Context emptyGameComponentStore emptyGameRPC

@@ -20,6 +20,7 @@ whenMaybe2 a b f = case a of
                        Nothing -> return ()
                        Just a' -> maybe (return ()) (f a') b
 
+whenNothing :: Monad m => Maybe a -> m () -> m ()
 whenNothing a f = case a of
                       Nothing -> f
                       Just b -> return ()
