@@ -27,7 +27,6 @@ upDS delta (DrawState p) (NewtonianMover v a) =
 
 inputTouchLoc' pos touchid = do
         ComponentStore { _mouseDrags } <- getComponentStore
-        liftIO $ print _mouseDrags
         unproj <- doLerpUnproject pos (-5)
         updateComps2 (snapToMouse unproj) drawStates mouseDrags
         return False

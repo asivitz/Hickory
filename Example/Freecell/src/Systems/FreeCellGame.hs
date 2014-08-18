@@ -47,15 +47,13 @@ inputTouchDown' fcgame pos touchid = do
         let selected = filter (pickSelectable unproj) comps2
 
         mapM_ (\(e, (DrawState p), _) -> do
-            liftIO $ print "adding!"
             addComp e mouseDrags $ MouseDrag (p - unproj))
             selected
 
-        liftIO $ print selected
         return False
 
 inputTouchLoc' pos touchid = do
-        liftIO $ print $ "Input ping " ++ (show pos)
+        {-liftIO $ print $ "Input ping " ++ (show pos)-}
         return False
 
 printAll' fcgame = do
