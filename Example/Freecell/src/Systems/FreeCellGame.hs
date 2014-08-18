@@ -32,12 +32,24 @@ cardTex = "card.png"
 pickSelectable pos (e, (DrawState p), (Selectable size)) =
         posInRect (v3tov2 pos) (Rect (v3tov2 p) size)
 
-inputTouchUp' fcgame pos touchid = do
+inputTouchUp' pos touchid = do
+        cs <- components mouseDrags
+        mapM_ (\(e, _) -> do
+            removeComp e mouseDrags)
+            cs
+        return False
+
+inputTouchDown' fcgame pos touchid = do
         unproj <- doLerpUnproject pos (-5)
 
-        comps <- zipComps2 drawStates selectables
+        comps2 <- zipComps2 drawStates selectables
 
-        let selected = filter (pickSelectable unproj) comps
+        let selected = filter (pickSelectable unproj) comps2
+
+        mapM_ (\(e, (DrawState p), _) -> do
+            liftIO $ print "adding!"
+            addComp e mouseDrags $ MouseDrag (p - unproj))
+            selected
 
         liftIO $ print selected
         return False
@@ -73,7 +85,8 @@ run fcgame delta =
 initS fcgame = do
         liftIO $ glClearColor 0 0.5 0 1
         registerEvent printAll (printAll' fcgame)
-        registerEvent inputTouchUp (inputTouchUp' fcgame)
+        registerEvent inputTouchUp (inputTouchUp')
+        registerEvent inputTouchDown (inputTouchDown' fcgame)
         registerEvent inputTouchLoc (inputTouchLoc')
         registerGameEvent newGame (newGame' fcgame)
 

@@ -76,12 +76,25 @@ addComp e comps c = do
         let cs' = over comps (\m -> HashMap.insert e c m) cs
         putComponentStore cs'
 
+removeComp :: Monad m => Entity -> CompLens c -> SysMonad r m ()
+removeComp e l = do
+        cs <- getComponentStore
+
+        let cs' = over l (\m -> HashMap.delete e m) cs
+        putComponentStore cs'
+
+
 compForEnt :: (Monad m) => Entity -> CompLens c -> SysMonad r m (Maybe c)
 compForEnt e l = do
         cs <- getComponentStore
         let comps = view l cs
             c = HashMap.lookup e comps
         return c
+
+components :: Monad m => CompLens c -> SysMonad r m [(Entity, c)]
+components l = do
+        cs <- getComponentStore
+        return $ HashMap.toList $ view l cs
 
 {-putSysData :: Monad m => sysdata -> SysMonad sysdata m ()-}
 {-putSysData sd = do-}
