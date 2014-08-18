@@ -11,7 +11,7 @@ import qualified Systems.Menus as Menus
 import qualified Systems.GLFWPlatform as GLFWPlatform
 
 coreSystems = do
-        platform <- GLFWPlatform.make
+        (platform_pre, platform_post) <- GLFWPlatform.make
         drawstate <- DrawState.make
         draw <- Draw.make
         fps <- FPSCounter.make
@@ -20,4 +20,4 @@ coreSystems = do
         worldcamera <- WorldCamera.make
         uicamera <- UICamera.make
         menus <- Menus.make
-        return [fps, drawstate, textures, menus, drawtext, worldcamera, uicamera, draw, platform]
+        return [platform_pre, fps, drawstate, textures, menus, drawtext, worldcamera, uicamera, draw, platform_post]

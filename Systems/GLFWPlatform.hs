@@ -37,7 +37,18 @@ screenSize' platform = do
         SysData { fbSize } <- getSysData platform
         return fbSize
 
-make :: SysMonad c IO (System c)
+runPre platform delta = do
+        liftIO GLFW.pollEvents
+
+        sd@SysData { window, fbSize, evlist, touches } <- getSysData platform
+
+        whenMaybe window $ \win -> do
+            mapM_ (broadcastTouchLoc win fbSize) $ HashSet.toList touches
+            mapM_ processInputEv evlist
+
+        putSysData platform sd { evlist = [] }
+
+make :: SysMonad c IO (System c, System c)
 make = do
         win <- liftIO $ buildWindow 400 400 "Hi hi!"
 
@@ -53,18 +64,12 @@ make = do
         registerResource running (running' sd)
         registerResource screenSize (screenSize' sd)
 
-        return $ System (run sd)
+        return (System (runPre sd), System (run sd))
 
 run platform delta = do
-        liftIO GLFW.pollEvents
-
-        sd@SysData { window, fbSize, evlist, touches } <- getSysData platform
+        sd@SysData { window } <- getSysData platform
 
         liftIO $ traverse GLFW.swapBuffers window
-
-        whenMaybe window $ \win -> do
-            mapM_ (broadcastTouchLoc win fbSize) $ HashSet.toList touches
-            mapM_ processInputEv evlist
 
         isRunning' <- liftIO $ do
             q <- traverse GLFW.windowShouldClose window
@@ -77,7 +82,7 @@ run platform delta = do
                     return False
 
         -- Just remove processed events!
-        putSysData platform sd { isRunning = isRunning', evlist = [] }
+        putSysData platform sd { isRunning = isRunning' }
 
 mouseButtonCallback :: IORef SysData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform win button buttonState modkeys =
