@@ -12,6 +12,7 @@ import Engine.Component
 import Types.Types
 import Types.Color
 import Utils.Utils
+import Utils.Projection
 
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -28,7 +29,17 @@ make = do
 
 cardTex = "card.png"
 
+pickSelectable pos (e, (DrawState p), (Selectable size)) =
+        posInRect (v3tov2 pos) (Rect (v3tov2 p) size)
+
 inputTouchUp' fcgame pos touchid = do
+        unproj <- doLerpUnproject pos (-5)
+
+        comps <- zipComps2 drawStates selectables
+
+        let selected = filter (pickSelectable unproj) comps
+
+        liftIO $ print selected
         return False
 
 inputTouchLoc' pos touchid = do
@@ -47,10 +58,13 @@ newGame' fcgame = do
 spawnCard fcgame pos = do
         SysData { cardtex, vanilla } <- getSysData fcgame
 
+        let scale = 2
+
         e <- spawnEntity
         addComp e drawStates $ DrawState pos
+        addComp e selectables $ Selectable (Size (0.726 * scale) scale)
         whenMaybe2 cardtex vanilla $ \tid sh ->
-            addComp e drawables $ Drawable $ Square (Size 2 2) white tid sh
+            addComp e drawables $ Drawable $ Square (convertSize $ Size scale scale) white tid sh
 
 run fcgame delta =
       do

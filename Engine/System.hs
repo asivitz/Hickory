@@ -154,6 +154,20 @@ updateComps2 f lp ls = do
             updated = map up1 kv_list
         putComponentStore (set lp (HashMap.fromList updated) cs)
 
+zipComps2 :: Monad m => CompLens c -> CompLens d -> SysMonad r m [(Entity, c, d)]
+zipComps2 lp ls = do
+        cs <- getComponentStore
+
+        let kv_list = HashMap.toList (view lp cs)
+            additional = view ls cs
+            recur [] = []
+            recur ((e, c1):xs) = case (HashMap.lookup e additional) of
+                                     Nothing -> recur xs
+                                     Just c2 -> (e, c1, c2) : recur xs
+
+        return $ recur kv_list
+
+
 orM :: (Monad m) => [m Bool] -> m Bool
 orM []          = return False
 orM (f:fs)      = f >>= (\x -> if x then return True else orM fs)

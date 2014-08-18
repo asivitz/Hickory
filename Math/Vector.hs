@@ -13,7 +13,8 @@ module Math.Vector
     pZero,
     v2tov3,
     v3tov4,
-    v4tov3
+    v4tov3,
+    v3tov2
     )
     where
 
@@ -39,6 +40,9 @@ v2tov3 (Vector2 x y) z = v3 x y z
 
 v3tov4 :: V3 -> Scalar -> V4
 v3tov4 (Vector3 x y z) w = v4 x y z w
+
+v3tov2 :: V3 -> V2
+v3tov2 (Vector3 x y z) = v2 x y
 
 v4tov3 :: V4 -> V3
 v4tov3 (Vector4 x y z w) = (Vector3 x y z)

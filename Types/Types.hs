@@ -13,12 +13,16 @@ module Types.Types
    posInRect,
    transform,
    RelativeRect(..),
-   transformRect
+   transformRect,
+   convertSize
    ) where
 
 import Math.Vector
 
 data Size a = Size a a deriving (Show)
+
+convertSize :: (Real a, Fractional b) => Size a -> Size b
+convertSize (Size a b) = Size (realToFrac a) (realToFrac b)
 
 type FSize = Size Float
 
