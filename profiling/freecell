@@ -1,0 +1,19 @@
+#!/usr/bin/env ruby
+
+PROG="freecell"
+VIEW="open"
+#FLAGS==--yourflags profiling/toydata.xml
+
+do_configure = ARGV.size == 0 || ARGV[0] == "-c"
+do_run = ARGV.size == 0 || (ARGV.size == 1 and ARGV[0] == "-r")
+
+if do_configure
+    system("cabal configure --enable-library-profiling --enable-executable-profiling")
+    system("cabal build #{PROG}")
+end
+
+if do_run
+    system("dist/build/#{PROG}/#{PROG} +RTS -h")
+    system("hp2ps -c #{PROG}.hp")
+    system("#{VIEW} #{PROG}.ps")
+end

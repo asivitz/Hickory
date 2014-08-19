@@ -3,3 +3,8 @@
 *.dyn_hi
 *.dyn_o
 dist/
+.cabal-sandbox/
+cabal.sandbox.config
+*.aux
+*.hp
+*.ps

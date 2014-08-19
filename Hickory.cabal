@@ -49,6 +49,7 @@ library
   default-language:    Haskell2010
   c-sources: c/drawing.c c/platform.c c/shaderprogram.c c/renderer.c Math/linmath.c
   include-dirs: include/
+  ghc-prof-options:   -fprof-auto
   
 executable freecell
   default-language:    Haskell2010
@@ -57,3 +58,5 @@ executable freecell
   build-depends:       base >=4.7 && <4.8, Hickory, lens >= 4.3 && < 4.4, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6
   hs-source-dirs:  Example/Freecell/src
   other-modules:     Configuration, Context.Game, Systems.FreeCellGame, Systems.FreeCellMenu
+  ghc-options: -rtsopts  
+  ghc-prof-options: -fprof-auto
