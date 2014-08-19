@@ -1,4 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Systems.Draw (make, createVAOConfig, indexVAOConfig, reserveShader, releaseShader, drawSpec) where
