@@ -76,12 +76,13 @@ loadPrinterID drawtext name = do
 
 loadPrinter :: Shader -> String -> SysMonad c IO (Maybe (Printer Int))
 loadPrinter shader name = do
-        RPC { _reserveTex } <- getRPC
+        RPC { _reserveTex, _resourcesPath } <- getRPC
         texid <- _reserveTex $ name ++ ".png"
         case texid of
             Nothing -> return Nothing
             Just tid -> do
-                text <- liftIO $ TextIO.readFile $ "fonts/" ++ name ++ ".fnt"
+                rp <- liftIO $ _resourcesPath
+                text <- liftIO $ TextIO.readFile $ rp ++ "fonts/" ++ name ++ ".fnt"
                 let f = makeFont text
                 case f of
                     Left s -> do

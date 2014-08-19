@@ -9,7 +9,6 @@ import Control.Monad.State
 import Foreign.C.String
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
 import Foreign.Storable
 import Data.IORef
 import Data.Array.Storable
@@ -60,25 +59,15 @@ loadTexture path = do
                     glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER glLinear
                     return $ Just $ TexID (fromIntegral tex)
 
-foreign import ccall "getResourcePath" c'getResourcePath
-    :: CString -> CInt -> IO ()
-
-resourcePath :: IO String
-resourcePath = do
-        ptr <- mallocArray 1024
-        c'getResourcePath ptr 1024
-        str <- peekCString ptr
-        free ptr
-        return str
-
 deleteTexture :: TexID -> IO ()
 deleteTexture texid = return ()
 
 reserveTex' :: IORef SysData -> String -> SysMonad c IO (Maybe TexID)
 reserveTex' texes path = do
+        RPC { _resourcesPath } <- getRPC
         mydata@SysData { textures } <- getSysData texes
         (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
-                                                                       rp <- resourcePath
+                                                                       rp <- liftIO $ _resourcesPath
                                                                        loadTexture $ rp ++ "/images/" ++ p
 
         whenNothing texid $ liftIO $ print ("Couldn't load texture: " ++ path)

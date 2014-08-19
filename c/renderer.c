@@ -47,17 +47,9 @@ GLuint getMainVAO()
    return vao1;
 }
 
-ShaderProgram * buildShaderProgramWithFileNames(const char * inVertShaderName, const char * inFragShaderName)
+ShaderProgram * buildShaderProgramWithFilePaths(const char * inVertShaderPath, const char * inFragShaderPath)
 {
-    char rp[1024];
-    getResourcePath(rp, 1024);
-    char vertPath[512];
-    snprintf(vertPath, 512, "%s/Shaders/%s", rp, inVertShaderName);
-   
-    char fragPath[512];
-    snprintf(fragPath, 512, "%s/Shaders/%s", rp, inFragShaderName);
-   
-    ShaderProgram * shader = buildShaderProgram(vertPath, fragPath);
+    ShaderProgram * shader = buildShaderProgram(inVertShaderPath, inFragShaderPath);
     return shader;
 }
 
@@ -79,9 +71,9 @@ int addShader(ShaderProgram * program)
     return -1;
 }
 
-int load_shader(const char * inVertShaderName, const char * inFragShaderName)
+int load_shader(const char * inVertShaderPath, const char * inFragShaderPath)
 {
-   ShaderProgram * program = buildShaderProgramWithFileNames(inVertShaderName, inFragShaderName);
+   ShaderProgram * program = buildShaderProgramWithFilePaths(inVertShaderPath, inFragShaderPath);
    if (program == NULL)
        return -1;
 

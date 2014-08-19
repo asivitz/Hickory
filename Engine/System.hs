@@ -26,6 +26,9 @@ getWorld = do
       w <- get
       return w
 
+putWorld :: Monad m => World c -> SysMonad c m ()
+putWorld = put
+
 getRPC :: Monad m => SysMonad c m (RPC c)
 getRPC = do
         World { systemContext = (Context _ rpc) } <- get
@@ -41,10 +44,14 @@ registerRPC f = do
         rpc <- getRPC
         putRPC (f rpc)
 
+registerResourceToWorld :: World c -> Lens' (RPC c) a -> a -> World c
+registerResourceToWorld w@World { systemContext = (Context cs rpc) } l f = 
+        w { systemContext = (Context cs (set l f rpc)) }
+
 registerResource :: Monad m => Lens' (RPC c) a -> a -> SysMonad c m ()
 registerResource l f = do
-        rpc <- getRPC
-        putRPC (set l f rpc)
+        w <- getWorld
+        putWorld (registerResourceToWorld w l f)
 
 registerEvent :: Monad m => Lens' (RPC c) [a] -> a -> SysMonad c m ()
 registerEvent l f = do

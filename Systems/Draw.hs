@@ -117,8 +117,12 @@ initS draw = do
                         }
 
 reserveShader' :: IORef SysData -> (String,String) -> SysMonad c IO (Maybe Shader)
-reserveShader' draw vertfragpair = do
+reserveShader' draw (vert,frag) = do
    mydata@SysData { shaders } <- getSysData draw
+   RPC { _resourcesPath } <- getRPC
+   prefix <- liftIO $ fmap (++"Shaders/") _resourcesPath
+   let vertfragpair = ( prefix ++ vert, prefix ++ frag)
+
    (newshaders, shader) <- liftIO $ reserve shaders vertfragpair (\(v,f) -> loadShader v f)
    putSysData draw mydata { shaders = newshaders }
    return shader

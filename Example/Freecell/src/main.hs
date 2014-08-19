@@ -5,6 +5,7 @@ import qualified Systems.FreeCellGame as FCGame
 import qualified Systems.FreeCellMenu as FCMenu
 import Engine.World
 import Control.Monad.State
+import Engine.System
 
 initSystems = do
         core <- coreSystems
@@ -13,7 +14,11 @@ initSystems = do
         fcmenu <- FCMenu.make 
         return ([fcgame, fcmenu] ++ core)
 
+resources = "Example/Freecell/resources/"
+
 main :: IO ()
 main = do 
-          (systems, w) <- runStateT initSystems (emptyWorld emptyGameContext)
-          run w systems
+          let w = registerResourceToWorld (emptyWorld emptyGameContext) resourcesPath (return resources)
+              
+          (systems, w') <- runStateT initSystems w
+          run w' systems

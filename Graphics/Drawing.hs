@@ -22,11 +22,11 @@ nullShader :: Shader
 nullShader = Shader (-1)
 
 loadShader :: String -> String -> IO (Maybe Shader)
-loadShader vertShaderName fragShaderName = 
-        withCString vertShaderName $ \vname ->
-            withCString fragShaderName $ \fname ->
+loadShader vertShaderPath fragShaderPath = 
+        withCString vertShaderPath $ \vpath ->
+            withCString fragShaderPath $ \fpath ->
                 do
-                    val <- c'loadShader vname fname
+                    val <- c'loadShader vpath fpath
                     if val >= 0
                         then
                             return $ Just $ Shader val

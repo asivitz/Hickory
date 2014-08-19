@@ -74,6 +74,7 @@ struct _draw_command
 ShaderProgram * getShader(unsigned int num);
 GLuint getMainVAO();
 
+int load_shader(const char * inVertShaderPath, const char * inFragShaderPath);
 void prune_label(int label);
 void add_command_to_end(draw_command * cmd, int shader);
 void add_blended_command(draw_command * cmd);

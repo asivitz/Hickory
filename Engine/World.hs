@@ -14,6 +14,7 @@ import Control.Lens hiding (Context)
 import Types.Types
 import Camera.Camera
 import Math.Matrix
+import Platform.IPhone
 
 data World c = World {
            entitySet :: EntitySet,
@@ -25,6 +26,7 @@ data World c = World {
 type SysMonad c m r = StateT (World c) m r
 
 data RPC c = RPC {
+           _resourcesPath :: IO String,
            _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],
            _inputTouchDown :: [V2 -> Int -> SysMonad c IO Bool],
            _inputTouchLoc :: [V2 -> Int -> SysMonad c IO Bool],
@@ -46,6 +48,7 @@ instance Show (RPC c) where
         show rpc = "RPC"
 
 emptyRPC = RPC { 
+               _resourcesPath = resourcesPath,
                _inputTouchUp = [],
                _inputTouchDown = [],
                _inputTouchLoc = [],
