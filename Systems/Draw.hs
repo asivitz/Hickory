@@ -29,7 +29,7 @@ import Data.Bits
 data SysData = SysData { 
              shaders :: RefStore (String,String) Shader,
              vanillaShader :: Maybe Shader,
-             worldMatrix :: Mat44
+             worldMatrix :: !Mat44
              }
 
 empty = SysData { shaders = emptyRefStore,

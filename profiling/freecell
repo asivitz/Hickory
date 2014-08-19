@@ -5,7 +5,11 @@ VIEW="open"
 #FLAGS==--yourflags profiling/toydata.xml
 
 do_configure = ARGV.size == 0 || ARGV[0] == "-c"
-do_run = ARGV.size == 0 || (ARGV.size == 1 and ARGV[0] == "-r")
+do_run = ARGV.size == 0 || (ARGV.size >= 1 and ARGV[0] == "-r")
+
+opts = "-h"
+
+opts = ARGV[1] if ARGV.size == 2
 
 if do_configure
     system("cabal configure --enable-library-profiling --enable-executable-profiling")
@@ -13,7 +17,10 @@ if do_configure
 end
 
 if do_run
-    system("dist/build/#{PROG}/#{PROG} +RTS -h")
+    system("rm ./freecell.*")
+    system("dist/build/#{PROG}/#{PROG} +RTS #{opts}")
+    sleep 0.3
     system("hp2ps -c #{PROG}.hp")
+    sleep 0.3
     system("#{VIEW} #{PROG}.ps")
 end

@@ -3,7 +3,6 @@ module Math.Matrix where
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Marshal.Array
-import Foreign.Marshal.Alloc
 import Foreign.ForeignPtr
 import System.IO.Unsafe
 
@@ -21,9 +20,8 @@ withMat44 (Mat44 fptr) func =
 
 buildMat44 :: (Mat44Raw -> IO ()) -> IO Mat44
 buildMat44 f =
-   do ptr <- mallocArray 16
-      f ptr
-      fptr <- newForeignPtr finalizerFree ptr
+   do fptr <- mallocForeignPtrArray 16
+      withForeignPtr fptr $ \ptr -> f ptr
       return $ Mat44 fptr
 
 mat44Identity :: Mat44
