@@ -57,6 +57,6 @@ executable freecell
   other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
   build-depends:       base >=4.7 && <4.8, Hickory, lens >= 4.3 && < 4.4, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, unordered-containers >=0.2 && <0.3
   hs-source-dirs:  Example/Freecell/src
-  other-modules:     Configuration, Context.Game, Systems.FreeCellGame, Systems.FreeCellMenu
+  other-modules:     Freecell.Context.Game, Freecell.Systems.Game, Freecell.Systems.Menu
   ghc-options: -rtsopts  
   ghc-prof-options: -fprof-auto

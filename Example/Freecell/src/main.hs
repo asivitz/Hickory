@@ -1,8 +1,8 @@
 import Engine.Run
 import Bootstrap.Bootstrap
-import Context.Game
-import qualified Systems.FreeCellGame as FCGame
-import qualified Systems.FreeCellMenu as FCMenu
+import Freecell.Context.Game
+import qualified Freecell.Systems.Game as FCGame
+import qualified Freecell.Systems.Menu as FCMenu
 import Engine.World
 import Control.Monad.State
 import Engine.System
