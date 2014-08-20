@@ -22,7 +22,7 @@ import qualified Systems.Draw as Draw
 
 type MenuEvent c m = SysMonad c m ()
 
-data SysData c = SysData [ResolvedMenuScreen Scalar c] Double (Maybe (ResolvedMenuScreen Scalar c))
+data SysData c = SysData ![ResolvedMenuScreen Scalar c] !Double !(Maybe (ResolvedMenuScreen Scalar c))
 
 empty = SysData [] 0 Nothing
 

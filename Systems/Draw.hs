@@ -30,7 +30,7 @@ data SysData = SysData {
              shaders :: RefStore (String,String) Shader,
              vanillaShader :: Maybe Shader,
              worldMatrix :: !Mat44
-             }
+             } deriving Show
 
 empty = SysData { shaders = emptyRefStore,
                 vanillaShader = Nothing,
@@ -41,11 +41,18 @@ worldmat' draw = do
         SysData { worldMatrix } <- getSysData draw
         return worldMatrix
 
+{-
+printAll' draw = do
+        sd <- getSysData draw
+        liftIO $ print sd
+        -}
+
 make :: SysMonad c IO (System c)
 make = do
         draw <- liftIO $ newIORef empty
 
         registerResource drawnWorldMatrix (worldmat' draw)
+        {-registerEvent printAll (printAll' draw)-}
 
         initS draw
         return $ System (run draw)

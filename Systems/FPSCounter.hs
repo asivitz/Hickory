@@ -19,8 +19,8 @@ make = do
         return $ System (run fps)
 
 data SysData = SysData { 
-             time :: Double,
-             frames :: Int
+             time :: !Double,
+             frames :: !Int
             } deriving (Show)
 
 empty = SysData 0.0 0
@@ -37,4 +37,6 @@ run fps delta =
          when (time > reportInterval) $ do
             liftIO $ printf "%.2f FPS\n" ((fromIntegral frames) / time)
             liftIO $ hFlush stdout
+            RPC { _printAll } <- getRPC
+            sequence_ _printAll
             putSysData fps empty

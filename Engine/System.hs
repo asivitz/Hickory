@@ -102,16 +102,12 @@ components l = do
         cs <- getComponentStore
         return $ HashMap.toList $ view l cs
 
-{-putSysData :: Monad m => sysdata -> SysMonad sysdata m ()-}
-{-putSysData sd = do-}
-      {-(w, es, _) <- get-}
-      {-put (w, es, sd)-}
-
 getSysData :: IORef a -> SysMonad c IO a
 getSysData a = liftIO $ readIORef a
 
+-- This modifies the IORef strictly
 putSysData :: IORef a -> a -> SysMonad c IO ()
-putSysData a d = liftIO $ writeIORef a d
+putSysData a d = liftIO $ d `seq` writeIORef a d
 
 getGameContext :: Monad m => SysMonad c m c
 getGameContext = do
