@@ -20,6 +20,7 @@ import Data.IORef
 import Context.Game
 import Engine.GameContext
 import Math.Vector
+import Utils.System
 
 make :: SysMonad EXGameContext IO (System EXGameContext)
 make = do
@@ -56,10 +57,6 @@ inputTouchLoc' pos touchid = do
         {-liftIO $ print $ "Input ping " ++ (show pos)-}
         return False
 
-printAll' fcgame = do
-        mydata <- getSysData fcgame
-        liftIO $ print mydata
-
 newGame' fcgame = do
         liftIO $ print "New Game"
 
@@ -82,7 +79,7 @@ run fcgame delta =
 
 initS fcgame = do
         liftIO $ glClearColor 0 0.5 0 1
-        registerEvent printAll (printAll' fcgame)
+        registerEvent printAll (printSysData fcgame)
         registerEvent inputTouchUp (inputTouchUp')
         registerEvent inputTouchDown (inputTouchDown' fcgame)
         registerEvent inputTouchLoc (inputTouchLoc')

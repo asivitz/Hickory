@@ -25,6 +25,7 @@ import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import Data.Bits
+import Utils.System
 
 data SysData = SysData { 
              shaders :: RefStore (String,String) Shader,
@@ -41,18 +42,12 @@ worldmat' draw = do
         SysData { worldMatrix } <- getSysData draw
         return worldMatrix
 
-{-
-printAll' draw = do
-        sd <- getSysData draw
-        liftIO $ print sd
-        -}
-
 make :: SysMonad c IO (System c)
 make = do
         draw <- liftIO $ newIORef empty
 
         registerResource drawnWorldMatrix (worldmat' draw)
-        {-registerEvent printAll (printAll' draw)-}
+        registerEvent printAll (printSysData draw)
 
         initS draw
         return $ System (run draw)

@@ -9,12 +9,14 @@ import Engine.System
 import Engine.World
 import Data.IORef
 
+import Utils.System
+
 reportInterval = 5.0 :: Double
 
 make :: SysMonad c IO (System c)
 make = do
         fps <- liftIO $ newIORef empty
-        registerEvent printAll (printAll' fps)
+        registerEvent printAll (printSysData fps)
 
         return $ System (run fps)
 
@@ -25,10 +27,6 @@ data SysData = SysData {
 
 empty = SysData 0.0 0
 
-printAll' fps = do
-      mydata <- getSysData fps
-      liftIO $ print mydata
-
 run fps delta = 
       do
          SysData { time, frames } <- getSysData fps
@@ -37,6 +35,6 @@ run fps delta =
          when (time > reportInterval) $ do
             liftIO $ printf "%.2f FPS\n" ((fromIntegral frames) / time)
             liftIO $ hFlush stdout
-            RPC { _printAll } <- getRPC
-            sequence_ _printAll
+            {-RPC { _printAll } <- getRPC-}
+            {-sequence_ _printAll-}
             putSysData fps empty

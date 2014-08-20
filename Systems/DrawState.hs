@@ -12,14 +12,14 @@ import Control.Monad.State
 
 data SysData = SysData deriving (Show)
 
-printAll' = do
-        dss <- (components drawStates)
-        liftIO $ print dss
+{-printAll' = do-}
+        {-dss <- (components drawStates)-}
+        {-liftIO $ print dss-}
 
 make :: SysMonad c IO (System c)
 make = do
         registerEvent inputTouchLoc (inputTouchLoc')
-        registerEvent printAll (printAll')
+        {-registerEvent printAll (printAll')-}
         return $ System run
 
 run delta = 

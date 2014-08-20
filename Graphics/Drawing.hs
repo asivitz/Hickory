@@ -167,11 +167,8 @@ drawPoints a b c = print "invalid drawpoints command" >> print a >> print b >> r
 
 bufferVertices :: VBO -> [CFloat] -> IO ()
 bufferVertices vbo floats = do
-        let len = length floats
-        ptr <- mallocArray len
-        pokeArray ptr $ fmap realToFrac floats
-        c'bufferVertices vbo ptr (fromIntegral len)
-        free ptr
+        withArrayLen floats $ \len ptr ->
+            c'bufferVertices vbo ptr (fromIntegral len)
 
 foreign import ccall "buffer_vertices_num" c'bufferVertices
     :: CUInt -> Ptr CFloat -> CInt -> IO ()
@@ -214,12 +211,9 @@ grabUniformLoc (Shader shader) (Uniform uniform) = do
         return $ UniformLoc loc
 
 addFloatUniform :: Real a => DrawCommandHandle -> UniformLoc -> [a] -> IO ()
-addFloatUniform dc (UniformLoc u) floats = do
-        let len = length floats
-        ptr <- mallocArray len
-        pokeArray ptr $ fmap realToFrac floats
-        c'addFloatUniform dc u (fromIntegral len) ptr
-        free ptr
+addFloatUniform dc (UniformLoc u) floats =
+        withArrayLen (map realToFrac floats) $ \len ptr ->
+            c'addFloatUniform dc u (fromIntegral len) ptr
 
 foreign import ccall "add_float_uniform" c'addFloatUniform
     :: DrawCommandHandle -> GLint -> CUInt -> (Ptr CFloat) -> IO ()
