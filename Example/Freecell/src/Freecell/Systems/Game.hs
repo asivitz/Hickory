@@ -13,6 +13,9 @@ import Types.Types
 import Types.Color
 import Utils.Utils
 import Utils.Projection
+import Data.List
+import Data.Ord
+import Data.Maybe
 
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -38,16 +41,25 @@ inputTouchUp' pos touchid = do
             cs
         return False
 
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
+sortOn f = map snd . sortBy (comparing fst) . map (\x -> (f x, x))
+
 inputTouchDown' fcgame pos touchid = do
         unproj <- doLerpUnproject pos (-5)
 
         comps2 <- zipComps2 drawStates selectables
 
-        let selected = filter (pickSelectable unproj) comps2
+        let depth (e, (DrawState p), _) = 1
+            selected = listToMaybe . sortOn depth . filter (pickSelectable unproj) $ comps2
 
+        whenMaybe selected $ (\(e, (DrawState p), _) ->
+            addComp e mouseDrags $ MouseDrag (p - unproj))
+
+        {- Stacked version
         mapM_ (\(e, (DrawState p), _) -> do
             addComp e mouseDrags $ MouseDrag (p - unproj))
             selected
+            -}
 
         return False
 
