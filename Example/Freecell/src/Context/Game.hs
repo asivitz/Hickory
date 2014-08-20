@@ -4,11 +4,21 @@
 module Context.Game where
 
 import Engine.World
+import Engine.Component
+import Data.HashMap.Strict as HashMap
 import Control.Lens hiding (Context)
 
-type GameComponentStore = [Int]
+data Card = Card Int deriving Show
 
-emptyGameComponentStore = []
+data GameComponentStore = GameComponentStore { 
+                    _cards :: CompMap Card
+                    } deriving (Show)
+
+makeLenses ''GameComponentStore
+
+emptyGameComponentStore = GameComponentStore { 
+                                     _cards = empty
+                                     }
 
 type EXGameContext = Context GameComponentStore GameRPC
 
