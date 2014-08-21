@@ -13,6 +13,8 @@ import Types.Types
 import Types.Color
 import Utils.Utils
 import Utils.Projection
+import Utils.HashMap
+import Freecell.Utils
 
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -31,18 +33,24 @@ make = do
 
 cardTex = "card.png"
 
-drawCard ::  TexID -> Shader -> DrawState -> SysMonad c IO DrawState
-drawCard texid shader ds@(DrawState pos) = do
+drawCard ::  TexID -> Shader -> (e, Card, DrawState) -> SysMonad c IO ()
+drawCard texid shader (_, card, (DrawState pos)) = do
         let spec = Square (Size 2 2) white texid shader
         liftIO $ Draw.drawSpec pos worldLabel spec
-        return ds
 
 run draw delta =
       do
-          SysData { cardtex, vanilla } <- getSysData draw
-          whenMaybe2 cardtex vanilla $ \tid sh ->
-            updateCompsM (drawCard tid sh) drawStates
-          return ()
+          GameRPC { _getGame } <- getGameRPC
+          mgame <- _getGame
+          whenMaybe mgame $ \game -> do
+            let depth (e, card, _) = cardDepth game card
+
+            SysData { cardtex, vanilla } <- getSysData draw
+            whenMaybe2 cardtex vanilla $ \tid sh -> do
+                ds <- components drawStates
+                cds <- gameComponents cards
+                mapM_ (drawCard tid sh) (sortOn depth $ zipHashes2 cds ds)
+            return ()
 
 initS draw = do
         liftIO $ glClearColor 0 0.5 0 1

@@ -14,6 +14,7 @@ import Types.Color
 import Utils.Utils
 import Utils.Projection
 import Utils.HashMap
+import Freecell.Utils
 import Data.List
 import Data.Ord
 import Data.Maybe
@@ -41,15 +42,6 @@ inputTouchUp' pos touchid = do
             removeComp e mouseDrags)
             cs
         return False
-
-sortOn :: Ord b => (a -> b) -> [a] -> [a]
-sortOn f = map snd . sortBy (comparing fst) . map (\x -> (f x, x))
-
-cardDepth :: FreecellGame -> Card -> Int
-cardDepth (FreecellGame stack1 stack2) card = case firstIndexFound card [stack1, stack2] of
-        Nothing -> (-1)
-        Just idx -> idx
-    where firstIndexFound card cardLst = listToMaybe . mapMaybe (elemIndex card) $ cardLst
 
 inputTouchDown' fcgame pos touchid = do
         SysData { game = mgame } <- getSysData fcgame
@@ -111,8 +103,9 @@ initS fcgame = do
         registerEvent inputTouchDown (inputTouchDown' fcgame)
         registerEvent inputTouchLoc (inputTouchLoc')
         registerGameEvent newGame (newGame' fcgame)
-
-data FreecellGame = FreecellGame [Card] [Card] deriving Show
+        registerGameResource getGame $ do
+            SysData { game } <- getSysData fcgame
+            return game
 
 data SysData = SysData { game :: Maybe FreecellGame } deriving (Show)
 

@@ -7,8 +7,7 @@ import Engine.World
 import Engine.Component
 import Data.HashMap.Strict as HashMap
 import Control.Lens hiding (Context)
-
-data Card = Card Int deriving (Show, Eq)
+import Freecell.Utils
 
 data GameComponentStore = GameComponentStore { 
                     _cards :: CompMap Card
@@ -24,14 +23,16 @@ type EXGameContext = Context GameComponentStore GameRPC
 
 data GameRPC = GameRPC {
          _test :: [SysMonad EXGameContext IO ()],
-         _newGame :: [SysMonad EXGameContext IO ()]
+         _newGame :: [SysMonad EXGameContext IO ()],
+         _getGame :: SysMonad EXGameContext IO (Maybe FreecellGame)
          }
 
 makeLenses ''GameRPC
 
 emptyGameRPC = GameRPC { 
                _test = [],
-               _newGame = []
+               _newGame = [],
+               _getGame = return Nothing
                }
 
 emptyGameContext = Context emptyGameComponentStore emptyGameRPC

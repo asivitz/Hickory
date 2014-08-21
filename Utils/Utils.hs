@@ -1,5 +1,8 @@
 module Utils.Utils where
 
+import Data.List
+import Data.Ord
+
 lerp :: Num a => a -> a -> a -> a
 lerp fract a b = (a * (1 - fract)) + (b * fract)
 
@@ -31,3 +34,7 @@ justOrM def val = return $ maybe def id val
 applyList :: [a -> a] -> a -> a
 applyList [] arg = arg
 applyList (x:xs) arg = x (applyList xs arg)
+
+sortOn :: Ord b => (a -> b) -> [a] -> [a]
+sortOn f = map snd . sortBy (comparing fst) . map (\x -> (f x, x))
+
