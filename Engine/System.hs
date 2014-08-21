@@ -7,6 +7,7 @@ import Engine.World
 import Engine.Entity
 import Control.Monad.State
 import Data.IORef
+import Utils.HashMap
 import Control.Lens hiding (Context)
 
 import qualified Data.HashMap.Strict as HashMap
@@ -170,18 +171,11 @@ updateComps2 f lp ls = do
         putComponentStore (set lp (HashMap.fromList updated) cs)
 
 zipComps2 :: Monad m => CompLens c -> CompLens d -> SysMonad r m [(Entity, c, d)]
-zipComps2 lp ls = do
+zipComps2 c1lens c2lens = do
         cs <- getComponentStore
-
-        let kv_list = HashMap.toList (view lp cs)
-            additional = view ls cs
-            recur [] = []
-            recur ((e, c1):xs) = case (HashMap.lookup e additional) of
-                                     Nothing -> recur xs
-                                     Just c2 -> (e, c1, c2) : recur xs
-
-        return $ recur kv_list
-
+        let c1 = view c1lens cs
+            c2 = view c2lens cs
+        return $ zipHashes2 c1 c2
 
 orM :: (Monad m) => [m Bool] -> m Bool
 orM []          = return False
