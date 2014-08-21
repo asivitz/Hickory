@@ -76,12 +76,29 @@ getComponentStore = do
         World { systemContext = (Context cs _) } <- get
         return cs
 
+getGameComponentStore :: Monad m => SysMonad (Context cs rpc) m cs
+getGameComponentStore = do
+        (Context cs _) <- getGameContext
+        return cs
+
+putGameComponentStore :: Monad m => cs -> SysMonad (Context cs rpc) m ()
+putGameComponentStore cs' = do
+      w@World { gameContext = (Context _ rpc) } <- get
+      put w { gameContext = (Context cs' rpc) }
+
 addComp :: (Monad m) => Entity -> CompLens c -> c -> SysMonad r m ()
 addComp e comps c = do
         cs <- getComponentStore
 
         let cs' = over comps (\m -> HashMap.insert e c m) cs
         putComponentStore cs'
+
+addGameComp :: (Monad m) => Entity -> Lens' cs (HashMap.HashMap Entity c) -> c -> SysMonad (Context cs rpc) m ()
+addGameComp e comps c = do
+        cs <- getGameComponentStore
+
+        let cs' = over comps (\m -> HashMap.insert e c m) cs
+        putGameComponentStore cs'
 
 removeComp :: Monad m => Entity -> CompLens c -> SysMonad r m ()
 removeComp e l = do
@@ -98,8 +115,18 @@ compForEnt e l = do
             c = HashMap.lookup e comps
         return c
 
-components :: Monad m => CompLens c -> SysMonad r m [(Entity, c)]
+components :: Monad m => CompLens c -> SysMonad r m (CompMap c)
 components l = do
+        cs <- getComponentStore
+        return $ view l cs
+
+gameComponents :: Monad m => Lens' gc (CompMap c) -> SysMonad (Context gc grpc) m (CompMap c)
+gameComponents l = do
+        cs <- getGameComponentStore
+        return $ view l cs
+
+componentsAsList :: Monad m => CompLens c -> SysMonad r m [(Entity, c)]
+componentsAsList l = do
         cs <- getComponentStore
         return $ HashMap.toList $ view l cs
 

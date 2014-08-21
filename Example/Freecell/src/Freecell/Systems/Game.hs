@@ -13,6 +13,7 @@ import Types.Types
 import Types.Color
 import Utils.Utils
 import Utils.Projection
+import Utils.HashMap
 import Data.List
 import Data.Ord
 import Data.Maybe
@@ -31,11 +32,11 @@ make = do
         initS fcgame
         return $ System (run fcgame)
 
-pickSelectable pos (e, (DrawState p), (Selectable size)) =
+pickSelectable pos (e, (Selectable size), card, (DrawState p)) =
         posInRect (v3tov2 pos) (Rect (v3tov2 p) size)
 
 inputTouchUp' pos touchid = do
-        cs <- components mouseDrags
+        cs <- componentsAsList mouseDrags
         mapM_ (\(e, _) -> do
             removeComp e mouseDrags)
             cs
@@ -47,12 +48,16 @@ sortOn f = map snd . sortBy (comparing fst) . map (\x -> (f x, x))
 inputTouchDown' fcgame pos touchid = do
         unproj <- doLerpUnproject pos (-5)
 
-        comps2 <- zipComps2 drawStates selectables
+        ds <- components drawStates
+        sel <- components selectables
+        cds <- gameComponents cards
 
-        let depth (e, (DrawState p), _) = 1
-            selected = listToMaybe . sortOn depth . filter (pickSelectable unproj) $ comps2
+        let comps = zipHashes3 sel cds ds
+            depth :: (e, Selectable, Card, DrawState) -> Int
+            depth (e, _, (Card a), _) = 1
+            selected = listToMaybe . sortOn depth . filter (pickSelectable unproj) $ comps
 
-        whenMaybe selected $ (\(e, (DrawState p), _) ->
+        whenMaybe selected $ (\(e, _, _, (DrawState p)) ->
             addComp e mouseDrags $ MouseDrag (p - unproj))
 
         {- Stacked version
@@ -85,6 +90,7 @@ spawnCard fcgame pos card = do
         e <- spawnEntity
         addComp e drawStates $ DrawState pos
         addComp e selectables $ Selectable (Size (0.726 * scale) scale)
+        addGameComp e cards card
 
 run fcgame delta =
       do
