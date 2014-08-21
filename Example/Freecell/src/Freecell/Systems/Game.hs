@@ -45,26 +45,34 @@ inputTouchUp' pos touchid = do
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
 sortOn f = map snd . sortBy (comparing fst) . map (\x -> (f x, x))
 
+cardDepth :: FreecellGame -> Card -> Int
+cardDepth (FreecellGame stack1 stack2) card = case firstIndexFound card [stack1, stack2] of
+        Nothing -> (-1)
+        Just idx -> idx
+    where firstIndexFound card cardLst = listToMaybe . mapMaybe (elemIndex card) $ cardLst
+
 inputTouchDown' fcgame pos touchid = do
-        unproj <- doLerpUnproject pos (-5)
+        SysData { game = mgame } <- getSysData fcgame
+        whenMaybe mgame $ \game -> do
+            unproj <- doLerpUnproject pos (-5)
 
-        ds <- components drawStates
-        sel <- components selectables
-        cds <- gameComponents cards
+            ds <- components drawStates
+            sel <- components selectables
+            cds <- gameComponents cards
 
-        let comps = zipHashes3 sel cds ds
-            depth :: (e, Selectable, Card, DrawState) -> Int
-            depth (e, _, (Card a), _) = 1
-            selected = listToMaybe . sortOn depth . filter (pickSelectable unproj) $ comps
+            let comps = zipHashes3 sel cds ds
+                depth :: (e, Selectable, Card, DrawState) -> Int
+                depth (e, _, card, _) = cardDepth game card
+                selected = listToMaybe . sortOn depth . filter (pickSelectable unproj) $ comps
 
-        whenMaybe selected $ (\(e, _, _, (DrawState p)) ->
-            addComp e mouseDrags $ MouseDrag (p - unproj))
+            whenMaybe selected $ (\(e, _, _, (DrawState p)) ->
+                addComp e mouseDrags $ MouseDrag (p - unproj))
 
-        {- Stacked version
-        mapM_ (\(e, (DrawState p), _) -> do
-            addComp e mouseDrags $ MouseDrag (p - unproj))
-            selected
-            -}
+            {- Stacked version
+            mapM_ (\(e, (DrawState p), _) -> do
+                addComp e mouseDrags $ MouseDrag (p - unproj))
+                selected
+                -}
 
         return False
 

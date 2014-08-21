@@ -8,7 +8,7 @@ import Engine.Component
 import Data.HashMap.Strict as HashMap
 import Control.Lens hiding (Context)
 
-data Card = Card Int deriving Show
+data Card = Card Int deriving (Show, Eq)
 
 data GameComponentStore = GameComponentStore { 
                     _cards :: CompMap Card
