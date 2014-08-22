@@ -9,11 +9,23 @@ data Card = Card Int TexID deriving (Show)
 instance Eq Card where
         (Card x _) == (Card y _) = x == y
 
-data FreecellGame = FreecellGame [Card] [Card] deriving Show
+data Pile = Stack [Card]
+          | Fold [Card]
+          | Single Card deriving Show
 
-cardDepth :: FreecellGame -> Card -> Int
-cardDepth (FreecellGame stack1 stack2) inCard = case firstIndexFound inCard [stack1, stack2] of
-        Nothing -> (-1)
-        Just idx -> idx
-    where firstIndexFound card cardLst = listToMaybe . mapMaybe (elemIndex card) $ cardLst
+depthIfVisible card (Stack lst) = case listToMaybe lst of
+                                      Nothing -> Nothing
+                                      Just a -> if a == card
+                                                    then Just 0
+                                                    else Nothing
 
+depthIfVisible card (Fold lst) = elemIndex card lst
+
+depthIfVisible card (Single a) = if a == card then Just 0 else Nothing
+
+data FreecellGame = FreecellGame Pile Pile deriving Show
+
+allPiles (FreecellGame s1 s2) = [s1,s2]
+
+cardDepth :: FreecellGame -> Card -> Maybe Int
+cardDepth game card = listToMaybe . mapMaybe (depthIfVisible card) $ (allPiles game)

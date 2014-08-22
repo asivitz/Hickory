@@ -53,9 +53,14 @@ inputTouchDown' fcgame pos touchid = do
             cds <- gameComponents cards
 
             let comps = zipHashes3 sel cds ds
-                depth :: (e, Selectable, Card, DrawState) -> Int
+                depth :: (e, Selectable, Card, DrawState) -> Maybe Int
                 depth (e, _, card, _) = cardDepth game card
-                selected = listToMaybe . sortOn depth . filter (pickSelectable unproj) $ comps
+                selected = fmap snd . listToMaybe . sortBy (comparing fst)
+                                       . mapMaybe (\x -> 
+                                                  case depth x of 
+                                                                  Nothing -> Nothing 
+                                                                  Just a -> Just (a, x))
+                                       . filter (pickSelectable unproj) $ comps
 
             whenMaybe selected $ (\(e, _, _, (DrawState p)) ->
                 addComp e mouseDrags $ MouseDrag (p - unproj))
@@ -77,12 +82,12 @@ newGame' fcgame = do
         liftIO $ print "New Game"
 
         let stack1 = map (\x -> Card x nullTex) [0..4]
-            stack2 = [] -- map (\x -> Card x nullTex) [2..3]
+            stack2 = map (\x -> Card x nullTex) [5..9]
 
         mapM_ (\c -> spawnCard fcgame (v3 4 5 (-5)) c) stack1
         mapM_ (\c -> spawnCard fcgame (v3 6 5 (-5)) c) stack2
 
-        putSysData fcgame $ SysData $ Just (FreecellGame stack1 stack2)
+        putSysData fcgame $ SysData $ Just (FreecellGame (Stack stack1) (Fold stack2))
 
 spawnCard fcgame pos card = do
         let scale = 2

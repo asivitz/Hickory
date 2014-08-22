@@ -19,6 +19,8 @@ import Utils.HashMap
 import Freecell.Utils
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe
+import Data.Ord
+import Data.List
 
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -47,10 +49,10 @@ drawCard shader (_, (Card i texid), (DrawState pos)) = do
         let spec = Square (Size 2 2) white texid shader
         liftIO $ Draw.drawSpec pos worldLabel spec
 
-depth :: FreecellGame -> HashMap.HashMap Entity MouseDrag -> (Entity, Card, DrawState) -> Int
+depth :: FreecellGame -> HashMap.HashMap Entity MouseDrag -> (Entity, Card, DrawState) -> Maybe Int
 depth game mouseDragHash (e, card, _) = 
         if isJust (HashMap.lookup e mouseDragHash) 
-            then (-2)
+            then Just (-2)
             else cardDepth game card
 
 run draw delta =
@@ -63,7 +65,14 @@ run draw delta =
                 mds <- components mouseDrags
                 ds <- components drawStates
                 cds <- gameComponents cards
-                mapM_ (drawCard sh) (sortOn (depth game mds) $ zipHashes2 cds ds)
+
+                let sorted = map snd . sortBy (comparing fst) . mapMaybe (\x -> 
+                                                   case depth game mds x of 
+                                                                   Nothing -> Nothing 
+                                                                   Just a -> Just (a, x))
+                                        $ zipHashes2 cds ds
+
+                mapM_ (drawCard sh) sorted
             return ()
 
 numToCardTex pre n = "cards/" ++ pre ++ "_" ++ (show n) ++ ".png"
