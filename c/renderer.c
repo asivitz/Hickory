@@ -275,7 +275,7 @@ vao_payload * set_vao_command(draw_command * cmd, int vao, unsigned int num_indi
 
 void add_blended_command(draw_command * cmd)
 {
-   if (blended_pile == NULL || blended_pile->depth > cmd->depth)
+   if (blended_pile == NULL || blended_pile->depth >= cmd->depth)
    {
       cmd->next = blended_pile;
       blended_pile = cmd;

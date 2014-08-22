@@ -18,10 +18,15 @@ camera' worldcam = do
         SysData { camera } <- getSysData worldcam
         return $ Just camera
 
+setWP worldcam proj = do
+        sd@SysData { camera = (Camera _ route) } <- getSysData worldcam
+        putSysData worldcam sd { camera = (Camera proj route) }
+
 make :: SysMonad c IO (System c)
 make = do
         worldcam <- liftIO $ newIORef empty
         registerResource worldCamera (camera' worldcam)
+        registerResource setWorldProjection (setWP worldcam)
         return $ System (run worldcam)
 
 empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))

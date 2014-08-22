@@ -68,7 +68,7 @@ reserveTex' texes path = do
         mydata@SysData { textures } <- getSysData texes
         (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
                                                                        rp <- liftIO $ _resourcesPath
-                                                                       loadTexture $ rp ++ "/images/" ++ p
+                                                                       loadTexture $ rp ++ "images/" ++ p
 
         whenNothing texid $ liftIO $ print ("Couldn't load texture: " ++ path)
 

@@ -18,6 +18,9 @@ rlerpClamp a low high = rlerp (clamp a low high) low high
 whenMaybe :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenMaybe a f = maybe (return ()) f a
 
+whenMaybeM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
+whenMaybeM a f = a >>= \b -> maybe (return ()) f b
+
 whenMaybe2 :: Monad m => Maybe a -> Maybe b -> (a -> b -> m ()) -> m ()
 whenMaybe2 a b f = case a of
                        Nothing -> return ()

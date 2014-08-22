@@ -115,6 +115,13 @@ compForEnt e l = do
             c = HashMap.lookup e comps
         return c
 
+gameCompForEnt :: (Monad m) => Entity -> Lens' cs (HashMap.HashMap Entity c) -> SysMonad (Context cs rpc) m (Maybe c)
+gameCompForEnt e l = do
+        cs <- getGameComponentStore
+        let comps = view l cs
+            c = HashMap.lookup e comps
+        return c
+
 components :: Monad m => CompLens c -> SysMonad r m (CompMap c)
 components l = do
         cs <- getComponentStore

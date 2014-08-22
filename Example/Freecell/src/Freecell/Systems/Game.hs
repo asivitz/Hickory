@@ -76,11 +76,11 @@ newGame' :: IORef SysData -> SysMonad EXGameContext IO ()
 newGame' fcgame = do
         liftIO $ print "New Game"
 
-        let stack1 = map Card [1..3]
-            stack2 = map Card [4..6]
+        let stack1 = map (\x -> Card x nullTex) [0..4]
+            stack2 = [] -- map (\x -> Card x nullTex) [2..3]
 
-        mapM_ (\c -> spawnCard fcgame (v3 0 0 (-5)) c) stack1
-        mapM_ (\c -> spawnCard fcgame (v3 2 0 (-5)) c) stack2
+        mapM_ (\c -> spawnCard fcgame (v3 4 5 (-5)) c) stack1
+        mapM_ (\c -> spawnCard fcgame (v3 6 5 (-5)) c) stack2
 
         putSysData fcgame $ SysData $ Just (FreecellGame stack1 stack2)
 
@@ -91,6 +91,8 @@ spawnCard fcgame pos card = do
         addComp e drawStates $ DrawState pos
         addComp e selectables $ Selectable (Size (0.726 * scale) scale)
         addGameComp e cards card
+        RPC { _spawnedEntity } <- getRPC
+        sequence_ $ map (\x -> x e) _spawnedEntity
 
 run fcgame delta =
       do

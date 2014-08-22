@@ -40,8 +40,10 @@ data RPC c = RPC {
            _running :: IO Bool,
            _screenSize :: SysMonad c IO (Size Int),
            _worldCamera :: SysMonad c IO (Maybe Camera),
+           _setWorldProjection :: Projection -> SysMonad c IO (),
            _drawnWorldMatrix :: SysMonad c IO Mat44,
-           _uiCamera :: SysMonad c IO (Maybe Camera)
+           _uiCamera :: SysMonad c IO (Maybe Camera),
+           _spawnedEntity :: [Entity -> SysMonad c IO ()]
            }
 
 instance Show (RPC c) where
@@ -62,8 +64,10 @@ emptyRPC = RPC {
                _running = return True,
                _screenSize = return nullSize,
                _worldCamera = return Nothing,
+               _setWorldProjection = \_ -> return (),
                _drawnWorldMatrix = return mat44Identity,
-               _uiCamera = return Nothing
+               _uiCamera = return Nothing,
+               _spawnedEntity = []
                }
 
 data Context compStore rpc = Context compStore rpc
