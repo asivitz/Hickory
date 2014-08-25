@@ -1,0 +1,3 @@
+[submodule "Example/Freecell"]
+	path = Example/Freecell
+	url = https://github.com/asivitz/Freecell.git
