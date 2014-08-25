@@ -37,11 +37,6 @@ extra-source-files:  Readme.md
 
 cabal-version:       >=1.10
 
--- Data files for Freecell example
-data-files: fonts/*.fnt resources/Shaders/*.vsh resources/Shaders/*.fsh resources/images/*.png
-data-dir: Example/Freecell
-
-
 library
   exposed-modules:     Bootstrap.Bootstrap, Camera.Camera, Engine.Component, Engine.Entity, Engine.GameContext, Engine.Run, Engine.System, Engine.World, Graphics.Drawing, Graphics.DrawText, Graphics.GLFWUtils, Graphics.GLUtils, Math.Matrix, Math.Vector, Math.VectorMatrix, Menus.Construction, Menus.Menus, Systems.Draw, Systems.DrawState, Systems.DrawText, Systems.FPSCounter, Systems.GLFWPlatform, Systems.Menus, Systems.Textures, Systems.UICamera, Systems.WorldCamera, Text.Font, Types.Color, Types.Types, Utils.Projection, Utils.Resources, Utils.Utils, Utils.System, Utils.HashMap, Platform.IPhone
   other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
@@ -56,7 +51,7 @@ executable freecell
   main-is:         main.hs
   other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
   build-depends:       base >=4.7 && <4.8, Hickory, lens >= 4.3 && < 4.4, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, unordered-containers >=0.2 && <0.3
-  hs-source-dirs:  Example/Freecell/src
+  hs-source-dirs:  Example/HFreecell/src
   other-modules:     Freecell.Context.Game, Freecell.Systems.Game, Freecell.Systems.Menu, Freecell.Systems.Draw
   ghc-options: -rtsopts  
   ghc-prof-options: -fprof-auto
