@@ -42,7 +42,7 @@ cardTex = "card.png"
 spawnedEnt draw e = do
         whenMaybeM (gameCompForEnt e cards) $ \(Card i _) -> do
             SysData { cardTexes } <- getSysData draw
-            addGameComp e cards (Card i (cardTexes !! i))
+            addGameComp e cards (Card i (cardTexes !! (i - 1)))
 
 drawCard ::  Shader -> (e, Card, DrawState) -> SysMonad c IO ()
 drawCard shader (_, (Card i texid), (DrawState pos)) = do
@@ -75,8 +75,8 @@ run draw delta =
                 mapM_ (drawCard sh) sorted
             return ()
 
-numToCardTex pre n = "cards/" ++ pre ++ "_" ++ (show n) ++ ".png"
-texes = map (numToCardTex "sp") [1..13]
+cardImagePath pre t = "cards/" ++ pre ++ "_" ++ t ++ ".png"
+texes = map (cardImagePath "sp") ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 
 initS draw = do
         liftIO $ glClearColor 0 0.5 0 1

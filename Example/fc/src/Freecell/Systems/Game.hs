@@ -81,8 +81,8 @@ newGame' :: IORef SysData -> SysMonad EXGameContext IO ()
 newGame' fcgame = do
         liftIO $ print "New Game"
 
-        let stack1 = map (\x -> Card x nullTex) [0..4]
-            stack2 = map (\x -> Card x nullTex) [5..9]
+        let stack1 = map (\x -> Card x nullTex) [1..2]
+            stack2 = map (\x -> Card x nullTex) [3..4]
 
         mapM_ (\c -> spawnCard fcgame (v3 4 5 (-5)) c) stack1
         mapM_ (\c -> spawnCard fcgame (v3 6 5 (-5)) c) stack2
