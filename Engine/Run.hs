@@ -21,9 +21,7 @@ governFPS initialTime = do
       -}
 
 simulate :: World c -> [System c] -> Double -> IO (World c)
-simulate world systems delta = do
-      newWorld <- execStateT (mapM_ (\s -> (runSys s) delta) systems) world
-      return newWorld
+simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world
 
 iter :: World c -> [System c] -> UTCTime -> IO ()
 iter !world !systems !prev_time = do

@@ -23,9 +23,7 @@ nullInit :: SysMonad c IO ()
 nullInit = return ()
 
 getWorld :: Monad m => SysMonad c m (World c)
-getWorld = do
-      w <- get
-      return w
+getWorld = get
 
 putWorld :: Monad m => World c -> SysMonad c m ()
 putWorld = put
@@ -35,10 +33,10 @@ getRPC = do
         World { systemContext = (Context _ rpc) } <- get
         return rpc
 
-putRPC :: Monad m => (RPC c) -> SysMonad c m ()
+putRPC :: Monad m => RPC c -> SysMonad c m ()
 putRPC rpc = do
-        w@World { systemContext = (Context cs _) } <- get
-        put w { systemContext = (Context cs rpc) }
+        w@World { systemContext = Context cs _ } <- get
+        put w { systemContext = Context cs rpc }
 
 registerRPC :: Monad m => (RPC c -> RPC c) -> SysMonad c m ()
 registerRPC f = do
@@ -47,7 +45,7 @@ registerRPC f = do
 
 registerResourceToWorld :: World c -> Lens' (RPC c) a -> a -> World c
 registerResourceToWorld w@World { systemContext = (Context cs rpc) } l f = 
-        w { systemContext = (Context cs (set l f rpc)) }
+        w { systemContext = Context cs (set l f rpc) }
 
 registerResource :: Monad m => Lens' (RPC c) a -> a -> SysMonad c m ()
 registerResource l f = do
@@ -69,7 +67,7 @@ spawnEntity = do
 putComponentStore :: Monad m => ComponentStore -> SysMonad c m ()
 putComponentStore cs' = do
       w@World { systemContext = (Context _ rpc) } <- get
-      put w { systemContext = (Context cs' rpc) }
+      put w { systemContext = Context cs' rpc }
 
 getComponentStore :: Monad m => SysMonad c m ComponentStore
 getComponentStore = do
@@ -83,28 +81,28 @@ getGameComponentStore = do
 
 putGameComponentStore :: Monad m => cs -> SysMonad (Context cs rpc) m ()
 putGameComponentStore cs' = do
-      w@World { gameContext = (Context _ rpc) } <- get
-      put w { gameContext = (Context cs' rpc) }
+      w@World { gameContext = Context _ rpc } <- get
+      put w { gameContext = Context cs' rpc }
 
 addComp :: (Monad m) => Entity -> CompLens c -> c -> SysMonad r m ()
 addComp e comps c = do
         cs <- getComponentStore
 
-        let cs' = over comps (\m -> HashMap.insert e c m) cs
+        let cs' = over comps (HashMap.insert e c) cs
         putComponentStore cs'
 
 addGameComp :: (Monad m) => Entity -> Lens' cs (HashMap.HashMap Entity c) -> c -> SysMonad (Context cs rpc) m ()
 addGameComp e comps c = do
         cs <- getGameComponentStore
 
-        let cs' = over comps (\m -> HashMap.insert e c m) cs
+        let cs' = over comps (HashMap.insert e c) cs
         putGameComponentStore cs'
 
 removeComp :: Monad m => Entity -> CompLens c -> SysMonad r m ()
 removeComp e l = do
         cs <- getComponentStore
 
-        let cs' = over l (\m -> HashMap.delete e m) cs
+        let cs' = over l (HashMap.delete e) cs
         putComponentStore cs'
 
 

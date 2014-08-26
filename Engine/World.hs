@@ -73,7 +73,7 @@ emptyRPC = RPC {
 data Context compStore rpc = Context compStore rpc
 
 instance Show c => Show (Context c r) where
-        show (Context c r) = "Context -- CompStore: " ++ (show c)
+        show (Context c r) = "Context -- CompStore: " ++ show c
 
 type SystemContext c = Context ComponentStore (RPC c)
 

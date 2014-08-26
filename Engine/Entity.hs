@@ -29,7 +29,7 @@ addEntity :: EntitySet -> Entity -> EntitySet
 addEntity (EntitySet s) e = EntitySet (e `Set.insert` s)
 
 addEntities :: EntitySet -> [Entity] -> EntitySet
-addEntities (EntitySet s) xs = EntitySet $ s `Set.union` (Set.fromList xs)
+addEntities (EntitySet s) xs = EntitySet $ s `Set.union` Set.fromList xs
 
 genEntity :: EntitySet -> (Entity, EntitySet)
 genEntity es = let s = getSet es
@@ -47,4 +47,4 @@ deleteEntity :: EntitySet -> Entity -> EntitySet
 deleteEntity (EntitySet s) ent = EntitySet (ent `Set.delete` s)
 
 deleteEntities :: EntitySet -> [Entity] -> EntitySet
-deleteEntities (EntitySet s) lst = EntitySet (s `Set.difference` (Set.fromList lst))
+deleteEntities (EntitySet s) lst = EntitySet (s `Set.difference` Set.fromList lst)
