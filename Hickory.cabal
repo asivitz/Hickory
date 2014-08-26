@@ -50,8 +50,8 @@ executable freecell
   default-language:    Haskell2010
   main-is:         main.hs
   other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
-  build-depends:       base >=4.7 && <4.8, Hickory, lens >= 4.3 && < 4.4, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, unordered-containers >=0.2 && <0.3, random >= 1.0
-  hs-source-dirs:  Example/HFreecell/src Example/HFreecell/Freecell
+  build-depends:       base >=4.7 && <4.8, Hickory, lens >= 4.3 && < 4.4, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, unordered-containers >=0.2 && <0.3, random >= 1.0, containers >= 0.5
+  hs-source-dirs:  Example/HFreecell/src, Example/HFreecell/Freecell
   other-modules:     Freecell.Context.Game, Freecell.Systems.Game, Freecell.Systems.Menu, Freecell.Systems.Draw, FreeCell
   ghc-options: -rtsopts  
   ghc-prof-options: -fprof-auto
