@@ -59,10 +59,10 @@ runDrawable delta dr@(Drawable spec) (DrawState pos) = do
 
 drawSpec :: Vector3 -> Label -> DrawSpec -> IO ()
 drawSpec pos label (Square (Size w h) color tex shader) = 
-      addDrawCommand model color color tex shader label 0.0 True >> return ()
+      addDrawCommand model color color tex shader label (realToFrac . v3z $ pos) True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 drawSpec pos label (SolidSquare (Size w h) color shader) = 
-      addDrawCommand model color color nullTex shader label 0.0 True >> return ()
+      addDrawCommand model color color nullTex shader label (realToFrac . v3z $ pos) True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 
 renderCommandsWithCamera :: Camera -> Label -> Float -> IO ()
