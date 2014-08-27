@@ -202,6 +202,11 @@ updateComps2 f lp ls = do
             updated = map up1 kv_list
         putComponentStore (set lp (HashMap.fromList updated) cs)
 
+putComps :: Monad m => CompLens c -> [(Entity, c)] -> SysMonad r m ()
+putComps lens kvlist = do
+        cs <- getComponentStore
+        putComponentStore (set lens (HashMap.fromList kvlist) cs)
+
 zipComps2 :: Monad m => CompLens c -> CompLens d -> SysMonad r m [(Entity, c, d)]
 zipComps2 c1lens c2lens = do
         cs <- getComponentStore
