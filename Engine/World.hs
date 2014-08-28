@@ -96,5 +96,9 @@ addNewEntity w = let es = entitySet w
                      (ent, new_es) = genEntity es
                      in (ent, w { entitySet = new_es })
 
+deleteEntitiesFromWorld :: World c -> [Entity] -> World c
+deleteEntitiesFromWorld w ents = let es = entitySet w
+                                     es' = deleteEntities es ents
+                                     in w { entitySet = es' }
 
 makeLenses ''RPC

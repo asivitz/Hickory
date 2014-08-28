@@ -64,6 +64,10 @@ spawnEntity = do
       put w'
       return e
 
+removeEntities ents = do
+        w <- get
+        put $ deleteEntitiesFromWorld w ents
+
 putComponentStore :: Monad m => ComponentStore -> SysMonad c m ()
 putComponentStore cs' = do
       w@World { systemContext = (Context _ rpc) } <- get
@@ -90,6 +94,18 @@ addComp e comps c = do
 
         let cs' = over comps (HashMap.insert e c) cs
         putComponentStore cs'
+
+deleteComponents :: (Monad m) => CompLens c -> SysMonad r m ()
+deleteComponents comps = do
+        cs <- getComponentStore
+        let cs' = set comps HashMap.empty cs
+        putComponentStore cs'
+
+deleteGameComponents :: (Monad m) => Lens' cs (HashMap.HashMap Entity c) -> SysMonad (Context cs rpc) m ()
+deleteGameComponents comps = do
+        cs <- getGameComponentStore
+        let cs' = set comps HashMap.empty cs
+        putGameComponentStore cs'
 
 addGameComp :: (Monad m) => Entity -> Lens' cs (HashMap.HashMap Entity c) -> c -> SysMonad (Context cs rpc) m ()
 addGameComp e comps c = do
