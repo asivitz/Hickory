@@ -15,6 +15,7 @@ import Types.Types
 import Camera.Camera
 import Math.Matrix
 import Platform.IPhone
+import qualified Graphics.UI.GLFW as GLFW
 
 data World c = World {
            entitySet :: EntitySet,
@@ -30,6 +31,8 @@ data RPC c = RPC {
            _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],
            _inputTouchDown :: [V2 -> Int -> SysMonad c IO Bool],
            _inputTouchLoc :: [V2 -> Int -> SysMonad c IO Bool],
+           _inputKeyUp :: [GLFW.Key -> SysMonad c IO Bool],
+           _inputKeyDown :: [GLFW.Key -> SysMonad c IO Bool],
            _reserveTex :: String -> SysMonad c IO (Maybe TexID),
            _releaseTex :: String -> SysMonad c IO (),
            _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID),
@@ -54,6 +57,8 @@ emptyRPC = RPC {
                _inputTouchUp = [],
                _inputTouchDown = [],
                _inputTouchLoc = [],
+               _inputKeyDown = [],
+               _inputKeyUp = [],
                _reserveTex = \_ -> return Nothing,
                _releaseTex = \_ -> return (),
                _reservePrinter = \_ -> return Nothing,

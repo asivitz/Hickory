@@ -50,7 +50,7 @@ runPre platform delta = do
 
 make :: SysMonad c IO (System c, System c)
 make = do
-        win <- liftIO $ buildWindow 400 400 "Hi hi!"
+        win <- liftIO $ buildWindow 800 800 "Hi hi!"
 
         (fbWidth, fbHeight) <- case win of
             Nothing -> return (0,0)
@@ -58,11 +58,17 @@ make = do
 
         sd <- liftIO $ newIORef empty { window = win, fbSize = (Size fbWidth fbHeight) }
 
-        whenMaybe win $ \window ->
+        whenMaybe win $ \window -> do
             liftIO $ GLFW.setMouseButtonCallback window $ Just (mouseButtonCallback sd)
+            liftIO $ GLFW.setKeyCallback window $ Just (keyCallback sd)
 
         registerResource running (running' sd)
         registerResource screenSize (screenSize' sd)
+        registerEvent inputKeyUp $ \k -> do
+            when (k == GLFW.Key'D) $ do
+                               RPC { _printAll } <- getRPC
+                               sequence_ _printAll
+            return False
 
         return (System (runPre sd), System (run sd))
 
@@ -105,6 +111,19 @@ mouseButtonCallback platform win button buttonState modkeys =
 
             writeIORef platform sd { touches = touches', evlist = (ev pos touchid) : evlist }
 
+keyCallback :: IORef SysData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
+keyCallback platform win key scancode keyState modkeys =
+        do
+            sd@SysData { evlist } <- readIORef platform
+
+            curPos <- GLFW.getCursorPos win
+
+            let ev = case keyState of
+                        GLFW.KeyState'Pressed -> InputKeyDown
+                        GLFW.KeyState'Released -> InputKeyUp
+
+            writeIORef platform sd { evlist = (ev key) : evlist }
+
 touchIdent :: GLFW.MouseButton -> Int
 touchIdent button = case button of
                        GLFW.MouseButton'1 -> 1
@@ -120,7 +139,10 @@ touchPosToScreenPos :: Size Int -> (Double, Double) -> V2
 touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) ((fromIntegral h) - (realToFrac y))
 
 data InputEv = InputTouchDown V2 Int
-             | InputTouchUp V2 Int deriving (Show)
+             | InputTouchUp V2 Int 
+             | InputKeyDown GLFW.Key
+             | InputKeyUp GLFW.Key
+             deriving (Show)
 
 broadcastTouchLoc win screensize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
@@ -131,3 +153,7 @@ processInputEv (InputTouchDown pos touchid) = do
         runInterruptableEvent (\x -> x pos touchid) inputTouchDown
 processInputEv (InputTouchUp pos touchid) = do
         runInterruptableEvent (\x -> x pos touchid) inputTouchUp
+processInputEv (InputKeyUp key) = do
+        runInterruptableEvent (\x -> x key) inputKeyUp
+processInputEv (InputKeyDown key) = do
+        runInterruptableEvent (\x -> x key) inputKeyDown
