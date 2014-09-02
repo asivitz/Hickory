@@ -18,10 +18,9 @@ import Platform.IPhone
 import qualified Graphics.UI.GLFW as GLFW
 
 data World c = World {
-           entitySet :: EntitySet,
-           systemContext :: SystemContext c,
-           gameContext :: c
-
+           _entitySet :: EntitySet,
+           _systemContext :: SystemContext c,
+           _gameContext :: c
            } deriving (Show)
 
 type SysMonad c m r = StateT (World c) m r
@@ -75,7 +74,11 @@ emptyRPC = RPC {
                _spawnedEntity = []
                }
 
-data Context compStore rpc = Context compStore rpc
+data Context compStore rpc = Context 
+                           { 
+                           _compStore :: compStore,
+                           _rpc :: rpc 
+                           }
 
 instance Show c => Show (Context c r) where
         show (Context c r) = "Context -- CompStore: " ++ show c
@@ -86,19 +89,22 @@ emptySystemContext = Context emptyComponentStore emptyRPC
 
 
 emptyWorld :: c -> World c
-emptyWorld gc = World { entitySet = newEntitySet,
-                   systemContext = emptySystemContext,
-                   gameContext = gc
+emptyWorld gc = World { _entitySet = newEntitySet,
+                   _systemContext = emptySystemContext,
+                   _gameContext = gc
                  }
 
 addNewEntity :: World c -> (Entity, World c)
-addNewEntity w = let es = entitySet w
+addNewEntity w = let es = _entitySet w
                      (ent, new_es) = genEntity es
-                     in (ent, w { entitySet = new_es })
+                     in (ent, w { _entitySet = new_es })
 
 deleteEntitiesFromWorld :: World c -> [Entity] -> World c
-deleteEntitiesFromWorld w ents = let es = entitySet w
+deleteEntitiesFromWorld w ents = let es = _entitySet w
                                      es' = deleteEntities es ents
-                                     in w { entitySet = es' }
+                                     in w { _entitySet = es' }
 
 makeLenses ''RPC
+makeLenses ''World
+makeLenses ''Context
+

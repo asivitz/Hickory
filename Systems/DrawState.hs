@@ -24,16 +24,15 @@ make = do
 
 run delta = 
       do
-         updateComps2 (upDS delta) drawStates newtonianMovers
+         upComps2 (upDS delta) (sysComps drawStates) (sysComps newtonianMovers)
 
 upDS delta (DrawState p) (NewtonianMover v a) =
       let delta' = realToFrac delta in
           (DrawState (p + v |* delta'))
 
 inputTouchLoc' pos touchid = do
-        ComponentStore { _mouseDrags } <- getComponentStore
         unproj <- doLerpUnproject pos (-5)
-        updateComps2 (snapToMouse unproj) drawStates mouseDrags
+        upComps2 (snapToMouse unproj) (sysComps drawStates) (sysComps mouseDrags)
         return False
 
 snapToMouse pos _ (MouseDrag offset) = 

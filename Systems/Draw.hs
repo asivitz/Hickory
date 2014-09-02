@@ -6,6 +6,7 @@ import Control.Monad.State
 import Engine.System
 import Engine.World
 import Engine.Component
+import Engine.Entity
 
 import Types.Types
 
@@ -52,10 +53,9 @@ make = do
         initS draw
         return $ System (run draw)
 
-runDrawable :: Double -> Drawable -> DrawState -> SysMonad c IO Drawable
-runDrawable delta dr@(Drawable spec) (DrawState pos) = do
+runDrawable :: Double -> (Entity, Drawable, DrawState) -> SysMonad c IO ()
+runDrawable delta (e, (Drawable spec), (DrawState pos)) = do
       liftIO $ drawSpec pos worldLabel spec
-      return dr
 
 drawSpec :: Vector3 -> Label -> DrawSpec -> IO ()
 drawSpec pos label (Square (Size w h) color tex shader) = 
@@ -72,7 +72,7 @@ renderCommandsWithCamera cam label aspect = renderCommands matrix label
 run draw delta = 
         do
             RPC { _screenSize, _worldCamera, _uiCamera } <- getRPC
-            updateCompsM2 (runDrawable delta) drawables drawStates
+            doComps2 (runDrawable delta) (sysComps drawables) (sysComps drawStates)
             sd <- getSysData draw
 
             ss <- _screenSize

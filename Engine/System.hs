@@ -30,13 +30,13 @@ putWorld = put
 
 getRPC :: Monad m => SysMonad c m (RPC c)
 getRPC = do
-        World { systemContext = (Context _ rpc) } <- get
+        World { _systemContext = (Context _ rpc) } <- get
         return rpc
 
 putRPC :: Monad m => RPC c -> SysMonad c m ()
 putRPC rpc = do
-        w@World { systemContext = Context cs _ } <- get
-        put w { systemContext = Context cs rpc }
+        w@World { _systemContext = Context cs _ } <- get
+        put w { _systemContext = Context cs rpc }
 
 registerRPC :: Monad m => (RPC c -> RPC c) -> SysMonad c m ()
 registerRPC f = do
@@ -44,8 +44,8 @@ registerRPC f = do
         putRPC (f rpc)
 
 registerResourceToWorld :: World c -> Lens' (RPC c) a -> a -> World c
-registerResourceToWorld w@World { systemContext = (Context cs rpc) } l f = 
-        w { systemContext = Context cs (set l f rpc) }
+registerResourceToWorld w@World { _systemContext = (Context cs rpc) } l f = 
+        w { _systemContext = Context cs (set l f rpc) }
 
 registerResource :: Monad m => Lens' (RPC c) a -> a -> SysMonad c m ()
 registerResource l f = do
@@ -70,7 +70,9 @@ removeEntities ents = do
 
 type CompStoreLens r cs rpc = Lens' (World r) (Context cs rpc)
 
-type CompLens cs c = Lens' cs (HashMap.HashMap Entity c)
+type EntHash c = HashMap.HashMap Entity c
+
+type CompLens cs c = Lens' cs (EntHash c)
 
 putComponentStore :: Monad m => CompStoreLens c cs rpc -> cs -> SysMonad c m ()
 putComponentStore l cs' = do
@@ -133,13 +135,54 @@ putSysData a d = liftIO $ d `seq` writeIORef a d
 
 getGameContext :: Monad m => SysMonad c m c
 getGameContext = do
-        World { gameContext = gc } <- get
+        World { _gameContext = gc } <- get
         return gc
         
 putGameContext :: Monad m => c -> SysMonad c m ()
 putGameContext gc = do
         w <- get
-        put w { gameContext = gc }
+        put w { _gameContext = gc }
+
+type WorldCompLens r c = Lens' (World r) (EntHash c)
+
+zipComps2 :: World r -> WorldCompLens r c -> WorldCompLens r d -> [(Entity, c, d)]
+zipComps2 w l m = zipHashes2 (view l w) (view m w)
+
+zipComps3 :: World r -> WorldCompLens r c -> WorldCompLens r d -> WorldCompLens r e -> [(Entity, c, d, e)]
+zipComps3 w l m n = zipHashes3 (view l w) (view m w) (view n w)
+
+zipComps4 :: World r -> WorldCompLens r c -> WorldCompLens r d
+                -> WorldCompLens r e -> WorldCompLens r f -> [(Entity, c, d, e, f)]
+zipComps4 w l m n o = zipHashes4 (view l w) (view m w) (view n w) (view o w)
+
+doComps2 :: Monad m => ((Entity, c, d) -> SysMonad r m ()) -> WorldCompLens r c -> WorldCompLens r d -> SysMonad r m ()
+doComps2 f l m = do
+        w <- getWorld
+        mapM_ f (zipComps2 w l m)
+
+upComps2 :: Monad m => (c -> d -> c) -> WorldCompLens r c -> WorldCompLens r d -> SysMonad r m ()
+upComps2 f l m = do
+        w <- getWorld
+        let updated = map (\(e, c, d) -> (e, f c d)) (zipComps2 w l m)
+        putWorld $ set l (HashMap.fromList updated) w
+
+doComps3 :: Monad m => ((Entity, c, d, e) -> SysMonad r m ()) -> WorldCompLens r c 
+    -> WorldCompLens r d -> WorldCompLens r e -> SysMonad r m ()
+doComps3 f l m n = do
+        w <- getWorld
+        mapM_ f (zipComps3 w l m n)
+
+doComps4 :: Monad m => ((Entity, c, d, e, f) -> SysMonad r m ()) -> WorldCompLens r c -> WorldCompLens r d -> 
+    WorldCompLens r e -> WorldCompLens r f -> SysMonad r m ()
+doComps4 f l m n o = do
+        w <- getWorld
+        mapM_ f (zipComps4 w l m n o)
+
+sysComps :: CompLens ComponentStore c -> WorldCompLens r c
+sysComps l = systemContext . compStore . l
+
+gameComps :: CompLens cs c -> WorldCompLens (Context cs rpc) c
+gameComps l = gameContext . compStore . l
 
 updateCompsM :: Monad m => CompStoreLens r cs rpc -> (c -> SysMonad r m c) -> CompLens cs c -> SysMonad r m ()
 updateCompsM csl f lp = do
@@ -194,12 +237,14 @@ putComps csl lens kvlist = do
         cs <- getComponentStore csl
         putComponentStore csl (set lens (HashMap.fromList kvlist) cs)
 
+{-
 zipComps2 :: Monad m => CompStoreLens r cs rpc -> CompLens cs c -> CompLens cs d -> SysMonad r m [(Entity, c, d)]
 zipComps2 csl c1lens c2lens = do
         cs <- getComponentStore csl
         let c1 = view c1lens cs
             c2 = view c2lens cs
         return $ zipHashes2 c1 c2
+        -}
 
 orM :: (Monad m) => [m Bool] -> m Bool
 orM []          = return False
