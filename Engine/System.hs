@@ -68,88 +68,61 @@ removeEntities ents = do
         w <- get
         put $ deleteEntitiesFromWorld w ents
 
-putComponentStore :: Monad m => ComponentStore -> SysMonad c m ()
-putComponentStore cs' = do
-      w@World { systemContext = (Context _ rpc) } <- get
-      put w { systemContext = Context cs' rpc }
+type CompStoreLens r cs rpc = Lens' (World r) (Context cs rpc)
 
-getComponentStore :: Monad m => SysMonad c m ComponentStore
-getComponentStore = do
-        World { systemContext = (Context cs _) } <- get
+type CompLens cs c = Lens' cs (HashMap.HashMap Entity c)
+
+putComponentStore :: Monad m => CompStoreLens c cs rpc -> cs -> SysMonad c m ()
+putComponentStore l cs' = do
+        w <- get
+        {-w@World { systemContext = (Context _ rpc) } <- get-}
+        put $ over l (\(Context _ rpc) -> (Context cs' rpc)) w
+        {-put w { systemContext = Context cs' rpc }-}
+
+getComponentStore :: Monad m => CompStoreLens c cs rpc -> SysMonad c m cs
+getComponentStore l = do
+        w <- get
+        let (Context cs _) = view l w
+        {-World { systemContext = (Context cs _) } <- get-}
         return cs
 
-getGameComponentStore :: Monad m => SysMonad (Context cs rpc) m cs
-getGameComponentStore = do
-        (Context cs _) <- getGameContext
-        return cs
-
-putGameComponentStore :: Monad m => cs -> SysMonad (Context cs rpc) m ()
-putGameComponentStore cs' = do
-      w@World { gameContext = Context _ rpc } <- get
-      put w { gameContext = Context cs' rpc }
-
-addComp :: (Monad m) => Entity -> CompLens c -> c -> SysMonad r m ()
-addComp e comps c = do
-        cs <- getComponentStore
+addComp :: (Monad m) => CompStoreLens r cs rpc -> Entity -> CompLens cs c -> c -> SysMonad r m ()
+addComp l e comps c = do
+        cs <- getComponentStore l
 
         let cs' = over comps (HashMap.insert e c) cs
-        putComponentStore cs'
+        putComponentStore l cs'
 
-deleteComponents :: (Monad m) => CompLens c -> SysMonad r m ()
-deleteComponents comps = do
-        cs <- getComponentStore
+deleteComponents :: (Monad m) => CompStoreLens r cs rpc -> CompLens cs c -> SysMonad r m ()
+deleteComponents l comps = do
+        cs <- getComponentStore l
         let cs' = set comps HashMap.empty cs
-        putComponentStore cs'
+        putComponentStore l cs'
 
-deleteGameComponents :: (Monad m) => Lens' cs (HashMap.HashMap Entity c) -> SysMonad (Context cs rpc) m ()
-deleteGameComponents comps = do
-        cs <- getGameComponentStore
-        let cs' = set comps HashMap.empty cs
-        putGameComponentStore cs'
+removeComp :: Monad m => CompStoreLens r cs rpc -> Entity -> CompLens cs c -> SysMonad r m ()
+removeComp csl e comps = do
+        cs <- getComponentStore csl
 
-addGameComp :: (Monad m) => Entity -> Lens' cs (HashMap.HashMap Entity c) -> c -> SysMonad (Context cs rpc) m ()
-addGameComp e comps c = do
-        cs <- getGameComponentStore
-
-        let cs' = over comps (HashMap.insert e c) cs
-        putGameComponentStore cs'
-
-removeComp :: Monad m => Entity -> CompLens c -> SysMonad r m ()
-removeComp e l = do
-        cs <- getComponentStore
-
-        let cs' = over l (HashMap.delete e) cs
-        putComponentStore cs'
+        let cs' = over comps (HashMap.delete e) cs
+        putComponentStore csl cs'
 
 
-compForEnt :: (Monad m) => Entity -> CompLens c -> SysMonad r m (Maybe c)
-compForEnt e l = do
-        cs <- getComponentStore
-        let comps = view l cs
+compForEnt :: (Monad m) => CompStoreLens r cs rpc -> Entity -> CompLens cs c -> SysMonad r m (Maybe c)
+compForEnt csl e complens = do
+        cs <- getComponentStore csl
+        let comps = view complens cs
             c = HashMap.lookup e comps
         return c
 
-gameCompForEnt :: (Monad m) => Entity -> Lens' cs (HashMap.HashMap Entity c) -> SysMonad (Context cs rpc) m (Maybe c)
-gameCompForEnt e l = do
-        cs <- getGameComponentStore
-        let comps = view l cs
-            c = HashMap.lookup e comps
-        return c
+components :: Monad m => CompStoreLens r cs rpc -> CompLens cs c -> SysMonad r m (CompMap c)
+components csl comps = do
+        cs <- getComponentStore csl
+        return $ view comps cs
 
-components :: Monad m => CompLens c -> SysMonad r m (CompMap c)
-components l = do
-        cs <- getComponentStore
-        return $ view l cs
-
-gameComponents :: Monad m => Lens' gc (CompMap c) -> SysMonad (Context gc grpc) m (CompMap c)
-gameComponents l = do
-        cs <- getGameComponentStore
-        return $ view l cs
-
-componentsAsList :: Monad m => CompLens c -> SysMonad r m [(Entity, c)]
-componentsAsList l = do
-        cs <- getComponentStore
-        return $ HashMap.toList $ view l cs
+componentsAsList :: Monad m => CompStoreLens r cs rpc -> CompLens cs c -> SysMonad r m [(Entity, c)]
+componentsAsList csl comps = do
+        cs <- getComponentStore csl
+        return $ HashMap.toList $ view comps cs
 
 getSysData :: IORef a -> SysMonad c IO a
 getSysData a = liftIO $ readIORef a
@@ -168,22 +141,20 @@ putGameContext gc = do
         w <- get
         put w { gameContext = gc }
 
-type CompLens c = Lens' ComponentStore (HashMap.HashMap Entity c)
-
-updateCompsM :: Monad m => (c -> SysMonad r m c) -> CompLens c -> SysMonad r m ()
-updateCompsM f lp = do
-        cs <- getComponentStore
+updateCompsM :: Monad m => CompStoreLens r cs rpc -> (c -> SysMonad r m c) -> CompLens cs c -> SysMonad r m ()
+updateCompsM csl f lp = do
+        cs <- getComponentStore csl
 
         let kv_list = HashMap.toList (view lp cs)
             up1 orig@(e, c) = do
                 r <- f c
                 return (e, r)
         updated <- mapM up1 kv_list
-        putComponentStore (set lp (HashMap.fromList updated) cs)
+        putComponentStore csl (set lp (HashMap.fromList updated) cs)
 
-updateCompsM2 :: Monad m => (c -> d -> SysMonad r m c) -> CompLens c -> CompLens d -> SysMonad r m ()
-updateCompsM2 f lp ls = do
-        cs <- getComponentStore
+updateCompsM2 :: Monad m => CompStoreLens r cs rpc -> (c -> d -> SysMonad r m c) -> CompLens cs c -> CompLens cs d -> SysMonad r m ()
+updateCompsM2 csl f lp ls = do
+        cs <- getComponentStore csl
 
         let kv_list = HashMap.toList (view lp cs)
             additional = view ls cs
@@ -194,20 +165,20 @@ updateCompsM2 f lp ls = do
                         r <- f c add
                         return (e, r)
         updated <- mapM up1 kv_list
-        putComponentStore (set lp (HashMap.fromList updated) cs)
+        putComponentStore csl (set lp (HashMap.fromList updated) cs)
 
-updateComps :: Monad m => (c -> c) -> CompLens c -> SysMonad r m ()
-updateComps f lp = do
-        cs <- getComponentStore
+updateComps :: Monad m => CompStoreLens r cs rpc -> (c -> c) -> CompLens cs c -> SysMonad r m ()
+updateComps csl f lp = do
+        cs <- getComponentStore csl
 
         let kv_list = HashMap.toList (view lp cs)
             up1 orig@(e, c) = (e, f c)
             updated = map up1 kv_list
-        putComponentStore (set lp (HashMap.fromList updated) cs)
+        putComponentStore csl (set lp (HashMap.fromList updated) cs)
 
-updateComps2 :: Monad m => (c -> d -> c) -> CompLens c -> CompLens d -> SysMonad r m ()
-updateComps2 f lp ls = do
-        cs <- getComponentStore
+updateComps2 :: Monad m => CompStoreLens r cs rpc -> (c -> d -> c) -> CompLens cs c -> CompLens cs d -> SysMonad r m ()
+updateComps2 csl f lp ls = do
+        cs <- getComponentStore csl
 
         let kv_list = HashMap.toList (view lp cs)
             additional = view ls cs
@@ -216,16 +187,16 @@ updateComps2 f lp ls = do
                     Nothing -> orig
                     Just add -> (e, f c add)
             updated = map up1 kv_list
-        putComponentStore (set lp (HashMap.fromList updated) cs)
+        putComponentStore csl (set lp (HashMap.fromList updated) cs)
 
-putComps :: Monad m => CompLens c -> [(Entity, c)] -> SysMonad r m ()
-putComps lens kvlist = do
-        cs <- getComponentStore
-        putComponentStore (set lens (HashMap.fromList kvlist) cs)
+putComps :: Monad m => CompStoreLens r cs rpc -> CompLens cs c -> [(Entity, c)] -> SysMonad r m ()
+putComps csl lens kvlist = do
+        cs <- getComponentStore csl
+        putComponentStore csl (set lens (HashMap.fromList kvlist) cs)
 
-zipComps2 :: Monad m => CompLens c -> CompLens d -> SysMonad r m [(Entity, c, d)]
-zipComps2 c1lens c2lens = do
-        cs <- getComponentStore
+zipComps2 :: Monad m => CompStoreLens r cs rpc -> CompLens cs c -> CompLens cs d -> SysMonad r m [(Entity, c, d)]
+zipComps2 csl c1lens c2lens = do
+        cs <- getComponentStore csl
         let c1 = view c1lens cs
             c2 = view c2lens cs
         return $ zipHashes2 c1 c2
