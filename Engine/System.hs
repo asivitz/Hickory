@@ -164,7 +164,7 @@ upComps2 :: Monad m => (c -> d -> c) -> WorldCompLens r c -> WorldCompLens r d -
 upComps2 f l m = do
         w <- getWorld
         let updated = map (\(e, c, d) -> (e, f c d)) (zipComps2 w l m)
-        putWorld $ set l (HashMap.fromList updated) w
+        putWorld $ over l (HashMap.union (HashMap.fromList updated)) w
 
 doComps3 :: Monad m => ((Entity, c, d, e) -> SysMonad r m ()) -> WorldCompLens r c 
     -> WorldCompLens r d -> WorldCompLens r e -> SysMonad r m ()
