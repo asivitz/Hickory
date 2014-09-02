@@ -14,7 +14,8 @@ module Math.Vector
     v2tov3,
     v3tov4,
     v4tov3,
-    v3tov2
+    v3tov2,
+    movePos
     )
     where
 
@@ -46,4 +47,13 @@ v3tov2 (Vector3 x y z) = v2 x y
 
 v4tov3 :: V4 -> V3
 v4tov3 (Vector4 x y z w) = (Vector3 x y z)
+
+movePos :: Vector a => a -> a -> Scalar -> Scalar -> a
+movePos p1 p2 speed time = 
+        let diff = p2 - p1 
+            amt = speed * time 
+            mag = vmag diff in
+                if mag > amt
+                    then p1 + diff |* (amt / mag)
+                    else p2
 
