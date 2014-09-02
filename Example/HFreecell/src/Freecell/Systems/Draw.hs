@@ -101,7 +101,7 @@ run draw delta =
                 mapM_ (drawCard sh) sorted
             return ()
 
-cardImagePath pre t = "cards/" ++ pre ++ "_" ++ t ++ ".png"
+cardImagePath pre t = "PlayingCards/cards/" ++ pre ++ "_" ++ t ++ ".png"
 allRanks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 texes = [cardImagePath st rk | st <- ["sp", "he", "di", "cl"], rk <- allRanks]
 
@@ -116,7 +116,7 @@ initS draw = do
 
         card_texes <- mapM _reserveTex texes
 
-        blank <- _reserveTex "blank.png"
+        blank <- _reserveTex "PlayingCards/blank.png"
 
         nilla <- _reserveShader ("Shader.vsh", "Shader.fsh")
 

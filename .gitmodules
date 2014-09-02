@@ -1,0 +1,6 @@
+[submodule "Example/HFreecell/resources/images/PlayingCards"]
+	path = Example/HFreecell/resources/images/PlayingCards
+	url = https://github.com/asivitz/PlayingCards.git
+[submodule "Example/HFreecell/Freecell"]
+	path = Example/HFreecell/Freecell
+	url = https://github.com/asivitz/Freecell.git
