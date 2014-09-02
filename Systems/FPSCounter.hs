@@ -13,10 +13,13 @@ import Utils.System
 
 reportInterval = 5.0 :: Double
 
-make :: SysMonad c IO (System c)
+make :: Show c => SysMonad c IO (System c)
 make = do
         fps <- liftIO $ newIORef empty
-        registerEvent printAll (printSysData fps)
+        registerEvent printAll $ do
+            (printSysData fps)
+            w <- getWorld
+            liftIO $ print w
 
         return $ System (run fps)
 

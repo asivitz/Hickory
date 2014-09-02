@@ -1,5 +1,7 @@
 module Bootstrap.Bootstrap where
 
+import Engine.World
+import Engine.System
 import qualified Systems.FPSCounter as FPSCounter
 import qualified Systems.DrawState as DrawState
 import qualified Systems.Draw as Draw
@@ -10,6 +12,7 @@ import qualified Systems.UICamera as UICamera
 import qualified Systems.Menus as Menus
 import qualified Systems.GLFWPlatform as GLFWPlatform
 
+coreSystems :: Show c => SysMonad c IO [System c]
 coreSystems = do
         (platform_pre, platform_post) <- GLFWPlatform.make
         drawstate <- DrawState.make
