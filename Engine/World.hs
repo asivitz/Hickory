@@ -25,7 +25,7 @@ data World c = World {
 
 type SysMonad c m r = StateT (World c) m r
 
-data RPC c = RPC {
+data RSC c = RSC {
            _resourcesPath :: IO String,
            _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],
            _inputTouchDown :: [V2 -> Int -> SysMonad c IO Bool],
@@ -48,10 +48,10 @@ data RPC c = RPC {
            _spawnedEntity :: [Entity -> SysMonad c IO ()]
            }
 
-instance Show (RPC c) where
-        show rpc = "RPC"
+instance Show (RSC c) where
+        show rsc = "RSC"
 
-emptyRPC = RPC { 
+emptyRSC = RSC { 
                _resourcesPath = resourcesPath,
                _inputTouchUp = [],
                _inputTouchDown = [],
@@ -74,18 +74,18 @@ emptyRPC = RPC {
                _spawnedEntity = []
                }
 
-data Context compStore rpc = Context 
+data Context compStore rsc = Context 
                            { 
                            _compStore :: compStore,
-                           _rpc :: rpc 
+                           _rsc :: rsc 
                            }
 
 instance Show c => Show (Context c r) where
         show (Context c r) = "Context -- CompStore: " ++ show c
 
-type SystemContext c = Context ComponentStore (RPC c)
+type SystemContext c = Context ComponentStore (RSC c)
 
-emptySystemContext = Context emptyComponentStore emptyRPC
+emptySystemContext = Context emptyComponentStore emptyRSC
 
 
 emptyWorld :: c -> World c
@@ -104,7 +104,7 @@ deleteEntitiesFromWorld w ents = let es = _entitySet w
                                      es' = deleteEntities es ents
                                      in w { _entitySet = es' }
 
-makeLenses ''RPC
+makeLenses ''RSC
 makeLenses ''World
 makeLenses ''Context
 

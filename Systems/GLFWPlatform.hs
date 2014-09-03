@@ -66,7 +66,7 @@ make = do
         registerResource sysCon screenSize (screenSize' sd)
         registerEvent sysCon inputKeyUp $ \k -> do
             when (k == GLFW.Key'D) $ do
-                               RPC { _printAll } <- getRPC sysCon
+                               RSC { _printAll } <- getRSC sysCon
                                sequence_ _printAll
             return False
 

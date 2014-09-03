@@ -18,19 +18,19 @@ import qualified Systems.Menus as Menus
 
 make :: SysMonad GameContext IO (System c)
 make = do
-        RPC { _pushMenuScreen } <- getRPC sysCon
-        gamerpc <- getRPC gameCon
-        _pushMenuScreen (mainMenu gamerpc)
+        RSC { _pushMenuScreen } <- getRSC sysCon
+        gamersc <- getRSC gameCon
+        _pushMenuScreen (mainMenu gamersc)
         registerEvent gameCon lostGame $ do
-            _pushMenuScreen (mainMenu gamerpc)
+            _pushMenuScreen (mainMenu gamersc)
         registerEvent gameCon wonGame $ do
-            _pushMenuScreen (mainMenu gamerpc)
+            _pushMenuScreen (mainMenu gamersc)
         return $ System nullRun
 
 font = "goudy_bookletter_1911"
 
-mainMenu :: GameRPC -> MenuScreen Scalar (GameEvent IO)
-mainMenu GameRPC { _newGame } = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5
+mainMenu :: GameRSC -> MenuScreen Scalar (GameEvent IO)
+mainMenu GameRSC { _newGame } = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5
 
 type GameEvent m = Menus.MenuEvent GameContext m
 

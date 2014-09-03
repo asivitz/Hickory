@@ -31,7 +31,7 @@ iter !world !systems !prev_time = do
         newWorld <- simulate world systems delta
 
         shouldRun <- case newWorld of
-                         World { _systemContext = (Context _ RPC { _running } ) } -> _running
+                         World { _systemContext = (Context _ RSC { _running } ) } -> _running
 
         {-governFPS current_time-}
 

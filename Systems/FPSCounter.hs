@@ -38,6 +38,6 @@ run fps delta =
          when (time > reportInterval) $ do
             liftIO $ printf "%.2f FPS\n" ((fromIntegral frames) / time)
             liftIO $ hFlush stdout
-            {-RPC { _printAll } <- getRPC-}
+            {-RSC { _printAll } <- getRSC-}
             {-sequence_ _printAll-}
             putSysData fps empty

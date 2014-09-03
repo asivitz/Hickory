@@ -54,7 +54,7 @@ makeGameMove fcgame f = do
         putSysData fcgame sd { game = fmap f mgame }
 
 inputTouchUp' fcgame pos touchid = do
-        GameRPC { _wonGame, _lostGame } <- getRPC gameCon
+        GameRSC { _wonGame, _lostGame } <- getRSC gameCon
         sd@SysData { game = mgame } <- getSysData fcgame
         whenMaybe mgame $ \board -> do
             unproj <- doLerpUnproject pos (-5)
@@ -115,7 +115,7 @@ spawnCard fcgame pos card = do
         addComp gameContext e cards (UICard card nullTex)
 
         {- Let other systems know about the new entity -}
-        RPC { _spawnedEntity } <- getRPC sysCon
+        RSC { _spawnedEntity } <- getRSC sysCon
         sequence_ $ map (\x -> x e) _spawnedEntity
 
 upDS delta board (e, (DrawState p), (UICard card _)) =

@@ -76,7 +76,7 @@ loadPrinterID drawtext name = do
 
 loadPrinter :: Shader -> String -> SysMonad c IO (Maybe (Printer Int))
 loadPrinter shader name = do
-        RPC { _reserveTex, _resourcesPath } <- getRPC systemContext
+        RSC { _reserveTex, _resourcesPath } <- getRSC systemContext
         texid <- _reserveTex $ name ++ ".png"
         case texid of
             Nothing -> return Nothing
@@ -104,7 +104,7 @@ modIndex (x:xs) i f = x : modIndex xs (i - 1) f
 
 unloadPrinter :: IORef SysData -> String -> PrinterID -> SysMonad c IO ()
 unloadPrinter dt path pid = do
-        RPC { _releaseTex } <- getRPC systemContext
+        RSC { _releaseTex } <- getRSC systemContext
         _releaseTex path
         sd@SysData { printerpairs } <- getSysData dt
         putSysData dt sd { printerpairs = deleteIndex printerpairs pid }
@@ -139,7 +139,7 @@ run drawtext delta = do
         putSysData drawtext sd { printerpairs = map (\(printer, tcoms) -> (printer, [])) printerpairs }
 
 initS drawtext = do
-        RPC { _reserveShader } <- getRPC sysCon
+        RSC { _reserveShader } <- getRSC sysCon
         registerResource sysCon reservePrinter (reservePrinter' drawtext)
         registerResource sysCon drawText (drawText' drawtext)
         sd <- getSysData drawtext

@@ -25,42 +25,42 @@ getWorld = get
 putWorld :: Monad m => World c -> SysMonad c m ()
 putWorld = put
 
-getContext :: Monad m => ContextLens r cs rpc -> SysMonad r m (Context cs rpc)
+getContext :: Monad m => ContextLens r cs rsc -> SysMonad r m (Context cs rsc)
 getContext l = do
         w <- get
         return $ view l w
         
-putContext :: Monad m => ContextLens r cs rpc -> (Context cs rpc) -> SysMonad r m ()
+putContext :: Monad m => ContextLens r cs rsc -> (Context cs rsc) -> SysMonad r m ()
 putContext l gc = do
         w <- get
         put $ set l gc w
 
-getRPC :: Monad m => ContextLens r cs rpc -> SysMonad r m rpc
-getRPC l = do
+getRSC :: Monad m => ContextLens r cs rsc -> SysMonad r m rsc
+getRSC l = do
         w <- get
-        let (Context _ rpc) = view l w
-        return rpc
+        let (Context _ rsc) = view l w
+        return rsc
 
-putRPC :: Monad m => ContextLens r cs rpc -> rpc -> SysMonad r m ()
-putRPC l rpc = do
+putRSC :: Monad m => ContextLens r cs rsc -> rsc -> SysMonad r m ()
+putRSC l rsc = do
         w <- get
         let (Context cs _) = view l w
-        put $ set l (Context cs rpc) w
+        put $ set l (Context cs rsc) w
 
-registerResourceToWorld :: ContextLens r cs rpc -> World r -> Lens' rpc a -> a -> World r
+registerResourceToWorld :: ContextLens r cs rsc -> World r -> Lens' rsc a -> a -> World r
 registerResourceToWorld cl w l f = 
-        let (Context cs rpc) = view cl w in
-            set cl (Context cs (set l f rpc)) w
+        let (Context cs rsc) = view cl w in
+            set cl (Context cs (set l f rsc)) w
 
-registerResource :: Monad m => ContextLens r cs rpc -> Lens' rpc a -> a -> SysMonad r m ()
+registerResource :: Monad m => ContextLens r cs rsc -> Lens' rsc a -> a -> SysMonad r m ()
 registerResource cl l f = do
         w <- getWorld
         putWorld (registerResourceToWorld cl w l f)
 
-registerEvent :: Monad m => ContextLens r cs rpc -> Lens' rpc [a] -> a -> SysMonad r m ()
+registerEvent :: Monad m => ContextLens r cs rsc -> Lens' rsc [a] -> a -> SysMonad r m ()
 registerEvent cl l f = do
-        rpc <- getRPC cl
-        putRPC cl (over l (f:) rpc)
+        rsc <- getRSC cl
+        putRSC cl (over l (f:) rsc)
 
 spawnEntity :: Monad m => SysMonad c m Entity
 spawnEntity = do
@@ -73,40 +73,40 @@ removeEntities ents = do
         w <- get
         put $ deleteEntitiesFromWorld w ents
 
-type ContextLens r cs rpc = Lens' (World r) (Context cs rpc)
+type ContextLens r cs rsc = Lens' (World r) (Context cs rsc)
 
 type EntHash c = HashMap.HashMap Entity c
 
 type CompLens cs c = Lens' cs (EntHash c)
 
-putComponentStore :: Monad m => ContextLens c cs rpc -> cs -> SysMonad c m ()
+putComponentStore :: Monad m => ContextLens c cs rsc -> cs -> SysMonad c m ()
 putComponentStore l cs' = do
         w <- get
-        {-w@World { systemContext = (Context _ rpc) } <- get-}
-        put $ over l (\(Context _ rpc) -> (Context cs' rpc)) w
-        {-put w { systemContext = Context cs' rpc }-}
+        {-w@World { systemContext = (Context _ rsc) } <- get-}
+        put $ over l (\(Context _ rsc) -> (Context cs' rsc)) w
+        {-put w { systemContext = Context cs' rsc }-}
 
-getComponentStore :: Monad m => ContextLens c cs rpc -> SysMonad c m cs
+getComponentStore :: Monad m => ContextLens c cs rsc -> SysMonad c m cs
 getComponentStore l = do
         w <- get
         let (Context cs _) = view l w
         {-World { systemContext = (Context cs _) } <- get-}
         return cs
 
-addComp :: (Monad m) => ContextLens r cs rpc -> Entity -> CompLens cs c -> c -> SysMonad r m ()
+addComp :: (Monad m) => ContextLens r cs rsc -> Entity -> CompLens cs c -> c -> SysMonad r m ()
 addComp l e comps c = do
         cs <- getComponentStore l
 
         let cs' = over comps (HashMap.insert e c) cs
         putComponentStore l cs'
 
-deleteComponents :: (Monad m) => ContextLens r cs rpc -> CompLens cs c -> SysMonad r m ()
+deleteComponents :: (Monad m) => ContextLens r cs rsc -> CompLens cs c -> SysMonad r m ()
 deleteComponents l comps = do
         cs <- getComponentStore l
         let cs' = set comps HashMap.empty cs
         putComponentStore l cs'
 
-removeComp :: Monad m => ContextLens r cs rpc -> Entity -> CompLens cs c -> SysMonad r m ()
+removeComp :: Monad m => ContextLens r cs rsc -> Entity -> CompLens cs c -> SysMonad r m ()
 removeComp csl e comps = do
         cs <- getComponentStore csl
 
@@ -114,19 +114,19 @@ removeComp csl e comps = do
         putComponentStore csl cs'
 
 
-compForEnt :: (Monad m) => ContextLens r cs rpc -> Entity -> CompLens cs c -> SysMonad r m (Maybe c)
+compForEnt :: (Monad m) => ContextLens r cs rsc -> Entity -> CompLens cs c -> SysMonad r m (Maybe c)
 compForEnt csl e complens = do
         cs <- getComponentStore csl
         let comps = view complens cs
             c = HashMap.lookup e comps
         return c
 
-components :: Monad m => ContextLens r cs rpc -> CompLens cs c -> SysMonad r m (CompMap c)
+components :: Monad m => ContextLens r cs rsc -> CompLens cs c -> SysMonad r m (CompMap c)
 components csl comps = do
         cs <- getComponentStore csl
         return $ view comps cs
 
-componentsAsList :: Monad m => ContextLens r cs rpc -> CompLens cs c -> SysMonad r m [(Entity, c)]
+componentsAsList :: Monad m => ContextLens r cs rsc -> CompLens cs c -> SysMonad r m [(Entity, c)]
 componentsAsList csl comps = do
         cs <- getComponentStore csl
         return $ HashMap.toList $ view comps cs
@@ -183,10 +183,10 @@ doComps4 f l m n o = do
 sysComps :: CompLens ComponentStore c -> WorldCompLens r c
 sysComps l = systemContext . compStore . l
 
-gameComps :: CompLens cs c -> WorldCompLens (Context cs rpc) c
+gameComps :: CompLens cs c -> WorldCompLens (Context cs rsc) c
 gameComps l = gameContext . compStore . l
 
-putComps :: Monad m => ContextLens r cs rpc -> CompLens cs c -> [(Entity, c)] -> SysMonad r m ()
+putComps :: Monad m => ContextLens r cs rsc -> CompLens cs c -> [(Entity, c)] -> SysMonad r m ()
 putComps csl lens kvlist = do
         cs <- getComponentStore csl
         putComponentStore csl (set lens (HashMap.fromList kvlist) cs)
@@ -195,9 +195,9 @@ orM :: (Monad m) => [m Bool] -> m Bool
 orM []          = return False
 orM (f:fs)      = f >>= (\x -> if x then return True else orM fs)
 
-runInterruptableEvent :: Monad m => ContextLens r cs rpc -> (a -> SysMonad r m Bool) -> Lens' rpc [a] -> SysMonad r m ()
+runInterruptableEvent :: Monad m => ContextLens r cs rsc -> (a -> SysMonad r m Bool) -> Lens' rsc [a] -> SysMonad r m ()
 runInterruptableEvent cl f l = do
-    rpc <- getRPC cl
-    let evs = view l rpc
+    rsc <- getRSC cl
+    let evs = view l rsc
     orM $ reverse (map f evs)
     return ()

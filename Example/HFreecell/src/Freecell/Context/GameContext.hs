@@ -18,9 +18,9 @@ emptyGameComponentStore = GameComponentStore {
                                      _cards = empty
                                      }
 
-type GameContext = Context GameComponentStore GameRPC
+type GameContext = Context GameComponentStore GameRSC
 
-data GameRPC = GameRPC {
+data GameRSC = GameRSC {
          _test :: [SysMonad GameContext IO ()],
          _newGame :: [SysMonad GameContext IO ()],
          _lostGame :: [SysMonad GameContext IO ()],
@@ -28,7 +28,7 @@ data GameRPC = GameRPC {
          _getGame :: SysMonad GameContext IO (Maybe Board)
          }
 
-emptyGameRPC = GameRPC { 
+emptyGameRSC = GameRSC { 
                _test = [],
                _newGame = [],
                _lostGame = [],
@@ -36,8 +36,8 @@ emptyGameRPC = GameRPC {
                _getGame = return Nothing
                }
 
-emptyGameContext = Context emptyGameComponentStore emptyGameRPC
+emptyGameContext = Context emptyGameComponentStore emptyGameRSC
 
 makeLenses ''GameComponentStore
-makeLenses ''GameRPC
+makeLenses ''GameRSC
 

@@ -64,7 +64,7 @@ deleteTexture texid = return ()
 
 reserveTex' :: IORef SysData -> String -> SysMonad c IO (Maybe TexID)
 reserveTex' texes path = do
-        RPC { _resourcesPath } <- getRPC systemContext
+        RSC { _resourcesPath } <- getRSC systemContext
         mydata@SysData { textures } <- getSysData texes
         (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
                                                                        rp <- liftIO $ _resourcesPath

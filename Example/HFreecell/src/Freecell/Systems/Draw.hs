@@ -80,7 +80,7 @@ drawPile shader tex pos = do
 
 run draw delta =
       do
-          GameRPC { _getGame } <- getRPC gameCon
+          GameRSC { _getGame } <- getRSC gameCon
           mgame <- _getGame
           whenMaybe mgame $ \game -> do
             SysData { vanilla, blankTex } <- getSysData draw
@@ -109,7 +109,7 @@ initS draw = do
 
         registerEvent sysCon spawnedEntity (spawnedEnt draw)
 
-        RPC { _reserveTex, _reserveShader, _setWorldProjection } <- getRPC sysCon
+        RSC { _reserveTex, _reserveShader, _setWorldProjection } <- getRSC sysCon
 
         _setWorldProjection (Ortho 10 1 100)
 

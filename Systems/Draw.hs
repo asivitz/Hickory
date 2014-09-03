@@ -71,7 +71,7 @@ renderCommandsWithCamera cam label aspect = renderCommands matrix label
 
 run draw delta = 
         do
-            RPC { _screenSize, _worldCamera, _uiCamera } <- getRPC systemContext
+            RSC { _screenSize, _worldCamera, _uiCamera } <- getRSC systemContext
             doComps2 (runDrawable delta) (sysComps drawables) (sysComps drawStates)
             sd <- getSysData draw
 
@@ -121,7 +121,7 @@ initS draw = do
 reserveShader' :: IORef SysData -> (String,String) -> SysMonad c IO (Maybe Shader)
 reserveShader' draw (vert,frag) = do
    mydata@SysData { shaders } <- getSysData draw
-   RPC { _resourcesPath } <- getRPC sysCon
+   RSC { _resourcesPath } <- getRSC sysCon
    prefix <- liftIO $ fmap (++"Shaders/") _resourcesPath
    let vertfragpair = ( prefix ++ vert, prefix ++ frag)
 
