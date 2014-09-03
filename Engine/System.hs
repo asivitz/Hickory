@@ -143,38 +143,45 @@ putSysData a d = liftIO $ d `seq` writeIORef a d
 
 type WorldCompLens r c = Lens' (World r) (EntHash c)
 
-zipComps2 :: World r -> WorldCompLens r c -> WorldCompLens r d -> [(Entity, c, d)]
-zipComps2 w l m = zipHashes2 (view l w) (view m w)
+zipComps2w :: World r -> WorldCompLens r c -> WorldCompLens r d -> [(Entity, c, d)]
+zipComps2w w l m = zipHashes2 (view l w) (view m w)
 
-zipComps3 :: World r -> WorldCompLens r c -> WorldCompLens r d -> WorldCompLens r e -> [(Entity, c, d, e)]
-zipComps3 w l m n = zipHashes3 (view l w) (view m w) (view n w)
+zipComps3w :: World r -> WorldCompLens r c -> WorldCompLens r d -> WorldCompLens r e -> [(Entity, c, d, e)]
+zipComps3w w l m n = zipHashes3 (view l w) (view m w) (view n w)
 
-zipComps4 :: World r -> WorldCompLens r c -> WorldCompLens r d
+zipComps4w :: World r -> WorldCompLens r c -> WorldCompLens r d
                 -> WorldCompLens r e -> WorldCompLens r f -> [(Entity, c, d, e, f)]
-zipComps4 w l m n o = zipHashes4 (view l w) (view m w) (view n w) (view o w)
+zipComps4w w l m n o = zipHashes4 (view l w) (view m w) (view n w) (view o w)
+
+zipComps2 :: Monad m => WorldCompLens r c -> WorldCompLens r d -> SysMonad r m [(Entity, c, d)]
+zipComps2 l m = getWorld >>= (\w -> return $ zipComps2w w l m)
+
+zipComps3 :: Monad m => WorldCompLens r c -> WorldCompLens r d -> WorldCompLens r e -> SysMonad r m [(Entity, c, d, e)]
+zipComps3 l m n = getWorld >>= (\w -> return $ zipComps3w w l m n)
+
+zipComps4 :: Monad m => WorldCompLens r c -> WorldCompLens r d
+                -> WorldCompLens r e -> WorldCompLens r f -> SysMonad r m [(Entity, c, d, e, f)]
+zipComps4 l m n o = getWorld >>= (\w -> return $ zipComps4w w l m n o)
 
 doComps2 :: Monad m => ((Entity, c, d) -> SysMonad r m ()) -> WorldCompLens r c -> WorldCompLens r d -> SysMonad r m ()
 doComps2 f l m = do
-        w <- getWorld
-        mapM_ f (zipComps2 w l m)
+        zipComps2 l m >>= mapM_ f 
 
 upComps2 :: Monad m => (c -> d -> c) -> WorldCompLens r c -> WorldCompLens r d -> SysMonad r m ()
 upComps2 f l m = do
         w <- getWorld
-        let updated = map (\(e, c, d) -> (e, f c d)) (zipComps2 w l m)
+        let updated = map (\(e, c, d) -> (e, f c d)) (zipComps2w w l m)
         putWorld $ over l (HashMap.union (HashMap.fromList updated)) w
 
 doComps3 :: Monad m => ((Entity, c, d, e) -> SysMonad r m ()) -> WorldCompLens r c 
     -> WorldCompLens r d -> WorldCompLens r e -> SysMonad r m ()
 doComps3 f l m n = do
-        w <- getWorld
-        mapM_ f (zipComps3 w l m n)
+        zipComps3 l m n >>= mapM_ f 
 
 doComps4 :: Monad m => ((Entity, c, d, e, f) -> SysMonad r m ()) -> WorldCompLens r c -> WorldCompLens r d -> 
     WorldCompLens r e -> WorldCompLens r f -> SysMonad r m ()
 doComps4 f l m n o = do
-        w <- getWorld
-        mapM_ f (zipComps4 w l m n o)
+        zipComps4 l m n o >>= mapM_ f 
 
 sysComps :: CompLens ComponentStore c -> WorldCompLens r c
 sysComps l = systemContext . compStore . l
