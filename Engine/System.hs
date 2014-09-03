@@ -201,3 +201,13 @@ runInterruptableEvent cl f l = do
     let evs = view l rsc
     orM $ reverse (map f evs)
     return ()
+
+runEvent :: Monad m => ContextLens r cs rsc -> (a -> SysMonad r m ()) -> Lens' rsc [a] -> SysMonad r m ()
+runEvent cl f el = do
+        rsc <- getRSC cl
+        sequence_ (map f (view el rsc))
+
+runEventId :: Monad m => ContextLens r cs rsc ->  Lens' rsc [SysMonad r m ()] -> SysMonad r m ()
+runEventId cl el = do
+        rsc <- getRSC cl
+        sequence_ (view el rsc)
