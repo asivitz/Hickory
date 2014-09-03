@@ -108,3 +108,9 @@ makeLenses ''RPC
 makeLenses ''World
 makeLenses ''Context
 
+sysCon :: Lens' (World c) (SystemContext c)
+sysCon = systemContext
+
+gameCon :: Lens' (World c) c
+gameCon = gameContext
+

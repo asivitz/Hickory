@@ -26,7 +26,6 @@ import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.IORef
 import Freecell.Context.Game
-import Engine.GameContext
 import Math.Vector
 import Utils.System
 import qualified Systems.Draw as Draw
@@ -81,7 +80,7 @@ drawPile shader tex pos = do
 
 run draw delta =
       do
-          GameRPC { _getGame } <- getGameRPC
+          GameRPC { _getGame } <- getRPC gameCon
           mgame <- _getGame
           whenMaybe mgame $ \game -> do
             SysData { vanilla, blankTex } <- getSysData draw
@@ -108,9 +107,9 @@ texes = [cardImagePath st rk | st <- ["sp", "he", "di", "cl"], rk <- allRanks]
 initS draw = do
         liftIO $ glClearColor 0 0.5 0 1
 
-        registerEvent spawnedEntity (spawnedEnt draw)
+        registerEvent sysCon spawnedEntity (spawnedEnt draw)
 
-        RPC { _reserveTex, _reserveShader, _setWorldProjection } <- getRPC
+        RPC { _reserveTex, _reserveShader, _setWorldProjection } <- getRPC sysCon
 
         _setWorldProjection (Ortho 10 1 100)
 

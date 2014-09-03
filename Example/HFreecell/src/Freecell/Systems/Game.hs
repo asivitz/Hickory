@@ -25,7 +25,6 @@ import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.IORef
 import Freecell.Context.Game
-import Engine.GameContext
 import Math.Vector
 import Utils.System
 import FreeCell
@@ -55,7 +54,7 @@ makeGameMove fcgame f = do
         putSysData fcgame sd { game = fmap f mgame }
 
 inputTouchUp' fcgame pos touchid = do
-        GameRPC { _wonGame, _lostGame } <- getGameRPC
+        GameRPC { _wonGame, _lostGame } <- getRPC gameCon
         sd@SysData { game = mgame } <- getSysData fcgame
         whenMaybe mgame $ \board -> do
             unproj <- doLerpUnproject pos (-5)
@@ -127,7 +126,7 @@ spawnCard fcgame pos card = do
         addComp systemContext e drawStates $ DrawState pos
         addComp systemContext e selectables $ Selectable (Size (0.726 * scale) scale)
         addComp gameContext e cards (UICard card nullTex)
-        RPC { _spawnedEntity } <- getRPC
+        RPC { _spawnedEntity } <- getRPC sysCon
         sequence_ $ map (\x -> x e) _spawnedEntity
 
 upDS delta board (e, (DrawState p), (UICard card _)) =
@@ -150,12 +149,12 @@ run fcgame delta = do
 
 initS fcgame = do
         liftIO $ glClearColor 0 0.5 0 1
-        registerEvent printAll (printSysData fcgame)
-        registerEvent inputTouchUp (inputTouchUp' fcgame)
-        registerEvent inputTouchDown (inputTouchDown' fcgame)
-        registerEvent inputTouchLoc (inputTouchLoc')
-        registerGameEvent newGame (newGame' fcgame)
-        registerGameResource getGame $ fmap game (getSysData fcgame)
+        registerEvent sysCon printAll (printSysData fcgame)
+        registerEvent sysCon inputTouchUp (inputTouchUp' fcgame)
+        registerEvent sysCon inputTouchDown (inputTouchDown' fcgame)
+        registerEvent sysCon inputTouchLoc (inputTouchLoc')
+        registerEvent gameCon newGame (newGame' fcgame)
+        registerResource gameCon getGame $ fmap game (getSysData fcgame)
 
 data SysData = SysData { game :: Maybe Board } deriving (Show)
 

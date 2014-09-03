@@ -47,8 +47,8 @@ make :: SysMonad c IO (System c)
 make = do
         draw <- liftIO $ newIORef empty
 
-        registerResource drawnWorldMatrix (worldmat' draw)
-        registerEvent printAll (printSysData draw)
+        registerResource sysCon drawnWorldMatrix (worldmat' draw)
+        registerEvent sysCon printAll (printSysData draw)
 
         initS draw
         return $ System (run draw)
@@ -71,7 +71,7 @@ renderCommandsWithCamera cam label aspect = renderCommands matrix label
 
 run draw delta = 
         do
-            RPC { _screenSize, _worldCamera, _uiCamera } <- getRPC
+            RPC { _screenSize, _worldCamera, _uiCamera } <- getRPC systemContext
             doComps2 (runDrawable delta) (sysComps drawables) (sysComps drawStates)
             sd <- getSysData draw
 
@@ -98,7 +98,7 @@ run draw delta =
                 return ()
 
 initS draw = do
-        registerResource reserveShader (reserveShader' draw)
+        registerResource sysCon reserveShader (reserveShader' draw)
         
         {-liftIO $ GLFW.swapInterval 0-}
 
@@ -121,7 +121,7 @@ initS draw = do
 reserveShader' :: IORef SysData -> (String,String) -> SysMonad c IO (Maybe Shader)
 reserveShader' draw (vert,frag) = do
    mydata@SysData { shaders } <- getSysData draw
-   RPC { _resourcesPath } <- getRPC
+   RPC { _resourcesPath } <- getRPC sysCon
    prefix <- liftIO $ fmap (++"Shaders/") _resourcesPath
    let vertfragpair = ( prefix ++ vert, prefix ++ frag)
 

@@ -62,11 +62,11 @@ make = do
             liftIO $ GLFW.setMouseButtonCallback window $ Just (mouseButtonCallback sd)
             liftIO $ GLFW.setKeyCallback window $ Just (keyCallback sd)
 
-        registerResource running (running' sd)
-        registerResource screenSize (screenSize' sd)
-        registerEvent inputKeyUp $ \k -> do
+        registerResource sysCon running (running' sd)
+        registerResource sysCon screenSize (screenSize' sd)
+        registerEvent sysCon inputKeyUp $ \k -> do
             when (k == GLFW.Key'D) $ do
-                               RPC { _printAll } <- getRPC
+                               RPC { _printAll } <- getRPC sysCon
                                sequence_ _printAll
             return False
 
@@ -147,13 +147,13 @@ data InputEv = InputTouchDown V2 Int
 broadcastTouchLoc win screensize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
         let pos = touchPosToScreenPos screensize curPos
-        runInterruptableEvent (\x -> x pos touchid) inputTouchLoc
+        runInterruptableEvent systemContext (\x -> x pos touchid) inputTouchLoc
 
 processInputEv (InputTouchDown pos touchid) = do
-        runInterruptableEvent (\x -> x pos touchid) inputTouchDown
+        runInterruptableEvent sysCon (\x -> x pos touchid) inputTouchDown
 processInputEv (InputTouchUp pos touchid) = do
-        runInterruptableEvent (\x -> x pos touchid) inputTouchUp
+        runInterruptableEvent sysCon (\x -> x pos touchid) inputTouchUp
 processInputEv (InputKeyUp key) = do
-        runInterruptableEvent (\x -> x key) inputKeyUp
+        runInterruptableEvent sysCon (\x -> x key) inputKeyUp
 processInputEv (InputKeyDown key) = do
-        runInterruptableEvent (\x -> x key) inputKeyDown
+        runInterruptableEvent sysCon (\x -> x key) inputKeyDown

@@ -18,7 +18,7 @@ data SysData = SysData deriving (Show)
 
 make :: SysMonad c IO (System c)
 make = do
-        registerEvent inputTouchLoc (inputTouchLoc')
+        registerEvent sysCon inputTouchLoc (inputTouchLoc')
         {-registerEvent printAll (printAll')-}
         return $ System run
 

@@ -30,8 +30,8 @@ empty = SysData { textures = emptyRefStore }
 make :: SysMonad c IO (System c)
 make = do
         textures <- liftIO $ newIORef empty
-        registerResource reserveTex (reserveTex' textures)
-        registerResource releaseTex (releaseTex' textures)
+        registerResource sysCon reserveTex (reserveTex' textures)
+        registerResource sysCon releaseTex (releaseTex' textures)
 
         return $ System nullRun
 
@@ -64,7 +64,7 @@ deleteTexture texid = return ()
 
 reserveTex' :: IORef SysData -> String -> SysMonad c IO (Maybe TexID)
 reserveTex' texes path = do
-        RPC { _resourcesPath } <- getRPC
+        RPC { _resourcesPath } <- getRPC systemContext
         mydata@SysData { textures } <- getSysData texes
         (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
                                                                        rp <- liftIO $ _resourcesPath

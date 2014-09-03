@@ -9,7 +9,6 @@ import Types.Color
 import Math.Vector
 
 import Freecell.Context.Game
-import Engine.GameContext
 
 import Graphics.DrawText
 import Menus.Menus
@@ -19,12 +18,12 @@ import qualified Systems.Menus as Menus
 
 make :: SysMonad EXGameContext IO (System c)
 make = do
-        RPC { _pushMenuScreen } <- getRPC
-        gamerpc <- getGameRPC
+        RPC { _pushMenuScreen } <- getRPC sysCon
+        gamerpc <- getRPC gameCon
         _pushMenuScreen (mainMenu gamerpc)
-        registerGameEvent lostGame $ do
+        registerEvent gameCon lostGame $ do
             _pushMenuScreen (mainMenu gamerpc)
-        registerGameEvent wonGame $ do
+        registerEvent gameCon wonGame $ do
             _pushMenuScreen (mainMenu gamerpc)
         return $ System nullRun
 

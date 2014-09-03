@@ -38,8 +38,8 @@ handleAction menus RefreshScreen = return ()
 handleAction menus PopScreen = popScreen menus
 
 initS menus = do
-        registerEvent inputTouchUp (inputTouchUp' menus)
-        registerResource pushMenuScreen (pushScreen menus)
+        registerEvent sysCon inputTouchUp (inputTouchUp' menus)
+        registerResource sysCon pushMenuScreen (pushScreen menus)
 
 inputTouchUp' menus pos touchid = do
         SysData navstack time leaving <- getSysData menus
@@ -51,7 +51,7 @@ inputTouchUp' menus pos touchid = do
             Nothing -> return False
 
 handleScreenClick menus pos elements = do
-        RPC { _screenSize } <- getRPC
+        RPC { _screenSize } <- getRPC sysCon
         sSize <- _screenSize
 
         res <- mapM (\(ResolvedUIElement but _) -> 
@@ -86,7 +86,7 @@ menuRender (Size w h) pos (SquareMenuDrawCommand (rpw, rph) color mtex sh) = lif
                      Just tex -> Square size color tex sh
 
 menuRender screensize pos (TextMenuDrawCommand pid tc) = do
-        RPC { _drawText } <- getRPC
+        RPC { _drawText } <- getRPC sysCon
         _drawText pid uiLabel (PositionedTextCommand pos tc)
 
 drawElements :: (Real a, Monad m) => Size a -> [ResolvedUIElement Scalar (MenuEvent c m)] -> Double -> Bool -> SysMonad c IO ()
@@ -110,7 +110,7 @@ run menus delta = do
         let sd' = SysData navstack (time + delta) leaving
         putSysData menus sd'
 
-        RPC { _screenSize } <- getRPC
+        RPC { _screenSize } <- getRPC sysCon
         ss <- _screenSize
         drawMenus sd' ss
 
@@ -118,7 +118,7 @@ run menus delta = do
 
 resolveUIElement :: Monad m => UIElement Scalar (MenuEvent c m) -> SysMonad c IO (Maybe (ResolvedUIElement Scalar (MenuEvent c m)))
 resolveUIElement (UIElement but (MenuRenderSpec (tidnames, printernames, shadernames) func)) = do
-        RPC { _reserveTex, _reservePrinter, _reserveShader } <- getRPC
+        RPC { _reserveTex, _reservePrinter, _reserveShader } <- getRPC sysCon
         tids <- mapM _reserveTex tidnames
         pids <- mapM _reservePrinter printernames
         shaders <- mapM _reserveShader shadernames

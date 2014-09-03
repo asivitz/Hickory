@@ -16,7 +16,7 @@ reportInterval = 5.0 :: Double
 make :: Show c => SysMonad c IO (System c)
 make = do
         fps <- liftIO $ newIORef empty
-        registerEvent printAll $ do
+        registerEvent systemContext printAll $ do
             (printSysData fps)
             w <- getWorld
             liftIO $ print w

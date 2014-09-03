@@ -25,8 +25,8 @@ setWP worldcam proj = do
 make :: SysMonad c IO (System c)
 make = do
         worldcam <- liftIO $ newIORef empty
-        registerResource worldCamera (camera' worldcam)
-        registerResource setWorldProjection (setWP worldcam)
+        registerResource sysCon worldCamera (camera' worldcam)
+        registerResource sysCon setWorldProjection (setWP worldcam)
         return $ System (run worldcam)
 
 empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))

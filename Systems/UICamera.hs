@@ -21,7 +21,7 @@ camera' uicam = do
 make :: SysMonad c IO (System c)
 make = do
         uicam <- liftIO $ newIORef empty
-        registerResource uiCamera (camera' uicam)
+        registerResource sysCon uiCamera (camera' uicam)
         return $ System (run uicam)
 
 empty = SysData (Camera (Ortho 800 (-20) 1) (Route pZero Nothing))
