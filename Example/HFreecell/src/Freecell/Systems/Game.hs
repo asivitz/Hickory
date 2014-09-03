@@ -59,18 +59,19 @@ inputTouchUp' fcgame pos touchid = do
         whenMaybe mgame $ \board -> do
             unproj <- doLerpUnproject pos (-5)
             comps <- zipComps2 (sysComps mouseDrags) (gameComps cards)
+            let targetLocation = dropLocationForPos board (v3tov2 unproj)
+
             forM_ comps $ \(e, _, (UICard card _)) -> do
-                removeComp systemContext e mouseDrags
-                let board' = moveCard board card (dropLocationForPos board (v3tov2 unproj))
-                if solvedBoard board'
-                    then do
+                removeComp sysCon e mouseDrags
+
+                case moveCard board card targetLocation of
+                    x | solvedBoard x -> do
                         sequence_ _wonGame
                         clearGame fcgame
-                    else if (null $ allPermissable board') 
-                             then do
-                                 sequence_ _lostGame
-                                 clearGame fcgame
-                             else putSysData fcgame sd { game = Just board' }
+                    x | null $ allPermissable x -> do
+                        sequence_ _lostGame
+                        clearGame fcgame
+                    x | otherwise -> putSysData fcgame sd { game = Just x }
 
         return False
 
