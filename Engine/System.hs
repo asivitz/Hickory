@@ -19,9 +19,6 @@ data System c = System {
 nullRun :: Double -> SysMonad c IO ()
 nullRun _ = return ()
 
-nullInit :: SysMonad c IO ()
-nullInit = return ()
-
 getWorld :: Monad m => SysMonad c m (World c)
 getWorld = get
 

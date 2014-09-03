@@ -131,6 +131,7 @@ textcommand = TextCommand {
                           color = black,
                           leftBump = 0 }
 
+run :: IORef SysData -> Double -> SysMonad r IO ()
 run drawtext delta = do
         sd@SysData { printerpairs, perVertColorShader } <- getSysData drawtext
         whenMaybe perVertColorShader $ \pvc -> do

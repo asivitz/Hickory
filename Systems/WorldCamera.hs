@@ -31,6 +31,7 @@ make = do
 
 empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))
 
+run :: IORef SysData -> Double -> SysMonad r IO ()
 run camera delta =
         do
             sd@SysData { camera = (Camera proj route) } <- getSysData camera
