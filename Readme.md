@@ -22,7 +22,7 @@ $ cabal run freecell
 
 Hickory games are made up of Systems, Events, Resources, and Components.
 
-# Systems
+### Systems
 
 Systems are modules of code that run independently. Hickory comes with many general purpose systems, including a draw system, an FPS counter, a texture loader, a camera system, and many others.
 
@@ -48,7 +48,7 @@ run sysdata = do
 
 'make' and 'run' both operate within a monad (called SysMonad) which is layered on top of IO. 
 
-# Events
+### Events
 
 Systems communicate by broadcasting and receiving events. They receive events by registering functions in an RSC structure (Remote System Call). For example, if we want a system to act on the 'printAll' debug event by printing its data, we can change the make function to the following:
 
@@ -69,7 +69,7 @@ run sysdata = do
 
 The systemContext parameter indicates that the event is built-in to the engine. New events specific to your particular game are added to the GameRSC type in GameContext.hs, and can then be used with the gameContext parameter. The two contexts may also be abbreviated sysCon and gameCon, respectively. For a list of all built-in events, checkout the RSC type in Engine.World.
 
-# Resources
+### Resources
 
 Resources are similar to events, but instead of being used to notify other systems, they are used to pull in information from other systems. For example, the Textures system provides a reserveTex resource that other systems can use to load textures for drawing.
 
@@ -91,10 +91,11 @@ make = do
         square_tex <- _reserveTex "square.png"
 ```
 
-# Components
+### Components
 
 In-game objects are made up of an Entity combined with various Components. In this example, we'll respond to a new game event by creating a player.
 
+```Haskell
 make = do
     registerEvent gameCon newGame createPlayer
 
@@ -108,6 +109,7 @@ createPlayer = do
         addComp sysCon e newtonianMovers $ NewtonianMover (v3 10.0 0 0) (v3 0 0 0)
         {- This player component is handled by the game -}
         addComp gameCon e players $ Player "Player One"
+```
 
 (Note: The shader, which needs to be loaded and given to SolidSquare, was left out for the sake of example.)
 
