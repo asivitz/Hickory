@@ -58,9 +58,8 @@ inputTouchUp' fcgame pos touchid = do
         sd@SysData { game = mgame } <- getSysData fcgame
         whenMaybe mgame $ \board -> do
             unproj <- doLerpUnproject pos (-5)
-            mds <- components systemContext mouseDrags
-            cds <- components gameContext cards
-            forM_ (zipHashes2 mds cds) $ \(e, _, (UICard card _)) -> do
+            comps <- zipComps2 (sysComps mouseDrags) (gameComps cards)
+            forM_ comps $ \(e, _, (UICard card _)) -> do
                 removeComp systemContext e mouseDrags
                 let board' = moveCard board card (dropLocationForPos board (v3tov2 unproj))
                 if solvedBoard board'
@@ -80,12 +79,9 @@ inputTouchDown' fcgame pos touchid = do
         whenMaybe mgame $ \game -> do
             unproj <- doLerpUnproject pos (-5)
 
-            ds <- components systemContext drawStates
-            sel <- components systemContext selectables
-            cds <- components gameContext cards
+            comps <- zipComps3 (sysComps selectables) (gameComps cards) (sysComps drawStates)
 
-            let comps = zipHashes3 sel cds ds
-                depth :: (e, Selectable, UICard, DrawState) -> Maybe Int
+            let depth :: (e, Selectable, UICard, DrawState) -> Maybe Int
                 depth (e, _, (UICard card _), _) = cardDepth game card
                 selected = fmap snd . listToMaybe . sortBy (comparing fst)
                                        . mapMaybe (\x -> 
