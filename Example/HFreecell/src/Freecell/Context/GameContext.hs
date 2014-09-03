@@ -18,14 +18,14 @@ emptyGameComponentStore = GameComponentStore {
                                      _cards = empty
                                      }
 
-type EXGameContext = Context GameComponentStore GameRPC
+type GameContext = Context GameComponentStore GameRPC
 
 data GameRPC = GameRPC {
-         _test :: [SysMonad EXGameContext IO ()],
-         _newGame :: [SysMonad EXGameContext IO ()],
-         _lostGame :: [SysMonad EXGameContext IO ()],
-         _wonGame :: [SysMonad EXGameContext IO ()],
-         _getGame :: SysMonad EXGameContext IO (Maybe Board)
+         _test :: [SysMonad GameContext IO ()],
+         _newGame :: [SysMonad GameContext IO ()],
+         _lostGame :: [SysMonad GameContext IO ()],
+         _wonGame :: [SysMonad GameContext IO ()],
+         _getGame :: SysMonad GameContext IO (Maybe Board)
          }
 
 emptyGameRPC = GameRPC { 

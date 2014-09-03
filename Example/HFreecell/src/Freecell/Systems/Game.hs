@@ -30,7 +30,7 @@ import Utils.System
 import FreeCell
 import Debug.Trace
 
-make :: SysMonad EXGameContext IO (System EXGameContext)
+make :: SysMonad GameContext IO (System GameContext)
 make = do
         fcgame <- liftIO $ newIORef empty
         initS fcgame
@@ -95,7 +95,7 @@ inputTouchLoc' pos touchid = do
         {-liftIO $ print $ "Input ping " ++ (show pos)-}
         return False
 
-newGame' :: IORef SysData -> SysMonad EXGameContext IO ()
+newGame' :: IORef SysData -> SysMonad GameContext IO ()
 newGame' fcgame = do
         liftIO $ print "New Game"
 
@@ -105,6 +105,7 @@ newGame' fcgame = do
 
         putSysData fcgame $ SysData $ Just board
 
+spawnCard :: IORef SysData -> V3 -> Card -> SysMonad GameContext IO ()
 spawnCard fcgame pos card = do
         let scale = 1
 
@@ -112,6 +113,8 @@ spawnCard fcgame pos card = do
         addComp systemContext e drawStates $ DrawState pos
         addComp systemContext e selectables $ Selectable (Size (0.726 * scale) scale)
         addComp gameContext e cards (UICard card nullTex)
+
+        {- Let other systems know about the new entity -}
         RPC { _spawnedEntity } <- getRPC sysCon
         sequence_ $ map (\x -> x e) _spawnedEntity
 
@@ -124,6 +127,7 @@ upDS delta board (e, (DrawState p), (UICard card _)) =
                   Nothing -> return (e, (DrawState (movePos p pilePos 10 delta')))
                   _ -> return (e, (DrawState p))
 
+run :: IORef SysData -> Double -> SysMonad GameContext IO ()
 run fcgame delta = do
           SysData { game } <- getSysData fcgame
           whenMaybe game $ \board -> do
@@ -133,6 +137,7 @@ run fcgame delta = do
               cds <- components gameContext cards
               putComps systemContext drawStates =<< mapM (upDS delta board) (zipHashes2 ds cds)
 
+initS :: IORef SysData -> SysMonad GameContext IO ()
 initS fcgame = do
         liftIO $ glClearColor 0 0.5 0 1
         registerEvent sysCon printAll (printSysData fcgame)

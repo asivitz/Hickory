@@ -31,7 +31,7 @@ import Utils.System
 import qualified Systems.Draw as Draw
 import FreeCell
 
-make :: SysMonad EXGameContext IO (System EXGameContext)
+make :: SysMonad GameContext IO (System GameContext)
 make = do
         draw <- liftIO $ newIORef empty
         initS draw
