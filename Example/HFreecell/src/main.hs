@@ -1,6 +1,6 @@
 import Engine.Run
 import Bootstrap.Bootstrap
-import Freecell.Context.Game
+import Freecell.Context.GameContext
 import qualified Freecell.Systems.Game as FCGame
 import qualified Freecell.Systems.Menu as FCMenu
 import qualified Freecell.Systems.Draw as FCDraw

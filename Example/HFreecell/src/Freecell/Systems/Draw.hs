@@ -25,7 +25,7 @@ import Data.List
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.IORef
-import Freecell.Context.Game
+import Freecell.Context.GameContext
 import Math.Vector
 import Utils.System
 import qualified Systems.Draw as Draw
@@ -87,9 +87,9 @@ run draw delta =
             whenMaybe2 vanilla blankTex $ \sh bl -> do
                 forM_ (drop 8 pilePositions) (drawPile sh bl)
 
-                mds <- components systemContext mouseDrags
-                ds <- components systemContext drawStates
-                cds <- components gameContext cards
+                mds <- components sysCon mouseDrags
+                ds <- components sysCon drawStates
+                cds <- components gameCon cards
 
                 let sorted = map snd . sortBy (comparing fst) . mapMaybe (\x -> 
                                                    case depth game mds x of 

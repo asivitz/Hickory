@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE Rank2Types #-}
 
-module Freecell.Context.Game where
+module Freecell.Context.GameContext where
 
 import Engine.World
 import Engine.Component
@@ -13,8 +13,6 @@ import FreeCell
 data GameComponentStore = GameComponentStore { 
                     _cards :: CompMap UICard
                     } deriving (Show)
-
-makeLenses ''GameComponentStore
 
 emptyGameComponentStore = GameComponentStore { 
                                      _cards = empty
@@ -30,8 +28,6 @@ data GameRPC = GameRPC {
          _getGame :: SysMonad EXGameContext IO (Maybe Board)
          }
 
-makeLenses ''GameRPC
-
 emptyGameRPC = GameRPC { 
                _test = [],
                _newGame = [],
@@ -41,3 +37,7 @@ emptyGameRPC = GameRPC {
                }
 
 emptyGameContext = Context emptyGameComponentStore emptyGameRPC
+
+makeLenses ''GameComponentStore
+makeLenses ''GameRPC
+

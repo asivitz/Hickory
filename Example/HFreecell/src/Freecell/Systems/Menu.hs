@@ -8,7 +8,7 @@ import Types.Types
 import Types.Color
 import Math.Vector
 
-import Freecell.Context.Game
+import Freecell.Context.GameContext
 
 import Graphics.DrawText
 import Menus.Menus

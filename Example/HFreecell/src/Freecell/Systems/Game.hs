@@ -24,7 +24,7 @@ import Data.Maybe
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.IORef
-import Freecell.Context.Game
+import Freecell.Context.GameContext
 import Math.Vector
 import Utils.System
 import FreeCell
