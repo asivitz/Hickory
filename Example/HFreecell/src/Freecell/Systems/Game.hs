@@ -83,21 +83,10 @@ inputTouchDown' fcgame pos touchid = do
 
             let depth :: (e, Selectable, UICard, DrawState) -> Maybe Int
                 depth (e, _, (UICard card _), _) = cardDepth game card
-                selected = fmap snd . listToMaybe . sortBy (comparing fst)
-                                       . mapMaybe (\x -> 
-                                                  case depth x of 
-                                                                  Nothing -> Nothing 
-                                                                  Just a -> Just (a, x))
-                                       . filter (pickSelectable unproj) $ comps
+                selected = listToMaybe . sortOnMaybe depth . filter (pickSelectable unproj) $ comps
 
             whenMaybe selected $ (\(e, _, _, (DrawState p)) ->
                 addComp systemContext e mouseDrags $ MouseDrag (p - unproj))
-
-            {- Stacked version
-            mapM_ (\(e, (DrawState p), _) -> do
-                addComp e mouseDrags $ MouseDrag (p - unproj))
-                selected
-                -}
 
         return False
 

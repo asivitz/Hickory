@@ -2,6 +2,7 @@ module Utils.Utils where
 
 import Data.List
 import Data.Ord
+import Data.Maybe
 
 lerp :: Num a => a -> a -> a -> a
 lerp fract a b = (a * (1 - fract)) + (b * fract)
@@ -38,6 +39,13 @@ applyList :: [a -> a] -> a -> a
 applyList [] arg = arg
 applyList (x:xs) arg = x (applyList xs arg)
 
+{-| Like sortBy, but memoizes the results of the comparison function -}
 sortOn :: Ord b => (a -> b) -> [a] -> [a]
 sortOn f = map snd . sortBy (comparing fst) . map (\x -> (f x, x))
 
+{-| Like sortOn, but throws out items that get turned into Nothing -}
+sortOnMaybe :: Ord b => (a -> Maybe b) -> [a] -> [a]
+sortOnMaybe f = map snd . sortBy (comparing fst) . mapMaybe (\x ->
+                                 case f x of
+                                     Nothing -> Nothing
+                                     Just a -> Just (a, x))
