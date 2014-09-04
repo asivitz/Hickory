@@ -77,7 +77,7 @@ emptyRSC = RSC {
 data Context compStore rsc = Context 
                            { 
                            _compStore :: compStore,
-                           _rsc :: rsc 
+                           _remoteSystemCalls :: rsc 
                            }
 
 instance Show c => Show (Context c r) where

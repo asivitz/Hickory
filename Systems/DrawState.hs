@@ -8,7 +8,6 @@ import Engine.System
 import Engine.Component
 import Math.Vector
 import Utils.Projection
-import Control.Monad.State
 
 data SysData = SysData deriving (Show)
 

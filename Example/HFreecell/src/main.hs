@@ -5,16 +5,17 @@ import qualified Freecell.Systems.Game as FCGame
 import qualified Freecell.Systems.Menu as FCMenu
 import qualified Freecell.Systems.Draw as FCDraw
 import Engine.World
-import Control.Monad.State
 import Engine.System
 
 initSystems = do
         core <- coreSystems
+        game <- sequence [
+                         FCGame.make, 
+                         FCMenu.make, 
+                         FCDraw.make
+                         ]
 
-        fcgame <- FCGame.make
-        fcmenu <- FCMenu.make 
-        fcdraw <- FCDraw.make 
-        return ([fcgame, fcmenu, fcdraw] ++ core)
+        return $ game ++ core
 
 resources = "Example/HFreecell/resources/"
 
