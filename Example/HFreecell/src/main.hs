@@ -20,7 +20,6 @@ resources = "Example/HFreecell/resources/"
 
 main :: IO ()
 main = do 
-          let w = registerResourceToWorld sysCon (emptyWorld emptyGameContext) resourcesPath (return resources)
-              
-          (systems, w') <- runStateT initSystems w
-          run w' systems
+        let w = registerResourceToWorld sysCon (emptyWorld emptyGameContext) resourcesPath (return resources)
+
+        initAndRun w initSystems

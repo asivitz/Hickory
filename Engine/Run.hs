@@ -43,3 +43,8 @@ run world systems = do
         ct <- getCurrentTime
 
         iter world systems ct
+
+initAndRun :: World r -> SysMonad r IO [System r] -> IO ()
+initAndRun w initF = do
+        (systems, w') <- runStateT initF w
+        run w' systems
