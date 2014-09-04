@@ -17,10 +17,8 @@ initSystems = do
 
         return $ game ++ core
 
-resources = "Example/HFreecell/resources/"
-
 main :: IO ()
 main = do 
-        let w = registerResourceToWorld sysCon (emptyWorld emptyGameContext) resourcesPath (return resources)
+        let w = newWorldWithResourcesPath emptyGameContext "Example/HFreecell/resources/"
 
         initAndRun w initSystems
