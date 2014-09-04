@@ -32,7 +32,7 @@ Systems generally operate on their own data, declared like this:
 data SysData = SysData Int
 ```
 
-The system type itself just contains a run function, but that run function is given a reference to a SysData value, so that it can change the data over time.
+The system type itself just contains a run function, but that run function is given a reference to a SysData value, so that it can change the data over time. The run function also takes a delta time value, which the engine passes in at every step.
 
 We define 'make' and 'run' functions to build the system.
 
@@ -41,7 +41,7 @@ make = do
     sysdata <- liftIO $ newIORef (SysData 42)
     return $ System (run sysdata)
 
-run sysdata = do
+run sysdata delta = do
     SysData num <- getSysData sysdata
     liftIO $ print num
 ```
@@ -62,7 +62,7 @@ make = do
 Similarly, we can broadcast the printAll event in our run function by doing the following:
 
 ```Haskell
-run sysdata = do
+run sysdata delta = do
     ...
     runEventId systemContext printAll
 ```
