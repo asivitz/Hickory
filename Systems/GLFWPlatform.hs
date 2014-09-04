@@ -61,6 +61,8 @@ make = do
         whenMaybe win $ \window -> do
             liftIO $ GLFW.setMouseButtonCallback window $ Just (mouseButtonCallback sd)
             liftIO $ GLFW.setKeyCallback window $ Just (keyCallback sd)
+            registerResource sysCon inputKeyGetState (\k -> liftIO $ GLFW.getKey window k)
+
 
         registerResource sysCon running (running' sd)
         registerResource sysCon screenSize (screenSize' sd)

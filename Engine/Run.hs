@@ -49,7 +49,7 @@ initAndRun w initF = do
         (systems, w') <- runStateT initF w
         run w' systems
 
-newWorldWithResourcesPath :: String -> Context cs rsc -> World (Context cs rsc)
-newWorldWithResourcesPath path context =
+newWorldWithResourcesPath :: Context cs rsc -> String -> World (Context cs rsc)
+newWorldWithResourcesPath context path =
         registerResourceToWorld sysCon (emptyWorld context) resourcesPath (return path)
 
