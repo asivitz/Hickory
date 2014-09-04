@@ -6,8 +6,6 @@ import Engine.System
 import Engine.World
 import Graphics.GLUtils
 import Control.Monad.State
-import Foreign.C.String
-import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Data.IORef

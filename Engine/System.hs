@@ -187,9 +187,9 @@ gameComps :: CompLens cs c -> WorldCompLens (Context cs rsc) c
 gameComps l = gameContext . compStore . l
 
 putComps :: Monad m => ContextLens r cs rsc -> CompLens cs c -> [(Entity, c)] -> SysMonad r m ()
-putComps csl lens kvlist = do
+putComps csl l kvlist = do
         cs <- getComponentStore csl
-        putComponentStore csl (set lens (HashMap.fromList kvlist) cs)
+        putComponentStore csl (set l (HashMap.fromList kvlist) cs)
 
 orM :: (Monad m) => [m Bool] -> m Bool
 orM []          = return False

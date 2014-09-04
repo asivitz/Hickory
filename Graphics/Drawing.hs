@@ -6,7 +6,6 @@ import Types.Color
 import Math.Matrix
 import Math.Vector
 import Math.VectorMatrix
-import Foreign.Marshal.Alloc
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Marshal.Array
