@@ -62,6 +62,11 @@ registerEvent cl l f = do
         rsc <- getRSC cl
         putRSC cl (over l (f:) rsc)
 
+addNewEntity :: World c -> (Entity, World c)
+addNewEntity w = let es = _entitySet w
+                     (ent, new_es) = genEntity es
+                     in (ent, w { _entitySet = new_es })
+
 spawnEntity :: Monad m => SysMonad c m Entity
 spawnEntity = do
       w <- get

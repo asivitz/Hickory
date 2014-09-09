@@ -1,6 +1,7 @@
 module Engine.Input where
 
 import Math.Vector
+import Math.Matrix
 import qualified Graphics.UI.GLFW as GLFW
 
 data InputEv = InputTouchDown V2 Int
@@ -12,4 +13,3 @@ data InputEv = InputTouchDown V2 Int
 data Input = Input {
            inputEvents :: [InputEv]
            } deriving Show
-

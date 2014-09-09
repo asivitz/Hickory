@@ -1,7 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
  
 import Engine.Run
-import Engine.World
+import Engine.Model
+import Engine.Component
 import Bootstrap.Bootstrap
 import Graphics.GLFWUtils
 import Graphics.Drawing
@@ -17,6 +18,10 @@ import qualified Systems.GLFWPlatform as GLFWPlatform
 import Types.Color
 import Utils.Utils
 import Engine.Input
+import Control.Monad.State.Strict
+import Engine.CompUtils
+import Math.Matrix
+import Math.VectorMatrix
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -36,31 +41,50 @@ loadResources path = do
         return $ Resources solid
 
 render (Resources solidShader) model = do
-        print "Rendering!"
+        print $ "Rendering model: " ++ (show model)
 
         whenMaybe solidShader $ \sh -> 
             Draw.drawSpec (v3 300 300 (5)) uiLabel (SolidSquare (Size 50 50) white sh)
 
-stepModel :: Input -> Double -> Model -> Model
-stepModel Input { inputEvents } delta model = model
+{-lerpUnproject pos z worldmat (viewportFromSize ss)-}
 
-glfwRender :: GLFW.Window -> Size Int -> (Model -> IO ()) -> Model -> IO ()
-glfwRender win scrSize render model = do
-        render model
+
+spawnThing pos = do
+        e <- spawnEntity
+        addComp components e drawStates $ DrawState pos
+        return ()
+        {-addComp systemContext e newtonianMovers $ NewtonianMover (v3 1 0 0) (v3 0 0 0)-}
+
+runModel :: State Model () -> Model -> Model
+runModel = execState
+
+processInput :: RenderInfo -> InputEv -> Model -> Model
+processInput (RenderInfo mat ss) (InputTouchDown pos pid) model = runModel (spawnThing p') model
+    where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
+processInput _ _ model = model
+
+stepModel :: Input -> RenderInfo -> Double -> Model -> Model
+stepModel Input { inputEvents } ri delta model = foldr (processInput ri) model inputEvents
+
+calcMatrixFromModel :: Size Int -> Model -> Mat44
+calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
+    cameraMatrix (_camera model) ar
+
+glfwRender :: GLFW.Window -> (Model -> IO ()) -> Mat44 -> Model -> IO ()
+glfwRender win renderFunc matrix model = do
+        renderFunc model
 
         glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-        let ar = aspectRatio scrSize
-            matrix = cameraMatrix (_camera model) ar
         renderCommands matrix uiLabel
 
         resetRenderer
         GLFW.swapBuffers win
 
-makeStepFunc :: IO Input -> (Input -> Double -> Model -> Model) -> (Double -> Model -> IO Model)
-makeStepFunc inputFunc stepFunc = \delta model -> do
+makeStepFunc :: IO Input -> (Input -> RenderInfo -> Double -> Model -> Model) -> (RenderInfo -> Double -> Model -> IO Model)
+makeStepFunc inputFunc stepFunc = \ri delta model -> do
     input <- inputFunc
-    return $ stepFunc input delta model
+    return $ stepFunc input ri delta model
 
 main :: IO ()
 main = do 
@@ -79,4 +103,4 @@ main = do
 
               grabInputFunc <- GLFWPlatform.makeGrabInput win
 
-              run (glfwRender win (Size width height) (render resources)) (makeStepFunc grabInputFunc stepModel) (newModel cam)
+              run (Size width height) calcMatrixFromModel (glfwRender win (render resources)) (makeStepFunc grabInputFunc stepModel) (newModel cam)

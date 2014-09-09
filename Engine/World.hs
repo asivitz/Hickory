@@ -26,15 +26,6 @@ data World c = World {
 
 type SysMonad c m r = StateT (World c) m r
 
-data Model = Model {
-           _entities :: EntitySet,
-           _components :: ComponentStore,
-           _camera :: Camera
-           }
-
-newModel :: Camera -> Model
-newModel cam = Model newEntitySet emptyComponentStore cam
-
 data RSC c = RSC {
            _resourcesPath :: IO String, -- Preload
            _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool], -- Input
@@ -105,11 +96,6 @@ emptyWorld gc = World { _entitySet = newEntitySet,
                    _systemContext = emptySystemContext,
                    _gameContext = gc
                  }
-
-addNewEntity :: World c -> (Entity, World c)
-addNewEntity w = let es = _entitySet w
-                     (ent, new_es) = genEntity es
-                     in (ent, w { _entitySet = new_es })
 
 deleteEntitiesFromWorld :: World c -> [Entity] -> World c
 deleteEntitiesFromWorld w ents = let es = _entitySet w

@@ -13,17 +13,17 @@ data Projection = Perspective {
                   | Ortho {
                      width :: Float,
                      near :: Float,
-                     far :: Float }
+                     far :: Float } deriving Show
 
 data Target = Target {
             tpos :: V3,
             moveTime :: Double,
             moveDuration :: Double
-            }
+            } deriving Show
 
-data Route = Route V3 (Maybe Target)
+data Route = Route V3 (Maybe Target) deriving Show
 
-data Camera = Camera Projection Route
+data Camera = Camera Projection Route deriving Show
 
 getRoute :: Camera -> Route
 getRoute (Camera _ r) = r
