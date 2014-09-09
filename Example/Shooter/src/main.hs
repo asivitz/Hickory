@@ -67,13 +67,13 @@ processInput _ _ model = model
 
 for = flip map
 
-stepNewtonianMovers delta nms dss = HashMap.fromList $ for (HashMap.toList dss) $ \(e, ds) ->
-    case HashMap.lookup e nms of
-        Nothing -> (e, ds)
-        Just nm -> (e, DrawState.upDS delta ds nm)
+stepComponentHash2 delta first second f = HashMap.fromList $ for (HashMap.toList first) $ \(e, c1) ->
+    case HashMap.lookup e second of
+        Nothing -> (e, c1)
+        Just c2 -> (e, f delta c1 c2)
 
 stepComponents delta cs@ComponentStore { _drawStates, _newtonianMovers } = 
-        cs { _drawStates = stepNewtonianMovers delta _newtonianMovers _drawStates }
+        cs { _drawStates = stepComponentHash2 delta _drawStates _newtonianMovers DrawState.upDS }
 
 stepModel :: Input -> RenderInfo -> Double -> Model -> Model
 stepModel Input { inputEvents } ri delta model = let model' = foldr (processInput ri) model inputEvents 
