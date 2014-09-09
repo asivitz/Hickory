@@ -16,6 +16,7 @@ import qualified Systems.Draw as Draw
 import qualified Systems.GLFWPlatform as GLFWPlatform
 import Types.Color
 import Utils.Utils
+import Engine.Input
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -40,8 +41,8 @@ render (Resources solidShader) model = do
         whenMaybe solidShader $ \sh -> 
             Draw.drawSpec (v3 300 300 (5)) uiLabel (SolidSquare (Size 50 50) white sh)
 
-stepModel :: GLFWPlatform.Input -> Double -> Model -> Model
-stepModel GLFWPlatform.Input { GLFWPlatform.inputEvents } delta model = model
+stepModel :: Input -> Double -> Model -> Model
+stepModel Input { inputEvents } delta model = model
 
 glfwRender :: GLFW.Window -> Size Int -> (Model -> IO ()) -> Model -> IO ()
 glfwRender win scrSize render model = do
@@ -56,7 +57,7 @@ glfwRender win scrSize render model = do
         resetRenderer
         GLFW.swapBuffers win
 
-makeStepFunc :: IO GLFWPlatform.Input -> (GLFWPlatform.Input -> Double -> Model -> Model) -> (Double -> Model -> IO Model)
+makeStepFunc :: IO Input -> (Input -> Double -> Model -> Model) -> (Double -> Model -> IO Model)
 makeStepFunc inputFunc stepFunc = \delta model -> do
     input <- inputFunc
     return $ stepFunc input delta model

@@ -13,6 +13,7 @@ import Math.Vector
 import Control.Monad.State
 import Graphics.GLFWUtils
 import Data.Traversable
+import Engine.Input
 
 data SysData = SysData { 
              evlist :: [InputEv],
@@ -25,16 +26,6 @@ empty = SysData { evlist = [],
                 fbSize = nullSize
                 }
 
-
-data InputEv = InputTouchDown V2 Int
-             | InputTouchUp V2 Int 
-             | InputKeyDown GLFW.Key
-             | InputKeyUp GLFW.Key
-             deriving (Show)
-
-data Input = Input {
-           inputEvents :: [InputEv]
-           } deriving Show
 
 makeGrabInput win = do
         (width, height) <- GLFW.getFramebufferSize win
