@@ -40,6 +40,9 @@ render (Resources solidShader) model = do
         whenMaybe solidShader $ \sh -> 
             Draw.drawSpec (v3 300 300 (5)) uiLabel (SolidSquare (Size 50 50) white sh)
 
+stepModel :: GLFWPlatform.Input -> Double -> Model -> Model
+stepModel GLFWPlatform.Input { GLFWPlatform.inputEvents } delta model = model
+
 glfwRender :: GLFW.Window -> Size Int -> (Model -> IO ()) -> Model -> IO ()
 glfwRender win scrSize render model = do
         render model
@@ -52,6 +55,11 @@ glfwRender win scrSize render model = do
 
         resetRenderer
         GLFW.swapBuffers win
+
+makeStepFunc :: IO GLFWPlatform.Input -> (GLFWPlatform.Input -> Double -> Model -> Model) -> (Double -> Model -> IO Model)
+makeStepFunc inputFunc stepFunc = \delta model -> do
+    input <- inputFunc
+    return $ stepFunc input delta model
 
 main :: IO ()
 main = do 
@@ -70,4 +78,4 @@ main = do
 
               grabInputFunc <- GLFWPlatform.makeGrabInput win
 
-              run (glfwRender win (Size width height) (render resources)) grabInputFunc (newModel cam)
+              run (glfwRender win (Size width height) (render resources)) (makeStepFunc grabInputFunc stepModel) (newModel cam)

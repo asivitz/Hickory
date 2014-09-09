@@ -24,25 +24,21 @@ governFPS initialTime = do
 {-simulate :: World c -> [System c] -> Double -> IO (World c)-}
 {-simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world-}
 
-stepModel :: GLFWPlatform.Input -> Double -> Model -> Model
-stepModel GLFWPlatform.Input { GLFWPlatform.inputEvents } delta model = model
-
-iter :: (Model -> IO ()) -> IO GLFWPlatform.Input -> Model -> UTCTime -> IO ()
-iter !render !grabInputFunc !model !prev_time = do
+iter :: (Model -> IO ()) -> (Double -> Model -> IO Model) -> Model -> UTCTime -> IO ()
+iter !render !step !model !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-        input <- grabInputFunc
-        let model' = stepModel input delta model
+        model' <- step delta model
         render model'
 
-        iter render grabInputFunc model' current_time
+        iter render step model' current_time
 
-run :: (Model -> IO ()) -> IO GLFWPlatform.Input -> Model -> IO ()
-run render grabInputFunc model = do
+run :: (Model -> IO ()) -> (Double -> Model -> IO Model) -> Model -> IO ()
+run render step model = do
         ct <- getCurrentTime
 
-        iter render grabInputFunc model ct
+        iter render step model ct
 
 {-initAndRun :: World r -> SysMonad r IO [System r] -> IO ()-}
 {-initAndRun w initF = do-}
