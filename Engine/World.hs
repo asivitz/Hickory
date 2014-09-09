@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Engine.World where
 
@@ -25,27 +26,49 @@ data World c = World {
 
 type SysMonad c m r = StateT (World c) m r
 
+data InputEv = InputTouchDown V2 Int
+             | InputTouchUp V2 Int 
+             | InputKeyDown GLFW.Key
+             | InputKeyUp GLFW.Key
+             deriving (Show)
+
+data Input = Input {
+           inputEvents :: [InputEv]
+           }
+
+data Model = Model {
+           _entities :: EntitySet,
+           _components :: ComponentStore,
+           _camera :: Camera
+           }
+
+newModel :: Camera -> Model
+newModel cam = Model newEntitySet emptyComponentStore cam
+
+stepModel :: Input -> Double -> Model -> Model
+stepModel Input { inputEvents } delta model = model
+
 data RSC c = RSC {
-           _resourcesPath :: IO String,
-           _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool],
-           _inputTouchDown :: [V2 -> Int -> SysMonad c IO Bool],
-           _inputTouchLoc :: [V2 -> Int -> SysMonad c IO Bool],
-           _inputKeyUp :: [GLFW.Key -> SysMonad c IO Bool],
-           _inputKeyDown :: [GLFW.Key -> SysMonad c IO Bool],
-           _inputKeyGetState :: GLFW.Key -> SysMonad c IO (GLFW.KeyState),
-           _reserveTex :: String -> SysMonad c IO (Maybe TexID),
-           _releaseTex :: String -> SysMonad c IO (),
-           _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID),
-           _reserveShader :: (String, String) -> SysMonad c IO (Maybe Shader),
+           _resourcesPath :: IO String, -- Preload
+           _inputTouchUp :: [V2 -> Int -> SysMonad c IO Bool], -- Input
+           _inputTouchDown :: [V2 -> Int -> SysMonad c IO Bool], -- Input
+           _inputTouchLoc :: [V2 -> Int -> SysMonad c IO Bool], -- Input
+           _inputKeyUp :: [GLFW.Key -> SysMonad c IO Bool], -- Input
+           _inputKeyDown :: [GLFW.Key -> SysMonad c IO Bool], -- Input
+           _inputKeyGetState :: GLFW.Key -> SysMonad c IO (GLFW.KeyState), -- Input
+           _reserveTex :: String -> SysMonad c IO (Maybe TexID), -- Preload
+           _releaseTex :: String -> SysMonad c IO (), -- Preload
+           _reservePrinter :: String -> SysMonad c IO (Maybe PrinterID), -- Preload
+           _reserveShader :: (String, String) -> SysMonad c IO (Maybe Shader), -- Preload
            _pushMenuScreen :: MenuScreen Scalar (SysMonad c IO ()) -> SysMonad c IO (),
-           _drawText :: PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO (),
-           _printAll :: [SysMonad c IO ()],
+           _drawText :: PrinterID -> Label -> PositionedTextCommand -> SysMonad c IO (),  -- Render
+           _printAll :: [SysMonad c IO ()],  -- Render
            _running :: IO Bool,
-           _screenSize :: SysMonad c IO (Size Int),
-           _worldCamera :: SysMonad c IO (Maybe Camera),
-           _setWorldProjection :: Projection -> SysMonad c IO (),
-           _drawnWorldMatrix :: SysMonad c IO Mat44,
-           _uiCamera :: SysMonad c IO (Maybe Camera),
+           _screenSize :: SysMonad c IO (Size Int), -- Input
+           _worldCamera :: SysMonad c IO (Maybe Camera), -- Render / Input
+           _setWorldProjection :: Projection -> SysMonad c IO (), -- Preload
+           _drawnWorldMatrix :: SysMonad c IO Mat44, -- Render / Input
+           _uiCamera :: SysMonad c IO (Maybe Camera), -- Render / Input
            _spawnedEntity :: [Entity -> SysMonad c IO ()]
            }
 

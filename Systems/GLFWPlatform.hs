@@ -138,12 +138,6 @@ touchIdent button = case button of
 touchPosToScreenPos :: Size Int -> (Double, Double) -> V2
 touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) ((fromIntegral h) - (realToFrac y))
 
-data InputEv = InputTouchDown V2 Int
-             | InputTouchUp V2 Int 
-             | InputKeyDown GLFW.Key
-             | InputKeyUp GLFW.Key
-             deriving (Show)
-
 broadcastTouchLoc win screensize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
         let pos = touchPosToScreenPos screensize curPos

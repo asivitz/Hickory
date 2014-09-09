@@ -20,36 +20,35 @@ governFPS initialTime = do
       threadDelay $ floor (millisecondsEarly * 1000)
       -}
 
-simulate :: World c -> [System c] -> Double -> IO (World c)
-simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world
+{-simulate :: World c -> [System c] -> Double -> IO (World c)-}
+{-simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world-}
 
-iter :: World c -> [System c] -> UTCTime -> IO ()
-iter !world !systems !prev_time = do
+grabInput :: IO Input
+grabInput = return $ Input []
+
+iter :: (Model -> IO ()) -> Model -> UTCTime -> IO ()
+iter !render !model !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-        newWorld <- simulate world systems delta
+        input <- grabInput
+        let model' = stepModel input delta model
+        render model'
 
-        shouldRun <- case newWorld of
-                         World { _systemContext = (Context _ RSC { _running } ) } -> _running
+        iter render model' current_time
 
-        {-governFPS current_time-}
-
-        when shouldRun $
-            iter newWorld systems current_time
-
-run :: World c -> [System c] -> IO ()
-run world systems = do
+run :: (Model -> IO ()) -> Model -> IO ()
+run render model = do
         ct <- getCurrentTime
 
-        iter world systems ct
+        iter render model ct
 
-initAndRun :: World r -> SysMonad r IO [System r] -> IO ()
-initAndRun w initF = do
-        (systems, w') <- runStateT initF w
-        run w' systems
+{-initAndRun :: World r -> SysMonad r IO [System r] -> IO ()-}
+{-initAndRun w initF = do-}
+        {-(systems, w') <- runStateT initF w-}
+        {-run w' systems-}
 
-newWorldWithResourcesPath :: Context cs rsc -> String -> World (Context cs rsc)
-newWorldWithResourcesPath context path =
-        registerResourceToWorld sysCon (emptyWorld context) resourcesPath (return path)
+{-newWorldWithResourcesPath :: Context cs rsc -> String -> World (Context cs rsc)-}
+{-newWorldWithResourcesPath context path =-}
+        {-registerResourceToWorld sysCon (emptyWorld context) resourcesPath (return path)-}
 
