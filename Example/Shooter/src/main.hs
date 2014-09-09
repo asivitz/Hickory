@@ -33,17 +33,20 @@ loadResources path = do
         solid <- loadShader' path "Shader.vsh" "SolidColor.fsh"
         return $ Resources solid
 
-render :: GLFW.Window -> Size Int -> Resources -> Model -> IO ()
-render win scrSize (Resources solidShader) Model { _camera } = do
+render (Resources solidShader) model = do
         print "Rendering!"
 
         whenMaybe solidShader $ \sh -> 
             Draw.drawSpec (v3 300 300 (5)) uiLabel (SolidSquare (Size 50 50) white sh)
 
+glfwRender :: GLFW.Window -> Size Int -> (Model -> IO ()) -> Model -> IO ()
+glfwRender win scrSize render model = do
+        render model
+
         glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
         let ar = aspectRatio scrSize
-            matrix = cameraMatrix _camera ar
+            matrix = cameraMatrix (_camera model) ar
         renderCommands matrix uiLabel
 
         resetRenderer
@@ -63,4 +66,4 @@ main = do
 
               resources <- loadResources "Example/HFreecell/resources"
               let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
-              run (render win (Size width height) resources) (newModel cam)
+              run (glfwRender win (Size width height) (render resources)) (newModel cam)
