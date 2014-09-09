@@ -41,10 +41,12 @@ loadResources path = do
         return $ Resources solid
 
 render (Resources solidShader) model = do
-        print $ "Rendering model: " ++ (show model)
+        {-print $ "Rendering model: " ++ (show model)-}
 
-        whenMaybe solidShader $ \sh -> 
-            Draw.drawSpec (v3 300 300 (5)) uiLabel (SolidSquare (Size 50 50) white sh)
+        whenMaybe solidShader $ \sh -> do
+            let ds = getModelComponents drawStates model
+            forM_ (stripEnts ds) $ \(DrawState pos) ->
+                Draw.drawSpec pos uiLabel (SolidSquare (Size 50 50) white sh)
 
 {-lerpUnproject pos z worldmat (viewportFromSize ss)-}
 
@@ -52,8 +54,8 @@ render (Resources solidShader) model = do
 spawnThing pos = do
         e <- spawnEntity
         addComp components e drawStates $ DrawState pos
+        addComp components e newtonianMovers $ NewtonianMover (v3 1 0 0) (v3 0 0 0)
         return ()
-        {-addComp systemContext e newtonianMovers $ NewtonianMover (v3 1 0 0) (v3 0 0 0)-}
 
 runModel :: State Model () -> Model -> Model
 runModel = execState

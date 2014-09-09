@@ -43,3 +43,7 @@ addComp l e comps c = do
 
         let cs' = over comps (HashMap.insert e c) cs
         putComponentStore l cs'
+
+getModelComponents l model = view (components . l) model
+
+stripEnts compmap = map snd (HashMap.toList compmap)
