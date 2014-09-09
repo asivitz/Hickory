@@ -26,16 +26,6 @@ data World c = World {
 
 type SysMonad c m r = StateT (World c) m r
 
-data InputEv = InputTouchDown V2 Int
-             | InputTouchUp V2 Int 
-             | InputKeyDown GLFW.Key
-             | InputKeyUp GLFW.Key
-             deriving (Show)
-
-data Input = Input {
-           inputEvents :: [InputEv]
-           }
-
 data Model = Model {
            _entities :: EntitySet,
            _components :: ComponentStore,
@@ -44,9 +34,6 @@ data Model = Model {
 
 newModel :: Camera -> Model
 newModel cam = Model newEntitySet emptyComponentStore cam
-
-stepModel :: Input -> Double -> Model -> Model
-stepModel Input { inputEvents } delta model = model
 
 data RSC c = RSC {
            _resourcesPath :: IO String, -- Preload

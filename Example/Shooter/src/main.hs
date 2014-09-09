@@ -13,6 +13,7 @@ import Types.Types
 import Camera.Camera
 import Math.Vector
 import qualified Systems.Draw as Draw
+import qualified Systems.GLFWPlatform as GLFWPlatform
 import Types.Color
 import Utils.Utils
 
@@ -66,4 +67,7 @@ main = do
 
               resources <- loadResources "Example/HFreecell/resources"
               let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
-              run (glfwRender win (Size width height) (render resources)) (newModel cam)
+
+              grabInputFunc <- GLFWPlatform.makeGrabInput win
+
+              run (glfwRender win (Size width height) (render resources)) grabInputFunc (newModel cam)

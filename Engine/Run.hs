@@ -7,6 +7,7 @@ import Engine.System
 import Engine.World
 import Data.Time
 import Control.Monad.State
+import qualified Systems.GLFWPlatform as GLFWPlatform
 
 {-
 governFPS :: UTCTime -> IO ()
@@ -23,25 +24,25 @@ governFPS initialTime = do
 {-simulate :: World c -> [System c] -> Double -> IO (World c)-}
 {-simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world-}
 
-grabInput :: IO Input
-grabInput = return $ Input []
+stepModel :: GLFWPlatform.Input -> Double -> Model -> Model
+stepModel GLFWPlatform.Input { GLFWPlatform.inputEvents } delta model = model
 
-iter :: (Model -> IO ()) -> Model -> UTCTime -> IO ()
-iter !render !model !prev_time = do
+iter :: (Model -> IO ()) -> IO GLFWPlatform.Input -> Model -> UTCTime -> IO ()
+iter !render !grabInputFunc !model !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-        input <- grabInput
+        input <- grabInputFunc
         let model' = stepModel input delta model
         render model'
 
-        iter render model' current_time
+        iter render grabInputFunc model' current_time
 
-run :: (Model -> IO ()) -> Model -> IO ()
-run render model = do
+run :: (Model -> IO ()) -> IO GLFWPlatform.Input -> Model -> IO ()
+run render grabInputFunc model = do
         ct <- getCurrentTime
 
-        iter render model ct
+        iter render grabInputFunc model ct
 
 {-initAndRun :: World r -> SysMonad r IO [System r] -> IO ()-}
 {-initAndRun w initF = do-}

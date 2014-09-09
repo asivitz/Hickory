@@ -15,80 +15,40 @@ import Graphics.GLFWUtils
 import Data.Traversable
 
 data SysData = SysData { 
-             window :: Maybe (GLFW.Window),
-             fbSize :: Size Int,
-             isRunning :: Bool,
              evlist :: [InputEv],
-             touches :: HashSet.HashSet Int
+             touches :: HashSet.HashSet Int,
+             fbSize :: Size Int
             }
 
-empty = SysData { window = Nothing,
-                fbSize = nullSize, 
-                isRunning = True,
-                evlist = [],
-                touches = HashSet.empty
+empty = SysData { evlist = [],
+                touches = HashSet.empty,
+                fbSize = nullSize
                 }
 
-running' platform = do
-        SysData { isRunning } <- readIORef platform
-        return isRunning 
 
-screenSize' platform = do
-        SysData { fbSize } <- getSysData platform
-        return fbSize
+data InputEv = InputTouchDown V2 Int
+             | InputTouchUp V2 Int 
+             | InputKeyDown GLFW.Key
+             | InputKeyUp GLFW.Key
+             deriving (Show)
 
-runPre platform delta = do
-        liftIO GLFW.pollEvents
+data Input = Input {
+           inputEvents :: [InputEv]
+           } deriving Show
 
-        sd@SysData { window, fbSize, evlist, touches } <- getSysData platform
+makeGrabInput win = do
+        (width, height) <- GLFW.getFramebufferSize win
+        sd <- newIORef (SysData [] HashSet.empty (Size width height))
+        GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd)
+        GLFW.setKeyCallback win $ Just (keyCallback sd)
+        return $ grabInput sd
 
-        whenMaybe window $ \win -> do
-            mapM_ (broadcastTouchLoc win fbSize) $ HashSet.toList touches
-            mapM_ processInputEv evlist
-
-        putSysData platform sd { evlist = [] }
-
-make :: SysMonad c IO (System c, System c)
-make = do
-        win <- liftIO $ buildWindow 800 800 "Hi hi!"
-
-        (fbWidth, fbHeight) <- case win of
-            Nothing -> return (0,0)
-            Just w -> liftIO $ GLFW.getFramebufferSize w
-
-        sd <- liftIO $ newIORef empty { window = win, fbSize = (Size fbWidth fbHeight) }
-
-        whenMaybe win $ \window -> do
-            liftIO $ GLFW.setMouseButtonCallback window $ Just (mouseButtonCallback sd)
-            liftIO $ GLFW.setKeyCallback window $ Just (keyCallback sd)
-            registerResource sysCon inputKeyGetState (\k -> liftIO $ GLFW.getKey window k)
-
-
-        registerResource sysCon running (running' sd)
-        registerResource sysCon screenSize (screenSize' sd)
-        registerEvent sysCon inputKeyUp $ \k -> do
-            when (k == GLFW.Key'D) $ runEventId sysCon printAll
-            return False
-
-        return (System (runPre sd), System (run sd))
-
-run platform delta = do
-        sd@SysData { window } <- getSysData platform
-
-        liftIO $ traverse GLFW.swapBuffers window
-
-        isRunning' <- liftIO $ do
-            q <- traverse GLFW.windowShouldClose window
-            case q of
-                Nothing -> return True
-                Just False -> return True
-                Just True -> do
-                    traverse GLFW.destroyWindow window
-                    GLFW.terminate
-                    return False
-
-        -- Just remove processed events!
-        putSysData platform sd { isRunning = isRunning' }
+grabInput :: IORef SysData -> IO Input
+grabInput sd = do
+        GLFW.pollEvents
+        SysData { evlist, touches, fbSize } <- readIORef sd
+        writeIORef sd (SysData [] HashSet.empty fbSize)
+        return $ Input evlist
 
 mouseButtonCallback :: IORef SysData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform win button buttonState modkeys =
