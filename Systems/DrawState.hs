@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawState (make, upDS) where
+module Systems.DrawState (make, upDS, snapToMouse) where
 
 import Engine.World
 import Engine.System

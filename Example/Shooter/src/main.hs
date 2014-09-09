@@ -54,7 +54,8 @@ render (Resources solidShader) model = do
 spawnThing pos = do
         e <- spawnEntity
         addComp components e drawStates $ DrawState pos
-        addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)
+        addComp components e mouseDrags $ MouseDrag (v3 0 0 0)
+        {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
         return ()
 
 runModel :: State Model () -> Model -> Model
@@ -63,17 +64,24 @@ runModel = execState
 processInput :: RenderInfo -> InputEv -> Model -> Model
 processInput (RenderInfo mat ss) (InputTouchDown pos pid) model = runModel (spawnThing p') model
     where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
+          
+processInput (RenderInfo mat ss) (InputTouchLoc pos pid) 
+        model@Model { _components = cs@ComponentStore { _drawStates, _mouseDrags } } = 
+            model { _components = cs { _drawStates = stepComponentHash2 _drawStates _mouseDrags (DrawState.snapToMouse p') } }
+    where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
+
 processInput _ _ model = model
 
 for = flip map
 
-stepComponentHash2 delta first second f = HashMap.fromList $ for (HashMap.toList first) $ \(e, c1) ->
+stepComponentHash2 first second f = HashMap.fromList $ for (HashMap.toList first) $ \(e, c1) ->
     case HashMap.lookup e second of
         Nothing -> (e, c1)
-        Just c2 -> (e, f delta c1 c2)
+        Just c2 -> (e, f c1 c2)
 
-stepComponents delta cs@ComponentStore { _drawStates, _newtonianMovers } = 
-        cs { _drawStates = stepComponentHash2 delta _drawStates _newtonianMovers DrawState.upDS }
+stepComponents delta cs@ComponentStore { _drawStates, _newtonianMovers, _mouseDrags } = 
+        cs { _drawStates = stepComponentHash2 _drawStates _newtonianMovers (DrawState.upDS delta)
+           }
 
 stepModel :: Input -> RenderInfo -> Double -> Model -> Model
 stepModel Input { inputEvents } ri delta model = let model' = foldr (processInput ri) model inputEvents 

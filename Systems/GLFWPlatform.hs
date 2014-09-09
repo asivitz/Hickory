@@ -32,14 +32,17 @@ makeGrabInput win = do
         sd <- newIORef (SysData [] HashSet.empty (Size width height))
         GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd)
         GLFW.setKeyCallback win $ Just (keyCallback sd)
-        return $ grabInput sd
+        return $ grabInput sd win
 
-grabInput :: IORef SysData -> IO Input
-grabInput sd = do
+grabInput :: IORef SysData -> GLFW.Window -> IO Input
+grabInput sd win = do
         GLFW.pollEvents
         SysData { evlist, touches, fbSize } <- readIORef sd
         writeIORef sd (SysData [] HashSet.empty fbSize)
-        return $ Input evlist
+        curPos <- GLFW.getCursorPos win
+        let curloc = touchPosToScreenPos fbSize curPos
+        let evlist' = (InputTouchLoc curloc 0) : evlist
+        return $ Input evlist'
 
 mouseButtonCallback :: IORef SysData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform win button buttonState modkeys =
