@@ -15,6 +15,7 @@ import Camera.Camera
 import Math.Vector
 import qualified Systems.Draw as Draw
 import qualified Systems.GLFWPlatform as GLFWPlatform
+import qualified Systems.DrawState as DrawState
 import Types.Color
 import Utils.Utils
 import Engine.Input
@@ -22,6 +23,8 @@ import Control.Monad.State.Strict
 import Engine.CompUtils
 import Math.Matrix
 import Math.VectorMatrix
+import Data.List
+import qualified Data.HashMap.Strict as HashMap
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -48,13 +51,10 @@ render (Resources solidShader) model = do
             forM_ (stripEnts ds) $ \(DrawState pos) ->
                 Draw.drawSpec pos uiLabel (SolidSquare (Size 50 50) white sh)
 
-{-lerpUnproject pos z worldmat (viewportFromSize ss)-}
-
-
 spawnThing pos = do
         e <- spawnEntity
         addComp components e drawStates $ DrawState pos
-        addComp components e newtonianMovers $ NewtonianMover (v3 1 0 0) (v3 0 0 0)
+        addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)
         return ()
 
 runModel :: State Model () -> Model -> Model
@@ -65,8 +65,21 @@ processInput (RenderInfo mat ss) (InputTouchDown pos pid) model = runModel (spaw
     where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
 processInput _ _ model = model
 
+for = flip map
+
+stepNewtonianMovers delta nms dss = HashMap.fromList $ for (HashMap.toList dss) $ \(e, ds) ->
+    case HashMap.lookup e nms of
+        Nothing -> (e, ds)
+        Just nm -> (e, DrawState.upDS delta ds nm)
+
+stepComponents delta cs@ComponentStore { _drawStates, _newtonianMovers } = 
+        cs { _drawStates = stepNewtonianMovers delta _newtonianMovers _drawStates }
+
 stepModel :: Input -> RenderInfo -> Double -> Model -> Model
-stepModel Input { inputEvents } ri delta model = foldr (processInput ri) model inputEvents
+stepModel Input { inputEvents } ri delta model = let model' = foldr (processInput ri) model inputEvents 
+                                                     model'' = case model' of
+                                                                   m@Model { _components } -> m { _components = stepComponents delta _components }
+                                                     in model''
 
 calcMatrixFromModel :: Size Int -> Model -> Mat44
 calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
