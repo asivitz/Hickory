@@ -9,6 +9,16 @@ import Math.Matrix
 import Types.Types
 import Camera.Camera
 
+import Graphics.Rendering.OpenGL.Raw.Core31
+import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
+import qualified Graphics.UI.GLFW as GLFW
+import Data.Bits
+import Graphics.Drawing
+import Graphics.GLFWUtils
+import Engine.Input
+import Control.Lens
+import qualified Systems.GLFWPlatform as GLFWPlatform
+
 {-
 governFPS :: UTCTime -> IO ()
 governFPS initialTime = do
@@ -61,3 +71,44 @@ run scrSize render step model = do
 {-newWorldWithResourcesPath context path =-}
         {-registerResourceToWorld sysCon (emptyWorld context) resourcesPath (return path)-}
 
+stepModel :: (RenderInfo -> InputEv -> Model cs -> Model cs) ->
+    (Double -> cs -> cs) -> 
+    Input -> RenderInfo -> Double -> Model cs -> Model cs
+stepModel procInputF stepCompF Input { inputEvents } ri delta model = let model' = foldr (procInputF ri) model inputEvents 
+                                                                          model'' = over components (\cs -> stepCompF delta cs) model'
+                                                                          in model''
+
+glfwRender :: GLFW.Window -> (Model cs -> IO ()) -> Mat44 -> Model cs -> IO ()
+glfwRender win renderFunc matrix model = do
+        renderFunc model
+
+        glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+
+        renderCommands matrix uiLabel
+
+        resetRenderer
+        GLFW.swapBuffers win
+
+glfwMain :: Camera -> cs -> IO r -> (RenderInfo -> InputEv -> Model cs -> Model cs) ->
+    (Double -> cs -> cs) ->
+    (r -> Model cs -> IO ()) ->
+    IO ()
+glfwMain camera comps recLoadF procInputF stepCompsF renderF = do 
+          withWindow 640 480 "MVC!" $ \win -> do
+              initRenderer
+              glClearColor 0.3 0.5 0 1
+              glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
+              glActiveTexture gl_TEXTURE0
+                
+              glEnable gl_PROGRAM_POINT_SIZE -- for OSX
+
+              (width, height) <- GLFW.getFramebufferSize win
+
+              resources <- recLoadF
+
+              grabInputFunc <- GLFWPlatform.makeGrabInput win
+
+              run (Size width height) 
+                  (glfwRender win (renderF resources)) 
+                  (makeStepFunc grabInputFunc (stepModel procInputF stepCompsF))
+                  (newModel camera comps)

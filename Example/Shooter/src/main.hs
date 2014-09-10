@@ -3,26 +3,19 @@
 import Engine.Run
 import Engine.Model
 import Engine.Component
-import Graphics.GLFWUtils
-import Graphics.Drawing
-import Graphics.Rendering.OpenGL.Raw.Core31
-import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
-import Data.Bits
-import qualified Graphics.UI.GLFW as GLFW
 import Types.Types
 import Math.Vector
 import Systems.Draw
-import qualified Systems.GLFWPlatform as GLFWPlatform
 import qualified Systems.DrawState as DrawState
 import Types.Color
 import Utils.Utils
 import Engine.Input
 import Engine.CompUtils
-import Math.Matrix
 import Math.VectorMatrix
 import Control.Lens
 import Control.Monad
 import Camera.Camera
+import Graphics.Drawing
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -62,42 +55,7 @@ processInput _ _ model = model
 stepComponents :: Double -> ComponentStore -> ComponentStore
 stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS delta)
 
-stepModel :: (RenderInfo -> InputEv -> Model cs -> Model cs) ->
-    (Double -> cs -> cs) -> 
-    Input -> RenderInfo -> Double -> Model cs -> Model cs
-stepModel procInputF stepCompF Input { inputEvents } ri delta model = let model' = foldr (procInputF ri) model inputEvents 
-                                                                          model'' = over components (\cs -> stepCompF delta cs) model'
-                                                                          in model''
-
-glfwRender :: GLFW.Window -> (Model cs -> IO ()) -> Mat44 -> Model cs -> IO ()
-glfwRender win renderFunc matrix model = do
-        renderFunc model
-
-        glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-
-        renderCommands matrix uiLabel
-
-        resetRenderer
-        GLFW.swapBuffers win
-
 main :: IO ()
-main = do 
-          withWindow 640 480 "MVC!" $ \win -> do
-              initRenderer
-              glClearColor 0.3 0.5 0 1
-              glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
-              glActiveTexture gl_TEXTURE0
-                
-              glEnable gl_PROGRAM_POINT_SIZE -- for OSX
-
-              (width, height) <- GLFW.getFramebufferSize win
-
-              resources <- loadResources "Example/HFreecell/resources"
-              let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
-
-              grabInputFunc <- GLFWPlatform.makeGrabInput win
-
-              run (Size width height) 
-                  (glfwRender win (render resources)) 
-                  (makeStepFunc grabInputFunc (stepModel processInput stepComponents))
-                  (newModel cam emptyComponentStore)
+main = do
+        let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
+        glfwMain cam emptyComponentStore (loadResources "Example/HFreecell/resources") processInput stepComponents render
