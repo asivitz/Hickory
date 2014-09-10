@@ -7,6 +7,7 @@ import Engine.Model
 import Data.Time
 import Math.Matrix
 import Types.Types
+import Camera.Camera
 
 {-
 governFPS :: UTCTime -> IO ()
@@ -23,28 +24,33 @@ governFPS initialTime = do
 {-simulate :: World c -> [System c] -> Double -> IO (World c)-}
 {-simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world-}
 
+calcMatrixFromModel :: Size Int -> Model cs -> Mat44
+calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
+    cameraMatrix (_camera model) ar
+
+
 makeStepFunc :: IO a -> (a -> b -> Double -> c -> c) -> (b -> Double -> c -> IO c)
 makeStepFunc inputFunc stepFunc = \ri delta model -> do
     input <- inputFunc
     return $ stepFunc input ri delta model
 
 
-iter :: RenderInfo -> (Model cs -> Mat44) -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> UTCTime -> IO ()
-iter !ri@(RenderInfo _ ss) !matrixFunc !render !step !model !prev_time = do
+iter :: RenderInfo -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> UTCTime -> IO ()
+iter !ri@(RenderInfo _ ss) !render !step !model !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
         model' <- step ri delta model
-        let matrix' = matrixFunc model'
+        let matrix' = (calcMatrixFromModel ss model')
         render matrix' model'
 
-        iter (RenderInfo matrix' ss) matrixFunc render step model' current_time
+        iter (RenderInfo matrix' ss) render step model' current_time
 
-run :: Size Int -> (Size Int -> Model cs -> Mat44) -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> IO ()
-run scrSize matrixFunc render step model = do
+run :: Size Int -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> IO ()
+run scrSize render step model = do
         ct <- getCurrentTime
 
-        iter (RenderInfo (matrixFunc scrSize model) scrSize) (matrixFunc scrSize) render step model ct
+        iter (RenderInfo (calcMatrixFromModel scrSize model) scrSize) render step model ct
 
 {-initAndRun :: World r -> SysMonad r IO [System r] -> IO ()-}
 {-initAndRun w initF = do-}

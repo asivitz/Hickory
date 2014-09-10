@@ -10,7 +10,6 @@ import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import Data.Bits
 import qualified Graphics.UI.GLFW as GLFW
 import Types.Types
-import Camera.Camera
 import Math.Vector
 import Systems.Draw
 import qualified Systems.GLFWPlatform as GLFWPlatform
@@ -23,6 +22,7 @@ import Math.Matrix
 import Math.VectorMatrix
 import Control.Lens
 import Control.Monad
+import Camera.Camera
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -69,10 +69,6 @@ stepModel procInputF stepCompF Input { inputEvents } ri delta model = let model'
                                                                           model'' = over components (\cs -> stepCompF delta cs) model'
                                                                           in model''
 
-calcMatrixFromModel :: Size Int -> Model cs -> Mat44
-calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
-    cameraMatrix (_camera model) ar
-
 glfwRender :: GLFW.Window -> (Model cs -> IO ()) -> Mat44 -> Model cs -> IO ()
 glfwRender win renderFunc matrix model = do
         renderFunc model
@@ -102,7 +98,6 @@ main = do
               grabInputFunc <- GLFWPlatform.makeGrabInput win
 
               run (Size width height) 
-                  calcMatrixFromModel 
                   (glfwRender win (render resources)) 
                   (makeStepFunc grabInputFunc (stepModel processInput stepComponents))
                   (newModel cam emptyComponentStore)
