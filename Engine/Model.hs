@@ -10,16 +10,17 @@ import Types.Types
 import Camera.Camera
 import Math.Matrix
 
-data Model cs = Model {
+data Model cs gm = Model {
            _entities :: EntitySet,
            _components :: cs,
-           _camera :: Camera
+           _camera :: Camera,
+           _game :: gm
            } deriving Show
 
-newModel :: Camera -> cs -> Model cs
-newModel cam cs = Model newEntitySet cs cam
+newModel :: Camera -> cs -> gm -> Model cs gm
+newModel cam cs gm = Model newEntitySet cs cam gm
 
-runModel :: State (Model cs) () -> Model cs -> Model cs
+runModel :: State (Model cs gm) () -> Model cs gm -> Model cs gm
 runModel = execState
 
 data RenderInfo = RenderInfo Mat44 (Size Int)

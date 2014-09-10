@@ -16,7 +16,7 @@ import Data.Traversable
 import Engine.Input
 
 data SysData = SysData { 
-             evlist :: [InputEv],
+             evlist :: [RawInput],
              touches :: HashSet.HashSet Int,
              fbSize :: Size Int
             }
@@ -27,25 +27,22 @@ empty = SysData { evlist = [],
                 }
 
 
-makeGrabInput win = do
+setupInput win addInput = do
         (width, height) <- GLFW.getFramebufferSize win
         sd <- newIORef (SysData [] HashSet.empty (Size width height))
-        GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd)
-        GLFW.setKeyCallback win $ Just (keyCallback sd)
-        return $ grabInput sd win
+        GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd addInput)
+        GLFW.setKeyCallback win $ Just (keyCallback sd addInput)
+        return $ stepInput sd win addInput
 
-grabInput :: IORef SysData -> GLFW.Window -> IO Input
-grabInput sd win = do
+stepInput sd win addInput = do
+        SysData { fbSize } <- readIORef sd
         GLFW.pollEvents
-        SysData { evlist, touches, fbSize } <- readIORef sd
-        writeIORef sd (SysData [] HashSet.empty fbSize)
         curPos <- GLFW.getCursorPos win
         let curloc = touchPosToScreenPos fbSize curPos
-        let evlist' = (InputTouchLoc curloc 0) : evlist
-        return $ Input evlist'
+        addInput (InputTouchLoc curloc 0)
 
-mouseButtonCallback :: IORef SysData -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
-mouseButtonCallback platform win button buttonState modkeys =
+mouseButtonCallback :: IORef SysData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
+mouseButtonCallback platform addInput win button buttonState modkeys =
         do
             sd@SysData { fbSize, evlist, touches } <- readIORef platform
 
@@ -63,10 +60,11 @@ mouseButtonCallback platform win button buttonState modkeys =
                     GLFW.MouseButtonState'Released -> do
                         HashSet.delete touchid touches
 
-            writeIORef platform sd { touches = touches', evlist = (ev pos touchid) : evlist }
+            writeIORef platform sd { touches = touches' }
+            addInput (ev pos touchid)
 
-keyCallback :: IORef SysData -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallback platform win key scancode keyState modkeys =
+keyCallback :: IORef SysData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
+keyCallback platform addInput win key scancode keyState modkeys =
         do
             sd@SysData { evlist } <- readIORef platform
 
@@ -76,7 +74,7 @@ keyCallback platform win key scancode keyState modkeys =
                         GLFW.KeyState'Pressed -> InputKeyDown
                         GLFW.KeyState'Released -> InputKeyUp
 
-            writeIORef platform sd { evlist = (ev key) : evlist }
+            addInput (ev key)
 
 touchIdent :: GLFW.MouseButton -> Int
 touchIdent button = case button of

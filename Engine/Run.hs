@@ -8,6 +8,7 @@ import Data.Time
 import Math.Matrix
 import Types.Types
 import Camera.Camera
+import Data.IORef
 
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
@@ -18,6 +19,7 @@ import Graphics.GLFWUtils
 import Engine.Input
 import Control.Lens
 import qualified Systems.GLFWPlatform as GLFWPlatform
+import Data.Maybe
 
 {-
 governFPS :: UTCTime -> IO ()
@@ -34,18 +36,12 @@ governFPS initialTime = do
 {-simulate :: World c -> [System c] -> Double -> IO (World c)-}
 {-simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world-}
 
-calcMatrixFromModel :: Size Int -> Model cs -> Mat44
+calcMatrixFromModel :: Size Int -> Model cs gm -> Mat44
 calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
     cameraMatrix (_camera model) ar
 
 
-makeStepFunc :: IO a -> (a -> b -> Double -> c -> c) -> (b -> Double -> c -> IO c)
-makeStepFunc inputFunc stepFunc = \ri delta model -> do
-    input <- inputFunc
-    return $ stepFunc input ri delta model
-
-
-iter :: RenderInfo -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> UTCTime -> IO ()
+iter :: RenderInfo -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm)) -> Model cs gm -> UTCTime -> IO ()
 iter !ri@(RenderInfo _ ss) !render !step !model !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
@@ -56,7 +52,7 @@ iter !ri@(RenderInfo _ ss) !render !step !model !prev_time = do
 
         iter (RenderInfo matrix' ss) render step model' current_time
 
-run :: Size Int -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> IO ()
+run :: Size Int -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm)) -> Model cs gm-> IO ()
 run scrSize render step model = do
         ct <- getCurrentTime
 
@@ -71,14 +67,14 @@ run scrSize render step model = do
 {-newWorldWithResourcesPath context path =-}
         {-registerResourceToWorld sysCon (emptyWorld context) resourcesPath (return path)-}
 
-stepModel :: (RenderInfo -> InputEv -> Model cs -> Model cs) ->
+makeStepModel :: (RenderInfo -> ie -> Model cs gm -> Model cs gm) ->
     (Double -> cs -> cs) -> 
-    Input -> RenderInfo -> Double -> Model cs -> Model cs
-stepModel procInputF stepCompF Input { inputEvents } ri delta model = let model' = foldr (procInputF ri) model inputEvents 
-                                                                          model'' = over components (\cs -> stepCompF delta cs) model'
-                                                                          in model''
+    RenderInfo -> Input ie -> Double -> Model cs gm -> Model cs gm
+makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = let model' = foldr (procInputF ri) model inputEvents 
+                                                                              model'' = over components (\cs -> stepCompF delta cs) model'
+                                                                              in model''
 
-glfwRender :: GLFW.Window -> (Model cs -> IO ()) -> Mat44 -> Model cs -> IO ()
+glfwRender :: GLFW.Window -> (Model cs gm -> IO ()) -> Mat44 -> Model cs gm -> IO ()
 glfwRender win renderFunc matrix model = do
         renderFunc model
 
@@ -89,11 +85,33 @@ glfwRender win renderFunc matrix model = do
         resetRenderer
         GLFW.swapBuffers win
 
-glfwMain :: Camera -> cs -> IO r -> (RenderInfo -> InputEv -> Model cs -> Model cs) ->
-    (Double -> cs -> cs) ->
-    (r -> Model cs -> IO ()) ->
-    IO ()
-glfwMain camera comps recLoadF procInputF stepCompsF renderF = do 
+grabSceneInput :: Scene cs gm ie re -> IO (Input ie)
+grabSceneInput Scene { _inputStream } = do
+        input <- atomicModifyIORef _inputStream (\i -> (Input { inputEvents = [] }, i))
+        return input
+
+addSceneInput :: Scene cs gm ie re -> ie -> IO ()
+addSceneInput Scene { _inputStream } ev = 
+        atomicModifyIORef _inputStream (\(Input evs) -> (Input (ev:evs), ()))
+
+data Scene cs gm ie re = Scene {
+                    _loadResources :: IO re,
+                    _stepModel :: RenderInfo -> Input ie -> Double -> Model cs gm -> Model cs gm,
+                    _render :: re -> Model cs gm -> IO (),
+                    _inputStream :: IORef (Input ie),
+                    -- Filled after resources are loaded
+                    _loadedRender :: Maybe (Model cs gm -> IO ())
+                    }
+
+makeStepFunc :: IO () -> Scene cs gm ie re -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm))
+makeStepFunc stepInp scene = \ri delta model -> do
+    stepInp
+    input <- grabSceneInput scene
+    return $ case scene of
+        Scene { _stepModel } -> _stepModel ri input delta model 
+
+glfwMain :: Camera -> cs -> gm -> Scene cs gm ie re -> (RawInput -> ie) -> IO ()
+glfwMain cam comps gm scene pkgRawInput = do 
           withWindow 640 480 "MVC!" $ \win -> do
               initRenderer
               glClearColor 0.3 0.5 0 1
@@ -104,11 +122,14 @@ glfwMain camera comps recLoadF procInputF stepCompsF renderF = do
 
               (width, height) <- GLFW.getFramebufferSize win
 
-              resources <- recLoadF
+              scene' <- case scene of
+                            Scene { _loadResources, _render } -> do
+                                res <- _loadResources
+                                return $ scene { _loadedRender = Just (_render res) }
 
-              grabInputFunc <- GLFWPlatform.makeGrabInput win
+              stepInp <- GLFWPlatform.setupInput win (\raw -> addSceneInput scene (pkgRawInput raw))
 
               run (Size width height) 
-                  (glfwRender win (renderF resources)) 
-                  (makeStepFunc grabInputFunc (stepModel procInputF stepCompsF))
-                  (newModel camera comps)
+                  (glfwRender win (fromJust (_loadedRender scene')))
+                  (makeStepFunc stepInp scene')
+                  (newModel cam comps gm)

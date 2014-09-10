@@ -8,26 +8,26 @@ import Control.Monad.State.Strict
 import Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 
-type ModelState cs r = State (Model cs) r
+type ModelState cs gm r = State (Model cs gm) r
 
-addNewEntity :: Model cs -> (Entity, Model cs)
+addNewEntity :: Model cs gm -> (Entity, Model cs gm)
 addNewEntity w = let es = _entities w
                      (ent, new_es) = genEntity es
                      in (ent, w { _entities = new_es })
 
-spawnEntity :: ModelState cs Entity
+spawnEntity :: ModelState cs gm Entity
 spawnEntity = do
       w <- get
       let (e, w') = addNewEntity w
       put w'
       return e
 
-putComponentStore :: cs -> ModelState cs ()
+putComponentStore :: cs -> ModelState cs gm ()
 putComponentStore cs' = do
         w <- get
         put $ set components cs' w
 
-getComponentStore :: ModelState cs cs
+getComponentStore :: ModelState cs gm cs
 getComponentStore = do
         w <- get
         let cs = view components w
@@ -37,7 +37,7 @@ getComponentStore = do
 type EntHash c = HashMap.HashMap Entity c
 type CompLens cs c = Lens' cs (EntHash c)
 
-addComp :: Entity -> CompLens cs c -> c -> ModelState cs ()
+addComp :: Entity -> CompLens cs c -> c -> ModelState cs gm ()
 addComp e comps c = do
         cs <- getComponentStore
 

@@ -58,4 +58,9 @@ stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS
 main :: IO ()
 main = do
         let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
-        glfwMain cam emptyComponentStore (loadResources "Example/HFreecell/resources") processInput stepComponents render
+        glfwMain cam 
+                 emptyComponentStore 
+                 (loadResources "Example/HFreecell/resources") 
+                 processInput 
+                 stepComponents 
+                 render
