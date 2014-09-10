@@ -47,3 +47,11 @@ addComp l e comps c = do
 getModelComponents l model = view (components . l) model
 
 stripEnts compmap = map snd (HashMap.toList compmap)
+
+for = flip map
+
+stepComponentHash2 first second f = HashMap.fromList $ for (HashMap.toList first) $ \(e, c1) ->
+    case HashMap.lookup e second of
+        Nothing -> (e, c1)
+        Just c2 -> (e, f c1 c2)
+
