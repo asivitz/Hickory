@@ -33,7 +33,7 @@ loadResources path = do
         solid <- loadShader path "Shader.vsh" "SolidColor.fsh"
         return $ Resources solid
 
-render :: Resources -> Model -> IO ()
+render :: Resources -> Model ComponentStore -> IO ()
 render (Resources solidShader) model = do
         {-print $ "Rendering model: " ++ (show model)-}
 
@@ -44,12 +44,12 @@ render (Resources solidShader) model = do
 
 spawnThing pos = do
         e <- spawnEntity
-        addComp components e drawStates $ DrawState pos
-        addComp components e mouseDrags $ MouseDrag (v3 0 0 0)
+        addComp e drawStates $ DrawState pos
+        addComp e mouseDrags $ MouseDrag (v3 0 0 0)
         {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
         return ()
 
-processInput :: RenderInfo -> InputEv -> Model -> Model
+processInput :: RenderInfo -> InputEv -> Model ComponentStore -> Model ComponentStore
 processInput (RenderInfo mat ss) (InputTouchDown pos pid) model = runModel (spawnThing p') model
     where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
 
@@ -62,16 +62,18 @@ processInput _ _ model = model
 stepComponents :: Double -> ComponentStore -> ComponentStore
 stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS delta)
 
-stepModel :: Input -> RenderInfo -> Double -> Model -> Model
-stepModel Input { inputEvents } ri delta model = let model' = foldr (processInput ri) model inputEvents 
-                                                     model'' = over components (\cs -> stepComponents delta cs) model'
-                                                     in model''
+stepModel :: (RenderInfo -> InputEv -> Model cs -> Model cs) ->
+    (Double -> cs -> cs) -> 
+    Input -> RenderInfo -> Double -> Model cs -> Model cs
+stepModel procInputF stepCompF Input { inputEvents } ri delta model = let model' = foldr (procInputF ri) model inputEvents 
+                                                                          model'' = over components (\cs -> stepCompF delta cs) model'
+                                                                          in model''
 
-calcMatrixFromModel :: Size Int -> Model -> Mat44
+calcMatrixFromModel :: Size Int -> Model cs -> Mat44
 calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
     cameraMatrix (_camera model) ar
 
-glfwRender :: GLFW.Window -> (Model -> IO ()) -> Mat44 -> Model -> IO ()
+glfwRender :: GLFW.Window -> (Model cs -> IO ()) -> Mat44 -> Model cs -> IO ()
 glfwRender win renderFunc matrix model = do
         renderFunc model
 
@@ -99,4 +101,8 @@ main = do
 
               grabInputFunc <- GLFWPlatform.makeGrabInput win
 
-              run (Size width height) calcMatrixFromModel (glfwRender win (render resources)) (makeStepFunc grabInputFunc stepModel) (newModel cam)
+              run (Size width height) 
+                  calcMatrixFromModel 
+                  (glfwRender win (render resources)) 
+                  (makeStepFunc grabInputFunc (stepModel processInput stepComponents))
+                  (newModel cam emptyComponentStore)

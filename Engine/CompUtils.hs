@@ -8,41 +8,41 @@ import Control.Monad.State.Strict
 import Control.Lens
 import qualified Data.HashMap.Strict as HashMap
 
-type ModelState r = State Model r
+type ModelState cs r = State (Model cs) r
 
-addNewEntity :: Model -> (Entity, Model)
+addNewEntity :: Model cs -> (Entity, Model cs)
 addNewEntity w = let es = _entities w
                      (ent, new_es) = genEntity es
                      in (ent, w { _entities = new_es })
 
-spawnEntity :: ModelState Entity
+spawnEntity :: ModelState cs Entity
 spawnEntity = do
       w <- get
       let (e, w') = addNewEntity w
       put w'
       return e
 
-putComponentStore :: Lens' Model cs -> cs -> ModelState ()
-putComponentStore l cs' = do
+putComponentStore :: cs -> ModelState cs ()
+putComponentStore cs' = do
         w <- get
-        put $ set l cs' w
+        put $ set components cs' w
 
-getComponentStore :: Lens' Model cs -> ModelState cs
-getComponentStore l = do
+getComponentStore :: ModelState cs cs
+getComponentStore = do
         w <- get
-        let cs = view l w
+        let cs = view components w
         {-World { systemContext = (Context cs _) } <- get-}
         return cs
 
 type EntHash c = HashMap.HashMap Entity c
 type CompLens cs c = Lens' cs (EntHash c)
 
-addComp :: Lens' Model cs -> Entity -> CompLens cs c -> c -> ModelState ()
-addComp l e comps c = do
-        cs <- getComponentStore l
+addComp :: Entity -> CompLens cs c -> c -> ModelState cs ()
+addComp e comps c = do
+        cs <- getComponentStore
 
         let cs' = over comps (HashMap.insert e c) cs
-        putComponentStore l cs'
+        putComponentStore cs'
 
 getModelComponents l model = view (components . l) model
 

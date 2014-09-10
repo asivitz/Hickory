@@ -29,7 +29,7 @@ makeStepFunc inputFunc stepFunc = \ri delta model -> do
     return $ stepFunc input ri delta model
 
 
-iter :: RenderInfo -> (Model -> Mat44) -> (Mat44 -> Model -> IO ()) -> (RenderInfo -> Double -> Model -> IO Model) -> Model -> UTCTime -> IO ()
+iter :: RenderInfo -> (Model cs -> Mat44) -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> UTCTime -> IO ()
 iter !ri@(RenderInfo _ ss) !matrixFunc !render !step !model !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
@@ -40,7 +40,7 @@ iter !ri@(RenderInfo _ ss) !matrixFunc !render !step !model !prev_time = do
 
         iter (RenderInfo matrix' ss) matrixFunc render step model' current_time
 
-run :: Size Int -> (Size Int -> Model -> Mat44) -> (Mat44 -> Model -> IO ()) -> (RenderInfo -> Double -> Model -> IO Model) -> Model -> IO ()
+run :: Size Int -> (Size Int -> Model cs -> Mat44) -> (Mat44 -> Model cs -> IO ()) -> (RenderInfo -> Double -> Model cs -> IO (Model cs)) -> Model cs -> IO ()
 run scrSize matrixFunc render step model = do
         ct <- getCurrentTime
 
