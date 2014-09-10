@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Draw (make, createVAOConfig, indexVAOConfig, reserveShader, releaseShader, drawSpec) where
+module Systems.Draw where
 import Control.Monad.State
 
 import Engine.System
@@ -28,31 +28,6 @@ import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import Data.Bits
 import Utils.System
 
-data SysData = SysData { 
-             shaders :: RefStore (String,String) Shader,
-             vanillaShader :: Maybe Shader,
-             worldMatrix :: !Mat44
-             } deriving Show
-
-empty = SysData { shaders = emptyRefStore,
-                vanillaShader = Nothing,
-                worldMatrix = mat44Identity
-                }
-
-worldmat' draw = do
-        SysData { worldMatrix } <- getSysData draw
-        return worldMatrix
-
-make :: SysMonad c IO (System c)
-make = do
-        draw <- liftIO $ newIORef empty
-
-        registerResource sysCon drawnWorldMatrix (worldmat' draw)
-        registerEvent sysCon printAll (printSysData draw)
-
-        initS draw
-        return $ System (run draw)
-
 runDrawable :: Double -> (Entity, Drawable, DrawState) -> SysMonad c IO ()
 runDrawable delta (e, (Drawable spec), (DrawState pos)) = do
       liftIO $ drawSpec pos worldLabel spec
@@ -69,74 +44,21 @@ renderCommandsWithCamera :: Camera -> Label -> Float -> IO ()
 renderCommandsWithCamera cam label aspect = renderCommands matrix label
     where matrix = cameraMatrix cam aspect
 
-run draw delta = 
-        do
-            RSC { _screenSize, _worldCamera, _uiCamera } <- getRSC systemContext
-            doComps2 (runDrawable delta) (sysComps drawables) (sysComps drawStates)
-            sd <- getSysData draw
+    {-
+    glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+    renderCommandsWithCamera uicam backgroundLabel ar
+    renderCommands worldMatrix' worldLabel
+    renderCommandsWithCamera uicam uiLabel ar
 
-            ss <- _screenSize
+    resetRenderer
+    -}
 
-            mworldCam <- _worldCamera
-            muiCam <- _uiCamera
+loadShader resPath vert frag = do
+   let prefix = resPath ++ "/Shaders/"
+   let (vsp, fsp) = ( prefix ++ vert, prefix ++ frag)
 
-            whenMaybe2 mworldCam muiCam $ \worldcam uicam -> do
-
-                let ar = aspectRatio ss
-                    worldMatrix' = cameraMatrix worldcam ar
-
-                putSysData draw sd { worldMatrix = worldMatrix' }
-
-                liftIO $ do
-                    glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-                    renderCommandsWithCamera uicam backgroundLabel ar
-                    renderCommands worldMatrix' worldLabel
-                    renderCommandsWithCamera uicam uiLabel ar
-
-                    resetRenderer
-
-                return ()
-
-initS draw = do
-        registerResource sysCon reserveShader (reserveShader' draw)
-        
-        {-liftIO $ GLFW.swapInterval 0-}
-
-        liftIO $ do
-            initRenderer
-            glClearColor 1 0 0 1
-            glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
-            glActiveTexture gl_TEXTURE0
-            
-            glEnable gl_PROGRAM_POINT_SIZE -- for OSX
-
-        vanilla <- reserveShader' draw ("Shader.vsh", "Shader.fsh")
-
-        sd <- getSysData draw
-        
-        putSysData draw sd {
-                        vanillaShader = vanilla
-                        }
-
-reserveShader' :: IORef SysData -> (String,String) -> SysMonad c IO (Maybe Shader)
-reserveShader' draw (vert,frag) = do
-   mydata@SysData { shaders } <- getSysData draw
-   RSC { _resourcesPath } <- getRSC sysCon
-   prefix <- liftIO $ fmap (++"Shaders/") _resourcesPath
-   let vertfragpair = ( prefix ++ vert, prefix ++ frag)
-
-   (newshaders, shader) <- liftIO $ reserve shaders vertfragpair (\(v,f) -> loadShader v f)
-   putSysData draw mydata { shaders = newshaders }
+   shader <- loadShaderFromPaths vsp fsp
    return shader
-
-releaseShader :: IORef SysData -> (String,String) -> SysMonad c IO ()
-releaseShader draw pair = do
-   mydata@SysData { shaders } <- getSysData draw
-   newshaders <- liftIO $ release shaders pair deleteShader
-   putSysData draw mydata { shaders = newshaders }
-
-deleteShader :: Shader -> IO ()
-deleteShader shader = return ()
 
 data ParticleShader = ParticleShader Shader UniformLoc
 
@@ -144,6 +66,7 @@ getUniformLoc (Shader s) name =
         withCString name $ \ptrname ->
             glGetUniformLocation s ptrname
 
+{-
 reserveParticleShader :: IORef SysData -> SysMonad c IO (Maybe ParticleShader)
 reserveParticleShader  draw = do
         shader <- reserveShader' draw ("ParticleShader.vsh", "ParticleShader.fsh")
@@ -152,3 +75,4 @@ reserveParticleShader  draw = do
             Just s -> do
                 loc <- liftIO $ getUniformLoc s "size"
                 return $ Just $ ParticleShader s (UniformLoc loc)
+                -}

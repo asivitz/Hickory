@@ -50,8 +50,12 @@ stripEnts compmap = map snd (HashMap.toList compmap)
 
 for = flip map
 
+stepComponentHash2 :: EntHash c -> EntHash d -> (c -> d -> c) -> EntHash c
 stepComponentHash2 first second f = HashMap.fromList $ for (HashMap.toList first) $ \(e, c1) ->
     case HashMap.lookup e second of
         Nothing -> (e, c1)
         Just c2 -> (e, f c1 c2)
+
+upComps2 cs target additional f = over target (\t -> stepComponentHash2 t (view additional cs) f) cs
+          
 

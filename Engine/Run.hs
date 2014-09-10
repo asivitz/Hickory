@@ -3,11 +3,8 @@
 
 module Engine.Run where
 
-import Engine.System
 import Engine.Model
 import Data.Time
-import Control.Monad.State
-import qualified Systems.GLFWPlatform as GLFWPlatform
 import Math.Matrix
 import Types.Types
 
@@ -25,6 +22,12 @@ governFPS initialTime = do
 
 {-simulate :: World c -> [System c] -> Double -> IO (World c)-}
 {-simulate world systems delta = execStateT (mapM_ (`runSys` delta) systems) world-}
+
+makeStepFunc :: IO a -> (a -> b -> Double -> c -> c) -> (b -> Double -> c -> IO c)
+makeStepFunc inputFunc stepFunc = \ri delta model -> do
+    input <- inputFunc
+    return $ stepFunc input ri delta model
+
 
 iter :: RenderInfo -> (Model -> Mat44) -> (Mat44 -> Model -> IO ()) -> (RenderInfo -> Double -> Model -> IO Model) -> Model -> UTCTime -> IO ()
 iter !ri@(RenderInfo _ ss) !matrixFunc !render !step !model !prev_time = do

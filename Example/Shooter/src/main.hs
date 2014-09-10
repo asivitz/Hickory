@@ -3,7 +3,6 @@
 import Engine.Run
 import Engine.Model
 import Engine.Component
-import Bootstrap.Bootstrap
 import Graphics.GLFWUtils
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -13,44 +12,35 @@ import qualified Graphics.UI.GLFW as GLFW
 import Types.Types
 import Camera.Camera
 import Math.Vector
-import qualified Systems.Draw as Draw
+import Systems.Draw
 import qualified Systems.GLFWPlatform as GLFWPlatform
 import qualified Systems.DrawState as DrawState
 import Types.Color
 import Utils.Utils
 import Engine.Input
-import Control.Monad.State.Strict
 import Engine.CompUtils
 import Math.Matrix
 import Math.VectorMatrix
-import Data.List
-import qualified Data.HashMap.Strict as HashMap
 import Control.Lens
+import Control.Monad
 
 data Resources = Resources {
                solidShader :: Maybe Shader
                }
 
-loadShader' resPath vert frag = do
-   let prefix = resPath ++ "/Shaders/"
-   let (vsp, fsp) = ( prefix ++ vert, prefix ++ frag)
-
-   shader <- loadShader vsp fsp
-   return shader
-        
-
 loadResources :: String -> IO Resources
 loadResources path = do
-        solid <- loadShader' path "Shader.vsh" "SolidColor.fsh"
+        solid <- loadShader path "Shader.vsh" "SolidColor.fsh"
         return $ Resources solid
 
+render :: Resources -> Model -> IO ()
 render (Resources solidShader) model = do
         {-print $ "Rendering model: " ++ (show model)-}
 
         whenMaybe solidShader $ \sh -> do
             let ds = getModelComponents drawStates model
             forM_ (stripEnts ds) $ \(DrawState pos) ->
-                Draw.drawSpec pos uiLabel (SolidSquare (Size 50 50) white sh)
+                drawSpec pos uiLabel (SolidSquare (Size 50 50) white sh)
 
 spawnThing pos = do
         e <- spawnEntity
@@ -58,12 +48,6 @@ spawnThing pos = do
         addComp components e mouseDrags $ MouseDrag (v3 0 0 0)
         {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
         return ()
-
-runModel :: State Model () -> Model -> Model
-runModel = execState
-
-upComps2 cs target additional f = over target (\t -> stepComponentHash2 t (view additional cs) f) cs
-          
 
 processInput :: RenderInfo -> InputEv -> Model -> Model
 processInput (RenderInfo mat ss) (InputTouchDown pos pid) model = runModel (spawnThing p') model
@@ -75,6 +59,7 @@ processInput (RenderInfo mat ss) (InputTouchLoc pos pid) model =
 
 processInput _ _ model = model
 
+stepComponents :: Double -> ComponentStore -> ComponentStore
 stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS delta)
 
 stepModel :: Input -> RenderInfo -> Double -> Model -> Model
@@ -96,11 +81,6 @@ glfwRender win renderFunc matrix model = do
 
         resetRenderer
         GLFW.swapBuffers win
-
-makeStepFunc :: IO Input -> (Input -> RenderInfo -> Double -> Model -> Model) -> (RenderInfo -> Double -> Model -> IO Model)
-makeStepFunc inputFunc stepFunc = \ri delta model -> do
-    input <- inputFunc
-    return $ stepFunc input ri delta model
 
 main :: IO ()
 main = do 

@@ -20,8 +20,8 @@ newtype Shader = Shader CUInt deriving (Eq, Ord, Show)
 nullShader :: Shader
 nullShader = Shader (-1)
 
-loadShader :: String -> String -> IO (Maybe Shader)
-loadShader vertShaderPath fragShaderPath = 
+loadShaderFromPaths :: String -> String -> IO (Maybe Shader)
+loadShaderFromPaths vertShaderPath fragShaderPath = 
         withCString vertShaderPath $ \vpath ->
             withCString fragShaderPath $ \fpath ->
                 do
