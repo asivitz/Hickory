@@ -21,6 +21,7 @@ import Engine.Input
 import Control.Lens
 import qualified Systems.GLFWPlatform as GLFWPlatform
 import Data.Maybe
+import Utils.Utils
 
 {-
 governFPS :: UTCTime -> IO ()
@@ -41,32 +42,47 @@ calcMatrixFromModel :: Size Int -> Model cs gm -> Mat44
 calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
     cameraMatrix (_camera model) ar
 
+stepScene :: Show ie => Scene cs gm ie re -> Double -> IO (Scene cs gm ie re, [ie])
+stepScene scene@Scene { _loadedRender = Just renderFunc, 
+                      _model, 
+                      _renderInfo = (ri@(RenderInfo _ ss label)), 
+                      _stepModel } 
+                      delta = do
+        input <- grabSceneInput scene
+        let (model', outEvents) = _stepModel ri input delta _model 
+            matrix' = (calcMatrixFromModel ss model')
+            scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss label) }
+        renderFunc model'
+        return (scene', outEvents)
+stepScene scene _ = print "Couldn't step scene." >> return (scene, [])
 
-iter :: RenderInfo -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie])) -> Model cs gm -> UTCTime -> IO ()
-iter !ri@(RenderInfo _ ss) !render !step !model !prev_time = do
+mapWithOthers :: (a -> [a] -> b) -> [a] -> [b]
+mapWithOthers fun lst = sub fun [] lst
+    where sub f prevxs (x:xs) = f x (prevxs ++ xs) : sub f (x:prevxs) xs
+          sub f _ [] = []
+
+iter :: Show ie => IO () -> [Scene cs gm ie re] -> ([Scene cs gm ie re] -> IO ()) -> UTCTime -> IO ()
+iter !stepInp !scenes !renderFunc !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-        (model', outEvents) <- step ri delta model
-        let matrix' = (calcMatrixFromModel ss model')
-        render matrix' model'
+        stepInp
 
-        iter (RenderInfo matrix' ss) render step model' current_time
+        scenes' <- sequence . mapWithOthers (\scene others -> do
+             (scene', outEvents) <- stepScene scene delta
+             mapM_ (\otherScene -> mapM_ (\ie -> addSceneInput otherScene ie) outEvents) others
+             return scene')
+             $ scenes
 
-run :: Size Int -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie])) -> Model cs gm -> IO ()
-run scrSize render step model = do
+        renderFunc scenes'
+
+        iter stepInp scenes' renderFunc current_time
+
+run :: Show ie => IO () -> [Scene cs gm ie re] -> ([Scene cs gm ie re] -> IO ()) -> IO ()
+run stepInp scenes renderFunc = do
         ct <- getCurrentTime
 
-        iter (RenderInfo (calcMatrixFromModel scrSize model) scrSize) render step model ct
-
-{-initAndRun :: World r -> SysMonad r IO [System r] -> IO ()-}
-{-initAndRun w initF = do-}
-        {-(systems, w') <- runStateT initF w-}
-        {-run w' systems-}
-
-{-newWorldWithResourcesPath :: Context cs rsc -> String -> World (Context cs rsc)-}
-{-newWorldWithResourcesPath context path =-}
-        {-registerResourceToWorld sysCon (emptyWorld context) resourcesPath (return path)-}
+        iter stepInp scenes renderFunc ct
 
 makeStepModel :: (RenderInfo -> ie -> Model cs gm -> (Model cs gm, [ie])) ->
     (Double -> cs -> cs) -> 
@@ -77,18 +93,18 @@ makeStepModel procInputF stepCompF ri Input { inputEvents } delta model =
             model'' = over components (\cs -> stepCompF delta cs) model'
             in (model'', outputEvents)
 
-glfwRender :: GLFW.Window -> (Model cs gm -> IO ()) -> Mat44 -> Model cs gm -> IO ()
-glfwRender win renderFunc matrix model = do
-        renderFunc model
+renderCommandsForScene Scene { _renderInfo = (RenderInfo mat _ label) } = renderCommands mat label
 
+glfwRender :: GLFW.Window -> [Scene cs gm ie re] -> IO ()
+glfwRender win scenes = do
         glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-        renderCommands matrix uiLabel
+        mapM_ (\scene -> renderCommandsForScene scene) scenes
 
         resetRenderer
         GLFW.swapBuffers win
 
-grabSceneInput :: Scene cs gm ie re -> IO (Input ie)
+grabSceneInput :: Show ie => Scene cs gm ie re -> IO (Input ie)
 grabSceneInput Scene { _inputStream } = do
         input <- atomicModifyIORef _inputStream (\i -> (Input { inputEvents = [] }, i))
         return input
@@ -99,6 +115,7 @@ addSceneInput Scene { _inputStream } ev =
 
 data Scene cs gm ie re = Scene {
                        _model :: Model cs gm,
+                       _renderInfo :: RenderInfo,
                        _loadResources :: IO re,
                        _stepModel :: RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie]),
                        _render :: re -> Model cs gm -> IO (),
@@ -107,15 +124,8 @@ data Scene cs gm ie re = Scene {
                        _loadedRender :: Maybe (Model cs gm -> IO ())
                        }
 
-makeStepFunc :: IO () -> Scene cs gm ie re -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie]))
-makeStepFunc stepInp scene = \ri delta model -> do
-    stepInp
-    input <- grabSceneInput scene
-    return $ case scene of
-        Scene { _stepModel } -> _stepModel ri input delta model 
-
-glfwMain :: Scene cs gm ie re -> (RawInput -> ie) -> IO ()
-glfwMain scene pkgRawInput = do 
+glfwMain :: Show ie => [Scene cs gm ie re] -> (RawInput -> ie) -> IO ()
+glfwMain scenes pkgRawInput = do 
           withWindow 640 480 "MVC!" $ \win -> do
               initRenderer
               glClearColor 0.3 0.5 0 1
@@ -126,15 +136,17 @@ glfwMain scene pkgRawInput = do
 
               (width, height) <- GLFW.getFramebufferSize win
 
-              scene' <- case scene of
-                            Scene { _loadResources, _render } -> do
-                                res <- _loadResources
-                                return $ scene { _loadedRender = Just (_render res) }
+              let scrSize = (Size width height)
 
-              stepInp <- GLFWPlatform.setupInput win (\raw -> addSceneInput scene (pkgRawInput raw))
+              scenes' <- mapM (\scene@Scene { _loadResources, _render, _model, _renderInfo = (RenderInfo _ _ label) } -> do
+                                    res <- _loadResources
+                                    return $ scene { _loadedRender = Just (_render res),
+                                                     _renderInfo = RenderInfo (calcMatrixFromModel scrSize _model) scrSize label
+                                                   })
+                              scenes
 
-              run (Size width height) 
-                  (glfwRender win (fromJust (_loadedRender scene')))
-                  (makeStepFunc stepInp scene')
-                  (_model scene')
-                  
+              whenMaybe (listToMaybe scenes') $ \firstScene -> do
+                  stepInp <- GLFWPlatform.setupInput win (\raw -> addSceneInput firstScene (pkgRawInput raw))
+                  run stepInp
+                      scenes'
+                      (glfwRender win)

@@ -8,11 +8,8 @@ import Data.IORef
 import qualified Data.HashSet as HashSet
 import qualified Graphics.UI.GLFW as GLFW
 import Types.Types
-import Utils.Utils
 import Math.Vector
 import Control.Monad.State
-import Graphics.GLFWUtils
-import Data.Traversable
 import Engine.Input
 
 data SysData = SysData { 
@@ -94,12 +91,3 @@ broadcastTouchLoc win screensize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
         let pos = touchPosToScreenPos screensize curPos
         runInterruptableEvent systemContext (\x -> x pos touchid) inputTouchLoc
-
-processInputEv (InputTouchDown pos touchid) = do
-        runInterruptableEvent sysCon (\x -> x pos touchid) inputTouchDown
-processInputEv (InputTouchUp pos touchid) = do
-        runInterruptableEvent sysCon (\x -> x pos touchid) inputTouchUp
-processInputEv (InputKeyUp key) = do
-        runInterruptableEvent sysCon (\x -> x key) inputKeyUp
-processInputEv (InputKeyDown key) = do
-        runInterruptableEvent sysCon (\x -> x key) inputKeyDown
