@@ -18,6 +18,7 @@ import Camera.Camera
 import Graphics.Drawing
 import FreeCell
 import Data.IORef
+import Data.Tuple
 
 {-import qualified Freecell.Systems.Game as FCGame-}
 {-import qualified Freecell.Systems.Menu as FCMenu-}
@@ -53,20 +54,20 @@ spawnThing pos = do
         addComp e drawStates $ DrawState pos
         addComp e mouseDrags $ MouseDrag (v3 0 0 0)
         {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
-        return ()
+        return []
 
-processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> Model ComponentStore GameModel
-processInput (RenderInfo mat ss) (RawEvent (InputTouchDown pos pid)) model = runModel (spawnThing p') model
+processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
+processInput (RenderInfo mat ss) (RawEvent (InputTouchDown pos pid)) model = swap $ runModel (spawnThing p') model
     where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
 
 processInput (RenderInfo mat ss) (RawEvent (InputTouchLoc pos pid)) model = 
-        over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model
+        (over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model, [])
     where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
 
-processInput (RenderInfo mat ss) NewGame model = model
+processInput (RenderInfo mat ss) NewGame model = (model, [])
         {-mapM_ (\c -> spawnCard fcgame (v3 0 0 (-5)) c) (allCards board)-}
 
-processInput _ _ model = model
+processInput _ _ model = (model, [])
 
 stepComponents :: Double -> ComponentStore -> ComponentStore
 stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS delta)

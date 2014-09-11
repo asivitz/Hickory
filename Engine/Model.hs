@@ -20,8 +20,8 @@ data Model cs gm = Model {
 newModel :: Camera -> cs -> gm -> Model cs gm
 newModel cam cs gm = Model newEntitySet cs cam gm
 
-runModel :: State (Model cs gm) () -> Model cs gm -> Model cs gm
-runModel = execState
+runModel :: State (Model cs gm) a -> Model cs gm -> (a, Model cs gm)
+runModel = runState
 
 data RenderInfo = RenderInfo Mat44 (Size Int)
 

@@ -9,6 +9,7 @@ import Math.Matrix
 import Types.Types
 import Camera.Camera
 import Data.IORef
+import Data.List
 
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
@@ -41,18 +42,18 @@ calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
     cameraMatrix (_camera model) ar
 
 
-iter :: RenderInfo -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm)) -> Model cs gm -> UTCTime -> IO ()
+iter :: RenderInfo -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie])) -> Model cs gm -> UTCTime -> IO ()
 iter !ri@(RenderInfo _ ss) !render !step !model !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-        model' <- step ri delta model
+        (model', outEvents) <- step ri delta model
         let matrix' = (calcMatrixFromModel ss model')
         render matrix' model'
 
         iter (RenderInfo matrix' ss) render step model' current_time
 
-run :: Size Int -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm)) -> Model cs gm-> IO ()
+run :: Size Int -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie])) -> Model cs gm-> IO ()
 run scrSize render step model = do
         ct <- getCurrentTime
 
@@ -67,12 +68,14 @@ run scrSize render step model = do
 {-newWorldWithResourcesPath context path =-}
         {-registerResourceToWorld sysCon (emptyWorld context) resourcesPath (return path)-}
 
-makeStepModel :: (RenderInfo -> ie -> Model cs gm -> Model cs gm) ->
+makeStepModel :: (RenderInfo -> ie -> Model cs gm -> (Model cs gm, [ie])) ->
     (Double -> cs -> cs) -> 
-    RenderInfo -> Input ie -> Double -> Model cs gm -> Model cs gm
-makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = let model' = foldr (procInputF ri) model inputEvents 
-                                                                              model'' = over components (\cs -> stepCompF delta cs) model'
-                                                                              in model''
+    RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie])
+makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
+        let accum (m, oes) ie = let (m', oes') = procInputF ri ie m in (m', oes' ++ oes)
+            (model', outputEvents) = foldl accum (model,[]) inputEvents 
+            model'' = over components (\cs -> stepCompF delta cs) model'
+            in (model'', outputEvents)
 
 glfwRender :: GLFW.Window -> (Model cs gm -> IO ()) -> Mat44 -> Model cs gm -> IO ()
 glfwRender win renderFunc matrix model = do
@@ -96,14 +99,14 @@ addSceneInput Scene { _inputStream } ev =
 
 data Scene cs gm ie re = Scene {
                     _loadResources :: IO re,
-                    _stepModel :: RenderInfo -> Input ie -> Double -> Model cs gm -> Model cs gm,
+                    _stepModel :: RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie]),
                     _render :: re -> Model cs gm -> IO (),
                     _inputStream :: IORef (Input ie),
                     -- Filled after resources are loaded
                     _loadedRender :: Maybe (Model cs gm -> IO ())
                     }
 
-makeStepFunc :: IO () -> Scene cs gm ie re -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm))
+makeStepFunc :: IO () -> Scene cs gm ie re -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie]))
 makeStepFunc stepInp scene = \ri delta model -> do
     stepInp
     input <- grabSceneInput scene
