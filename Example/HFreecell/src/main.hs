@@ -1,8 +1,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
  
 import Engine.Run
+import Engine.Scene
 import Freecell.Events
 import qualified Freecell.GameScene as GameScene
+import qualified Freecell.MenuScene as MenuScene
 
 {-import qualified Freecell.Systems.Game as FCGame-}
 {-import qualified Freecell.Systems.Menu as FCMenu-}
@@ -12,6 +14,8 @@ import qualified Freecell.GameScene as GameScene
 main :: IO ()
 main = do
                           
-        scenes <- sequence [GameScene.makeScene]
-        glfwMain scenes
+        operators <- sequence [GameScene.makeScene >>= makeSceneOperator, 
+                              MenuScene.makeScene >>= makeSceneOperator]
+         
+        glfwMain operators
                  RawEvent

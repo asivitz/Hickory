@@ -7,7 +7,7 @@ import Engine.Component
 import Math.Matrix
 import Math.VectorMatrix
 import Engine.Model
-import Engine.Run
+import Engine.Scene
 import Systems.Draw
 import Engine.CompUtils
 import Types.Color
@@ -21,6 +21,7 @@ import Control.Lens
 import Camera.Camera
 import qualified Systems.DrawState as DrawState
 import Math.Vector
+import Debug.Trace
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -59,7 +60,7 @@ processInput (RenderInfo mat ss _) (RawEvent (InputTouchLoc pos pid)) model =
         (over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model, [])
     where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
 
-processInput (RenderInfo mat ss _) NewGame model = (model, [])
+processInput (RenderInfo mat ss _) NewGame model = trace "new game wee!" (model, [])
         {-mapM_ (\c -> spawnCard fcgame (v3 0 0 (-5)) c) (allCards board)-}
 
 processInput _ _ model = (model, [])
@@ -72,6 +73,7 @@ makeScene = do
         is <- newIORef (Input [])
         let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
             scene = Scene {
+                          _name = "Game",
                           _model = (newModel cam emptyComponentStore (GameModel board)),
                           _renderInfo = RenderInfo mat44Identity nullSize uiLabel,
                           _loadResources = loadResources "Example/HFreecell/resources",
