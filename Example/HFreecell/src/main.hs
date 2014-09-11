@@ -78,14 +78,12 @@ main = do
         is <- newIORef (Input [])
         let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
             scene = Scene {
+                          _model = (newModel cam emptyComponentStore (GameModel board)),
                           _loadResources = loadResources "Example/HFreecell/resources",
                           _stepModel = makeStepModel processInput stepComponents,
                           _render = render,
                           _inputStream = is,
                           _loadedRender = Nothing }
                           
-        glfwMain cam 
-                 emptyComponentStore 
-                 (GameModel board)
-                 scene
+        glfwMain scene
                  RawEvent

@@ -53,7 +53,7 @@ iter !ri@(RenderInfo _ ss) !render !step !model !prev_time = do
 
         iter (RenderInfo matrix' ss) render step model' current_time
 
-run :: Size Int -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie])) -> Model cs gm-> IO ()
+run :: Size Int -> (Mat44 -> Model cs gm -> IO ()) -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie])) -> Model cs gm -> IO ()
 run scrSize render step model = do
         ct <- getCurrentTime
 
@@ -98,13 +98,14 @@ addSceneInput Scene { _inputStream } ev =
         atomicModifyIORef _inputStream (\(Input evs) -> (Input (ev:evs), ()))
 
 data Scene cs gm ie re = Scene {
-                    _loadResources :: IO re,
-                    _stepModel :: RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie]),
-                    _render :: re -> Model cs gm -> IO (),
-                    _inputStream :: IORef (Input ie),
-                    -- Filled after resources are loaded
-                    _loadedRender :: Maybe (Model cs gm -> IO ())
-                    }
+                       _model :: Model cs gm,
+                       _loadResources :: IO re,
+                       _stepModel :: RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie]),
+                       _render :: re -> Model cs gm -> IO (),
+                       _inputStream :: IORef (Input ie),
+                       -- Filled after resources are loaded
+                       _loadedRender :: Maybe (Model cs gm -> IO ())
+                       }
 
 makeStepFunc :: IO () -> Scene cs gm ie re -> (RenderInfo -> Double -> Model cs gm -> IO (Model cs gm, [ie]))
 makeStepFunc stepInp scene = \ri delta model -> do
@@ -113,8 +114,8 @@ makeStepFunc stepInp scene = \ri delta model -> do
     return $ case scene of
         Scene { _stepModel } -> _stepModel ri input delta model 
 
-glfwMain :: Camera -> cs -> gm -> Scene cs gm ie re -> (RawInput -> ie) -> IO ()
-glfwMain cam comps gm scene pkgRawInput = do 
+glfwMain :: Scene cs gm ie re -> (RawInput -> ie) -> IO ()
+glfwMain scene pkgRawInput = do 
           withWindow 640 480 "MVC!" $ \win -> do
               initRenderer
               glClearColor 0.3 0.5 0 1
@@ -135,4 +136,5 @@ glfwMain cam comps gm scene pkgRawInput = do
               run (Size width height) 
                   (glfwRender win (fromJust (_loadedRender scene')))
                   (makeStepFunc stepInp scene')
-                  (newModel cam comps gm)
+                  (_model scene')
+                  
