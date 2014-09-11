@@ -1,6 +1,7 @@
 module Freecell.GameScene (makeScene, InputEvent(..)) where
 
 import FreeCell
+import Freecell.Events
 import Engine.Input
 import Engine.Component
 import Math.Matrix
@@ -28,9 +29,6 @@ data Resources = Resources {
 data GameModel = GameModel {
                board :: Board
                }
-
-data InputEvent = RawEvent RawInput
-                | NewGame deriving Show
 
 loadResources :: String -> IO Resources
 loadResources path = do

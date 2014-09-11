@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
  
 import Engine.Run
-import Engine.Input
+import Freecell.Events
 import qualified Freecell.GameScene as GameScene
 
 {-import qualified Freecell.Systems.Game as FCGame-}
@@ -14,4 +14,4 @@ main = do
                           
         scenes <- sequence [GameScene.makeScene]
         glfwMain scenes
-                 GameScene.RawEvent
+                 RawEvent
