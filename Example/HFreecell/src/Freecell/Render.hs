@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Freecell.Render where
 
 import FreeCell
@@ -9,14 +11,18 @@ import Utils.Utils
 import Engine.Component.CompUtils
 import Engine.Component.Component
 import Engine.Component.Model
+import Engine.Component.Entity
 import Types.Color
 import Freecell.Component
 import Systems.Textures
 import Types.Types
 import Systems.Draw
 import qualified Data.HashMap.Strict as HashMap
-import Data.Foldable
+import Data.Foldable (foldlM)
 import Utils.HashMap
+import Data.List
+import Data.Ord
+import Data.Maybe
 
 data Resources = Resources {
                vanillaShader :: Maybe Shader,
@@ -24,8 +30,21 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
+drawCard ::  Shader -> HashMap.HashMap Card TexID -> (e, Card, DrawState) -> IO ()
+drawCard shader cardTexHash (_, card, (DrawState pos)) = do
+        let tid = HashMap.lookup card cardTexHash
+        whenMaybe tid $ \t -> do
+            let spec = Square (Size 1 1) white t shader
+            drawSpec pos uiLabel spec
+
+depth :: Board -> EntHash MouseDrag -> (Entity, Card, DrawState) -> Maybe Int
+depth board mouseDragHash (e, card, _) = 
+        case (HashMap.lookup e mouseDragHash) of
+            Nothing -> cardDepth board card
+            _ -> Just (-2)
+
 render :: Resources -> Model ComponentStore GameModel -> IO ()
-render (Resources nillaSh blankTex cardTexHash) model = do
+render (Resources nillaSh blankTex cardTexHash) model@Model { _game = GameModel { _gameBoard } } = do
         {-print $ "Rendering model: " ++ (show model)-}
 
         {-whenMaybe2 nillaSh blankTex $ \sh tid -> do-}
@@ -34,13 +53,16 @@ render (Resources nillaSh blankTex cardTexHash) model = do
                 {-drawSpec pos uiLabel (Square (Size 0.726 1) white tid sh)-}
 
         whenMaybe nillaSh $ \sh -> do
-            let ds = getModelComponents drawStates model
-                cards = getModelComponents cardComps model
-            return ()
-            forM_ (zipHashes2 ds cards) $ \(e, (DrawState pos), card) -> do
-                let tid = HashMap.lookup card cardTexHash
-                whenMaybe tid $ \t -> drawSpec pos uiLabel (Square (Size 0.726 1) white t sh)
-        return ()
+                let mds = getModelComponents mouseDrags model
+                    ds = getModelComponents drawStates model
+                    cds = getModelComponents cardComps model
+                    sorted = map snd . sortBy (comparing fst) . mapMaybe (\x -> 
+                                              case depth _gameBoard mds x of 
+                                                                       Nothing -> Nothing 
+                                                                       Just a -> Just (a, x))
+                                                                       $ zipHashes2 cds ds
+
+                mapM_ (drawCard sh cardTexHash) sorted
 
 {-cardNumber (Card rk st) = (suitIndexOffset st) + (rankIndex rk)-}
 
