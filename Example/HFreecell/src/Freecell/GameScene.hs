@@ -43,22 +43,24 @@ render (Resources solidSh) model = do
         whenMaybe solidSh $ \sh -> do
             let ds = getModelComponents drawStates model
             forM_ (stripEnts ds) $ \(DrawState pos) ->
-                drawSpec pos uiLabel (SolidSquare (Size 50 50) white sh)
+                drawSpec pos uiLabel (SolidSquare (Size 0.726 1) white sh)
 
 spawnThing pos = do
+        let scale = 1
         e <- spawnEntity
         addComp e drawStates $ DrawState pos
-        addComp e mouseDrags $ MouseDrag (v3 0 0 0)
+        addComp e selectables $ Selectable (Size (0.726 * scale) scale)
+        {-addComp e mouseDrags $ MouseDrag (v3 0 0 0)-}
         {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
         return []
 
 processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
 processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = swap $ runModel (spawnThing p') model
-    where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
+    where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)
 
 processInput (RenderInfo mat ss _) (RawEvent (InputTouchLoc pos pid)) model = 
         (over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model, [])
-    where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
+    where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)
 
 processInput (RenderInfo mat ss _) NewGame model = trace "new game wee!" (model, [])
         {-mapM_ (\c -> spawnCard fcgame (v3 0 0 (-5)) c) (allCards board)-}
@@ -71,7 +73,7 @@ stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS
 makeScene = do
         board <- makeGame
         is <- newIORef (Input [])
-        let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
+        let cam = Camera (Ortho 10 1 100) (Route pZero Nothing)
             scene = Scene {
                           _name = "Game",
                           _model = (newModel cam emptyComponentStore (GameModel board)),
