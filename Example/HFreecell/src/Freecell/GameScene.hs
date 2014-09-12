@@ -2,14 +2,14 @@ module Freecell.GameScene (makeScene, InputEvent(..)) where
 
 import FreeCell
 import Freecell.Events
-import Engine.Input
-import Engine.Component
+import Engine.Component.Component
+import Engine.Component.CompUtils
+import Engine.Component.Model
+import Engine.Scene.Input
+import Engine.Scene.Scene
 import Math.Matrix
 import Math.VectorMatrix
-import Engine.Model
-import Engine.Scene
 import Systems.Draw
-import Engine.CompUtils
 import Types.Color
 import Types.Types
 import Data.IORef

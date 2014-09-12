@@ -5,7 +5,7 @@ module Systems.DrawState (make, upDS, snapToMouse) where
 
 import Engine.World
 import Engine.System
-import Engine.Component
+import Engine.Component.Component
 import Math.Vector
 import Utils.Projection
 

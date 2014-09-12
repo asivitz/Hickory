@@ -7,8 +7,8 @@ import Graphics.GLUtils
 
 import Engine.System
 import Engine.World
-import Engine.Component
-import Engine.Entity
+import Engine.Component.Component
+import Engine.Component.Entity
 
 import Types.Types
 import Types.Color

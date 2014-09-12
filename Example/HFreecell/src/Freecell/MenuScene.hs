@@ -1,9 +1,9 @@
 module Freecell.MenuScene where
 
-import Engine.Scene
-import Engine.Model
-import Engine.Input
-import Engine.Component
+import Engine.Scene.Scene
+import Engine.Scene.Input
+import Engine.Component.Model
+import Engine.Component.Component
 import Freecell.Events
 import Data.IORef
 import Camera.Camera

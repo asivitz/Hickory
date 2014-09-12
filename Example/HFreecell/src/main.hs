@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
  
-import Engine.Run
-import Engine.Scene
+import Engine.Scene.Run
+import Engine.Scene.Scene
 import Freecell.Events
 import qualified Freecell.GameScene as GameScene
 import qualified Freecell.MenuScene as MenuScene

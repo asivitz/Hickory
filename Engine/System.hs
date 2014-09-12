@@ -2,9 +2,9 @@
 
 module Engine.System where
 
-import Engine.Component
+import Engine.Component.Component
 import Engine.World
-import Engine.Entity
+import Engine.Component.Entity
 import Control.Monad.State
 import Data.IORef
 import Utils.HashMap

@@ -10,7 +10,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import Types.Types
 import Math.Vector
 import Control.Monad.State
-import Engine.Input
+import Engine.Scene.Input
 
 data SysData = SysData { 
              evlist :: [RawInput],

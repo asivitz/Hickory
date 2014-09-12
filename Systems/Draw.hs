@@ -3,30 +3,22 @@
 module Systems.Draw where
 import Control.Monad.State
 
-import Engine.System
 import Engine.World
-import Engine.Component
-import Engine.Entity
+import Engine.Component.Component
+import Engine.Component.Entity
 
 import Types.Types
-
-import Utils.Resources
-import Utils.Utils
 
 import Graphics.GLUtils
 import Math.Matrix
 import Math.Vector
 import Math.VectorMatrix
-import Data.IORef
 
 import Camera.Camera
 
 import Foreign.C.String
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
-import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
-import Data.Bits
-import Utils.System
 
 runDrawable :: Double -> (Entity, Drawable, DrawState) -> SysMonad c IO ()
 runDrawable delta (e, (Drawable spec), (DrawState pos)) = do

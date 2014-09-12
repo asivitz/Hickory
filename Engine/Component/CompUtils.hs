@@ -1,9 +1,9 @@
 {-# LANGUAGE Rank2Types #-}
 
-module Engine.CompUtils where
+module Engine.Component.CompUtils where
 
-import Engine.Entity
-import Engine.Model
+import Engine.Component.Entity
+import Engine.Component.Model
 import Control.Monad.State.Strict
 import Control.Lens
 import qualified Data.HashMap.Strict as HashMap

@@ -1,14 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Engine.Model where
+module Engine.Component.Model where
 
-import Engine.Entity
-import Engine.Scene
+import Engine.Scene.Scene
+import Engine.Scene.Input
+import Engine.Component.Entity
 import Control.Monad.State.Strict
 import Control.Lens hiding (Context)
 import Camera.Camera
-import Engine.Input
 
 data Model cs gm = Model {
            _entities :: EntitySet,

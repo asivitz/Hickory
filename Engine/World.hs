@@ -3,8 +3,8 @@
 
 module Engine.World where
 
-import Engine.Entity
-import Engine.Component
+import Engine.Component.Entity
+import Engine.Component.Component
 import Math.Vector
 import Control.Monad.State
 import Graphics.GLUtils

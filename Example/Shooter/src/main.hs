@@ -2,14 +2,14 @@
  
 import Engine.Run
 import Engine.Model
-import Engine.Component
+import Engine.Component.Component
 import Types.Types
 import Math.Vector
 import Systems.Draw
 import qualified Systems.DrawState as DrawState
 import Types.Color
 import Utils.Utils
-import Engine.Input
+import Engine.Scene.Input
 import Engine.CompUtils
 import Math.VectorMatrix
 import Control.Lens

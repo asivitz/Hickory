@@ -1,7 +1,6 @@
-module Engine.Input where
+module Engine.Scene.Input where
 
 import Math.Vector
-import Math.Matrix
 import qualified Graphics.UI.GLFW as GLFW
 
 data RawInput = InputTouchDown V2 Int

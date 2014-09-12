@@ -4,7 +4,7 @@
 module Freecell.Context.GameContext where
 
 import Engine.World
-import Engine.Component
+import Engine.Component.Component
 import Data.HashMap.Strict as HashMap
 import Control.Lens hiding (Context)
 import Freecell.Utils

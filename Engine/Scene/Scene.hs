@@ -1,14 +1,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Engine.Scene where
+module Engine.Scene.Scene where
 
 import Data.IORef
-import Engine.Input
+import Engine.Scene.Input
 import Types.Types
 import Graphics.Drawing
 import Math.Matrix
-import Control.Lens
-import Camera.Camera
 
 data RenderInfo = RenderInfo Mat44 (Size Int) Label
 

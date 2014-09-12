@@ -1,4 +1,4 @@
-module Engine.Entity where
+module Engine.Component.Entity where
 {-(  Entity,-}
    {-genEntity,-}
    {-genEntities,-}

@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Engine.Component where
+module Engine.Component.Component where
 
-import Engine.Entity
+import Engine.Component.Entity
 import Data.HashMap.Strict as HashMap
 import Math.Vector
 import Graphics.Drawing

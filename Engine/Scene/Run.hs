@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Engine.Run where
+module Engine.Scene.Run where
 
 import Data.Time
 import Types.Types
@@ -12,11 +12,11 @@ import qualified Graphics.UI.GLFW as GLFW
 import Data.Bits
 import Graphics.Drawing
 import Graphics.GLFWUtils
-import Engine.Input
 import qualified Systems.GLFWPlatform as GLFWPlatform
 import Data.Maybe
 import Utils.Utils
-import Engine.Scene
+import Engine.Scene.Input
+import Engine.Scene.Scene
 
 {-
 governFPS :: UTCTime -> IO ()
