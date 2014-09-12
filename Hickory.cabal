@@ -38,7 +38,7 @@ extra-source-files:  Readme.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Camera.Camera, Engine.Component.Component, Engine.Component.Entity, Engine.Scene.Run, Graphics.Drawing, Graphics.DrawText, Graphics.GLFWUtils, Graphics.GLUtils, Math.Matrix, Math.Vector, Math.VectorMatrix, Menus.Construction, Menus.Menus, Systems.GLFWPlatform, Systems.Draw, Systems.DrawState, Text.Font, Types.Color, Types.Types, Utils.Resources, Utils.Utils, Utils.HashMap, Platform.IPhone, Engine.Scene.Input, Engine.Component.CompUtils, Engine.Component.Model, Engine.Scene.Scene
+  exposed-modules:     Camera.Camera, Engine.Component.Component, Engine.Component.Entity, Engine.Scene.Run, Graphics.Drawing, Graphics.DrawText, Graphics.GLFWUtils, Graphics.GLUtils, Math.Matrix, Math.Vector, Math.VectorMatrix, Menus.Construction, Menus.Menus, Systems.Textures, Systems.GLFWPlatform, Systems.Draw, Systems.DrawState, Text.Font, Types.Color, Types.Types, Utils.Resources, Utils.Utils, Utils.HashMap, Platform.IPhone, Engine.Scene.Input, Engine.Component.CompUtils, Engine.Component.Model, Engine.Scene.Scene
   other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
   build-depends:       base >=4.7 && <4.8, unordered-containers >=0.2 && <0.3, mvc, pipes, lens-family-core, lens >=4.3 && <4.4, containers >=0.5 && <0.6, hashable >=1.2 && <1.3, time >=1.4 && <1.5, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, text >=1.1 && <1.2, GLFW-b >=1.4 && <1.5, AC-Vector >=2.3 && <2.4, array >=0.5 && <0.6, pngload-fixed >=1.0 && <1.1, attoparsec >=0.12 && <0.13
   default-language:    Haskell2010

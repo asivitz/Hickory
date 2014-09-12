@@ -1,5 +1,4 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Freecell.GameScene (makeScene, InputEvent(..)) where
 
@@ -13,66 +12,22 @@ import Engine.Scene.Input
 import Engine.Scene.Scene
 import Math.Matrix
 import Math.VectorMatrix
-import Systems.Draw
-import Types.Color
 import Types.Types
 import Data.IORef
 import Graphics.Drawing
-import Utils.Utils
-import Control.Monad
 import Control.Lens
 import Camera.Camera
 import qualified Systems.DrawState as DrawState
 import Math.Vector
-import Data.HashMap.Strict
-
-data ComponentStore = ComponentStore { 
-                    _drawStates :: CompMap DrawState,
-                    _newtonianMovers :: CompMap NewtonianMover,
-                    _drawables :: CompMap Drawable,
-                    _selectables :: CompMap Selectable,
-                    _mouseDrags :: CompMap MouseDrag,
-                    _cardComps :: CompMap Card
-                    } deriving (Show)
-
-makeLenses ''ComponentStore
-
-emptyComponentStore = ComponentStore { 
-                                     _drawStates = empty, 
-                                     _newtonianMovers = empty, 
-                                     _drawables = empty,
-                                     _selectables = empty,
-                                     _mouseDrags = empty,
-                                     _cardComps = empty
-                                     }
-
-data Resources = Resources {
-               solidShader :: Maybe Shader
-               }
-
-data GameModel = GameModel {
-               _gameBoard :: Board
-               }
-
-loadResources :: String -> IO Resources
-loadResources path = do
-        solid <- loadShader path "Shader.vsh" "SolidColor.fsh"
-        return $ Resources solid
-
-render :: Resources -> Model ComponentStore GameModel -> IO ()
-render (Resources solidSh) model = do
-        {-print $ "Rendering model: " ++ (show model)-}
-
-        whenMaybe solidSh $ \sh -> do
-            let ds = getModelComponents drawStates model
-            forM_ (stripEnts ds) $ \(DrawState pos) ->
-                drawSpec pos uiLabel (SolidSquare (Size 0.726 1) white sh)
+import Freecell.Render
+import Freecell.Component
 
 spawnCard pos card = do
         let scale = 1
         e <- spawnEntity
         addComp e drawStates $ DrawState pos
         addComp e selectables $ Selectable (Size (0.726 * scale) scale)
+        addComp e cardComps card
         {-addComp e mouseDrags $ MouseDrag (v3 0 0 0)-}
         {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
         return []
@@ -93,7 +48,7 @@ processInput (RenderInfo mat ss _) NewGame model@Model { _game = GameModel { _ga
 processInput _ _ model = (model, [])
 
 stepComponents :: Double -> Model ComponentStore GameModel -> Model ComponentStore GameModel
-stepComponents delta model@Model { _game = GameModel { _gameBoard }, _components } = 
+stepComponents delta model@Model { _game = GameModel { _gameBoard }, _components } =
         model { _components = upComps2Ent _components drawStates cardComps (upCardDS delta _gameBoard model) }
 
 makeScene = do

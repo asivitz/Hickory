@@ -1,40 +1,19 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Textures (make, releaseTex) where
+module Systems.Textures where
 
-import Engine.System
-import Engine.World
 import Graphics.GLUtils
-import Control.Monad.State
 import Foreign.Marshal.Alloc
 import Foreign.Storable
-import Data.IORef
 import Data.Array.Storable
 import Graphics.Rendering.OpenGL.Raw.Core31
 
-import Utils.Resources
 import Utils.Utils
 
 import Codec.Image.PNG
 
-data SysData = SysData { 
-             textures :: RefStore String TexID
-             }
-             deriving (Show)
-
-empty :: SysData
-empty = SysData { textures = emptyRefStore }
-
-make :: SysMonad c IO (System c)
-make = do
-        textures <- liftIO $ newIORef empty
-        registerResource sysCon reserveTex (reserveTex' textures)
-        registerResource sysCon releaseTex (releaseTex' textures)
-
-        return $ System nullRun
-
-loadTexture :: String -> IO (Maybe TexID)
-loadTexture path = do
+loadTextureFromPath :: String -> IO (Maybe TexID)
+loadTextureFromPath path = do
         res <- loadPNGFile path
         case res of
             Left s -> print s >> return Nothing
@@ -57,24 +36,9 @@ loadTexture path = do
                     glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER glLinear
                     return $ Just $ TexID (fromIntegral tex)
 
-deleteTexture :: TexID -> IO ()
-deleteTexture texid = return ()
-
-reserveTex' :: IORef SysData -> String -> SysMonad c IO (Maybe TexID)
-reserveTex' texes path = do
-        RSC { _resourcesPath } <- getRSC systemContext
-        mydata@SysData { textures } <- getSysData texes
-        (newtexes, texid) <- liftIO $ reserve textures path $ \p -> do 
-                                                                       rp <- liftIO $ _resourcesPath
-                                                                       loadTexture $ rp ++ "images/" ++ p
-
-        whenNothing texid $ liftIO $ print ("Couldn't load texture: " ++ path)
-
-        putSysData texes mydata { textures = newtexes }
-        return texid
-
-releaseTex' :: IORef SysData -> String -> SysMonad c IO ()
-releaseTex' texes path = do
-   mydata@SysData { textures } <- getSysData texes
-   newtexes <- liftIO $ release textures path deleteTexture
-   putSysData texes mydata { textures = newtexes }
+loadTexture resPath image = do
+        let prefix = resPath ++ "/images/"
+            ipath = prefix ++ image
+        tid <- loadTextureFromPath ipath
+        whenNothing tid $ print ("Couldn't load texture: " ++ image)
+        return tid
