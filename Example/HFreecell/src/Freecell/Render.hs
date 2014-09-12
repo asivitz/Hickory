@@ -16,6 +16,7 @@ import Types.Types
 import Systems.Draw
 import qualified Data.HashMap.Strict as HashMap
 import Data.Foldable
+import Utils.HashMap
 
 data Resources = Resources {
                vanillaShader :: Maybe Shader,
@@ -27,10 +28,19 @@ render :: Resources -> Model ComponentStore GameModel -> IO ()
 render (Resources nillaSh blankTex cardTexHash) model = do
         {-print $ "Rendering model: " ++ (show model)-}
 
-        whenMaybe2 nillaSh blankTex $ \sh tid -> do
+        {-whenMaybe2 nillaSh blankTex $ \sh tid -> do-}
+            {-let ds = getModelComponents drawStates model-}
+            {-forM_ (stripEnts ds) $ \(DrawState pos) ->-}
+                {-drawSpec pos uiLabel (Square (Size 0.726 1) white tid sh)-}
+
+        whenMaybe nillaSh $ \sh -> do
             let ds = getModelComponents drawStates model
-            forM_ (stripEnts ds) $ \(DrawState pos) ->
-                drawSpec pos uiLabel (Square (Size 0.726 1) white tid sh)
+                cards = getModelComponents cardComps model
+            return ()
+            forM_ (zipHashes2 ds cards) $ \(e, (DrawState pos), card) -> do
+                let tid = HashMap.lookup card cardTexHash
+                whenMaybe tid $ \t -> drawSpec pos uiLabel (Square (Size 0.726 1) white t sh)
+        return ()
 
 {-cardNumber (Card rk st) = (suitIndexOffset st) + (rankIndex rk)-}
 
@@ -63,7 +73,7 @@ suitSymbol st = case st of
 
 cardTexPath (Card rk st) = let r = rankSymbol rk
                                s = suitSymbol st in
-                                   "PlayingCards/cards" ++ s ++ "_" ++ r ++ ".png"
+                                   "PlayingCards/cards/" ++ s ++ "_" ++ r ++ ".png"
 
 loadResources :: String -> IO Resources
 loadResources path = do
