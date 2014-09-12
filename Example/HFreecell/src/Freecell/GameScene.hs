@@ -1,7 +1,10 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Freecell.GameScene (makeScene, InputEvent(..)) where
 
 import FreeCell
 import Freecell.Events
+import Freecell.Utils
 import Engine.Component.Component
 import Engine.Component.CompUtils
 import Engine.Component.Model
@@ -28,7 +31,7 @@ data Resources = Resources {
                }
 
 data GameModel = GameModel {
-               gameBoard :: Board
+               _gameBoard :: Board
                }
 
 loadResources :: String -> IO Resources
@@ -45,7 +48,7 @@ render (Resources solidSh) model = do
             forM_ (stripEnts ds) $ \(DrawState pos) ->
                 drawSpec pos uiLabel (SolidSquare (Size 0.726 1) white sh)
 
-spawnThing pos = do
+spawnCard pos card = do
         let scale = 1
         e <- spawnEntity
         addComp e drawStates $ DrawState pos
@@ -55,15 +58,17 @@ spawnThing pos = do
         return []
 
 processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
-processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = swap $ runModel (spawnThing p') model
-    where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)
+{-processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = swap $ runModel (spawnThing p') model-}
+    {-where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)-}
 
 processInput (RenderInfo mat ss _) (RawEvent (InputTouchLoc pos pid)) model = 
         (over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model, [])
     where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)
 
-processInput (RenderInfo mat ss _) NewGame model = trace "new game wee!" (model, [])
-        {-mapM_ (\c -> spawnCard fcgame (v3 0 0 (-5)) c) (allCards board)-}
+processInput (RenderInfo mat ss _) NewGame model@Model { _game = GameModel { _gameBoard } } =
+        forModel model $ do
+            mapM_ (\c -> spawnCard (v3 0 0 (-5)) c) (allCards _gameBoard)
+            return []
 
 processInput _ _ model = (model, [])
 
