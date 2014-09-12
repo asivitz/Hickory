@@ -44,8 +44,8 @@ pileIndexForCard board card = fmap fst $ findFirstBoardValue board $ (card `elem
 pileLocationForCard :: Board -> Card -> Maybe (Int, Int)
 pileLocationForCard board card = findFirstBoardValue board $ (\stk -> fmap (visibleLength stk -) (card `depthIfVisible` stk ))
 
-allCards :: Board -> [Card]
-allCards (Board cs fd fc) = concatMap getCards fc ++ concatMap getCards cs ++ concatMap getCards fd
+{-allCards :: Board -> [Card]-}
+{-allCards (Board cs fd fc) = concatMap getCards fc ++ concatMap getCards cs ++ concatMap getCards fd-}
 
 pilePositions = [
                 v2 1.5 4,

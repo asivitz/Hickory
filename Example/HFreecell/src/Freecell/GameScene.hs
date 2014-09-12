@@ -42,7 +42,7 @@ processInput (RenderInfo mat ss _) (RawEvent (InputTouchLoc pos pid)) model =
 
 processInput (RenderInfo mat ss _) NewGame model@Model { _game = GameModel { _gameBoard } } =
         forModel model $ do
-            mapM_ (\c -> spawnCard (v3 0 0 (-5)) c) (allCards _gameBoard)
+            mapM_ (\c -> spawnCard (v3 0 0 (-5)) c) allCards
             return []
 
 processInput _ _ model = (model, [])

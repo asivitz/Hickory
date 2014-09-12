@@ -101,7 +101,7 @@ newGame' fcgame = do
 
         board <- liftIO $ makeGame
 
-        mapM_ (\c -> spawnCard fcgame (v3 0 0 (-5)) c) (allCards board)
+        mapM_ (\c -> spawnCard fcgame (v3 0 0 (-5)) c) allCards
 
         putSysData fcgame $ SysData $ Just board
 

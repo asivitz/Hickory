@@ -11,18 +11,20 @@ import Engine.Component.Component
 import Engine.Component.Model
 import Types.Color
 import Freecell.Component
-import Control.Monad
 import Systems.Textures
 import Types.Types
 import Systems.Draw
+import qualified Data.HashMap.Strict as HashMap
+import Data.Foldable
 
 data Resources = Resources {
                vanillaShader :: Maybe Shader,
-               blankCard :: Maybe TexID
+               blankCard :: Maybe TexID,
+               cardTexes :: HashMap.HashMap Card TexID
                }
 
 render :: Resources -> Model ComponentStore GameModel -> IO ()
-render (Resources nillaSh blankTex) model = do
+render (Resources nillaSh blankTex cardTexHash) model = do
         {-print $ "Rendering model: " ++ (show model)-}
 
         whenMaybe2 nillaSh blankTex $ \sh tid -> do
@@ -30,42 +32,56 @@ render (Resources nillaSh blankTex) model = do
             forM_ (stripEnts ds) $ \(DrawState pos) ->
                 drawSpec pos uiLabel (Square (Size 0.726 1) white tid sh)
 
+{-cardNumber (Card rk st) = (suitIndexOffset st) + (rankIndex rk)-}
 
+{-cardImagePath pre t = "PlayingCards/cards/" ++ pre ++ "_" ++ t ++ ".png"-}
+{-allRanks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]-}
+{-texes = [cardImagePath st rk | st <- ["sp", "he", "di", "cl"], rk <- allRanks]-}
 
-suitIndexOffset Spade = 0
-suitIndexOffset Heart = 13
-suitIndexOffset Diamond = 26
-suitIndexOffset Club = 39
-rankIndex Ace = 0
-rankIndex Two = 1
-rankIndex Three = 2
-rankIndex Four = 3
-rankIndex Five = 4
-rankIndex Six = 5
-rankIndex Seven = 6
-rankIndex Eight = 7
-rankIndex Nine = 8
-rankIndex Ten = 9
-rankIndex Jack = 10
-rankIndex Queen = 11
-rankIndex King = 12
+allCards = [Card Ace Heart .. Card King Spade]
 
-cardNumber (Card rk st) = (suitIndexOffset st) + (rankIndex rk)
+rankSymbol rk = case rk of
+                    Ace -> "A"
+                    Two -> "2"
+                    Three -> "3"
+                    Four -> "4"
+                    Five -> "5"
+                    Six -> "6"
+                    Seven -> "7"
+                    Eight -> "8"
+                    Nine -> "9"
+                    Ten -> "10"
+                    Jack -> "J"
+                    Queen -> "Q"
+                    King -> "K"
 
-cardImagePath pre t = "PlayingCards/cards/" ++ pre ++ "_" ++ t ++ ".png"
-allRanks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
-texes = [cardImagePath st rk | st <- ["sp", "he", "di", "cl"], rk <- allRanks]
+suitSymbol st = case st of
+                    Heart -> "he"
+                    Spade -> "sp"
+                    Diamond -> "di"
+                    Club -> "cl"
 
+cardTexPath (Card rk st) = let r = rankSymbol rk
+                               s = suitSymbol st in
+                                   "PlayingCards/cards" ++ s ++ "_" ++ r ++ ".png"
 
 loadResources :: String -> IO Resources
 loadResources path = do
         {-card_texes <- mapM loadTexture texes-}
 
+        texes <- foldlM (\hash card -> do
+               tid <- loadTexture path (cardTexPath card)
+               case tid of
+                   Nothing -> return hash
+                   Just t -> return $ HashMap.insert card t hash)
+               HashMap.empty
+               allCards
+
         blank <- loadTexture path "PlayingCards/blank.png"
 
         nilla <- loadShader path "Shader.vsh" "Shader.fsh"
         {-solid <- loadShader path "Shader.vsh" "SolidColor.fsh"-}
-        return $ Resources nilla blank
+        return $ Resources nilla blank texes
 
 {-
 texForCard draw card = do
