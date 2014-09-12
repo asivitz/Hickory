@@ -28,7 +28,7 @@ data Resources = Resources {
                }
 
 data GameModel = GameModel {
-               board :: Board
+               gameBoard :: Board
                }
 
 loadResources :: String -> IO Resources
@@ -37,10 +37,10 @@ loadResources path = do
         return $ Resources solid
 
 render :: Resources -> Model ComponentStore GameModel -> IO ()
-render (Resources solidShader) model = do
+render (Resources solidSh) model = do
         {-print $ "Rendering model: " ++ (show model)-}
 
-        whenMaybe solidShader $ \sh -> do
+        whenMaybe solidSh $ \sh -> do
             let ds = getModelComponents drawStates model
             forM_ (stripEnts ds) $ \(DrawState pos) ->
                 drawSpec pos uiLabel (SolidSquare (Size 50 50) white sh)

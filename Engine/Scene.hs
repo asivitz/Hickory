@@ -3,7 +3,6 @@
 module Engine.Scene where
 
 import Data.IORef
-import Engine.Model
 import Engine.Input
 import Types.Types
 import Graphics.Drawing
@@ -11,20 +10,25 @@ import Math.Matrix
 import Control.Lens
 import Camera.Camera
 
-data Scene cs gm ie re = Scene {
+data RenderInfo = RenderInfo Mat44 (Size Int) Label
+
+data Scene mdl ie re = Scene {
                        _name :: String,
-                       _model :: Model cs gm,
+                       _model :: mdl,
                        _renderInfo :: RenderInfo,
                        _loadResources :: IO re,
-                       _stepModel :: RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie]),
-                       _render :: re -> Model cs gm -> IO (),
+                       _stepModel :: RenderInfo -> Input ie -> Double -> mdl -> (mdl, [ie]),
+                       _render :: re -> mdl -> IO (),
                        _inputStream :: IORef (Input ie),
                        -- Filled after resources are loaded
-                       _loadedRender :: Maybe (Model cs gm -> IO ())
+                       _loadedRender :: Maybe (mdl -> IO ())
                        }
 
-instance Show (Scene a b c d) where
+instance Show (Scene mdl c d) where
         show Scene { _name } = "Scene: " ++ _name
+
+class SceneModel mdl where
+        calcCameraMatrix :: Float -> mdl -> Mat44
 
 -- A SceneOperator provides an interface to a Scene, such that the
 -- operations are connected by an IORef. The SceneOperator provides no
@@ -37,6 +41,7 @@ data SceneOperator ie = SceneOperator {
                       _renderOp :: IO ()
                       }
 
+makeSceneOperator :: (SceneModel mdl, Show ie) => Scene mdl ie re -> IO (SceneOperator ie)
 makeSceneOperator scene = do
         ref <- newIORef scene
         return $ SceneOperator { 
@@ -63,19 +68,19 @@ makeSceneOperator scene = do
                 renderCommandsForScene scn
                 }
 
-addSceneInput :: Scene cs gm ie re -> ie -> IO ()
+addSceneInput :: Scene mdl ie re -> ie -> IO ()
 addSceneInput Scene { _inputStream } ev = 
         atomicModifyIORef _inputStream (\(Input evs) -> (Input (ev:evs), ()))
 
 renderCommandsForScene Scene { _renderInfo = (RenderInfo mat _ label) } = renderCommands mat label
 
-grabSceneInput :: Show ie => Scene cs gm ie re -> IO (Input ie)
+grabSceneInput :: Show ie => Scene mdl ie re -> IO (Input ie)
 grabSceneInput Scene { _inputStream } = do
         input <- atomicModifyIORef _inputStream (\i -> (Input { inputEvents = [] }, i))
         {-print input-}
         return input
 
-stepScene :: Show ie => Scene cs gm ie re -> Double -> IO (Scene cs gm ie re, [ie])
+stepScene :: (Show ie, SceneModel mdl) => Scene mdl ie re -> Double -> IO (Scene mdl ie re, [ie])
 stepScene scene@Scene { _loadedRender = Just renderFunc, 
                       _model, 
                       _renderInfo = (ri@(RenderInfo _ ss label)), 
@@ -89,17 +94,6 @@ stepScene scene@Scene { _loadedRender = Just renderFunc,
         return (scene', outEvents)
 stepScene scene _ = print "Couldn't step scene." >> return (scene, [])
 
-makeStepModel :: (RenderInfo -> ie -> Model cs gm -> (Model cs gm, [ie])) ->
-    (Double -> cs -> cs) -> 
-    RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie])
-makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
-        let accum (m, oes) ie = let (m', oes') = procInputF ri ie m in (m', oes' ++ oes)
-            (model', outputEvents) = foldl accum (model,[]) inputEvents 
-            model'' = over components (\cs -> stepCompF delta cs) model'
-            in (model'', outputEvents)
-
-calcMatrixFromModel :: Size Int -> Model cs gm -> Mat44
+calcMatrixFromModel :: SceneModel mdl => Size Int -> mdl -> Mat44
 calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
-    cameraMatrix (_camera model) ar
-
-
+    calcCameraMatrix ar model
