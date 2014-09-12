@@ -2,14 +2,11 @@
 
 module Systems.GLFWPlatform where
 
-import Engine.System
-import Engine.World
 import Data.IORef
 import qualified Data.HashSet as HashSet
 import qualified Graphics.UI.GLFW as GLFW
 import Types.Types
 import Math.Vector
-import Control.Monad.State
 import Engine.Scene.Input
 
 data SysData = SysData { 
@@ -87,7 +84,9 @@ touchIdent button = case button of
 touchPosToScreenPos :: Size Int -> (Double, Double) -> V2
 touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) ((fromIntegral h) - (realToFrac y))
 
+{-
 broadcastTouchLoc win screensize touchid = do
         curPos <- liftIO $ GLFW.getCursorPos win
         let pos = touchPosToScreenPos screensize curPos
         runInterruptableEvent systemContext (\x -> x pos touchid) inputTouchLoc
+        -}

@@ -58,4 +58,21 @@ stepComponentHash2 first second f = HashMap.fromList $ for (HashMap.toList first
 
 upComps2 cs target additional f = over target (\t -> stepComponentHash2 t (view additional cs) f) cs
           
+compForEnt :: Entity -> CompLens cs c -> ModelState cs gm (Maybe c)
+compForEnt e complens = do
+        cs <- getComponentStore
+        let comps = view complens cs
+            c = HashMap.lookup e comps
+        return c
 
+modelCompForEnt :: Model cs gm -> Entity -> CompLens cs c -> (Maybe c)
+modelCompForEnt model ent l = let comps = view (components . l) model in
+    HashMap.lookup ent comps
+
+stepComponentHash2Ent :: EntHash c -> EntHash d -> (Entity -> c -> d -> c) -> EntHash c
+stepComponentHash2Ent first second f = HashMap.fromList $ for (HashMap.toList first) $ \(e, c1) ->
+    case HashMap.lookup e second of
+        Nothing -> (e, c1)
+        Just c2 -> (e, f e c1 c2)
+
+upComps2Ent cs target additional f = over target (\t -> stepComponentHash2Ent t (view additional cs) f) cs

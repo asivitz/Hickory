@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Freecell.GameScene (makeScene, InputEvent(..)) where
 
@@ -16,7 +17,6 @@ import Systems.Draw
 import Types.Color
 import Types.Types
 import Data.IORef
-import Data.Tuple
 import Graphics.Drawing
 import Utils.Utils
 import Control.Monad
@@ -24,7 +24,27 @@ import Control.Lens
 import Camera.Camera
 import qualified Systems.DrawState as DrawState
 import Math.Vector
-import Debug.Trace
+import Data.HashMap.Strict
+
+data ComponentStore = ComponentStore { 
+                    _drawStates :: CompMap DrawState,
+                    _newtonianMovers :: CompMap NewtonianMover,
+                    _drawables :: CompMap Drawable,
+                    _selectables :: CompMap Selectable,
+                    _mouseDrags :: CompMap MouseDrag,
+                    _cardComps :: CompMap Card
+                    } deriving (Show)
+
+makeLenses ''ComponentStore
+
+emptyComponentStore = ComponentStore { 
+                                     _drawStates = empty, 
+                                     _newtonianMovers = empty, 
+                                     _drawables = empty,
+                                     _selectables = empty,
+                                     _mouseDrags = empty,
+                                     _cardComps = empty
+                                     }
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -72,8 +92,9 @@ processInput (RenderInfo mat ss _) NewGame model@Model { _game = GameModel { _ga
 
 processInput _ _ model = (model, [])
 
-stepComponents :: Double -> ComponentStore -> ComponentStore
-stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS delta)
+stepComponents :: Double -> Model ComponentStore GameModel -> Model ComponentStore GameModel
+stepComponents delta model@Model { _game = GameModel { _gameBoard }, _components } = 
+        model { _components = upComps2Ent _components drawStates cardComps (upCardDS delta _gameBoard model) }
 
 makeScene = do
         board <- makeGame
@@ -89,3 +110,14 @@ makeScene = do
                           _inputStream = is,
                           _loadedRender = Nothing }
         return scene
+
+--
+
+upCardDS delta board model e (DrawState p) card =
+      let delta' = realToFrac delta 
+          pilePos = posForCard board card 
+          md = modelCompForEnt model e mouseDrags
+          in case md of
+                  -- Only move toward pile if we're not dragging
+                  Nothing -> DrawState (movePos p pilePos 10 delta')
+                  _ -> DrawState p

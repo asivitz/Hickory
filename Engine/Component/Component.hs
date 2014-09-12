@@ -16,21 +16,3 @@ data Selectable = Selectable (Size Scalar) deriving Show
 data MouseDrag = MouseDrag V3 deriving Show
 
 type CompMap c = HashMap Entity c
-
-data ComponentStore = ComponentStore { 
-                    _drawStates :: CompMap DrawState,
-                    _newtonianMovers :: CompMap NewtonianMover,
-                    _drawables :: CompMap Drawable,
-                    _selectables :: CompMap Selectable,
-                    _mouseDrags :: CompMap MouseDrag
-                    } deriving (Show)
-
-makeLenses ''ComponentStore
-
-emptyComponentStore = ComponentStore { 
-                                     _drawStates = empty, 
-                                     _newtonianMovers = empty, 
-                                     _drawables = empty,
-                                     _selectables = empty,
-                                     _mouseDrags = empty
-                                     }

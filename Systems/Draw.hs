@@ -1,11 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Systems.Draw where
-import Control.Monad.State
-
-import Engine.World
-import Engine.Component.Component
-import Engine.Component.Entity
 
 import Types.Types
 
@@ -19,10 +14,6 @@ import Camera.Camera
 import Foreign.C.String
 import Graphics.Drawing
 import Graphics.Rendering.OpenGL.Raw.Core31
-
-runDrawable :: Double -> (Entity, Drawable, DrawState) -> SysMonad c IO ()
-runDrawable delta (e, (Drawable spec), (DrawState pos)) = do
-      liftIO $ drawSpec pos worldLabel spec
 
 drawSpec :: Vector3 -> Label -> DrawSpec -> IO ()
 drawSpec pos label (Square (Size w h) color tex shader) = 

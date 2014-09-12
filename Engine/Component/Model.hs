@@ -33,10 +33,10 @@ instance SceneModel (Model cs gm) where
 makeLenses ''Model
 
 makeStepModel :: (RenderInfo -> ie -> Model cs gm -> (Model cs gm, [ie])) ->
-    (Double -> cs -> cs) -> 
+    (Double -> Model cs gm -> Model cs gm) -> 
     RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie])
 makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
         let accum (m, oes) ie = let (m', oes') = procInputF ri ie m in (m', oes' ++ oes)
             (model', outputEvents) = foldl accum (model,[]) inputEvents 
-            model'' = over components (\cs -> stepCompF delta cs) model'
+            model'' = stepCompF delta model'
             in (model'', outputEvents)

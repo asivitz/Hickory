@@ -5,13 +5,10 @@ module Freecell.Utils where
 
 import Data.Maybe
 import Data.List
-import Graphics.GLUtils
 import FreeCell
 import Math.Vector
 import Debug.Trace
 import Utils.Utils
-
-data UICard = UICard Card TexID deriving (Show)
 
 class CardStack a => VisibleCardStack a where
         depthIfVisible :: Card -> a -> Maybe Int
