@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render where
+module Freecell.Render (render, loadResources) where
 
 import FreeCell
 import Freecell.Utils
@@ -69,8 +69,6 @@ render (Resources nillaSh blankTex cardTexHash) model = do
 {-cardImagePath pre t = "PlayingCards/cards/" ++ pre ++ "_" ++ t ++ ".png"-}
 {-allRanks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]-}
 {-texes = [cardImagePath st rk | st <- ["sp", "he", "di", "cl"], rk <- allRanks]-}
-
-allCards = [Card Ace Heart .. Card King Spade]
 
 rankSymbol rk = case rk of
                     Ace -> "A"

@@ -21,9 +21,9 @@ import qualified Systems.DrawState as DrawState
 import Math.Vector
 import Freecell.Render
 import Freecell.Component
-import Utils.HashMap
 import Data.Maybe
 import Utils.Utils
+import Control.Monad.State
 
 
 spawnCard pos card = do
@@ -52,6 +52,25 @@ processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = f
             addComp e mouseDrags $ MouseDrag (p - unproj))
         return []
     where unproj = lerpUnproject pos (-5) mat (viewportFromSize ss)
+
+processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp pos pid)) model = forModel model $ do
+    let board = getBoard model
+        unproj = lerpUnproject pos (-5) mat (viewportFromSize ss)
+        comps = zipComps2 model mouseDrags cardComps
+        targetLocation = dropLocationForPos board (v3tov2 unproj)
+
+    case listToMaybe comps of
+        Nothing -> return []
+        Just (e, _, card) -> do
+            removeComp e mouseDrags
+
+            case moveCard board card targetLocation of
+                x | solvedBoard x -> return [WonGame]
+                x | null $ allPermissable x -> return [LostGame]
+                x | otherwise -> do 
+                                    model' <- get
+                                    put $ setBoard model' x
+                                    return []
 
 processInput (RenderInfo mat ss _) (RawEvent (InputTouchLoc pos pid)) model = 
         (over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model, [])

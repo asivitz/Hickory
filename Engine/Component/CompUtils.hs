@@ -44,6 +44,13 @@ addComp e comps c = do
 
         let cs' = over comps (HashMap.insert e c) cs
         putComponentStore cs'
+        
+removeComp :: Entity -> CompLens cs c -> ModelState cs gm ()
+removeComp e comps = do
+        cs <- getComponentStore
+
+        let cs' = over comps (HashMap.delete e) cs
+        putComponentStore cs'
 
 getModelComponents l model = view (components . l) model
 

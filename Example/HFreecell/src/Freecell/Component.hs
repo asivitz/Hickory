@@ -35,4 +35,5 @@ data GameModel = GameModel {
 makeLenses ''GameModel
 
 getBoard model = view (game . curBoard) model
+setBoard model board = set (game. curBoard) board model
 

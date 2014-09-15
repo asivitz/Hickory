@@ -47,6 +47,8 @@ pileLocationForCard board card = findFirstBoardValue board $ (\stk -> fmap (visi
 {-allCards :: Board -> [Card]-}
 {-allCards (Board cs fd fc) = concatMap getCards fc ++ concatMap getCards cs ++ concatMap getCards fd-}
 
+allCards = [Card Ace Heart .. Card King Spade]
+
 pilePositions = [
                 v2 1.5 4,
                 v2 2.5 4,
