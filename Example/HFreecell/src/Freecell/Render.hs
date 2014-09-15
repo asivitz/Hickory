@@ -68,12 +68,6 @@ render (Resources nillaSh blankTex cardTexHash) (RenderInfo _ _ label) model = d
 
                 mapM_ (drawCard sh cardTexHash label) sorted
 
-{-cardNumber (Card rk st) = (suitIndexOffset st) + (rankIndex rk)-}
-
-{-cardImagePath pre t = "PlayingCards/cards/" ++ pre ++ "_" ++ t ++ ".png"-}
-{-allRanks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]-}
-{-texes = [cardImagePath st rk | st <- ["sp", "he", "di", "cl"], rk <- allRanks]-}
-
 rankSymbol rk = case rk of
                     Ace -> "A"
                     Two -> "2"
@@ -116,23 +110,3 @@ loadResources path = do
         nilla <- loadShader path "Shader.vsh" "Shader.fsh"
         {-solid <- loadShader path "Shader.vsh" "SolidColor.fsh"-}
         return $ Resources nilla blank texes
-
-{-
-texForCard draw card = do
-        SysData { cardTexes } <- getSysData draw
-        return $ cardTexes !! cardNumber card
-
-drawCard ::  Shader -> (e, UICard, DrawState) -> SysMonad c IO ()
-drawCard shader (_, (UICard i texid), (DrawState pos)) = do
-        let spec = Square (Size 1 1) white texid shader
-        Draw.drawSpec pos worldLabel spec
-
-depth :: Board -> HashMap.HashMap Entity MouseDrag -> (Entity, UICard, DrawState) -> Maybe Int
-depth board mouseDragHash (e, (UICard card _), _) = 
-        if isJust (HashMap.lookup e mouseDragHash) 
-            then Just (-2)
-            else cardDepth board card
-
-drawPile shader tex pos = do
-        liftIO $ Draw.drawSpec (v2tov3 pos (-40)) worldLabel (Square (Size 1 1) white tex shader)
-        -}
