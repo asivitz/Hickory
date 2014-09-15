@@ -21,6 +21,10 @@ import qualified Systems.DrawState as DrawState
 import Math.Vector
 import Freecell.Render
 import Freecell.Component
+import Utils.HashMap
+import Data.Maybe
+import Utils.Utils
+
 
 spawnCard pos card = do
         let scale = 1
@@ -32,15 +36,28 @@ spawnCard pos card = do
         {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
         return []
 
+pickSelectable pos (e, (Selectable size), card, (DrawState p)) =
+        posInRect (v3tov2 pos) (Rect (v3tov2 p) size)
+
+-- swap $ runModel (spawnThing p') model
+
 processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
-{-processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = swap $ runModel (spawnThing p') model-}
-    {-where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)-}
+processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = forModel model $ do
+        let zipped = zipComps3 model selectables cardComps drawStates
+            depth :: (e, Selectable, Card, DrawState) -> Maybe Int
+            depth (e, _, card, _) = cardDepth (getBoard model) card
+            selected = listToMaybe . sortOnMaybe depth . filter (pickSelectable unproj) $ zipped
+
+        whenMaybe selected $ (\(e, _, _, (DrawState p)) ->
+            addComp e mouseDrags $ MouseDrag (p - unproj))
+        return []
+    where unproj = lerpUnproject pos (-5) mat (viewportFromSize ss)
 
 processInput (RenderInfo mat ss _) (RawEvent (InputTouchLoc pos pid)) model = 
         (over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model, [])
     where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)
 
-processInput (RenderInfo mat ss _) NewGame model@Model { _game = GameModel { _gameBoard } } =
+processInput (RenderInfo mat ss _) NewGame model =
         forModel model $ do
             mapM_ (\c -> spawnCard (v3 0 0 (-5)) c) allCards
             return []
@@ -48,8 +65,8 @@ processInput (RenderInfo mat ss _) NewGame model@Model { _game = GameModel { _ga
 processInput _ _ model = (model, [])
 
 stepComponents :: Double -> Model ComponentStore GameModel -> Model ComponentStore GameModel
-stepComponents delta model@Model { _game = GameModel { _gameBoard }, _components } =
-        model { _components = upComps2Ent _components drawStates cardComps (upCardDS delta _gameBoard model) }
+stepComponents delta model =
+        model { _components = upComps2Ent (_components model) drawStates cardComps (upCardDS delta (getBoard model) model) }
 
 makeScene = do
         board <- makeGame
@@ -65,8 +82,6 @@ makeScene = do
                           _inputStream = is,
                           _loadedRender = Nothing }
         return scene
-
---
 
 upCardDS delta board model e (DrawState p) card =
       let delta' = realToFrac delta 

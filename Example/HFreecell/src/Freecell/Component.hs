@@ -6,6 +6,7 @@ import Engine.Component.Component
 import FreeCell
 import Control.Lens
 import Data.HashMap.Strict
+import Engine.Component.Model
 
 data ComponentStore = ComponentStore { 
                     _drawStates :: CompMap DrawState,
@@ -28,6 +29,10 @@ emptyComponentStore = ComponentStore {
                                      }
 
 data GameModel = GameModel {
-               _gameBoard :: Board
+               _curBoard :: Board
                }
+
+makeLenses ''GameModel
+
+getBoard model = view (game . curBoard) model
 

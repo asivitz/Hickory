@@ -44,23 +44,23 @@ depth board mouseDragHash (e, card, _) =
             _ -> Just (-2)
 
 render :: Resources -> Model ComponentStore GameModel -> IO ()
-render (Resources nillaSh blankTex cardTexHash) model@Model { _game = GameModel { _gameBoard } } = do
+render (Resources nillaSh blankTex cardTexHash) model = do
         {-print $ "Rendering model: " ++ (show model)-}
 
         {-whenMaybe2 nillaSh blankTex $ \sh tid -> do-}
             {-let ds = getModelComponents drawStates model-}
             {-forM_ (stripEnts ds) $ \(DrawState pos) ->-}
-                {-drawSpec pos uiLabel (Square (Size 0.726 1) white tid sh)-}
 
         whenMaybe nillaSh $ \sh -> do
                 let mds = getModelComponents mouseDrags model
                     ds = getModelComponents drawStates model
                     cds = getModelComponents cardComps model
+                    board = getBoard model
                     sorted = map snd . sortBy (comparing fst) . mapMaybe (\x -> 
-                                              case depth _gameBoard mds x of 
-                                                                       Nothing -> Nothing 
-                                                                       Just a -> Just (a, x))
-                                                                       $ zipHashes2 cds ds
+                                              case depth board mds x of 
+                                                                        Nothing -> Nothing 
+                                                                        Just a -> Just (a, x))
+                                                                        $ zipHashes2 cds ds
 
                 mapM_ (drawCard sh cardTexHash) sorted
 

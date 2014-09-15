@@ -7,6 +7,7 @@ import Engine.Component.Model
 import Control.Monad.State.Strict
 import Control.Lens
 import qualified Data.HashMap.Strict as HashMap
+import Utils.HashMap
 
 type ModelState cs gm r = State (Model cs gm) r
 
@@ -56,6 +57,7 @@ stepComponentHash2 first second f = HashMap.fromList $ for (HashMap.toList first
         Nothing -> (e, c1)
         Just c2 -> (e, f c1 c2)
 
+upComps2 :: cs -> CompLens cs c -> CompLens cs d -> (c -> d -> c) -> cs
 upComps2 cs target additional f = over target (\t -> stepComponentHash2 t (view additional cs) f) cs
           
 compForEnt :: Entity -> CompLens cs c -> ModelState cs gm (Maybe c)
@@ -75,4 +77,18 @@ stepComponentHash2Ent first second f = HashMap.fromList $ for (HashMap.toList fi
         Nothing -> (e, c1)
         Just c2 -> (e, f e c1 c2)
 
+upComps2Ent :: cs -> CompLens cs c -> CompLens cs d -> (Entity -> c -> d -> c) -> cs
 upComps2Ent cs target additional f = over target (\t -> stepComponentHash2Ent t (view additional cs) f) cs
+
+zipComps2 :: Model cs gm -> CompLens cs c -> CompLens cs d -> [(Entity, c, d)]
+zipComps2 w l m = zipHashes2 (view l cs) (view m cs)
+    where cs = _components w
+
+zipComps3 :: Model cs gm -> CompLens cs c -> CompLens cs d -> CompLens cs e -> [(Entity, c, d, e)]
+zipComps3 w l m n = zipHashes3 (view l cs) (view m cs) (view n cs)
+    where cs = _components w
+
+zipComps4 :: Model cs gm -> CompLens cs c -> CompLens cs d
+                -> CompLens cs e -> CompLens cs f -> [(Entity, c, d, e, f)]
+zipComps4 w l m n o = zipHashes4 (view l cs) (view m cs) (view n cs) (view o cs)
+    where cs = _components w
