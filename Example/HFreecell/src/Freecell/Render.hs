@@ -12,6 +12,7 @@ import Engine.Component.CompUtils
 import Engine.Component.Component
 import Engine.Component.Model
 import Engine.Component.Entity
+import Engine.Scene.Scene
 import Types.Color
 import Freecell.Component
 import Systems.Textures
@@ -23,6 +24,8 @@ import Utils.HashMap
 import Data.List
 import Data.Ord
 import Data.Maybe
+import Control.Monad
+import Math.Vector
 
 data Resources = Resources {
                vanillaShader :: Maybe Shader,
@@ -30,12 +33,12 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-drawCard ::  Shader -> HashMap.HashMap Card TexID -> (e, Card, DrawState) -> IO ()
-drawCard shader cardTexHash (_, card, (DrawState pos)) = do
+drawCard ::  Shader -> HashMap.HashMap Card TexID -> Label -> (e, Card, DrawState) -> IO ()
+drawCard shader cardTexHash label (_, card, (DrawState pos)) = do
         let tid = HashMap.lookup card cardTexHash
         whenMaybe tid $ \t -> do
             let spec = Square (Size 1 1) white t shader
-            drawSpec pos uiLabel spec
+            drawSpec pos label spec
 
 depth :: Board -> EntHash MouseDrag -> (Entity, Card, DrawState) -> Maybe Int
 depth board mouseDragHash (e, card, _) = 
@@ -43,13 +46,14 @@ depth board mouseDragHash (e, card, _) =
             Nothing -> cardDepth board card
             _ -> Just (-2)
 
-render :: Resources -> Model ComponentStore GameModel -> IO ()
-render (Resources nillaSh blankTex cardTexHash) model = do
-        {-print $ "Rendering model: " ++ (show model)-}
+drawPile shader tex label pos = do
+        drawSpec (v2tov3 pos (-40)) label (Square (Size 1 1) white tex shader)
 
-        {-whenMaybe2 nillaSh blankTex $ \sh tid -> do-}
-            {-let ds = getModelComponents drawStates model-}
-            {-forM_ (stripEnts ds) $ \(DrawState pos) ->-}
+render :: Resources -> RenderInfo -> Model ComponentStore GameModel -> IO ()
+render (Resources nillaSh blankTex cardTexHash) (RenderInfo _ _ label) model = do
+
+        whenMaybe2 nillaSh blankTex $ \sh tid -> do
+            forM_ (drop 8 pilePositions) (drawPile sh tid label)
 
         whenMaybe nillaSh $ \sh -> do
                 let mds = getModelComponents mouseDrags model
@@ -62,7 +66,7 @@ render (Resources nillaSh blankTex cardTexHash) model = do
                                                                         Just a -> Just (a, x))
                                                                         $ zipHashes2 cds ds
 
-                mapM_ (drawCard sh cardTexHash) sorted
+                mapM_ (drawCard sh cardTexHash label) sorted
 
 {-cardNumber (Card rk st) = (suitIndexOffset st) + (rankIndex rk)-}
 

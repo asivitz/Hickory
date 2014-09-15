@@ -16,7 +16,7 @@ step :: RenderInfo -> Input InputEvent -> Double -> Model cs Bool -> (Model cs B
 step _ _ _ m@Model { _game = True } = (m { _game = False }, [NewGame])
 step _ _ _ m = (m, [])
 
-render _ _ = return ()
+render _ _ _ = return ()
 
 makeScene = do
         is <- newIORef (Input [])

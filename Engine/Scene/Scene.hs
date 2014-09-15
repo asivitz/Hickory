@@ -16,10 +16,10 @@ data Scene mdl ie re = Scene {
                        _renderInfo :: RenderInfo,
                        _loadResources :: IO re,
                        _stepModel :: RenderInfo -> Input ie -> Double -> mdl -> (mdl, [ie]),
-                       _render :: re -> mdl -> IO (),
+                       _render :: re -> RenderInfo -> mdl -> IO (),
                        _inputStream :: IORef (Input ie),
                        -- Filled after resources are loaded
-                       _loadedRender :: Maybe (mdl -> IO ())
+                       _loadedRender :: Maybe (RenderInfo -> mdl -> IO ())
                        }
 
 instance Show (Scene mdl c d) where
@@ -88,7 +88,7 @@ stepScene scene@Scene { _loadedRender = Just renderFunc,
         let (model', outEvents) = _stepModel ri input delta _model 
             matrix' = (calcMatrixFromModel ss model')
             scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss label) }
-        renderFunc model'
+        renderFunc ri model'
         return (scene', outEvents)
 stepScene scene _ = print "Couldn't step scene." >> return (scene, [])
 
