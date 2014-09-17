@@ -49,20 +49,20 @@ stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
         model { _game = TransitionStack stk (time + delta) leaving }
 
-resolveMenuItem screenSize fract (rvecF, tmdcF) =
-        let pos = screenPos screenSize (rvecF fract)
-            tmdc = tmdcF fract in
+resolveMenuItem screenSize fract incoming (rvecF, tmdcF) =
+        let pos = screenPos screenSize (rvecF incoming fract)
+            tmdc = tmdcF incoming fract in
                 case tmdc of
                     TextMenuDrawCommand dc -> PositionedTextCommand pos dc
 
-elementToPositionedTextCommands :: Real a => Size Int -> Double -> UIElement a c -> [PositionedTextCommand]
-elementToPositionedTextCommands screenSize fract (UIElement _ menuItems) = map (resolveMenuItem screenSize fract) menuItems
+elementToPositionedTextCommands :: Real a => Size Int -> Bool -> Double -> UIElement a c -> [PositionedTextCommand]
+elementToPositionedTextCommands screenSize incoming fract (UIElement _ menuItems) = map (resolveMenuItem screenSize fract incoming) menuItems
 
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
 render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = transitionStack } = 
         case incomingScreen transitionStack of
             Just (MenuScreen elements duration) -> let fract = min 1 $ (transitionTime transitionStack) / duration
-                                                       commands = concat $ map (elementToPositionedTextCommands ss fract) elements in
+                                                       commands = concat $ map (elementToPositionedTextCommands ss True fract) elements in
                 printCommands pvcShader label printer commands
             Nothing -> return ()
 
@@ -70,8 +70,8 @@ render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = 
 mainMenu :: MenuScreen Scalar InputEvent
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
 mainMenu = MenuScreen [UIElement (Just (Button (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30))) ([], Nothing))) 
-                            [((\fract -> RVec (center 0) (beg 40)), 
-                            (\fract -> TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1}))]]
+                            [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
+                            (\incoming fract -> TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1}))]]
                             0.5
 
 {-
