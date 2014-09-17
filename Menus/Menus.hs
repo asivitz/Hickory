@@ -11,14 +11,14 @@ data Button a c = Button (RelativeRect Scalar a) ([c], Maybe (TransitionAction c
 
 data MenuDrawCommand = TextMenuDrawCommand TextCommand
 
-type MenuItem a = [(RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand)]
+type MenuItem a = (RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand)
 
-data UIElement a c = UIElement (Maybe (Button a c)) (MenuItem a)
+data UIElement a c = UIElement (Maybe (Button a c)) [MenuItem a]
 
 data MenuScreen a c = MenuScreen [UIElement a c] Scalar
 
 makeLabel :: MenuItem a -> UIElement a c
-makeLabel s = UIElement Nothing s
+makeLabel s = UIElement Nothing [s]
 
 --
 

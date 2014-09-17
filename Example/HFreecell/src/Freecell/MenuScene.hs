@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Freecell.MenuScene where
 
 import Engine.Scene.Scene
@@ -45,8 +47,17 @@ stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
         model { _game = TransitionStack stk (time + delta) leaving }
 
+resolveMenuItem screenSize (rposx, rposy, TextMenuDrawCommand dc) = PositionedTextCommand (screenPos screenSize rposx rposy) dc
+
+elementToPositionedTextCommands :: Real a => Size Int -> UIElement a c -> [PositionedTextCommand]
+elementToPositionedTextCommands screenSize (UIElement _ menuItems) = map (resolveMenuItem screenSize) menuItems
+
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
-render re ri model = return ()
+render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = transitionStack } = 
+        case incomingScreen transitionStack of
+            Just (MenuScreen elements _) -> let commands = concat $ map (elementToPositionedTextCommands ss) elements in
+                printCommands pvcShader label printer commands
+            Nothing -> return ()
 
 makeScene = do
         is <- newIORef (Input [])
