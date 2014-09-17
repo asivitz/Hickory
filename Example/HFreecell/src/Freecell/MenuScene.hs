@@ -16,6 +16,8 @@ import Math.Vector
 import Menus.Menus
 import Systems.DrawText
 import Systems.Draw
+import Types.Color
+import Graphics.DrawText
 
 type Screen = MenuScreen Scalar InputEvent
 
@@ -59,12 +61,29 @@ render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = 
                 printCommands pvcShader label printer commands
             Nothing -> return ()
 
+
+mainMenu :: MenuScreen Scalar InputEvent
+{-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
+mainMenu = MenuScreen [UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) ([], Nothing))) 
+                            [((center 0), (end 40), TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1})]]
+                      0.5
+
+{-
+simpleMenuButton :: Int -> String -> ScreenAction Scalar (GameEvent IO) -> [GameEvent IO] -> UIElement Scalar (GameEvent IO)
+simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (events, Just action))) $ 
+    MenuRenderSpec ([], [font], []) $ \(MenuResources _ [pid] _) ->
+        \fraction incoming ->
+            let frac' = constrainInterval fraction idx in
+            [(beg (40 * (realToFrac (1 + idx))), center 0, 
+                TextMenuDrawCommand pid DrawText.textcommand { text = txt, fontSize = 6, color = rgba 1 1 1 frac' })]
+                -}
+
 makeScene = do
         is <- newIORef (Input [])
         let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
             scene = Scene {
                           _name = "Menu",
-                          _model = (newModel cam ComponentStore emptyTransitionStack),
+                          _model = newModel cam ComponentStore (pushScreen mainMenu emptyTransitionStack),
                           _renderInfo = RenderInfo mat44Identity nullSize uiLabel,
                           _loadResources = loadResources "Example/HFreecell/resources",
                           _stepModel = makeStepModel processInput stepModel,

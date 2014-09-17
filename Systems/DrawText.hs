@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawText (Printer(..), loadPrinter, pvcShaderPair, printCommands, PositionedTextCommand(..), textcommand) where
+module Systems.DrawText (Printer(..), textcommand, loadPrinter, pvcShaderPair, printCommands, PositionedTextCommand(..), textcommand) where
 
 import Types.Color
 import Graphics.GLUtils
