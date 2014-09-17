@@ -11,7 +11,7 @@ data Button a c = Button (RelativeRect Scalar a) ([c], Maybe (TransitionAction c
 
 data MenuDrawCommand = TextMenuDrawCommand TextCommand
 
-type MenuItem a = (RelativeVec Scalar a, MenuDrawCommand)
+type MenuItem a = (Double -> RelativeVec Scalar a, Double -> MenuDrawCommand)
 
 data UIElement a c = UIElement (Maybe (Button a c)) [MenuItem a]
 

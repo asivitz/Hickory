@@ -49,10 +49,14 @@ stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
         model { _game = TransitionStack stk (time + delta) leaving }
 
-resolveMenuItem screenSize (rvec, TextMenuDrawCommand dc) = PositionedTextCommand (screenPos screenSize rvec) dc
+resolveMenuItem screenSize fract (rvecF, tmdcF) =
+        let pos = screenPos screenSize (rvecF fract)
+            tmdc = tmdcF fract in
+                case tmdc of
+                    TextMenuDrawCommand dc -> PositionedTextCommand pos dc
 
 elementToPositionedTextCommands :: Real a => Size Int -> Double -> UIElement a c -> [PositionedTextCommand]
-elementToPositionedTextCommands screenSize fract (UIElement _ menuItems) = map (resolveMenuItem screenSize) menuItems
+elementToPositionedTextCommands screenSize fract (UIElement _ menuItems) = map (resolveMenuItem screenSize fract) menuItems
 
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
 render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = transitionStack } = 
@@ -66,8 +70,9 @@ render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = 
 mainMenu :: MenuScreen Scalar InputEvent
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
 mainMenu = MenuScreen [UIElement (Just (Button (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30))) ([], Nothing))) 
-                            [(RVec (center 0) (beg 40), TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1})]]
-                      0.5
+                            [((\fract -> RVec (center 0) (beg 40)), 
+                            (\fract -> TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1}))]]
+                            0.5
 
 {-
 simpleMenuButton :: Int -> String -> ScreenAction Scalar (GameEvent IO) -> [GameEvent IO] -> UIElement Scalar (GameEvent IO)
