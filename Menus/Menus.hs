@@ -7,17 +7,17 @@ import Graphics.DrawText
 import Math.Vector
 import Types.Color
 
-data Button a c = Button (RelativeRect Scalar a) ([c], Maybe (TransitionAction c))
+data Button a c t = Button (RelativeRect Scalar a) ([c], Maybe (TransitionAction t))
 
 data MenuDrawCommand = TextMenuDrawCommand TextCommand
 
 type MenuItem a = (Bool -> Double -> RelativeVec Scalar a, Bool -> Double -> MenuDrawCommand)
 
-data UIElement a c = UIElement (Maybe (Button a c)) [MenuItem a]
+data UIElement a c t = UIElement (Maybe (Button a c t)) [MenuItem a]
 
-data MenuScreen a c = MenuScreen [UIElement a c] Scalar
+data MenuScreen a c = MenuScreen [UIElement a c (MenuScreen a c)] Scalar
 
-makeLabel :: MenuItem a -> UIElement a c
+makeLabel :: MenuItem a -> UIElement a c t
 makeLabel s = UIElement Nothing [s]
 
 --

@@ -55,7 +55,7 @@ resolveMenuItem screenSize fract incoming (rvecF, tmdcF) =
                 case tmdc of
                     TextMenuDrawCommand dc -> PositionedTextCommand pos dc
 
-elementToPositionedTextCommands :: Real a => Size Int -> Bool -> Double -> UIElement a c -> [PositionedTextCommand]
+elementToPositionedTextCommands :: Real a => Size Int -> Bool -> Double -> UIElement a c t -> [PositionedTextCommand]
 elementToPositionedTextCommands screenSize incoming fract (UIElement _ menuItems) = map (resolveMenuItem screenSize fract incoming) menuItems
 
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
@@ -66,13 +66,28 @@ render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = 
                 printCommands pvcShader label printer commands
             Nothing -> return ()
 
+makeButton rRect events action items =
+        UIElement (Just (Button rRect (events, action))) items
 
 mainMenu :: MenuScreen Scalar InputEvent
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
-mainMenu = MenuScreen [UIElement (Just (Button (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30))) ([], Nothing))) 
-                            [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
-                            (\incoming fract -> TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1}))]]
-                            0.5
+mainMenu = MenuScreen [makeButton (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30)))
+                                  []
+                                  (Just $ pushScreen subMenu)
+                                  [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
+                                  (\incoming fract -> TextMenuDrawCommand textcommand { text = "Main Menu", fontSize = 6, color = rgba 1 1 1 1}))]
+                                  ]
+                                  0.5
+
+subMenu :: MenuScreen Scalar InputEvent
+{-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
+subMenu = MenuScreen [makeButton (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30)))
+                                  []
+                                  (Just popScreen)
+                                  [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
+                                  (\incoming fract -> TextMenuDrawCommand textcommand { text = "Back", fontSize = 6, color = rgba 1 1 1 1}))]
+                                  ]
+                                  0.5
 
 {-
 simpleMenuButton :: Int -> String -> ScreenAction Scalar (GameEvent IO) -> [GameEvent IO] -> UIElement Scalar (GameEvent IO)
