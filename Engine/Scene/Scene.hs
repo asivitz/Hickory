@@ -26,7 +26,7 @@ instance Show (Scene mdl c d) where
         show Scene { _name } = "Scene: " ++ _name
 
 class SceneModel mdl where
-        calcCameraMatrix :: Float -> mdl -> Mat44
+        calcCameraMatrix :: Size Int -> mdl -> Mat44
 
 -- A SceneOperator provides an interface to a Scene, such that the
 -- operations are connected by an IORef. The SceneOperator provides no
@@ -51,7 +51,7 @@ makeSceneOperator scene = do
                               <- readIORef ref
                     res <- _loadResources
                     writeIORef ref scn { _loadedRender = Just (_render res),
-                                       _renderInfo = RenderInfo (calcMatrixFromModel scrSize _model) scrSize label }),
+                                       _renderInfo = RenderInfo (calcCameraMatrix scrSize _model) scrSize label }),
             _step = (\delta -> do
                     scn <- readIORef ref
                     (scn', evs) <- stepScene scn delta
@@ -86,12 +86,8 @@ stepScene scene@Scene { _loadedRender = Just renderFunc,
                       delta = do
         input <- grabSceneInput scene
         let (model', outEvents) = _stepModel ri input delta _model 
-            matrix' = (calcMatrixFromModel ss model')
+            matrix' = (calcCameraMatrix ss model')
             scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss label) }
         renderFunc ri model'
         return (scene', outEvents)
 stepScene scene _ = print "Couldn't step scene." >> return (scene, [])
-
-calcMatrixFromModel :: SceneModel mdl => Size Int -> mdl -> Mat44
-calcMatrixFromModel scrSize model = let ar = aspectRatio scrSize in
-    calcCameraMatrix ar model

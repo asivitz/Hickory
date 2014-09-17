@@ -64,4 +64,4 @@ center :: Fractional b => a -> RelativePos b a
 center a = RPos 0.5 a
 
 screenPos :: (Real a, Real b) => Size a -> RelativePos Scalar b -> RelativePos Scalar b -> V3
-screenPos (Size w h) yl xl = v3 (transform xl w) (transform yl h) 0
+screenPos (Size w h) xl yl = v3 (transform xl w) (transform yl h) 0

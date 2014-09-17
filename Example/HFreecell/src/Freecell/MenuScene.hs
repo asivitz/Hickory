@@ -65,7 +65,7 @@ render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = 
 mainMenu :: MenuScreen Scalar InputEvent
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
 mainMenu = MenuScreen [UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) ([], Nothing))) 
-                            [((center 0), (end 40), TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1})]]
+                            [((center 0), (beg 40), TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1})]]
                       0.5
 
 {-
@@ -80,7 +80,7 @@ simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 
 
 makeScene = do
         is <- newIORef (Input [])
-        let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
+        let cam = \(Size w h) -> Camera (Ortho (realToFrac w) (-20) 1) (Route pZero Nothing)
             scene = Scene {
                           _name = "Menu",
                           _model = newModel cam ComponentStore (pushScreen mainMenu emptyTransitionStack),
