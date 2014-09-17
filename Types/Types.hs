@@ -5,7 +5,8 @@ module Types.Types
    nullSize,
    aspectRatio,
    screenPos,
-   RelativePos(..),
+   RelativeScalar(..),
+   RelativeVec(..),
    beg, end, center,
    fracSize,
    viewportFromSize,
@@ -41,27 +42,29 @@ fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
 data Rect = Rect V2 (Size Scalar) deriving (Show)
 
-data RelativeRect a b = RRect (RelativePos a b, RelativePos a b) (RelativePos a b, RelativePos a b)
+data RelativeRect a b = RRect (RelativeVec a b) (RelativeVec a b)
+
+data RelativeVec a b = RVec (RelativeScalar a b) (RelativeScalar a b)
 
 transformRect :: (Real b, Real a) => RelativeRect Scalar b -> Size a -> Rect
-transformRect (RRect (rx, ry) (rw, rh)) (Size w h) =
+transformRect (RRect (RVec rx ry) (RVec rw rh)) (Size w h) =
         Rect (v2 (transform rx w) (transform ry h)) (Size (transform rw w) (transform rh h))
 
 posInRect :: V2 -> Rect -> Bool
 posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
         ((abs (ox - px)) < (w/2)) && ((abs (oy - py)) < (h/2))
 
-data RelativePos fract offset = RPos fract offset
+data RelativeScalar fract offset = RScal fract offset
 
-transform :: (Fractional a, Real b, Real c) => RelativePos a b -> c -> a
-transform (RPos fract offset) val = fract * (realToFrac val) + (realToFrac offset)
+transform :: (Fractional a, Real b, Real c) => RelativeScalar a b -> c -> a
+transform (RScal fract offset) val = fract * (realToFrac val) + (realToFrac offset)
 
-beg :: Num b => a -> RelativePos b a
-beg a = RPos 0 a
-end :: (Num b, Num a) => a -> RelativePos b a
-end a = RPos 1 (negate a)
-center :: Fractional b => a -> RelativePos b a
-center a = RPos 0.5 a
+beg :: Num b => a -> RelativeScalar b a
+beg a = RScal 0 a
+end :: (Num b, Num a) => a -> RelativeScalar b a
+end a = RScal 1 (negate a)
+center :: Fractional b => a -> RelativeScalar b a
+center a = RScal 0.5 a
 
-screenPos :: (Real a, Real b) => Size a -> RelativePos Scalar b -> RelativePos Scalar b -> V3
-screenPos (Size w h) xl yl = v3 (transform xl w) (transform yl h) 0
+screenPos :: (Real a, Real b) => Size a -> RelativeVec Scalar b -> V3
+screenPos (Size w h) (RVec xl yl) = v3 (transform xl w) (transform yl h) 0

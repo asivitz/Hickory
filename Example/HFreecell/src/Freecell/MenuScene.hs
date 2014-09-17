@@ -49,23 +49,24 @@ stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
         model { _game = TransitionStack stk (time + delta) leaving }
 
-resolveMenuItem screenSize (rposx, rposy, TextMenuDrawCommand dc) = PositionedTextCommand (screenPos screenSize rposx rposy) dc
+resolveMenuItem screenSize (rvec, TextMenuDrawCommand dc) = PositionedTextCommand (screenPos screenSize rvec) dc
 
-elementToPositionedTextCommands :: Real a => Size Int -> UIElement a c -> [PositionedTextCommand]
-elementToPositionedTextCommands screenSize (UIElement _ menuItems) = map (resolveMenuItem screenSize) menuItems
+elementToPositionedTextCommands :: Real a => Size Int -> Double -> UIElement a c -> [PositionedTextCommand]
+elementToPositionedTextCommands screenSize fract (UIElement _ menuItems) = map (resolveMenuItem screenSize) menuItems
 
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
 render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = transitionStack } = 
         case incomingScreen transitionStack of
-            Just (MenuScreen elements _) -> let commands = concat $ map (elementToPositionedTextCommands ss) elements in
+            Just (MenuScreen elements duration) -> let fract = min 1 $ (transitionTime transitionStack) / duration
+                                                       commands = concat $ map (elementToPositionedTextCommands ss fract) elements in
                 printCommands pvcShader label printer commands
             Nothing -> return ()
 
 
 mainMenu :: MenuScreen Scalar InputEvent
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
-mainMenu = MenuScreen [UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) ([], Nothing))) 
-                            [((center 0), (beg 40), TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1})]]
+mainMenu = MenuScreen [UIElement (Just (Button (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30))) ([], Nothing))) 
+                            [(RVec (center 0) (beg 40), TextMenuDrawCommand textcommand { text = "Hello world!", fontSize = 6, color = rgba 1 1 1 1})]]
                       0.5
 
 {-

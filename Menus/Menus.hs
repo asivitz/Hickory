@@ -11,7 +11,7 @@ data Button a c = Button (RelativeRect Scalar a) ([c], Maybe (TransitionAction c
 
 data MenuDrawCommand = TextMenuDrawCommand TextCommand
 
-type MenuItem a = (RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand)
+type MenuItem a = (RelativeVec Scalar a, MenuDrawCommand)
 
 data UIElement a c = UIElement (Maybe (Button a c)) [MenuItem a]
 
@@ -23,6 +23,9 @@ makeLabel s = UIElement Nothing [s]
 --
 
 data TransitionStack t = TransitionStack ![t] !Double !(Maybe t)
+
+transitionTime :: TransitionStack t -> Double
+transitionTime (TransitionStack _ time _) = time
 
 emptyTransitionStack = TransitionStack [] 0 Nothing
 
