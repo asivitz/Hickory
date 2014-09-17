@@ -7,30 +7,39 @@ import Graphics.DrawText
 import Math.Vector
 import Types.Color
 
-data Button a c = Button (RelativeRect Scalar a) ([c], Maybe (ScreenAction a c))
+data Button a c = Button (RelativeRect Scalar a) ([c], Maybe (TransitionAction c))
 
-data MenuDrawCommand a = SquareMenuDrawCommand (RelativePos Float a, RelativePos Float a) Color (Maybe TexID) Shader
-                     | TextMenuDrawCommand PrinterID TextCommand
+data MenuDrawCommand = TextMenuDrawCommand TextCommand
 
-data MenuResources = MenuResources [TexID] [PrinterID] [Shader]
+type MenuItem a = [(RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand)]
 
-type MenuResourceNames = ([String], [String], [(String, String)])
-
-type UIRender a = [(RelativePos Scalar a, RelativePos Scalar a, MenuDrawCommand a)]
-
-data MenuRenderSpec a = MenuRenderSpec MenuResourceNames (MenuResources -> Double -> Bool -> UIRender a)
-
-data UIElement a c = UIElement (Maybe (Button a c)) (MenuRenderSpec a)
-
-data ResolvedUIElement a c = ResolvedUIElement (Maybe (Button a c)) (Double -> Bool -> UIRender a)
+data UIElement a c = UIElement (Maybe (Button a c)) (MenuItem a)
 
 data MenuScreen a c = MenuScreen [UIElement a c] Scalar
 
-data ResolvedMenuScreen a c = ResolvedMenuScreen [ResolvedUIElement a c] Scalar
-
-data ScreenAction a c = PushScreen (MenuScreen a c)
-                  | RefreshScreen
-                  | PopScreen
-
-makeLabel :: MenuRenderSpec a -> UIElement a c
+makeLabel :: MenuItem a -> UIElement a c
 makeLabel s = UIElement Nothing s
+
+--
+
+data TransitionStack t = TransitionStack ![t] !Double !(Maybe t)
+
+emptyTransitionStack = TransitionStack [] 0 Nothing
+
+type TransitionAction t = TransitionStack t -> TransitionStack t
+
+pushScreen screen (TransitionStack stk time leaving) = (TransitionStack (screen:stk) 0 Nothing)
+
+popScreen ts@(TransitionStack stk time leaving) =
+        case stk of
+            (x:xs) -> (TransitionStack xs 0 (Just x))
+            _ -> error "Can't pop empty menu stack."
+
+incomingScreen :: TransitionStack t -> Maybe t
+incomingScreen (TransitionStack [] _ _) = Nothing
+incomingScreen (TransitionStack (x:_) _ _) = Just x
+
+leavingScreen :: TransitionStack t -> Maybe t
+leavingScreen (TransitionStack _ _ (Just x)) = Just x
+leavingScreen (TransitionStack (x:y:_) _ Nothing) = Just y
+leavingScreen (TransitionStack _ _ _) = Nothing

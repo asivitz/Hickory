@@ -51,7 +51,7 @@ posInRect :: V2 -> Rect -> Bool
 posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
         ((abs (ox - px)) < (w/2)) && ((abs (oy - py)) < (h/2))
 
-data RelativePos a b = RPos a b
+data RelativePos fract offset = RPos fract offset
 
 transform :: (Fractional a, Real b, Real c) => RelativePos a b -> c -> a
 transform (RPos fract offset) val = fract * (realToFrac val) + (realToFrac offset)

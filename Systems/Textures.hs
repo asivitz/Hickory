@@ -36,6 +36,7 @@ loadTextureFromPath path = do
                     glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER glLinear
                     return $ Just $ TexID (fromIntegral tex)
 
+loadTexture :: String -> String -> IO (Maybe TexID)
 loadTexture resPath image = do
         let prefix = resPath ++ "/images/"
             ipath = prefix ++ image
