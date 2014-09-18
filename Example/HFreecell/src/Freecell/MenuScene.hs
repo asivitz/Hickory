@@ -18,6 +18,9 @@ import Systems.DrawText
 import Systems.Draw
 import Types.Color
 import Graphics.DrawText
+import Math.VectorMatrix
+import Data.Maybe
+import Debug.Trace
 
 type Screen = MenuScreen Scalar InputEvent
 
@@ -43,7 +46,23 @@ loadResources resPath = do
                     Just p -> return $ Resources { printer = p, pvcShader = sh }
 
 processInput :: RenderInfo -> InputEvent -> MenuModel -> (MenuModel, [InputEvent])
-processInput ri ie model = (model, [])
+
+processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp pos pid)) model@Model { _game = transitionStk } =
+        let unproj = lerpUnproject pos (-5) mat (viewportFromSize ss) in
+            case incomingScreen transitionStk of
+                Just (MenuScreen elements _) -> 
+                    let acts = listToMaybe $ mapMaybe (\(UIElement mbutton _) -> 
+                            case mbutton of
+                                Just (Button rrect actions) -> if (posInRect (v3tov2 unproj) (transformRect rrect ss)) 
+                                                                then Just actions
+                                                                else Nothing
+                                Nothing -> Nothing) elements
+                        in case acts of
+                               Just (ies, action) -> (maybe model (\a -> model { _game = a transitionStk }) action, ies)
+                               Nothing -> (model, [])
+                Nothing -> (model, [])
+
+processInput ri _ model = trace "hi!" $ (model, [])
 
 stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
@@ -72,7 +91,7 @@ makeButton rRect events action items =
 mainMenu :: MenuScreen Scalar InputEvent
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
 mainMenu = MenuScreen [makeButton (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30)))
-                                  []
+                                  [NewGame]
                                   (Just $ pushScreen subMenu)
                                   [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
                                   (\incoming fract -> TextMenuDrawCommand textcommand { text = "Main Menu", fontSize = 6, color = rgba 1 1 1 1}))]
