@@ -89,8 +89,7 @@ glfwMain operators pkgRawInput = do
 
               sequence_ $ mapAll (map _initRenderer operators) scrSize
 
-              whenMaybe (listToMaybe operators) $ \firstOp -> do
-                  stepInp <- GLFWPlatform.setupInput win (\raw -> (_addEvent firstOp) (pkgRawInput raw))
-                  run stepInp
-                      operators
-                      (glfwRender win)
+              stepInp <- GLFWPlatform.setupInput win (\raw -> (_addEvent (operators !! 1) (pkgRawInput raw)))
+              run stepInp
+                  operators
+                  (glfwRender win)

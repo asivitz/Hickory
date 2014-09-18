@@ -20,7 +20,6 @@ import Types.Color
 import Graphics.DrawText
 import Math.VectorMatrix
 import Data.Maybe
-import Debug.Trace
 
 type Screen = MenuScreen Scalar InputEvent
 
@@ -47,7 +46,7 @@ loadResources resPath = do
 
 processInput :: RenderInfo -> InputEvent -> MenuModel -> (MenuModel, [InputEvent])
 
-processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp pos pid)) model@Model { _game = transitionStk } =
+processInput (RenderInfo mat ss _) ev@(RawEvent (InputTouchUp pos pid)) model@Model { _game = transitionStk } =
         let unproj = lerpUnproject pos (-5) mat (viewportFromSize ss) in
             case incomingScreen transitionStk of
                 Just (MenuScreen elements _) -> 
@@ -59,10 +58,10 @@ processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp pos pid)) model@Model
                                 Nothing -> Nothing) elements
                         in case acts of
                                Just (ies, action) -> (maybe model (\a -> model { _game = a transitionStk }) action, ies)
-                               Nothing -> (model, [])
-                Nothing -> (model, [])
+                               Nothing -> (model, [ev])
+                Nothing -> (model, [ev])
 
-processInput ri _ model = trace "hi!" $ (model, [])
+processInput ri e model = (model, [e])
 
 stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
@@ -92,9 +91,9 @@ mainMenu :: MenuScreen Scalar InputEvent
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
 mainMenu = MenuScreen [makeButton (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30)))
                                   [NewGame]
-                                  (Just $ pushScreen subMenu)
+                                  (Just popScreen) -- (Just $ pushScreen subMenu)
                                   [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
-                                  (\incoming fract -> TextMenuDrawCommand textcommand { text = "Main Menu", fontSize = 6, color = rgba 1 1 1 1}))]
+                                  (\incoming fract -> TextMenuDrawCommand textcommand { text = "New Game", fontSize = 6, color = rgba 1 1 1 1}))]
                                   ]
                                   0.5
 
