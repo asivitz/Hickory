@@ -73,11 +73,11 @@ glfwRender win operators = do
 mapAll :: [a -> b] -> a -> [b]
 mapAll fs a = map (\f -> f a) fs
 
-glfwMain :: Show ie => [SceneOperator ie] -> (RawInput -> ie) -> IO ()
-glfwMain operators pkgRawInput = do 
+glfwMain :: Show ie => [SceneOperator ie] -> SceneOperator ie -> (RawInput -> ie) -> IO ()
+glfwMain operators keyOperator pkgRawInput = do 
           withWindow 640 480 "MVC!" $ \win -> do
               initRenderer
-              glClearColor 0.3 0.5 0 1
+              glClearColor 0.125 0.125 0.125 1
               glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
               glActiveTexture gl_TEXTURE0
                 
@@ -89,7 +89,7 @@ glfwMain operators pkgRawInput = do
 
               sequence_ $ mapAll (map _initRenderer operators) scrSize
 
-              stepInp <- GLFWPlatform.setupInput win (\raw -> (_addEvent (operators !! 1) (pkgRawInput raw)))
+              stepInp <- GLFWPlatform.setupInput win (\raw -> (_addEvent keyOperator (pkgRawInput raw)))
               run stepInp
                   operators
                   (glfwRender win)

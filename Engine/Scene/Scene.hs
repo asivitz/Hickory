@@ -91,3 +91,12 @@ stepScene scene@Scene { _loadedRender = Just renderFunc,
         renderFunc ri model'
         return (scene', outEvents)
 stepScene scene _ = print "Couldn't step scene." >> return (scene, [])
+
+makeStepModel :: (RenderInfo -> ie -> model -> (model, [ie])) ->
+    (Double -> model -> model) -> 
+    RenderInfo -> Input ie -> Double -> model -> (model, [ie])
+makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
+        let accum (m, oes) ie = let (m', oes') = procInputF ri ie m in (m', oes' ++ oes)
+            (model', outputEvents) = foldl accum (model,[]) inputEvents 
+            model'' = stepCompF delta model'
+            in (model'', outputEvents)

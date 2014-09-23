@@ -38,12 +38,3 @@ instance SceneModel (Model cs gm) where
         calcCameraMatrix size model = cameraMatrix ((_camera model) size) (aspectRatio size)
 
 makeLenses ''Model
-
-makeStepModel :: (RenderInfo -> ie -> Model cs gm -> (Model cs gm, [ie])) ->
-    (Double -> Model cs gm -> Model cs gm) -> 
-    RenderInfo -> Input ie -> Double -> Model cs gm -> (Model cs gm, [ie])
-makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
-        let accum (m, oes) ie = let (m', oes') = procInputF ri ie m in (m', oes' ++ oes)
-            (model', outputEvents) = foldl accum (model,[]) inputEvents 
-            model'' = stepCompF delta model'
-            in (model'', outputEvents)

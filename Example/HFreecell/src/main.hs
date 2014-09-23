@@ -18,4 +18,5 @@ main = do
                               MenuScene.makeScene >>= makeSceneOperator]
          
         glfwMain operators
+                 (operators !! 1)
                  RawEvent
