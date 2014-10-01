@@ -9,13 +9,11 @@ import Types.Color
 
 data Button c t = Button (RelativeRect Scalar Scalar) ([c], Maybe (TransitionAction t))
 
-type MenuItem dc = (Bool -> Double -> dc)
+data UIElement c t mi = UIElement (Maybe (Button c t)) [mi]
 
-data UIElement c t dc = UIElement (Maybe (Button c t)) [MenuItem dc]
+data MenuScreen c mi = MenuScreen [UIElement c (MenuScreen c mi) mi] Scalar
 
-data MenuScreen c dc = MenuScreen [UIElement c (MenuScreen c dc) dc] Scalar
-
-makeLabel :: MenuItem dc -> UIElement c t dc
+makeLabel :: mi -> UIElement c t mi
 makeLabel s = UIElement Nothing [s]
 
 --

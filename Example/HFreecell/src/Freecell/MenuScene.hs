@@ -23,7 +23,7 @@ import Data.Maybe
 
 type Screen = MenuScreen InputEvent MenuDrawCommand
 
-type MenuDrawCommand = (RelativeVec Scalar Scalar, TextCommand)
+type MenuDrawCommand = Bool -> Double -> (RelativeVec Scalar Scalar, TextCommand)
 
 data ComponentStore = ComponentStore
 
@@ -69,7 +69,7 @@ stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
         model { _game = TransitionStack stk (time + delta) leaving }
 
-resolveElementDrawCommands :: Size Int -> Bool -> Double -> UIElement c t dc -> [dc]
+resolveElementDrawCommands :: Size Int -> Bool -> Double -> UIElement c t (Bool -> Double -> dc) -> [dc]
 resolveElementDrawCommands screenSize incoming fract (UIElement _ menuItems) = map (\x -> x incoming fract) menuItems
 
 positionTextCommand ss (rvec, tc) = PositionedTextCommand (screenPos ss rvec) tc
