@@ -21,7 +21,9 @@ import Graphics.DrawText
 import Math.VectorMatrix
 import Data.Maybe
 
-type Screen = MenuScreen InputEvent TextCommand
+type Screen = MenuScreen InputEvent MenuDrawCommand
+
+type MenuDrawCommand = (RelativeVec Scalar Scalar, TextCommand)
 
 data ComponentStore = ComponentStore
 
@@ -67,42 +69,39 @@ stepModel :: Double -> MenuModel -> MenuModel
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
         model { _game = TransitionStack stk (time + delta) leaving }
 
-resolveMenuItem screenSize fract incoming (rvecF, tmdcF) =
-        let pos = screenPos screenSize (rvecF incoming fract)
-            dc = tmdcF incoming fract in
-                PositionedTextCommand pos dc
+resolveElementDrawCommands :: Size Int -> Bool -> Double -> UIElement c t dc -> [dc]
+resolveElementDrawCommands screenSize incoming fract (UIElement _ menuItems) = map (\x -> x incoming fract) menuItems
 
-elementToPositionedTextCommands :: Real a => Size Int -> Bool -> Double -> UIElement c t TextCommand -> [PositionedTextCommand]
-elementToPositionedTextCommands screenSize incoming fract (UIElement _ menuItems) = map (resolveMenuItem screenSize fract incoming) menuItems
+positionTextCommand ss (rvec, tc) = PositionedTextCommand (screenPos ss rvec) tc
 
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
 render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = transitionStack } = 
         case incomingScreen transitionStack of
             Just (MenuScreen elements duration) -> let fract = min 1 $ (transitionTime transitionStack) / duration
-                                                       commands = concat $ map (elementToPositionedTextCommands ss True fract) elements in
-                printCommands pvcShader label printer commands
+                                                       commands = concatMap (resolveElementDrawCommands ss True fract) elements 
+                                                       ptcs = map (positionTextCommand ss) commands
+                                                       in
+                printCommands pvcShader label printer ptcs
             Nothing -> return ()
 
 makeButton rRect events action items =
         UIElement (Just (Button rRect (events, action))) items
 
-mainMenu :: MenuScreen InputEvent TextCommand
+mainMenu :: Screen
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
 mainMenu = MenuScreen [makeButton (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30)))
                                   [NewGame]
                                   (Just popScreen) -- (Just $ pushScreen subMenu)
-                                  [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
-                                  (\incoming fract -> textcommand { text = "New Game", fontSize = 6, color = rgba 1 1 1 1}))]
+                                  [(\incoming fract -> (RVec (RScal (fract * 0.5) 0) (beg 40), textcommand { text = "New Game", fontSize = 6, color = rgba 1 1 1 1}))]
                                   ]
                                   0.5
 
-subMenu :: MenuScreen InputEvent TextCommand
+subMenu :: Screen
 {-mainMenu = MenuScreen [simpleMenuButton 0 "New Game" PopScreen _newGame] 0.5-}
 subMenu = MenuScreen [makeButton (RRect (RVec (center 0) (beg 40)) (RVec (end 40) (beg 30)))
                                   []
                                   (Just popScreen)
-                                  [((\incoming fract -> RVec (RScal (fract * 0.5) 0) (beg 40)), 
-                                  (\incoming fract -> textcommand { text = "Back", fontSize = 6, color = rgba 1 1 1 1}))]
+                                  [(\incoming fract -> (RVec (RScal (fract * 0.5) 0) (beg 40), textcommand { text = "Back", fontSize = 6, color = rgba 1 1 1 1}))]
                                   ]
                                   0.5
 

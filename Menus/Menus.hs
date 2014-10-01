@@ -9,7 +9,7 @@ import Types.Color
 
 data Button c t = Button (RelativeRect Scalar Scalar) ([c], Maybe (TransitionAction t))
 
-type MenuItem dc = (Bool -> Double -> RelativeVec Scalar Scalar, Bool -> Double -> dc)
+type MenuItem dc = (Bool -> Double -> dc)
 
 data UIElement c t dc = UIElement (Maybe (Button c t)) [MenuItem dc]
 
