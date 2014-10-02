@@ -15,7 +15,8 @@ module Math.Vector
     v3tov4,
     v4tov3,
     v3tov2,
-    movePos
+    movePos,
+    moveVal
     )
     where
 
@@ -57,3 +58,11 @@ movePos p1 p2 speed time =
                     then p1 + diff |* (amt / mag)
                     else p2
 
+moveVal :: (Real a, Fractional a) => a -> a -> a -> a -> a
+moveVal p1 p2 speed time = 
+        let diff = p2 - p1 
+            amt = speed * time 
+            mag = abs diff in
+                if mag > amt
+                    then p1 + diff * (amt / mag)
+                    else p2

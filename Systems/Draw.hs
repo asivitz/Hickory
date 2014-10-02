@@ -23,6 +23,10 @@ drawSpec pos label (SolidSquare (Size w h) color shader) =
       addDrawCommand model color color nullTex shader label (realToFrac . v3z $ pos) True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 
+drawSpecRot pos rot label (Square (Size w h) color tex shader) = 
+      addDrawCommand model color color tex shader label (realToFrac . v3z $ pos) True >> return ()
+         where model = mat44Scale w h 1 $ mat44Rotate 0 0 1 (realToFrac rot) $ mat44TranslateV pos mat44Identity
+
 renderCommandsWithCamera :: Camera -> Label -> Float -> IO ()
 renderCommandsWithCamera cam label aspect = renderCommands matrix label
     where matrix = cameraMatrix cam aspect

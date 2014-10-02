@@ -59,6 +59,11 @@ mat44Scale x y z a = unsafePerformIO $ buildMat44 $ \m ->
    withMat44 a $ \ap -> 
       c'mat44Scale m ap (realToFrac x) (realToFrac y) (realToFrac z)
 
+mat44Rotate :: Float -> Float -> Float -> Float -> Mat44 -> Mat44
+mat44Rotate x y z ang a = unsafePerformIO $ buildMat44 $ \m ->
+   withMat44 a $ \ap -> 
+      c'mat44Rotate m ap (realToFrac x) (realToFrac y) (realToFrac z) (realToFrac ang)
+
 mat44Translate :: Float -> Float -> Float -> Mat44 -> Mat44
 mat44Translate x y z a = mat44Mul a $ 
    unsafePerformIO $ buildMat44 $ \m ->
@@ -83,6 +88,9 @@ foreign import ccall "mat4x4_ortho" c'mat44Ortho
 
 foreign import ccall "mat4x4_scale_aniso" c'mat44Scale
    :: Mat44Raw -> Mat44Raw -> CFloat -> CFloat -> CFloat -> IO ()
+
+foreign import ccall "mat4x4_rotate" c'mat44Rotate
+   :: Mat44Raw -> Mat44Raw -> CFloat -> CFloat -> CFloat -> CFloat -> IO ()
 
 foreign import ccall "mat4x4_translate" c'mat44Translate
    :: Mat44Raw -> CFloat -> CFloat -> CFloat -> IO ()
