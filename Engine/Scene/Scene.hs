@@ -68,7 +68,7 @@ makeSceneOperator scene = do
 
 addSceneInput :: Scene mdl ie re -> ie -> IO ()
 addSceneInput Scene { _inputStream } ev = 
-        atomicModifyIORef _inputStream (\(Input evs) -> (Input (ev:evs), ()))
+        atomicModifyIORef _inputStream (\(Input evs) -> (Input (evs ++ [ev]), ()))
 
 renderCommandsForScene Scene { _renderInfo = (RenderInfo mat _ label) } = renderCommands mat label
 
@@ -96,7 +96,8 @@ makeStepModel :: (RenderInfo -> ie -> model -> (model, [ie])) ->
     (Double -> model -> model) -> 
     RenderInfo -> Input ie -> Double -> model -> (model, [ie])
 makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
-        let accum (m, oes) ie = let (m', oes') = procInputF ri ie m in (m', oes' ++ oes)
-            (model', outputEvents) = foldl accum (model,[]) (reverse inputEvents)
+        let accum (m, oes) ie = let (m', oes') = procInputF ri ie m 
+                in (m', oes ++ oes')
+            (model', outputEvents) = foldl accum (model,[]) inputEvents 
             model'' = stepCompF delta model'
             in (model'', outputEvents)
