@@ -2,6 +2,7 @@
  
 import Engine.Scene.Run
 import Engine.Scene.Scene
+import Types.Types
 import Freecell.Events
 import qualified Freecell.GameScene as GameScene
 import qualified Freecell.MenuScene as MenuScene
@@ -17,6 +18,7 @@ main = do
         operators <- sequence [GameScene.makeScene >>= makeSceneOperator, 
                               MenuScene.makeScene >>= makeSceneOperator]
          
-        glfwMain operators
-                 (operators !! 1)
-                 RawEvent
+        glfwMain (Size 640 480)
+            operators
+            (operators !! 1)
+            RawEvent

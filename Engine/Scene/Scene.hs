@@ -97,6 +97,6 @@ makeStepModel :: (RenderInfo -> ie -> model -> (model, [ie])) ->
     RenderInfo -> Input ie -> Double -> model -> (model, [ie])
 makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
         let accum (m, oes) ie = let (m', oes') = procInputF ri ie m in (m', oes' ++ oes)
-            (model', outputEvents) = foldl accum (model,[]) inputEvents 
+            (model', outputEvents) = foldl accum (model,[]) (reverse inputEvents)
             model'' = stepCompF delta model'
             in (model'', outputEvents)

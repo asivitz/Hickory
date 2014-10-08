@@ -73,9 +73,9 @@ glfwRender win operators = do
 mapAll :: [a -> b] -> a -> [b]
 mapAll fs a = map (\f -> f a) fs
 
-glfwMain :: Show ie => [SceneOperator ie] -> SceneOperator ie -> (RawInput -> ie) -> IO ()
-glfwMain operators keyOperator pkgRawInput = do 
-          withWindow 640 480 "MVC!" $ \win -> do
+glfwMain :: Show ie => Size Int -> [SceneOperator ie] -> SceneOperator ie -> (RawInput -> ie) -> IO ()
+glfwMain (Size w h) operators keyOperator pkgRawInput = do 
+          withWindow w h "MVC!" $ \win -> do
               initRenderer
               glClearColor 0.125 0.125 0.125 1
               glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
