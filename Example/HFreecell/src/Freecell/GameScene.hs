@@ -53,7 +53,7 @@ processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = f
         return []
     where unproj = lerpUnproject pos (-5) mat (viewportFromSize ss)
 
-processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp pos pid)) model = forModel model $ do
+processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp time pos pid)) model = forModel model $ do
     let board = getBoard model
         unproj = lerpUnproject pos (-5) mat (viewportFromSize ss)
         comps = zipComps2 model mouseDrags cardComps

@@ -48,7 +48,7 @@ loadResources resPath = do
 
 processInput :: RenderInfo -> InputEvent -> MenuModel -> (MenuModel, [InputEvent])
 
-processInput (RenderInfo mat ss _) ev@(RawEvent (InputTouchUp pos pid)) model@Model { _game = transitionStk } =
+processInput (RenderInfo mat ss _) ev@(RawEvent (InputTouchUp time pos pid)) model@Model { _game = transitionStk } =
         let unproj = lerpUnproject pos (-5) mat (viewportFromSize ss) in
             case incomingScreen transitionStk of
                 Just (MenuScreen elements _) -> 

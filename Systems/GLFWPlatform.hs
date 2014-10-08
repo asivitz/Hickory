@@ -3,27 +3,28 @@
 module Systems.GLFWPlatform where
 
 import Data.IORef
-import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Strict as HashMap
 import qualified Graphics.UI.GLFW as GLFW
 import Types.Types
 import Math.Vector
 import Engine.Scene.Input
+import Data.Time
 
 data SysData = SysData { 
              evlist :: [RawInput],
-             touches :: HashSet.HashSet Int,
+             touches :: HashMap.HashMap Int UTCTime,
              fbSize :: Size Int
             }
 
 empty = SysData { evlist = [],
-                touches = HashSet.empty,
+                touches = HashMap.empty,
                 fbSize = nullSize
                 }
 
 
 setupInput win addInput = do
         (width, height) <- GLFW.getFramebufferSize win
-        sd <- newIORef (SysData [] HashSet.empty (Size width height))
+        sd <- newIORef (SysData [] HashMap.empty (Size width height))
         GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd addInput)
         GLFW.setKeyCallback win $ Just (keyCallback sd addInput)
         return $ stepInput sd win addInput
@@ -43,16 +44,20 @@ mouseButtonCallback platform addInput win button buttonState modkeys =
             curPos <- GLFW.getCursorPos win
 
             let pos = touchPosToScreenPos fbSize curPos
-                ev = case buttonState of
-                        GLFW.MouseButtonState'Pressed -> InputTouchDown
-                        GLFW.MouseButtonState'Released -> InputTouchUp
                 touchid = touchIdent button
-                touches' =
+            (ev, touches') <-
                     case buttonState of
-                    GLFW.MouseButtonState'Pressed -> do
-                        HashSet.insert touchid touches
-                    GLFW.MouseButtonState'Released -> do
-                        HashSet.delete touchid touches
+                        GLFW.MouseButtonState'Pressed -> do
+                            time <- getCurrentTime
+                            return (InputTouchDown, HashMap.insert touchid time touches)
+                        GLFW.MouseButtonState'Released ->
+                            case HashMap.lookup touchid touches of
+                                Nothing -> return (InputTouchUp 0, touches)
+                                Just prev -> do
+                                    time <- getCurrentTime
+                                    let delta = realToFrac (diffUTCTime time prev)
+                                    return (InputTouchUp delta, HashMap.delete touchid touches)
+
 
             writeIORef platform sd { touches = touches' }
             addInput (ev pos touchid)
