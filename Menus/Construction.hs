@@ -1,9 +1,15 @@
 module Menus.Construction where
 
 import Utils.Utils
+import Utils.Projection
+import Engine.Scene.Input
 import Types.Types
+import Engine.Scene.Scene
+import Menus.Menus
+import Data.Maybe
+import Math.Vector
+
 {-import Types.Color-}
-{-import Menus.Menus-}
 
 data Interval a = Interval a a
 
@@ -22,3 +28,21 @@ constrainInterval fraction idx = case (pickInterval idx) of
 slide :: Fractional a => Bool -> RelativeScalar a b -> RelativeScalar a b
 slide True (RScal frac offset) = (RScal (frac * 0.5) offset)
 slide False (RScal frac offset) = (RScal ((2 - frac) * 0.5) offset)
+
+
+processMenuStack :: RenderInfo -> RawInput -> TransitionStack (MenuScreen ie mdc) -> Maybe (TransitionStack (MenuScreen ie mdc), [ie])
+processMenuStack renderinfo@(RenderInfo _ ss _) (InputTouchUp time pos pid) transitionStk =
+        let unproj = unproject pos (-5) renderinfo in
+            case incomingScreen transitionStk of
+                Just (MenuScreen elements _) -> 
+                    let acts = listToMaybe $ mapMaybe (\(UIElement mbutton _) -> 
+                            case mbutton of
+                                Just (Button rrect actions) -> if (posInRect (v3tov2 unproj) (transformRect rrect ss)) 
+                                                                then Just actions
+                                                                else Nothing
+                                Nothing -> Nothing) elements
+                        in case acts of
+                               Just (ies, action) -> Just (maybe transitionStk (\a -> a transitionStk ) action, ies)
+                               Nothing -> Nothing
+                Nothing -> Nothing
+processMenuStack _ _ _ = Nothing

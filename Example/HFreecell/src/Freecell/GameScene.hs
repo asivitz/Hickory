@@ -24,7 +24,7 @@ import Freecell.Component
 import Data.Maybe
 import Utils.Utils
 import Control.Monad.State
-
+import Utils.Projection
 
 spawnCard pos card = do
         let scale = 1
@@ -42,7 +42,7 @@ pickSelectable pos (e, (Selectable size), card, (DrawState p)) =
 -- swap $ runModel (spawnThing p') model
 
 processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
-processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = forModel model $ do
+processInput renderinfo (RawEvent (InputTouchDown pos pid)) model = forModel model $ do
         let zipped = zipComps3 model selectables cardComps drawStates
             depth :: (e, Selectable, Card, DrawState) -> Maybe Int
             depth (e, _, card, _) = cardDepth (getBoard model) card
@@ -51,11 +51,11 @@ processInput (RenderInfo mat ss _) (RawEvent (InputTouchDown pos pid)) model = f
         whenMaybe selected $ (\(e, _, _, (DrawState p)) ->
             addComp e mouseDrags $ MouseDrag (p - unproj))
         return []
-    where unproj = lerpUnproject pos (-5) mat (viewportFromSize ss)
+    where unproj = unproject pos (-5) renderinfo
 
-processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp time pos pid)) model = forModel model $ do
+processInput renderinfo (RawEvent (InputTouchUp time pos pid)) model = forModel model $ do
     let board = getBoard model
-        unproj = lerpUnproject pos (-5) mat (viewportFromSize ss)
+        unproj = unproject pos (-5) renderinfo
         comps = zipComps2 model mouseDrags cardComps
         targetLocation = dropLocationForPos board (v3tov2 unproj)
 
@@ -72,20 +72,20 @@ processInput (RenderInfo mat ss _) (RawEvent (InputTouchUp time pos pid)) model 
                                     put $ setBoard model' x
                                     return []
 
-processInput (RenderInfo mat ss _) (RawEvent (InputTouchLoc pos pid)) model = 
-        (over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model, [])
-    where p' = lerpUnproject pos (-5) mat (viewportFromSize ss)
+processInput renderinfo (RawEvent (InputTouchLoc pos pid)) model = 
+        noEvents $ over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model
+    where p' = unproject pos (-5) renderinfo
 
-processInput (RenderInfo mat ss _) NewGame model =
+processInput renderinfo NewGame model =
         forModel model $ do
             mapM_ (\c -> spawnCard (v3 0 0 (-5)) c) allCards
             return []
 
-processInput _ _ model = (model, [])
+processInput _ _ model = noEvents model
 
 stepComponents :: Double -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
-stepComponents delta model =
-        (model { _components = upComps2Ent (_components model) drawStates cardComps (upCardDS delta (getBoard model) model) }, [])
+stepComponents delta model = noEvents $ 
+        model { _components = upComps2Ent (_components model) drawStates cardComps (upCardDS delta (getBoard model) model) }
 
 makeScene = do
         board <- makeGame

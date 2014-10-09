@@ -18,8 +18,7 @@ import Systems.DrawText
 import Systems.Draw
 import Types.Color
 import Graphics.DrawText
-import Math.VectorMatrix
-import Data.Maybe
+import Menus.Construction
 
 type Screen = MenuScreen InputEvent MenuDrawCommand
 
@@ -48,20 +47,10 @@ loadResources resPath = do
 
 processInput :: RenderInfo -> InputEvent -> MenuModel -> (MenuModel, [InputEvent])
 
-processInput (RenderInfo mat ss _) ev@(RawEvent (InputTouchUp time pos pid)) model@Model { _game = transitionStk } =
-        let unproj = lerpUnproject pos (-5) mat (viewportFromSize ss) in
-            case incomingScreen transitionStk of
-                Just (MenuScreen elements _) -> 
-                    let acts = listToMaybe $ mapMaybe (\(UIElement mbutton _) -> 
-                            case mbutton of
-                                Just (Button rrect actions) -> if (posInRect (v3tov2 unproj) (transformRect rrect ss)) 
-                                                                then Just actions
-                                                                else Nothing
-                                Nothing -> Nothing) elements
-                        in case acts of
-                               Just (ies, action) -> (maybe model (\a -> model { _game = a transitionStk }) action, ies)
-                               Nothing -> (model, [ev])
-                Nothing -> (model, [ev])
+processInput renderinfo@(RenderInfo _ ss _) ev@(RawEvent rawinput) model@Model { _game = transitionStk } =
+        case processMenuStack renderinfo rawinput transitionStk of
+            Nothing -> (model, [ev])
+            Just (stk', ies) -> (model { _game = stk' }, ies)
 
 processInput ri e model = (model, [e])
 

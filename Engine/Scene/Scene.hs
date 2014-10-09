@@ -7,6 +7,7 @@ import Engine.Scene.Input
 import Types.Types
 import Graphics.Drawing
 import Math.Matrix
+import Math.Vector
 
 data RenderInfo = RenderInfo Mat44 (Size Int) Label
 
@@ -101,3 +102,6 @@ makeStepModel procInputF stepCompF ri Input { inputEvents } delta model =
             (model', outputEvents) = foldl accum (model,[]) inputEvents 
             (model'', stepOutputEvents) = stepCompF delta model'
             in (model'', outputEvents ++ stepOutputEvents)
+
+noEvents :: model -> (model, [ie])
+noEvents model = (model, [])

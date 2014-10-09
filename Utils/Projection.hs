@@ -2,15 +2,10 @@
 
 module Utils.Projection where
 
-import Engine.World
-import Engine.System
 import Math.VectorMatrix
 import Types.Types
 import Math.Vector
+import Engine.Scene.Scene
 
-doLerpUnproject :: V2 -> Scalar -> SysMonad r IO V3
-doLerpUnproject pos z = do
-        RSC { _screenSize, _drawnWorldMatrix } <- getRSC systemContext
-        ss <- _screenSize
-        worldmat <- _drawnWorldMatrix
-        return $ lerpUnproject pos z worldmat (viewportFromSize ss)
+unproject :: V2 -> Scalar -> RenderInfo -> V3
+unproject pos z (RenderInfo mat ss _) = lerpUnproject pos z mat (viewportFromSize ss)
