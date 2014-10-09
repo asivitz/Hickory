@@ -23,8 +23,7 @@ loadTextureFromPath path = do
                     tex <- alloca $ \p -> do
                                 glGenTextures 1 p
                                 peek p
-                    let glLinear  = fromIntegral gl_LINEAR
-                        format = if hasAlphaChannel image then gl_RGBA else gl_RGB
+                    let format = if hasAlphaChannel image then gl_RGBA else gl_RGB
                     -- create linear filtered texture
                     glBindTexture gl_TEXTURE_2D tex
 
@@ -32,8 +31,11 @@ loadTextureFromPath path = do
                         (fromIntegral w) (fromIntegral h)
                         0 format gl_UNSIGNED_BYTE pd
 
-                    glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER glLinear
-                    glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER glLinear
+                    glGenerateMipmap(gl_TEXTURE_2D)
+
+
+                    glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
+                    glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR_MIPMAP_LINEAR)
                     return $ Just $ TexID (fromIntegral tex)
 
 loadTexture :: String -> String -> IO (Maybe TexID)
