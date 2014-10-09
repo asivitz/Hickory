@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.DrawText (Printer(..), textcommand, loadPrinter, pvcShaderPair, printCommands, PositionedTextCommand(..), textcommand) where
+module Systems.DrawText (Printer(..), loadPrinter, pvcShaderPair, printCommands, PositionedTextCommand(..), textcommand) where
 
 import Types.Color
 import Graphics.GLUtils
@@ -12,6 +12,7 @@ import Graphics.DrawText
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.Text.IO as TextIO
 import Systems.Textures
+import Control.Monad
 
 data Printer a = Printer (Font a) TexID VAOConfig
 
@@ -57,14 +58,16 @@ printCommands shader label (Printer font texid VAOConfig { vao, indexVBO = Just 
             numsquares = length squarelists
             floats = map realToFrac (foldl (++) [] squarelists)
 
-        bindVAO vao
-        bufferVertices vbo floats
-        numBlockIndices <- bufferSquareIndices ivbo numsquares
-        unbindVAO
+        when (not $ null floats) $ do
+            bindVAO vao
+            bufferVertices vbo floats
+            numBlockIndices <- bufferSquareIndices ivbo numsquares
+            unbindVAO
 
-        dc <- addDrawCommand mat44Identity white white texid shader label 0.0 True
-        vao_payload <- setVAOCommand dc vao numBlockIndices gl_TRIANGLE_STRIP
-        return ()
+            dc <- addDrawCommand mat44Identity white white texid shader label 0.0 True
+            vao_payload <- setVAOCommand dc vao numBlockIndices gl_TRIANGLE_STRIP
+            return ()
+
 printCommands _ _ _ _ = return ()
 
 ---

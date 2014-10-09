@@ -83,7 +83,7 @@ data TextCommand = TextCommand {
 data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
 
 fontGlyphs :: Real a => String -> Font a -> [Glyph a]
-fontGlyphs text (Font _ chartable _) = catMaybes $ map (\x -> HashMap.lookup x chartable) idents
+fontGlyphs text (Font _ chartable _) = mapMaybe (\x -> HashMap.lookup x chartable) idents
     where idents = map (CharIdent . ord) text
 
 kerningForGlyphs :: Real a => Glyph a -> Glyph a -> KerningTable a -> a
