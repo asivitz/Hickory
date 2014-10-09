@@ -65,9 +65,9 @@ processInput (RenderInfo mat ss _) ev@(RawEvent (InputTouchUp time pos pid)) mod
 
 processInput ri e model = (model, [e])
 
-stepModel :: Double -> MenuModel -> MenuModel
+stepModel :: Double -> MenuModel -> (MenuModel, [InputEvent])
 stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
-        model { _game = TransitionStack stk (time + delta) leaving }
+        (model { _game = TransitionStack stk (time + delta) leaving }, [])
 
 resolveElementDrawCommands :: Size Int -> Bool -> Double -> UIElement c t (Bool -> Double -> dc) -> [dc]
 resolveElementDrawCommands screenSize incoming fract (UIElement _ menuItems) = map (\x -> x incoming fract) menuItems

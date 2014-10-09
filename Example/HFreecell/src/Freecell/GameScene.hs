@@ -83,9 +83,9 @@ processInput (RenderInfo mat ss _) NewGame model =
 
 processInput _ _ model = (model, [])
 
-stepComponents :: Double -> Model ComponentStore GameModel -> Model ComponentStore GameModel
+stepComponents :: Double -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
 stepComponents delta model =
-        model { _components = upComps2Ent (_components model) drawStates cardComps (upCardDS delta (getBoard model) model) }
+        (model { _components = upComps2Ent (_components model) drawStates cardComps (upCardDS delta (getBoard model) model) }, [])
 
 makeScene = do
         board <- makeGame
