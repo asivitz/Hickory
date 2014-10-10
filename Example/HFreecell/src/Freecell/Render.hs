@@ -26,6 +26,7 @@ import Data.Ord
 import Data.Maybe
 import Control.Monad
 import Math.Vector
+import Graphics.Rendering.OpenGL.Raw.Core31
 
 data Resources = Resources {
                vanillaShader :: Maybe Shader,
@@ -95,6 +96,8 @@ cardTexPath (Card rk st) = let r = rankSymbol rk
 
 loadResources :: String -> IO Resources
 loadResources path = do
+        glClearColor 0.3 0.5 0.1 1
+        
         {-card_texes <- mapM loadTexture texes-}
 
         texes <- foldlM (\hash card -> do
