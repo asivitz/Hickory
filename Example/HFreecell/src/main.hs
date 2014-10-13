@@ -1,6 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
  
 import Engine.Scene.Run
+import GLFW.Run
 import Engine.Scene.Scene
 import Types.Types
 import Freecell.Events

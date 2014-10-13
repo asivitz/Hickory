@@ -1,13 +1,12 @@
 module Engine.Scene.Input where
 
 import Math.Vector
-import qualified Graphics.UI.GLFW as GLFW
 
-data RawInput = InputTouchDown V2 Int
+data RawInput key = InputTouchDown V2 Int
              | InputTouchUp Scalar V2 Int 
              | InputTouchLoc V2 Int 
-             | InputKeyDown GLFW.Key
-             | InputKeyUp GLFW.Key
+             | InputKeyDown key
+             | InputKeyUp key
              deriving (Show)
 
 data Input ev = Input {

@@ -1,0 +1,48 @@
+name:                Freecell
+
+-- The package version.  See the Haskell package versioning policy (PVP) 
+-- for standards guiding when and how versions should be incremented.
+-- http://www.haskell.org/haskellwiki/Package_versioning_policy
+-- PVP summary:      +-+------- breaking API changes
+--                   | | +----- non-breaking API additions
+--                   | | | +--- code changes with no API change
+version:             0.1
+
+-- A short (one-line) description of the package.
+synopsis:            An example game, FreeCell
+
+-- A longer description of the package.
+-- description:         
+
+-- URL for the project homepage or repository.
+homepage:            https://github.com/asivitz/Hickory
+
+license:             MIT
+license-file:        LICENSE
+author:              Axis Sivitz
+
+-- An email address to which users can send suggestions, bug reports, and 
+-- patches.
+maintainer:          axis@asivitz.com
+
+-- A copyright notice.
+-- copyright:           
+
+category:            Game
+build-type:          Simple
+
+-- Extra files to be distributed with the package, such as examples or a 
+-- README.
+extra-source-files:  Readme.md
+
+cabal-version:       >=1.10
+
+executable freecell
+  default-language:    Haskell2010
+  main-is:         main.hs
+  other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
+  build-depends:       base >=4.7 && <4.8, GLFW-b >= 1.4 && < 1.5, Hickory, Hickory-GLFW, lens >= 4.3 && < 4.4, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, unordered-containers >=0.2 && <0.3, random >= 1.0, containers >= 0.5, hashable
+  hs-source-dirs:  src, Freecell
+  other-modules:     FreeCell
+  ghc-options: -rtsopts -Wall -fno-warn-unused-matches -fno-warn-missing-signatures -fno-warn-unused-do-bind
+  ghc-prof-options: -fprof-auto
