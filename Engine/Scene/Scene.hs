@@ -9,8 +9,13 @@ import Graphics.Drawing
 import Math.Matrix
 import Math.Vector
 
+-- Each frame, the RenderInfo struct provides the matrix, screen size, 
+-- and layer used to render the previous frame
 data RenderInfo = RenderInfo Mat44 (Size Int) Label
 
+-- mdl - The model used to represent the data for this Scene
+-- ie - The InputEvent data type shared by all scenes
+-- re - The resources loaded by this scene
 data Scene mdl ie re = Scene {
                        _name :: String,
                        _model :: mdl,
@@ -40,6 +45,7 @@ data SceneOperator ie = SceneOperator {
                       _renderOp :: IO ()
                       }
 
+-- Wraps a Scene up into a SceneOperator
 makeSceneOperator :: (SceneModel mdl, Show ie) => Scene mdl ie re -> IO (SceneOperator ie)
 makeSceneOperator scene = do
         ref <- newIORef scene
@@ -93,6 +99,8 @@ stepScene scene@Scene { _loadedRender = Just renderFunc,
         return (scene', outEvents)
 stepScene scene _ = print "Couldn't step scene." >> return (scene, [])
 
+-- Utility method for building a step function out of an event handler and
+-- a generic step function
 makeStepModel :: (RenderInfo -> ie -> model -> (model, [ie])) ->
     (Double -> model -> (model, [ie])) -> 
     RenderInfo -> Input ie -> Double -> model -> (model, [ie])
@@ -103,5 +111,7 @@ makeStepModel procInputF stepCompF ri Input { inputEvents } delta model =
             (model'', stepOutputEvents) = stepCompF delta model'
             in (model'', outputEvents ++ stepOutputEvents)
 
+-- Utililty method for return a model when there are no new events to
+-- distribute
 noEvents :: model -> (model, [ie])
 noEvents model = (model, [])
