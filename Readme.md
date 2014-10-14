@@ -63,9 +63,9 @@ For more information on Entity-Systems, check out [these articles](http://entity
 
 ## Menus
 The Menus module provides an abstraction for...
-Pushing / Popping menu screens
-Generating events from clicking on menu items
-Rendering menu items, including transitions between screens
+- Pushing / Popping menu screens
+- Generating events from clicking on menu items
+- Rendering menu items, including transitions between screens
 
 ## Graphics
 Hickory contains functions for loading textures, drawing textured squares, loading shaders, loading .fnt files, rendering text, matrix calculations and projections, and more.
