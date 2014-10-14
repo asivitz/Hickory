@@ -2,8 +2,7 @@
 
 Hickory is not really a Haskell game engine. It's more of a collection of tools that can be used to make games. It doesn't have opinions and doesn't for you into a particular paradigm.
 
-Engine.Scene
-============
+## Engine.Scene
 These modules provide an Input/Model/View abstraction. Useful for providing high-level structure to your game.
 
 A Scene corresponds to a layer of your game. You might have just two layers, your game world and the UI. A scene contains, essentially, a data model, a stepping function, and a rendering function. Moreover, Scenes can generate events which will be provided as input to the other Scenes in the game, or to the same Scene in the next frame.
@@ -57,14 +56,12 @@ main = do
         RawEvent -- This is the function to turn a raw GLFW event into an InputEvent
 ```
 
-Components
-==========
+## Components
 Hickory includes an implementation of an Entity/Component system, which can be used to model your game world. It is not built by default, as it has a Lens dependency. It can be found in the Components folder.
 
 For more information on Entity-Systems, check out [these articles](http://entity-systems.wikidot.com/).
 
-Graphics
-========
+## Graphics
 Hickory contains functions for loading textures, drawing textured squares, loading shaders, loading .fnt files, rendering text, matrix calculations and projections, and more.
 
 ## Example
