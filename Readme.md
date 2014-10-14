@@ -10,7 +10,7 @@ A Scene corresponds to a layer of your game. You might have just two layers, you
 
 The Scene type is parameterized over your scene's model, your global input event type, and your scene's resources.
 
-data Scene mdl ie re = ...
+    data Scene mdl ie re = ...
 
 - mdl - The model used to represent the data for this Scene
 - ie - The InputEvent data type shared by all scenes
@@ -18,40 +18,44 @@ data Scene mdl ie re = ...
 
 To use it, first you create a Scene.
 
+```Haskell
 makeScene = do
-        inputStream <- newIORef (Input []) -- Used to provide a hook for the device to supply input events
+    inputStream <- newIORef (Input []) -- Used to provide a hook for the device to supply input events
 
-        -- Create a camera that determines how this scene will be rendered
-        let cam = \ss -> let w = 100
-                             ar = aspectRatio ss
-                             proj = Ortho (realToFrac w) 1 100
-                             route = Route (v3 (realToFrac (-w)/2) (realToFrac (-(w / ar))/2) 0) Nothing
-                in Camera proj route
-            scene = Scene {
-                          _name = "Play",
-                          _model = Model newWorld
-                          _renderInfo = RenderInfo mat44Identity nullSize worldLabel,
-                          _loadResources = loadResources "resources",
-                          _stepModel = makeStepModel processInput step,
-                          _render = render,
-                          _inputStream = inputStream,
-                          _loadedRender = Nothing }
-        return scene
+    -- Create a camera that determines how this scene will be rendered
+    let cam = \ss -> let w = 100
+                            ar = aspectRatio ss
+                            proj = Ortho (realToFrac w) 1 100
+                            route = Route (v3 (realToFrac (-w)/2) (realToFrac (-(w / ar))/2) 0) Nothing
+            in Camera proj route
+        scene = Scene {
+                        _name = "Play",
+                        _model = Model newWorld
+                        _renderInfo = RenderInfo mat44Identity nullSize worldLabel,
+                        _loadResources = loadResources "resources",
+                        _stepModel = makeStepModel processInput step,
+                        _render = render,
+                        _inputStream = inputStream,
+                        _loadedRender = Nothing }
+    return scene
+```
 
 Then you wrap your Scene up in a SceneOperator. A SceneOperator has no knowledge of the types of your model or resources. It does have knowledge of the InputEvent type, because it is shared between all Scenes.
 
 Your main function might look like this:
 
+```Haskell
 main :: IO ()
 main = do
-        operators <- sequence [World.Scene.makeScene >>= makeSceneOperator
-                              , UI.Scene.makeScene >>= makeSceneOperator]
-         
-        -- glfwMain kicks off the GLFW loop, and steps and renders your scenes
-        glfwMain (Size 480 640)
-            operators
-            (operators !! 1) -- This is the primary scene to which glfw delivers input events
-            RawEvent -- This is the function to turn a raw GLFW event into an InputEvent
+    operators <- sequence [World.Scene.makeScene >>= makeSceneOperator
+                            , UI.Scene.makeScene >>= makeSceneOperator]
+        
+    -- glfwMain kicks off the GLFW loop, and steps and renders your scenes
+    glfwMain (Size 480 640)
+        operators
+        (operators !! 1) -- This is the primary scene to which glfw delivers input events
+        RawEvent -- This is the function to turn a raw GLFW event into an InputEvent
+```
 
 Components
 ==========
