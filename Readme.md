@@ -6,7 +6,7 @@ Engine.Scene
 ============
 These modules provide an Input/Model/View abstraction. Useful for providing high-level structure to your game.
 
-A Scene corresponds to a layer of your game. You might have just two layers, your game world and the UI. A scene contains, essentially, a data model, astepping function, and a rendering function. Moreover, Scenes can generate events which will be provided as input to the other Scenes in the game, or to the same Scene in the next frame.
+A Scene corresponds to a layer of your game. You might have just two layers, your game world and the UI. A scene contains, essentially, a data model, a stepping function, and a rendering function. Moreover, Scenes can generate events which will be provided as input to the other Scenes in the game, or to the same Scene in the next frame.
 
 The Scene type is parameterized over your scene's model, your global input event type, and your scene's resources.
 data Scene mdl ie re = ...
