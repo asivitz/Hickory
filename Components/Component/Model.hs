@@ -36,5 +36,3 @@ forModel model f = swap $ runModel f model
 
 instance SceneModel (Model cs gm) where
         calcCameraMatrix size model = cameraMatrix ((_camera model) size) (aspectRatio size)
-
-makeLenses ''Model
