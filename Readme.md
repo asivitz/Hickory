@@ -9,10 +9,12 @@ These modules provide an Input/Model/View abstraction. Useful for providing high
 A Scene corresponds to a layer of your game. You might have just two layers, your game world and the UI. A scene contains, essentially, a data model, a stepping function, and a rendering function. Moreover, Scenes can generate events which will be provided as input to the other Scenes in the game, or to the same Scene in the next frame.
 
 The Scene type is parameterized over your scene's model, your global input event type, and your scene's resources.
+
 data Scene mdl ie re = ...
-mdl - The model used to represent the data for this Scene
-ie - The InputEvent data type shared by all scenes
-re - The resources loaded by this scene
+
+- mdl - The model used to represent the data for this Scene
+- ie - The InputEvent data type shared by all scenes
+- re - The resources loaded by this scene
 
 To use it, first you create a Scene.
 
