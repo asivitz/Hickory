@@ -1,6 +1,6 @@
 # Hickory
 
-Hickory is not really a Haskell game engine. It's more of a collection of tools that can be used to make games. It doesn't have opinions and doesn't for you into a particular paradigm.
+Hickory is not really a Haskell game engine. It's more of a collection of tools and abstractions that can be used to make games. It doesn't have opinions and doesn't for you into a particular paradigm.
 
 ## Engine.Scene
 These modules provide an Input/Model/View abstraction. Useful for providing high-level structure to your game.
@@ -60,6 +60,12 @@ main = do
 Hickory includes an implementation of an Entity/Component system, which can be used to model your game world. It is not built by default, as it has a Lens dependency. It can be found in the Components folder.
 
 For more information on Entity-Systems, check out [these articles](http://entity-systems.wikidot.com/).
+
+## Menus
+The Menus module provides an abstraction for...
+Pushing / Popping menu screens
+Generating events from clicking on menu items
+Rendering menu items, including transitions between screens
 
 ## Graphics
 Hickory contains functions for loading textures, drawing textured squares, loading shaders, loading .fnt files, rendering text, matrix calculations and projections, and more.
