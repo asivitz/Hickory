@@ -57,6 +57,10 @@ Hickory includes an implementation of an Entity/Component system, which can be u
 
 For more information on Entity-Systems, check out [these articles](http://entity-systems.wikidot.com/).
 
+Graphics
+========
+Hickory contains functions for loading textures, drawing textured squares, loading shaders, loading .fnt files, rendering text, matrix calculations and projections, and more.
+
 ## Example
 
 -- Doesn't currently build as-is because the Lens dependency and component library was removed from the core
