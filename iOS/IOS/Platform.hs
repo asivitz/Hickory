@@ -10,11 +10,8 @@ import Math.Vector
 import Engine.Scene.Input
 import Data.Time
 
---TODO: RawInput Int should instead use a generic engine key type, and then
-    --a method of converting GLFW.Key to it
-
 data SysData = SysData { 
-             evlist :: [RawInput Int],
+             evlist :: [RawInput GLFW.Key],
              touches :: HashMap.HashMap Int UTCTime,
              fbSize :: Size Int
             }
@@ -39,7 +36,7 @@ stepInput sd win addInput = do
         let curloc = touchPosToScreenPos fbSize curPos
         addInput (InputTouchLoc curloc 0)
 
-mouseButtonCallback :: IORef SysData -> (RawInput Int -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
+mouseButtonCallback :: IORef SysData -> (RawInput GLFW.Key -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform addInput win button buttonState modkeys =
         do
             sd@SysData { fbSize, evlist, touches } <- readIORef platform
@@ -65,7 +62,7 @@ mouseButtonCallback platform addInput win button buttonState modkeys =
             writeIORef platform sd { touches = touches' }
             addInput (ev pos touchid)
 
-keyCallback :: IORef SysData -> (RawInput Int -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
+keyCallback :: IORef SysData -> (RawInput GLFW.Key -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallback platform addInput win key scancode keyState modkeys =
         do
             sd@SysData { evlist } <- readIORef platform
@@ -76,7 +73,7 @@ keyCallback platform addInput win key scancode keyState modkeys =
                         GLFW.KeyState'Pressed -> InputKeyDown
                         GLFW.KeyState'Released -> InputKeyUp
 
-            addInput (ev 9342)
+            addInput (ev key)
 
 touchIdent :: GLFW.MouseButton -> Int
 touchIdent button = case button of
