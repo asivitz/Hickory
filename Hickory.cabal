@@ -46,3 +46,6 @@ library
   include-dirs: include/
   ghc-prof-options:   -fprof-auto
   ghc-options: -Wall -fno-warn-unused-matches -fno-warn-missing-signatures -fno-warn-unused-do-bind
+-- Needed for cross compilation
+  if os(osx)
+    cc-options:         -F/System/Library/Frameworks

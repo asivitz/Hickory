@@ -17,6 +17,7 @@ import Data.IORef
 import Foreign
 import Foreign.C
 
+iosInit :: [SceneOperator ie] -> IO ()
 iosInit operators = do
         initRenderer
         glClearColor 0.125 0.125 0.125 1
