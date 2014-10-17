@@ -49,7 +49,7 @@ textcommand = TextCommand {
                           color = black,
                           leftBump = 0 }
 
-pvcShaderPair = ("perVertColor.vsh", "perVertColor.fsh")
+pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")
 
 printCommands :: Real a => Shader -> Label -> Printer a -> [PositionedTextCommand] -> IO ()
 printCommands _ _ _ [] = return ()

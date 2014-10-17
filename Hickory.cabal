@@ -37,6 +37,10 @@ extra-source-files:  Readme.md
 
 cabal-version:       >=1.10
 
+Flag Ios
+  Description: Build for IOS. Use OpenGLES2 functions instead of standard OpenGL
+  Default:     False
+
 library
   exposed-modules:     Camera.Camera, Engine.Scene.Run, Graphics.Drawing, Graphics.DrawText, Graphics.GLUtils, Math.Matrix, Math.Vector, Math.VectorMatrix, Menus.Construction, Menus.Menus, Systems.Textures, Systems.Draw, Systems.DrawText, Text.Font, Types.Color, Types.Types, Utils.Resources, Utils.Utils, Utils.HashMap, Platform.IPhone, Engine.Scene.Input, Engine.Scene.Scene, Utils.Projection
   other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
@@ -49,3 +53,5 @@ library
 -- Needed for cross compilation
   if os(osx)
     cc-options:         -F/System/Library/Frameworks
+  if flag(ios)
+    cc-options: -DTARGET_OS_IPHONE

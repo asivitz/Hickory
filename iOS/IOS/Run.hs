@@ -17,20 +17,20 @@ import Data.IORef
 import Foreign
 import Foreign.C
 
-iosInit :: [SceneOperator ie] -> IO ()
-iosInit operators = do
+iosInitEx :: [SceneOperator ie] -> CInt -> CInt -> IO ()
+iosInitEx ops w h = iosInit (Size (fromIntegral w) (fromIntegral h)) ops
+
+iosInit :: Size Int -> [SceneOperator ie] -> IO ()
+iosInit scrSize operators = do
         initRenderer
         glClearColor 0.125 0.125 0.125 1
         glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
         glActiveTexture gl_TEXTURE0
+        print scrSize
         
-        glEnable gl_PROGRAM_POINT_SIZE -- for OSX
+        {-glEnable gl_PROGRAM_POINT_SIZE -- for OSX-}
 
-        {-(width, height) <- GLFW.getFramebufferSize win-}
-
-        let scrSize = (Size 100 100)
-
-        sequence_ $ mapAll (map _initRenderer operators) scrSize
+        mapM_ (\op -> (_initRenderer op) scrSize) operators
 
 iosRender :: [SceneOperator ie] -> IO ()
 iosRender operators = do

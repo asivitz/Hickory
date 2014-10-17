@@ -8,6 +8,7 @@
 
 #include "shaderprogram.h"
 #include "platform.h"
+#include "Drawing.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -33,11 +34,20 @@ void setShaderProgramActive(ShaderProgram * program)
 
 GLint compileShader(const char * sourceCode, GLenum type)
 {
+
+    GLboolean compileSupported;
+    glGetBooleanv(GL_SHADER_COMPILER, &compileSupported);
+    if (!compileSupported)
+    {
+        dlog("ERROR: Shader compilation not supported.");
+        return -1;
+    }
+
    GLint shaderId = glCreateShader(type);
-   
+
    glShaderSource(shaderId, 1, &sourceCode, NULL);
    glCompileShader(shaderId);
-   
+
    GLint compiled;
    glGetShaderiv(shaderId, GL_COMPILE_STATUS, &compiled);
    
@@ -45,6 +55,7 @@ GLint compileShader(const char * sourceCode, GLenum type)
    {
       GLint infoLen = 0;
       glGetShaderiv(shaderId, GL_INFO_LOG_LENGTH, &infoLen);
+      
       if(infoLen > 1)
       {
          char* infoLog = (char *)malloc(infoLen * sizeof(char));
