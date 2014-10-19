@@ -26,11 +26,11 @@ A Scene corresponds to a layer of your game. You might have just two layers, you
 Here's an example of creating a scene:
 
 ```Haskell
-makeScene resPath = makeSceneOperator emptyWorld
-                                      (loadResources resPath)
-                                      stepModel
-                                      render
-                                      worldLabel
+makeScene = makeSceneOperator emptyWorld
+                              loadResources
+                              stepModel
+                              render
+                              worldLabel
 
 ```
 
@@ -41,7 +41,7 @@ Your main function might look like this:
 ```Haskell
 main :: IO ()
 main = do
-    operators <- sequence [Play.Scene.makeScene rp, Edit.Scene.makeScene rp]
+    operators <- sequence [Play.Scene.makeScene, Edit.Scene.makeScene]
         
     -- glfwMain kicks off the GLFW loop, and steps and renders your scenes
     glfwMain (Size 480 640)
