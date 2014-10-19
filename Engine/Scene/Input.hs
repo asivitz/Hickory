@@ -9,7 +9,3 @@ data RawInput key = InputTouchDown V2 Int
              | InputKeyDown key
              | InputKeyUp key
              deriving (Show)
-
-data Input ev = Input {
-           inputEvents :: [ev]
-           } deriving Show

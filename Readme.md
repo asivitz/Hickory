@@ -9,11 +9,16 @@ A Scene corresponds to a layer of your game. You might have just two layers, you
 
 - A model (can be anything! just needs to produce a view matrix for rendering) Type: mdl
 - A resource loading function. Type: IO re
-- A step function. Type: RenderInfo -> Input ie -> Double -> mdl -> (mdl, [ie])
+- A step function. Type: RenderInfo -> [ie] -> Double -> mdl -> (mdl, [ie])
+
     RenderInfo gives you the previous frame's view matrix, the screen size, and the layer ID the renderer uses (called the Label)
-    Input contains a list of input events, coming from either from a different scene, or this scene in a previous frame
+
+    The list of input events come from either a different scene, or this scene in a previous frame
+
     The Double is the amount of time elapsed since the previous frame
+
     The function should return the updated model and a list of generated events
+
 - A render function. Type: re -> RenderInfo -> mdl -> IO ()
     re is the loaded resources
 - The scene's layer ID.

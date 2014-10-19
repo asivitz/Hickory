@@ -3,7 +3,6 @@
 module Engine.Scene.Scene where
 
 import Data.IORef
-import Engine.Scene.Input
 import Types.Types
 import Graphics.Drawing
 import Math.Matrix
@@ -20,10 +19,10 @@ data Scene mdl ie re = Scene {
                        _renderInfo :: RenderInfo,
                        _stepModel :: ModelStep mdl ie,
                        _render :: Render mdl,
-                       _inputStream :: IORef (Input ie)
+                       _inputStream :: IORef ([ie])
                        }
 
-type ModelStep mdl ie = RenderInfo -> Input ie -> Double -> mdl -> (mdl, [ie])
+type ModelStep mdl ie = RenderInfo -> [ie] -> Double -> mdl -> (mdl, [ie])
 type Render mdl = RenderInfo -> mdl -> IO ()
 
 instance Show (Scene mdl c d) where
@@ -47,7 +46,7 @@ data SceneOperator ie = SceneOperator {
 makeSceneOperator :: (SceneModel mdl, Show ie) => mdl -> IO re -> ModelStep mdl ie -> (re -> Render mdl) -> Label -> IO (SceneOperator ie)
 makeSceneOperator model resourceLoader modelStep render label = do
         ref <- newIORef Nothing
-        is <- newIORef (Input [])
+        is <- newIORef []
         return $ SceneOperator { 
             _initRenderer = (\scrSize -> do
                     res <- resourceLoader
@@ -83,13 +82,13 @@ makeSceneOperator model resourceLoader modelStep render label = do
 
 addSceneInput :: Scene mdl ie re -> ie -> IO ()
 addSceneInput Scene { _inputStream } ev = 
-        atomicModifyIORef _inputStream (\(Input evs) -> (Input (evs ++ [ev]), ()))
+        atomicModifyIORef _inputStream (\evs -> ((evs ++ [ev]), ()))
 
 renderCommandsForScene Scene { _renderInfo = (RenderInfo mat _ label) } = renderCommands mat label
 
-grabSceneInput :: Show ie => Scene mdl ie re -> IO (Input ie)
+grabSceneInput :: Show ie => Scene mdl ie re -> IO ([ie])
 grabSceneInput Scene { _inputStream } = do
-        input <- atomicModifyIORef _inputStream (\i -> (Input { inputEvents = [] }, i))
+        input <- atomicModifyIORef _inputStream (\i -> ([], i))
         {-print input-}
         return input
 
@@ -110,8 +109,8 @@ stepScene scene@Scene { _render = renderFunc,
 -- a generic step function
 makeStepModel :: (RenderInfo -> ie -> model -> (model, [ie])) ->
     (Double -> model -> (model, [ie])) -> 
-    RenderInfo -> Input ie -> Double -> model -> (model, [ie])
-makeStepModel procInputF stepCompF ri Input { inputEvents } delta model = 
+    RenderInfo -> [ie] -> Double -> model -> (model, [ie])
+makeStepModel procInputF stepCompF ri inputEvents delta model = 
         let accum (m, oes) ie = let (m', oes') = procInputF ri ie m 
                 in (m', oes ++ oes')
             (model', outputEvents) = foldl accum (model,[]) inputEvents 
