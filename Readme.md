@@ -5,49 +5,38 @@ Hickory is not really a Haskell game engine. It's more of a collection of tools 
 ## Engine.Scene
 These modules provide an Input/Model/View abstraction. Useful for providing high-level structure to your game.
 
-A Scene corresponds to a layer of your game. You might have just two layers, your game world and the UI. A scene contains, essentially, a data model, a stepping function, and a rendering function. Moreover, Scenes can generate events which will be provided as input to the other Scenes in the game, or to the same Scene in the next frame.
+A Scene corresponds to a layer of your game. You might have just two layers, your game world and the UI. To make a Scene, you need...
 
-The Scene type is parameterized over your scene's model, your global input event type, and your scene's resources.
+- A model (can be anything! just needs to produce a view matrix for rendering) Type: mdl
+- A resource loading function. Type: IO re
+- A step function. Type: RenderInfo -> Input ie -> Double -> mdl -> (mdl, [ie])
+    RenderInfo gives you the previous frame's view matrix, the screen size, and the layer ID the renderer uses (called the Label)
+    Input contains a list of input events, coming from either from a different scene, or this scene in a previous frame
+    The Double is the amount of time elapsed since the previous frame
+    The function should return the updated model and a list of generated events
+- A render function. Type: re -> RenderInfo -> mdl -> IO ()
+    re is the loaded resources
+- The scene's layer ID.
 
-    data Scene mdl ie re = ...
-
-- mdl - The model used to represent the data for this Scene
-- ie - The InputEvent data type shared by all scenes
-- re - The resources loaded by this scene
-
-To use it, first you create a Scene.
+Here's an example of creating a scene:
 
 ```Haskell
-makeScene = do
-    inputStream <- newIORef (Input []) -- Used to provide a hook for the device to supply input events
+makeScene resPath = makeSceneOperator emptyWorld
+                                      (loadResources resPath)
+                                      stepModel
+                                      render
+                                      worldLabel
 
-    -- Create a camera that determines how this scene will be rendered
-    let cam = \ss -> let w = 100
-                            ar = aspectRatio ss
-                            proj = Ortho (realToFrac w) 1 100
-                            route = Route (v3 (realToFrac (-w)/2) (realToFrac (-(w / ar))/2) 0) Nothing
-            in Camera proj route
-        scene = Scene {
-                        _name = "Play",
-                        _model = Model newWorld
-                        _renderInfo = RenderInfo mat44Identity nullSize worldLabel,
-                        _loadResources = loadResources "resources",
-                        _stepModel = makeStepModel processInput step,
-                        _render = render,
-                        _inputStream = inputStream,
-                        _loadedRender = Nothing }
-    return scene
 ```
 
-Then you wrap your Scene up in a SceneOperator. A SceneOperator has no knowledge of the types of your model or resources. It does have knowledge of the InputEvent type, because it is shared between all Scenes.
+Okay, fine, we actually made a SceneOperator, which can be happily packed up with other SceneOperators and processed in a list.
 
 Your main function might look like this:
 
 ```Haskell
 main :: IO ()
 main = do
-    operators <- sequence [World.Scene.makeScene >>= makeSceneOperator
-                            , UI.Scene.makeScene >>= makeSceneOperator]
+    operators <- sequence [Play.Scene.makeScene rp, Edit.Scene.makeScene rp]
         
     -- glfwMain kicks off the GLFW loop, and steps and renders your scenes
     glfwMain (Size 480 640)

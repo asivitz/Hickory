@@ -7,7 +7,6 @@ import Engine.Scene.Input
 import Types.Types
 import Graphics.Drawing
 import Math.Matrix
-import Math.Vector
 
 -- Each frame, the RenderInfo struct provides the matrix, screen size, 
 -- and layer used to render the previous frame
@@ -17,19 +16,18 @@ data RenderInfo = RenderInfo Mat44 (Size Int) Label
 -- ie - The InputEvent data type shared by all scenes
 -- re - The resources loaded by this scene
 data Scene mdl ie re = Scene {
-                       _name :: String,
                        _model :: mdl,
                        _renderInfo :: RenderInfo,
-                       _loadResources :: IO re,
-                       _stepModel :: RenderInfo -> Input ie -> Double -> mdl -> (mdl, [ie]),
-                       _render :: re -> RenderInfo -> mdl -> IO (),
-                       _inputStream :: IORef (Input ie),
-                       -- Filled after resources are loaded
-                       _loadedRender :: Maybe (RenderInfo -> mdl -> IO ())
+                       _stepModel :: ModelStep mdl ie,
+                       _render :: Render mdl,
+                       _inputStream :: IORef (Input ie)
                        }
 
+type ModelStep mdl ie = RenderInfo -> Input ie -> Double -> mdl -> (mdl, [ie])
+type Render mdl = RenderInfo -> mdl -> IO ()
+
 instance Show (Scene mdl c d) where
-        show Scene { _name } = "Scene: " ++ _name
+        show scn = "Scene"
 
 class SceneModel mdl where
         calcCameraMatrix :: Size Int -> mdl -> Mat44
@@ -46,31 +44,41 @@ data SceneOperator ie = SceneOperator {
                       }
 
 -- Wraps a Scene up into a SceneOperator
-makeSceneOperator :: (SceneModel mdl, Show ie) => Scene mdl ie re -> IO (SceneOperator ie)
-makeSceneOperator scene = do
-        ref <- newIORef scene
+makeSceneOperator :: (SceneModel mdl, Show ie) => mdl -> IO re -> ModelStep mdl ie -> (re -> Render mdl) -> Label -> IO (SceneOperator ie)
+makeSceneOperator model resourceLoader modelStep render label = do
+        ref <- newIORef Nothing
+        is <- newIORef (Input [])
         return $ SceneOperator { 
             _initRenderer = (\scrSize -> do
-                    scn@Scene {_loadResources, 
-                              _render, 
-                              _model, 
-                              _renderInfo = (RenderInfo _ _ label) } 
-                              <- readIORef ref
-                    res <- _loadResources
-                    writeIORef ref scn { _loadedRender = Just (_render res),
-                                       _renderInfo = RenderInfo (calcCameraMatrix scrSize _model) scrSize label }),
+                    res <- resourceLoader
+                    writeIORef ref $ Just (Scene model 
+                                               (RenderInfo (calcCameraMatrix scrSize model) scrSize label)
+                                               modelStep
+                                               (render res)
+                                               is)
+                                               ),
             _step = (\delta -> do
-                    scn <- readIORef ref
-                    (scn', evs) <- stepScene scn delta
-                    writeIORef ref scn'
-                    return evs
+                    mscn <- readIORef ref
+                    case mscn of
+                        Just scn -> do
+                            (scn', evs) <- stepScene scn delta
+                            writeIORef ref $ Just scn'
+                            return evs
+                        Nothing -> return []
                     ),
             _addEvent = (\ev -> do
-                        scn <- readIORef ref
-                        addSceneInput scn ev),
+                    mscn <- readIORef ref
+                    case mscn of
+                        Just scn -> do
+                            addSceneInput scn ev
+                        Nothing -> return ()
+                        ),
             _renderOp = do
-                scn <- readIORef ref
-                renderCommandsForScene scn
+                mscn <- readIORef ref
+                case mscn of
+                    Just scn -> do
+                        renderCommandsForScene scn
+                    Nothing -> return ()
                 }
 
 addSceneInput :: Scene mdl ie re -> ie -> IO ()
@@ -86,7 +94,7 @@ grabSceneInput Scene { _inputStream } = do
         return input
 
 stepScene :: (Show ie, SceneModel mdl) => Scene mdl ie re -> Double -> IO (Scene mdl ie re, [ie])
-stepScene scene@Scene { _loadedRender = Just renderFunc, 
+stepScene scene@Scene { _render = renderFunc, 
                       _model, 
                       _renderInfo = (ri@(RenderInfo _ ss label)), 
                       _stepModel } 
@@ -97,7 +105,6 @@ stepScene scene@Scene { _loadedRender = Just renderFunc,
             scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss label) }
         renderFunc ri model'
         return (scene', outEvents)
-stepScene scene _ = print "Couldn't step scene." >> return (scene, [])
 
 -- Utility method for building a step function out of an event handler and
 -- a generic step function

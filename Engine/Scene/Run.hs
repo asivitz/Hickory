@@ -4,11 +4,7 @@
 module Engine.Scene.Run where
 
 import Data.Time
-import Types.Types
 
-import Data.Maybe
-import Utils.Utils
-import Engine.Scene.Input
 import Engine.Scene.Scene
 
 mapWithOthers :: (a -> [a] -> b) -> [a] -> [b]
