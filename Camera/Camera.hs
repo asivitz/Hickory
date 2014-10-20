@@ -16,19 +16,7 @@ data Projection = Perspective {
                      far :: Scalar,
                      shouldCenter :: Bool } 
                      deriving Show
-
-data Target = Target {
-            tpos :: V3,
-            moveTime :: Double,
-            moveDuration :: Double
-            } deriving Show
-
-data Route = Route V3 (Maybe Target) deriving Show
-
-data Camera = Camera Projection Route deriving Show
-
-getRoute :: Camera -> Route
-getRoute (Camera _ r) = r
+data Camera = Camera Projection V3 deriving Show
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
@@ -51,13 +39,22 @@ cameraPosMatrix :: V3 -> Mat44
 cameraPosMatrix pos = 
     mat44TranslateV (negate pos) mat44Identity
 
+cameraMatrix :: Camera -> Scalar -> Mat44
+cameraMatrix (Camera proj center) screenRatio = worldViewMatrix proj screenRatio center
+
+-- Drivers
+
+data Route = Route V3 (Maybe Target) deriving Show
+
+data Target = Target {
+            tpos :: V3,
+            moveTime :: Double,
+            moveDuration :: Double
+            } deriving Show
+
 cameraCenter :: Route -> V3
 cameraCenter (Route pos Nothing ) = pos
 cameraCenter (Route pos (Just (Target tarpos time duration))) = vlinear (realToFrac (time / duration)) pos tarpos
-
-
-cameraMatrix :: Camera -> Scalar -> Mat44
-cameraMatrix (Camera proj route) screenRatio = worldViewMatrix proj screenRatio (cameraCenter route)
 
 checkTarget :: Route -> Double -> Route
 checkTarget r@(Route pos Nothing) _ = r
