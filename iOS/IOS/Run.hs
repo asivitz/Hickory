@@ -13,15 +13,18 @@ import Data.IORef
 import Engine.Scene.Input
 import Math.Vector
 import qualified Data.HashMap.Strict as HashMap
+import Control.Monad
 
 import Foreign
 import Foreign.C
 import Foreign.Ptr
 
-foreign import ccall safe "register_touch_began_callback" regTouchBeganCallback :: FunPtr (CDouble -> CDouble -> IO ()) -> IO ()
-foreign import ccall safe "register_touch_ended_callback" regTouchEndedCallback :: FunPtr (CDouble -> CDouble -> IO ()) -> IO ()
-foreign import ccall safe "register_touch_moved_callback" regTouchMovedCallback :: FunPtr (CDouble -> CDouble -> IO ()) -> IO ()
-foreign import ccall "wrapper" mkTouchFun :: (CDouble -> CDouble -> IO ()) -> IO (FunPtr (CDouble -> CDouble -> IO ()))
+foreign import ccall safe "register_touch_began_callback" regTouchBeganCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()
+foreign import ccall safe "register_touch_ended_callback" regTouchEndedCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()
+foreign import ccall safe "register_touch_moved_callback" regTouchMovedCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()
+foreign import ccall "wrapper" mkTouchFunWrap :: (CInt -> CDouble -> CDouble -> IO ()) -> IO (FunPtr (CInt -> CDouble -> CDouble -> IO ()))
+
+mkTouchFun f = mkTouchFunWrap (\ident x y -> f (fromIntegral ident) (realToFrac x) (realToFrac y))
 
 makeIOSStepFunc :: Show ie => [SceneOperator ie] -> IO () -> IO (IO ())
 makeIOSStepFunc operators stepInput = do
@@ -43,36 +46,35 @@ iosInitFunc ops w h = iosInit (Size (fromIntegral w) (fromIntegral h)) ops
 iosInputInit :: SceneOperator ie -> (RawInput Int -> ie) -> IO (IO ())
 iosInputInit keyOperator pkgRawInput = do
         touches <- newIORef HashMap.empty :: IO (IORef (HashMap.HashMap Int (V2, UTCTime)))
-        let td = (\x y -> do let loc = (v2 (realToFrac x) (realToFrac y))
-                             (_addEvent keyOperator (pkgRawInput (InputTouchDown loc 0)))
+        let td = (\ident x y -> do 
+                             let loc = v2 x y
+                             (_addEvent keyOperator (pkgRawInput (InputTouchDown loc ident)))
                              time <- getCurrentTime
                              curhash <- readIORef touches
-                             writeIORef touches $ HashMap.insert 0 (loc, time) curhash
+                             writeIORef touches $ HashMap.insert ident (loc, time) curhash
                              )
-            tu = (\x y -> do 
-                    let loc = (v2 (realToFrac x) (realToFrac y))
+            tu = (\ident x y -> do 
+                    let loc = v2 x y
                     curhash <- readIORef touches
-                    case HashMap.lookup 0 curhash of
-                        Nothing -> (_addEvent keyOperator (pkgRawInput (InputTouchUp 0.0 loc 0)))
+                    case HashMap.lookup ident curhash of
+                        Nothing -> (_addEvent keyOperator (pkgRawInput (InputTouchUp 0.0 loc ident)))
                         Just (oldloc, prev) -> do
                             time <- getCurrentTime
                             let delta = realToFrac (diffUTCTime time prev)
-                            writeIORef touches $ HashMap.delete 0 curhash
-                            (_addEvent keyOperator (pkgRawInput (InputTouchUp delta loc 0)))
+                            writeIORef touches $ HashMap.delete ident curhash
+                            (_addEvent keyOperator (pkgRawInput (InputTouchUp delta loc ident)))
                 )
-            tm = (\x y -> do 
-                    let loc = (v2 (realToFrac x) (realToFrac y))
+            tm = (\ident x y -> do 
+                    let loc = v2 x y
                     curhash <- readIORef touches
-                    writeIORef touches $ HashMap.adjust (\(_, time) -> (loc, time)) 0 curhash)
+                    writeIORef touches $ HashMap.adjust (\(_, time) -> (loc, time)) ident curhash)
 
         regTouchBeganCallback =<< mkTouchFun td
         regTouchEndedCallback =<< mkTouchFun tu
         regTouchMovedCallback =<< mkTouchFun tm
         return $ do
             curhash <- readIORef touches
-            case HashMap.lookup 0 curhash of
-                Nothing -> return ()
-                Just (loc, _) -> (_addEvent keyOperator (pkgRawInput (InputTouchLoc loc 0)))
+            forM_ (HashMap.toList curhash) (\(ident, (loc, _)) -> _addEvent keyOperator (pkgRawInput (InputTouchLoc loc ident)))
 
 iosInit :: Size Int -> [SceneOperator ie] -> IO ()
 iosInit scrSize operators = do
