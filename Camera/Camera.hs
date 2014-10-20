@@ -13,7 +13,9 @@ data Projection = Perspective {
                   | Ortho {
                      width :: Scalar,
                      near :: Scalar,
-                     far :: Scalar } deriving Show
+                     far :: Scalar,
+                     shouldCenter :: Bool } 
+                     deriving Show
 
 data Target = Target {
             tpos :: V3,
@@ -31,8 +33,12 @@ getRoute (Camera _ r) = r
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
         mat44Perspective fov (realToFrac screenRatio) nearPlane farPlane
-shotMatrix Ortho { width, near, far } screenRatio =
-        mat44Ortho 0 width 0 height near far
+shotMatrix Ortho { width, near, far, shouldCenter } screenRatio =
+        if shouldCenter
+            then
+                mat44Ortho (-(width/2)) (width/2) (-(height/2)) (height/2) near far
+            else
+                mat44Ortho 0 width 0 height near far
         where height = width / (realToFrac screenRatio)
 
 worldViewMatrix :: Projection -> Scalar -> V3 -> Mat44
