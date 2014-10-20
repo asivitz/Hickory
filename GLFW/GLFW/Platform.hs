@@ -9,6 +9,7 @@ import Types.Types
 import Math.Vector
 import Engine.Scene.Input
 import Data.Time
+import Data.Maybe
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -32,11 +33,14 @@ setupInput win addInput = do
         return $ stepInput sd win addInput
 
 stepInput sd win addInput = do
-        SysData { fbSize } <- readIORef sd
+        SysData { fbSize, touches } <- readIORef sd
         GLFW.pollEvents
         curPos <- GLFW.getCursorPos win
         let curloc = touchPosToScreenPos fbSize curPos
-        addInput (InputTouchLoc curloc 0)
+            ident = case listToMaybe $ HashMap.keys touches of
+                        Nothing -> 0
+                        Just a -> a
+        addInput (InputTouchLoc curloc ident)
 
 mouseButtonCallback :: IORef SysData -> (RawInput Int -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform addInput win button buttonState modkeys =
