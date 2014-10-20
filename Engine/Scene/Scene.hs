@@ -29,7 +29,7 @@ instance Show (Scene mdl c d) where
         show scn = "Scene"
 
 class SceneModel mdl where
-        calcCameraMatrix :: RenderInfo -> mdl -> Mat44
+        calcCameraMatrix :: Size Int -> mdl -> Mat44
 
 -- A SceneOperator provides an interface to a Scene, such that the
 -- operations are connected by an IORef. The SceneOperator provides no
@@ -51,7 +51,7 @@ makeSceneOperator model resourceLoader modelStep render label = do
             _initRenderer = (\scrSize -> do
                     res <- resourceLoader
                     writeIORef ref $ Just (Scene model 
-                                               (RenderInfo (calcCameraMatrix (RenderInfo mat44Identity nullSize label) model) scrSize label)
+                                               (RenderInfo (calcCameraMatrix scrSize model) scrSize label)
                                                modelStep
                                                (render res)
                                                is)
@@ -100,7 +100,7 @@ stepScene scene@Scene { _render = renderFunc,
                       delta = do
         input <- grabSceneInput scene
         let (model', outEvents) = _stepModel ri input delta _model 
-            matrix' = (calcCameraMatrix ri model')
+            matrix' = (calcCameraMatrix ss model')
             scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss label) }
         renderFunc ri model'
         return (scene', outEvents)
