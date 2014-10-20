@@ -12,10 +12,8 @@ mapWithOthers fun lst = sub fun [] lst
     where sub f prevxs (x:xs) = f x (prevxs ++ xs) : sub f (x:prevxs) xs
           sub f _ [] = []
 
-runOneFrame :: Show ie => IO () -> [SceneOperator ie] -> ([SceneOperator ie] -> IO ()) -> Double -> IO ()
-runOneFrame stepInp operators renderFunc delta = do
-        stepInp
-
+runOneFrame :: Show ie => [SceneOperator ie] -> ([SceneOperator ie] -> IO ()) -> Double -> IO ()
+runOneFrame operators renderFunc delta = do
         sequence_ . mapWithOthers (\oper others -> do
              outEvents <- (_step oper) delta
              mapM_ (\otherOp -> mapM_ (\ie -> (_addEvent otherOp) ie) outEvents) others
@@ -29,7 +27,8 @@ iter !stepInp !operators !renderFunc !prev_time = do
         current_time <- getCurrentTime
         let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
-        runOneFrame stepInp operators renderFunc delta
+        stepInp 
+        runOneFrame operators renderFunc delta
 
         iter stepInp operators renderFunc current_time
 

@@ -14,12 +14,11 @@ import Data.Time
     --a method of converting GLFW.Key to it
 
 data SysData = SysData { 
-             evlist :: [RawInput Int],
              touches :: HashMap.HashMap Int UTCTime,
              fbSize :: Size Int
             }
 
-empty = SysData { evlist = [],
+empty = SysData {
                 touches = HashMap.empty,
                 fbSize = nullSize
                 }
@@ -27,7 +26,7 @@ empty = SysData { evlist = [],
 
 setupInput win addInput = do
         (width, height) <- GLFW.getFramebufferSize win
-        sd <- newIORef (SysData [] HashMap.empty (Size width height))
+        sd <- newIORef (SysData HashMap.empty (Size width height))
         GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd addInput)
         GLFW.setKeyCallback win $ Just (keyCallback sd addInput)
         return $ stepInput sd win addInput
@@ -42,7 +41,7 @@ stepInput sd win addInput = do
 mouseButtonCallback :: IORef SysData -> (RawInput Int -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform addInput win button buttonState modkeys =
         do
-            sd@SysData { fbSize, evlist, touches } <- readIORef platform
+            sd@SysData { fbSize, touches } <- readIORef platform
 
             curPos <- GLFW.getCursorPos win
 
@@ -68,8 +67,6 @@ mouseButtonCallback platform addInput win button buttonState modkeys =
 keyCallback :: IORef SysData -> (RawInput Int -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallback platform addInput win key scancode keyState modkeys =
         do
-            sd@SysData { evlist } <- readIORef platform
-
             curPos <- GLFW.getCursorPos win
 
             let ev = case keyState of
