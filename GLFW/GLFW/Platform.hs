@@ -40,7 +40,7 @@ stepInput sd win addInput = do
             ident = case listToMaybe $ HashMap.keys touches of
                         Nothing -> 0
                         Just a -> a
-        addInput (InputTouchLoc curloc ident)
+        addInput (InputTouchesLoc [(curloc,ident)])
 
 mouseButtonCallback :: IORef SysData -> (RawInput Int -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform addInput win button buttonState modkeys =
@@ -55,18 +55,17 @@ mouseButtonCallback platform addInput win button buttonState modkeys =
                     case buttonState of
                         GLFW.MouseButtonState'Pressed -> do
                             time <- getCurrentTime
-                            return (InputTouchDown, HashMap.insert touchid time touches)
+                            return (InputTouchesDown [(pos,touchid)], HashMap.insert touchid time touches)
                         GLFW.MouseButtonState'Released ->
                             case HashMap.lookup touchid touches of
-                                Nothing -> return (InputTouchUp 0, touches)
+                                Nothing -> return (InputTouchesUp [(0,pos,touchid)], touches)
                                 Just prev -> do
                                     time <- getCurrentTime
                                     let delta = realToFrac (diffUTCTime time prev)
-                                    return (InputTouchUp delta, HashMap.delete touchid touches)
-
+                                    return (InputTouchesUp [(delta,pos,touchid)], HashMap.delete touchid touches)
 
             writeIORef platform sd { touches = touches' }
-            addInput (ev pos touchid)
+            addInput ev
 
 keyCallback :: IORef SysData -> (RawInput Int -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
 keyCallback platform addInput win key scancode keyState modkeys =

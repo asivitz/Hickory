@@ -30,8 +30,8 @@ slide True (RScal frac offset) = (RScal (frac * 0.5) offset)
 slide False (RScal frac offset) = (RScal ((2 - frac) * 0.5) offset)
 
 
-processMenuStack :: RenderInfo -> RawInput k -> TransitionStack (MenuScreen ie mdc) -> Maybe (TransitionStack (MenuScreen ie mdc), [ie])
-processMenuStack renderinfo@(RenderInfo _ ss _) (InputTouchUp time pos pid) transitionStk =
+processMenuStack :: RenderInfo -> V2 -> TransitionStack (MenuScreen ie mdc) -> Maybe (TransitionStack (MenuScreen ie mdc), [ie])
+processMenuStack renderinfo@(RenderInfo _ ss _) pos transitionStk =
         let unproj = unproject pos (-5) renderinfo in
             case incomingScreen transitionStk of
                 Just (MenuScreen elements _) -> 
@@ -45,4 +45,3 @@ processMenuStack renderinfo@(RenderInfo _ ss _) (InputTouchUp time pos pid) tran
                                Just (ies, action) -> Just (maybe transitionStk (\a -> a transitionStk ) action, ies)
                                Nothing -> Nothing
                 Nothing -> Nothing
-processMenuStack _ _ _ = Nothing
