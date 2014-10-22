@@ -9,7 +9,7 @@ import Math.Matrix
 
 -- Each frame, the RenderInfo struct provides the matrix, screen size, 
 -- and layer used to render the previous frame
-data RenderInfo = RenderInfo Mat44 (Size Int) Label
+data RenderInfo = RenderInfo Mat44 (Size Int) Label deriving Show
 
 -- mdl - The model used to represent the data for this Scene
 -- ie - The InputEvent data type shared by all scenes
