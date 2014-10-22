@@ -45,36 +45,49 @@ iosInitFunc ops w h = iosInit (Size (fromIntegral w) (fromIntegral h)) ops
 
 iosInputInit :: SceneOperator ie -> (RawInput Int -> ie) -> IO (IO ())
 iosInputInit keyOperator pkgRawInput = do
+        newDowns <- newIORef []
+        newUps <- newIORef []
+        newMoves <- newIORef []
         touches <- newIORef HashMap.empty :: IO (IORef (HashMap.HashMap Int (V2, UTCTime)))
-        let td = (\ident x y -> do 
-                             let loc = v2 x y
-                             (_addEvent keyOperator (pkgRawInput (InputTouchDown loc ident)))
-                             time <- getCurrentTime
-                             curhash <- readIORef touches
-                             writeIORef touches $ HashMap.insert ident (loc, time) curhash
-                             )
-            tu = (\ident x y -> do 
-                    let loc = v2 x y
-                    curhash <- readIORef touches
-                    case HashMap.lookup ident curhash of
-                        Nothing -> (_addEvent keyOperator (pkgRawInput (InputTouchUp 0.0 loc ident)))
-                        Just (oldloc, prev) -> do
-                            time <- getCurrentTime
-                            let delta = realToFrac (diffUTCTime time prev)
-                            writeIORef touches $ HashMap.delete ident curhash
-                            (_addEvent keyOperator (pkgRawInput (InputTouchUp delta loc ident)))
-                )
+        let td = (\ident x y -> do
+                    time <- getCurrentTime
+                    modifyIORef newDowns ((ident, x, y, time):))
+            tu = (\ident x y -> do
+                    time <- getCurrentTime
+                    modifyIORef newUps ((ident, x, y, time):))
             tm = (\ident x y -> do 
-                    let loc = v2 x y
-                    curhash <- readIORef touches
-                    writeIORef touches $ HashMap.adjust (\(_, time) -> (loc, time)) ident curhash)
+                    modifyIORef newMoves ((ident, x, y):))
 
         regTouchBeganCallback =<< mkTouchFun td
         regTouchEndedCallback =<< mkTouchFun tu
         regTouchMovedCallback =<< mkTouchFun tm
+
         return $ do
             curhash <- readIORef touches
-            forM_ (HashMap.toList curhash) (\(ident, (loc, _)) -> _addEvent keyOperator (pkgRawInput (InputTouchLoc loc ident)))
+            moves <- atomicModifyIORef newMoves (\a -> ([], a))
+            ups <- atomicModifyIORef newUps (\a -> ([], a))
+            downs <- atomicModifyIORef newDowns (\a -> ([], a))
+            
+            -- Update the touch positions for move events
+            let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (v2 x y, time)) ident hsh) curhash moves
+
+            -- Broadcast a loc event for touches held over from last frame
+            _addEvent keyOperator (pkgRawInput (InputTouchesLoc (map (\(ident, (loc, _)) -> (loc, ident)) (HashMap.toList hash'))))
+
+            -- Add new touches
+            _addEvent keyOperator (pkgRawInput (InputTouchesDown (map (\(ident, x, y, time) -> (v2 x y, ident)) downs)))
+            let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (v2 x y, time) hsh) hash' downs
+
+            -- Remove released touches
+            _addEvent keyOperator (pkgRawInput (InputTouchesUp (map (\(ident, x, y, time) -> 
+                                                                    case HashMap.lookup ident hash'' of
+                                                                        Nothing -> (0, v2 x y, ident)
+                                                                        Just (_, prev) -> (realToFrac (diffUTCTime time prev), v2 x y, ident))
+                                                                ups)))
+            let hash''' = foldl (\hsh (ident, x, y, time) -> HashMap.delete ident hsh) hash'' ups
+
+            -- Record the new hash
+            writeIORef touches hash'''
 
 iosInit :: Size Int -> [SceneOperator ie] -> IO ()
 iosInit scrSize operators = do
