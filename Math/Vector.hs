@@ -16,7 +16,8 @@ module Math.Vector
     v4tov3,
     v3tov2,
     movePos,
-    moveVal
+    moveVal,
+    vmidpoint
     )
     where
 
@@ -48,6 +49,9 @@ v3tov2 (Vector3 x y z) = v2 x y
 
 v4tov3 :: V4 -> V3
 v4tov3 (Vector4 x y z w) = (Vector3 x y z)
+
+vmidpoint :: Vector a => a -> a -> a
+vmidpoint v t = vlinear 0.5 v t
 
 movePos :: Vector a => a -> a -> Scalar -> Scalar -> a
 movePos p1 p2 speed time = 

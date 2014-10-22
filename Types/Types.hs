@@ -15,7 +15,8 @@ module Types.Types
    transform,
    RelativeRect(..),
    transformRect,
-   convertSize
+   convertSize,
+   screenCenter
    ) where
 
 import Math.Vector
@@ -26,6 +27,9 @@ convertSize :: (Real a, Fractional b) => Size a -> Size b
 convertSize (Size a b) = Size (realToFrac a) (realToFrac b)
 
 type FSize = Size Float
+
+screenCenter :: Real a => Size a -> V2
+screenCenter (Size w h) = v2 ((realToFrac w)/2) ((realToFrac h)/2)
 
 nullSize :: Num a => Size a
 nullSize = (Size 0 0)
