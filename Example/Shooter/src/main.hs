@@ -1,21 +1,16 @@
 {-# LANGUAGE NamedFieldPuns #-}
  
-import Engine.Run
-import Engine.Model
-import Engine.Component.Component
+import Engine.Scene.Scene
 import Types.Types
-import Math.Vector
 import Systems.Draw
-import qualified Systems.DrawState as DrawState
 import Types.Color
 import Utils.Utils
 import Engine.Scene.Input
-import Engine.CompUtils
+import Math.Vector
 import Math.VectorMatrix
-import Control.Lens
-import Control.Monad
 import Camera.Camera
 import Graphics.Drawing
+import GLFW.Run
 
 data Resources = Resources {
                solidShader :: Maybe Shader
@@ -26,41 +21,29 @@ loadResources path = do
         solid <- loadShader path "Shader.vsh" "SolidColor.fsh"
         return $ Resources solid
 
-render :: Resources -> Model ComponentStore -> IO ()
-render (Resources solidShader) model = do
-        {-print $ "Rendering model: " ++ (show model)-}
+data Model = Model { playerPos :: V2,
+                     bullets :: [V2]
+                     }
 
-        whenMaybe solidShader $ \sh -> do
-            let ds = getModelComponents drawStates model
-            forM_ (stripEnts ds) $ \(DrawState pos) ->
-                drawSpec pos uiLabel (SolidSquare (Size 50 50) white sh)
+genCamera (Size w h) = 
+        let proj = Ortho (realToFrac w) 1 100 True
+            in Camera proj pZero
 
-spawnThing pos = do
-        e <- spawnEntity
-        addComp e drawStates $ DrawState pos
-        addComp e mouseDrags $ MouseDrag (v3 0 0 0)
-        {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
-        return ()
+instance SceneModel Model where
+        calcCameraMatrix size model = cameraMatrix (genCamera size) (aspectRatio size)
 
-processInput :: RenderInfo -> InputEv -> Model ComponentStore -> Model ComponentStore
-processInput (RenderInfo mat ss) (InputTouchDown pos pid) model = runModel (spawnThing p') model
-    where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
-
-processInput (RenderInfo mat ss) (InputTouchLoc pos pid) model = 
-        over components (\cs -> upComps2 cs drawStates mouseDrags (DrawState.snapToMouse p')) model
-    where p' = lerpUnproject pos 5 mat (viewportFromSize ss)
-
-processInput _ _ model = model
-
-stepComponents :: Double -> ComponentStore -> ComponentStore
-stepComponents delta cs = upComps2 cs drawStates newtonianMovers (DrawState.upDS delta)
+makeScene resPath = do
+        makeSceneOperator (Model pZero [])
+                          (loadResources resPath)
+                          (\ri ie del m -> (m, []))
+                          (\re ri mdl -> return ()) 
+                          worldLabel
 
 main :: IO ()
 main = do
-        let cam = Camera (Ortho 800 (-20) 1) (Route pZero Nothing)
-        glfwMain cam 
-                 emptyComponentStore 
-                 (loadResources "Example/HFreecell/resources") 
-                 processInput 
-                 stepComponents 
-                 render
+        operator <- makeScene "resources"
+         
+        glfwMain (Size 480 640)
+            [operator]
+            operator
+            id
