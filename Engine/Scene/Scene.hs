@@ -18,6 +18,7 @@ data Scene mdl ie re = Scene {
                        _model :: mdl,
                        _renderInfo :: RenderInfo,
                        _stepModel :: ModelStep mdl ie,
+                       _calcViewMatrix :: Size Int -> mdl -> Mat44,
                        _render :: Render mdl,
                        _inputStream :: IORef ([ie])
                        }
@@ -27,9 +28,6 @@ type Render mdl = RenderInfo -> mdl -> IO ()
 
 instance Show (Scene mdl c d) where
         show scn = "Scene"
-
-class SceneModel mdl where
-        calcCameraMatrix :: Size Int -> mdl -> Mat44
 
 -- A SceneOperator provides an interface to a Scene, such that the
 -- operations are connected by an IORef. The SceneOperator provides no
@@ -43,16 +41,23 @@ data SceneOperator ie = SceneOperator {
                       }
 
 -- Wraps a Scene up into a SceneOperator
-makeSceneOperator :: (SceneModel mdl, Show ie) => mdl -> IO re -> ModelStep mdl ie -> (re -> Render mdl) -> Label -> IO (SceneOperator ie)
-makeSceneOperator model resourceLoader modelStep render label = do
+makeSceneOperator :: (Show ie) => mdl -> 
+                                  ModelStep mdl ie -> 
+                                  IO re -> 
+                                  (Size Int -> mdl -> Mat44) ->
+                                  (re -> Render mdl) -> 
+                                  Label -> 
+                                  IO (SceneOperator ie)
+makeSceneOperator model modelStep resourceLoader viewmat render label = do
         ref <- newIORef Nothing
         is <- newIORef []
         return $ SceneOperator { 
             _initRenderer = (\scrSize -> do
                     res <- resourceLoader
                     writeIORef ref $ Just (Scene model 
-                                               (RenderInfo (calcCameraMatrix scrSize model) scrSize label)
+                                               (RenderInfo (viewmat scrSize model) scrSize label)
                                                modelStep
+                                               viewmat
                                                (render res)
                                                is)
                                                ),
@@ -89,18 +94,18 @@ renderCommandsForScene Scene { _renderInfo = (RenderInfo mat _ label) } = render
 grabSceneInput :: Show ie => Scene mdl ie re -> IO ([ie])
 grabSceneInput Scene { _inputStream } = do
         input <- atomicModifyIORef _inputStream (\i -> ([], i))
-        {-print input-}
         return input
 
-stepScene :: (Show ie, SceneModel mdl) => Scene mdl ie re -> Double -> IO (Scene mdl ie re, [ie])
+stepScene :: (Show ie) => Scene mdl ie re -> Double -> IO (Scene mdl ie re, [ie])
 stepScene scene@Scene { _render = renderFunc, 
                       _model, 
+                      _calcViewMatrix,
                       _renderInfo = (ri@(RenderInfo _ ss label)), 
                       _stepModel } 
                       delta = do
         input <- grabSceneInput scene
         let (model', outEvents) = _stepModel ri input delta _model 
-            matrix' = (calcCameraMatrix ss model')
+            matrix' = (_calcViewMatrix ss model')
             scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss label) }
         renderFunc ri model'
         return (scene', outEvents)

@@ -3,11 +3,8 @@
 import Engine.Scene.Scene
 import Types.Types
 import Systems.Draw
-import Types.Color
-import Utils.Utils
 import Engine.Scene.Input
 import Math.Vector
-import Math.VectorMatrix
 import Camera.Camera
 import Graphics.Drawing
 import GLFW.Run
