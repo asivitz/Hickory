@@ -1,0 +1,114 @@
+import Engine.Scene.Scene
+import Engine.Scene.Input
+import Types.Types
+import Math.Vector
+import Math.Matrix
+import Graphics.Drawing
+import GLFW.Run
+import Camera.Camera
+import Systems.Draw
+
+-- Our game data
+data Model = Model { 
+           playerPos :: V2,
+           firingDirection :: V2,
+           missiles :: [(V2, V2)]
+           }
+
+-- By default, or firingDirection is to the right
+newGame :: Model
+newGame = Model pZero (v2 1 0) []
+
+-- Our event type
+type Event = RawInput
+
+-- We need to determine from our input whether we should fire a missile
+data GameInput = GameInput {
+               movementVec :: (Maybe V2),
+               didFire :: Bool
+               }
+
+collectInput events = foldl process (GameInput Nothing False) events
+    where process gameInput (InputKeysHeld hash) = 
+            let moveVec = foldl (\vec (key,heldTime) -> vec + (case key of
+                                                                        Key'W -> v2 0 1
+                                                                        Key'A -> v2 1 0
+                                                                        Key'S -> v2 0 (-1)
+                                                                        Key'D -> v2 1 0))
+                                    pZero
+                                    (HashMap.toList hash)
+                in gameInput { movementVec = (Just moveVec) }
+          process gameInput (InputKeyDown Key'Space) = gameInput { didFire = True }
+          process gameInput _ = gameInput
+
+stepModel :: RenderInfo -> [Event] -> Double -> Model -> (Model, [Event])
+stepModel renderinfo events delta model@Model { playerPos, firingDirection, missiles } =
+        let GameInput { movementVec, didFire } = collectInput events 
+            model' = case movementVec of
+                         Nothing -> model
+                         -- If we move, then the firingDirection should
+                         -- change as well
+                         Just v -> model { firingDirection = movementVec, playerPos + (v |* delta) }
+
+            -- Fire 'ze missiles!
+            missiles' = if didFire
+                            then let newMissile = (playerPos, firingDirection) 
+                                     in (newMissile : missiles)
+                            else missiles
+
+            -- and finally we move all of the missiles
+            movedMissiles = map (\(pos, dir) -> pos + (dir |* delta)) missiles'
+                in (model' { missiles = movedMissiles }, [])
+
+-- The resources used by our rendering function
+data Resources = Resources {
+               solidShader :: Shader,
+               texturedShader :: Shader,
+               missileTex :: TexID
+               }
+
+loadResources :: String -> IO Resources
+loadResources path = do
+        solid <- loadShader path "Shader.vsh" "SolidColor.fsh"
+
+        -- To draw the missiles, we also need a shader that can draw
+        -- textures, and the actual missile texture
+        textured <- loadShader path "Shader.vsh" "Shader.fsh"
+        missiletex <- loadTexture path "circle.png"
+
+        case (solid, textured, missiletex) of
+            (Just solSh, Just texSh, Just missTex) -> return $ Resources solSh texSh missTex
+            Nothing -> error "Couldn't load resources."
+
+-- This function calculates a view matrix, used during rendering
+calcCameraMatrix :: Size Int -> Model -> Mat44
+calcCameraMatrix (Size w h) model = 
+        let proj = Ortho (realToFrac w) 1 100 True
+            camera = Camera proj pZero in
+                cameraMatrix camera (aspectRatio (Size w h))
+
+-- Our render function
+render :: Resources -> RenderInfo -> Model -> IO ()
+render Resources { solidShader, texturedShader, missileTex } (RenderInfo _ _ label)  Model { playerPos, missiles } = do
+        drawSpec (v2tov3 playerPos (-5)) label (Square (Size 10 10) white nullTex solidShader)
+
+        -- Draw the missiles
+        forM_ missiles $ \(pos, _) ->
+            drawSpec (v2tov3 pos (-5)) label (Square (Size 5 5) (rgb 1 0 0) missileTex texturedShader)
+
+makeScene :: String -> IO (SceneOperator (Event))
+makeScene resPath = makeSceneOperator newGame
+                                      stepModel
+                                      (loadResources resPath)
+                                      calcCameraMatrix
+                                      render
+                                      worldLabel
+
+main :: IO ()
+main = do
+        operator <- makeScene "resources"
+         
+        glfwMain (Size 480 640)
+            [operator]
+            operator
+            id

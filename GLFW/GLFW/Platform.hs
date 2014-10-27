@@ -86,13 +86,14 @@ keyCallback platform addInput win glfwkey scancode keyState modkeys =
             case keyState of
                 GLFW.KeyState'Pressed -> do
                     addInput (InputKeyDown key)
-                    writeIORef platform sd { keys = HashMap.insert key time }
+                    writeIORef platform sd { keys = HashMap.insert key time keys }
                 GLFW.KeyState'Released -> do
                     case HashMap.lookup key keys of
                         Nothing -> addInput (InputKeyUp key 0)
                         Just prev -> do
-                            addInput (InputKeyUp key (diffUTCTime time prev))
-                            writeIORef platform sd { keys = HashMap.delete key }
+                            addInput (InputKeyUp key (realToFrac (diffUTCTime time prev)))
+                            writeIORef platform sd { keys = HashMap.delete key keys }
+                _ -> return ()
 
 touchIdent :: GLFW.MouseButton -> Int
 touchIdent button = case button of

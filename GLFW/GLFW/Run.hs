@@ -24,7 +24,7 @@ glfwRender win operators = do
 mapAll :: [a -> b] -> a -> [b]
 mapAll fs a = map (\f -> f a) fs
 
-glfwMain :: Show ie => Size Int -> [SceneOperator ie] -> SceneOperator ie -> (RawInput Int -> ie) -> IO ()
+glfwMain :: Show ie => Size Int -> [SceneOperator ie] -> SceneOperator ie -> (RawInput -> ie) -> IO ()
 glfwMain (Size w h) operators keyOperator pkgRawInput = do 
           withWindow w h "MVC!" $ \win -> do
               initRenderer

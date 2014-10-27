@@ -1,12 +1,17 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 import Engine.Scene.Scene
 import Engine.Scene.Input
-import Types.Types
 import Math.Vector
 import Math.Matrix
 import Graphics.Drawing
 import GLFW.Run
+import Graphics.GLUtils
 import Camera.Camera
 import Systems.Draw
+import Types.Types
+import Types.Color
+import qualified Data.HashMap.Strict as HashMap
 
 -- Our game data
 data Model = Model { 
@@ -23,27 +28,31 @@ type Event = RawInput
 -- sense for our game
 data GameInput = GameInput (Maybe V2)
 
+collectInput :: [Event] -> GameInput
 collectInput events = foldl process (GameInput Nothing) events
     where process gameInput (InputKeysHeld hash) = 
             let movementVec = foldl (\vec (key,heldTime) -> vec + (case key of
                                                                         Key'W -> v2 0 1
-                                                                        Key'A -> v2 1 0
+                                                                        Key'A -> v2 (-1) 0
                                                                         Key'S -> v2 0 (-1)
-                                                                        Key'D -> v2 1 0))
+                                                                        Key'D -> v2 1 0
+                                                                        _ -> pZero))
                                     pZero
                                     (HashMap.toList hash)
-                in gameInput (Just movementVec)
+                in GameInput (Just movementVec)
           process gameInput _ = gameInput
+
+playerMovementSpeed = 100
 
 -- Our actual game logic simply turns the movementVector into actual player
 -- movement
 stepModel :: RenderInfo -> [Event] -> Double -> Model -> (Model, [Event])
 stepModel renderinfo events delta model@Model { playerPos } =
         let (GameInput movementVec) = collectInput events 
-            model' = case movementVec of
-                         Nothing -> model
-                         Just v -> model { playerPos + (v |* delta) }
-                in (model', [])
+            newPlayerPos = case movementVec of
+                         Nothing -> playerPos
+                         Just v -> playerPos + (v |* (delta * playerMovementSpeed))
+                in (model { playerPos = newPlayerPos }, [])
 
 -- The resources used by our rendering function
 data Resources = Resources {
