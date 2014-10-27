@@ -5,10 +5,10 @@ import Engine.Scene.Input
 import Math.Vector
 import Math.Matrix
 import Graphics.Drawing
+import Graphics.DrawUtils
+import Graphics.Shader
 import GLFW.Run
-import Graphics.GLUtils
 import Camera.Camera
-import Systems.Draw
 import Types.Types
 import Types.Color
 import qualified Data.HashMap.Strict as HashMap

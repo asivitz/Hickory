@@ -1,149 +1,89 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Graphics.DrawText where
+module Graphics.DrawText (Printer(..), loadPrinter, pvcShaderPair, printCommands, PositionedTextCommand(..), textcommand) where
 
-import Text.Font
 import Types.Color
-import qualified Data.HashMap.Strict as HashMap
-import Data.Char (ord)
-import Data.Maybe
-import Math.Vector
-import qualified Data.Text as Text
-import Data.Hashable
+import Graphics.Drawing
+import Graphics.Shader
+import Text.Text
+import Math.Matrix
 
-type CharTable a = HashMap.HashMap CharIdent (Glyph a)
-type KerningTable a = HashMap.HashMap KerningPair (KerningSpec a)
+import Graphics.Rendering.OpenGL.Raw.Core31
+import Data.Text.IO as TextIO
+import Textures.Textures
+import Control.Monad
 
-data Font a = Font (FontInfo a) (CharTable a) (KerningTable a) deriving Show
+data Printer a = Printer (Font a) TexID VAOConfig
 
-addItem :: (Data.Hashable.Hashable k, Eq k) => (v -> k) -> HashMap.HashMap k v -> v -> HashMap.HashMap k v
-addItem keyfunc table item = HashMap.insert (keyfunc item) item table
+createPrinterVAOConfig :: Shader -> IO VAOConfig
+createPrinterVAOConfig shader = do
+        vaoConfig <- createVAOConfig shader 
+            [(VertexGroup [(Attachment sp_ATTR_POSITION 3),
+                           (Attachment sp_ATTR_TEX_COORDS 2),
+                           (Attachment sp_ATTR_COLOR 4)])]
+        config' <- indexVAOConfig vaoConfig
+        return config'
 
-makeVerts :: V2 -> Scalar -> Scalar -> [V2]
-makeVerts bottomleft@(Vector2 leftx bottomy) width height =
-        let final_height = (negate height)
-            rightx = (leftx + width)
-            topy = (bottomy + final_height) in
-                [bottomleft,
-                v2 leftx topy,
-                v2 rightx bottomy,
-                v2 rightx topy]
+loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
+loadPrinter resPath shader name = do
+        texid <- loadTexture resPath $ name ++ ".png"
+        case texid of
+            Nothing -> return Nothing
+            Just tid -> do
+                text <- TextIO.readFile $ resPath ++ "/fonts/" ++ name ++ ".fnt"
+                case makeFont text of
+                    Left s -> do
+                        print $ "Error: Can't parse font file for " ++ name ++ ".fnt Msg: " ++ s
+                        return Nothing
+                    Right font -> do
+                        vaoconfig <- createPrinterVAOConfig shader
+                        return $ Just (Printer font tid vaoconfig)
 
-makeGlyph :: Real a => FontInfo a -> GlyphSpec a -> Glyph a
-makeGlyph FontInfo { lineHeight, base } spec@GlyphSpec { x, y, width, height, xoffset, yoffset} = Glyph spec (GlyphVerts verts tcverts)
-    where [tcx, tcy, tcw, tch] = map ((/512) . realToFrac) [x, y, width, height]
-          center = v2 (realToFrac xoffset) (realToFrac (lineHeight - yoffset - base))
-          verts = makeVerts center (realToFrac width) (realToFrac height)
-          tcverts = [v2 tcx tcy,
-                    v2 tcx (tcy + tch),
-                    v2 (tcx + tcw) tcy,
-                    v2 (tcx + tcw) (tcy + tch)]
+textcommand :: TextCommand
+textcommand = TextCommand { 
+                          text = "",
+                          fontSize = 4,
+                          align = AlignCenter,
+                          valign = Middle,
+                          color = black,
+                          leftBump = 0 }
 
-makeCharTable :: Real a => FontInfo a -> [GlyphSpec a] -> CharTable a
-makeCharTable fi specs = let glyphs = map (makeGlyph fi) specs in
-    foldl (addItem (\(Glyph gs _) -> ident gs)) HashMap.empty glyphs
+pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")
 
-makeKerningTable :: [KerningSpec a] -> KerningTable a
-makeKerningTable specs = foldl (addItem (\(KerningSpec pair _) -> pair)) HashMap.empty specs
+printCommands :: Real a => Shader -> Label -> Printer a -> [PositionedTextCommand] -> IO ()
+printCommands _ _ _ [] = return ()
+printCommands shader label (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
+        let squarelists = transformTextCommandsToVerts commands font
+            numsquares = length squarelists
+            floats = map realToFrac (foldl (++) [] squarelists)
 
-makeFont :: Integral a => Text.Text -> Either String (Font a)
-makeFont text = case runParseFont text of
-                    Right (info, glyphspecs, kernings) ->
-                        Right $ Font info (makeCharTable info glyphspecs) (makeKerningTable kernings)
-                    Left s -> Left s
+        when (not $ null floats) $ do
+            bindVAO vao
+            bufferVertices vbo floats
+            numBlockIndices <- bufferSquareIndices ivbo numsquares
+            unbindVAO
 
-data GlyphVerts = GlyphVerts [V2] [V2] deriving Show
+            dc <- addDrawCommand mat44Identity white white texid shader label 0.0 True
+            vao_payload <- setVAOCommand dc vao numBlockIndices gl_TRIANGLE_STRIP
+            return ()
 
-data Glyph a = Glyph (GlyphSpec a) GlyphVerts
-           | Control Int
-           | Null deriving Show
+printCommands _ _ _ _ = return ()
 
-data XAlign = AlignRight | AlignCenter | AlignLeft deriving Show
-data YAlign = Middle | LowerMiddle | Bottom | Top deriving Show
+---
 
-lineShiftX :: Fractional a => a -> XAlign -> a
-lineShiftX width AlignRight = negate width
-lineShiftX width AlignCenter = negate (width / 2)
-lineShiftX width AlignLeft = 0
+deleteIndex :: [a] -> Int -> [a]
+deleteIndex [] _ = []
+deleteIndex (x:xs) 0 = xs
+deleteIndex (x:xs) i = (x:deleteIndex xs (i - 1))
 
-lineShiftY :: (Real a, Fractional b) => a -> b -> YAlign -> b
-lineShiftY fontSize _ Middle = 43 - (realToFrac fontSize) * 12
-lineShiftY fontSize _ LowerMiddle = 48 - (realToFrac fontSize) * 12
-lineShiftY _ height Bottom = height
-lineShiftY _ _ Top = 0
+modIndex :: [a] -> Int -> (a -> a) -> [a]
+modIndex [] _ _ = []
+modIndex (x:xs) 0 f = f x : xs
+modIndex (x:xs) i f = x : modIndex xs (i - 1) f
 
-data TextCommand = TextCommand {
-                 text :: String,
-                 fontSize :: Scalar,
-                 align :: XAlign,
-                 valign :: YAlign,
-                 color :: Color,
-                 leftBump :: Scalar } deriving Show
-
-data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
-
-fontGlyphs :: Real a => String -> Font a -> [Glyph a]
-fontGlyphs text (Font _ chartable _) = mapMaybe (\x -> HashMap.lookup x chartable) idents
-    where idents = map (CharIdent . ord) text
-
-kerningForGlyphs :: Real a => Glyph a -> Glyph a -> KerningTable a -> a
-kerningForGlyphs a b table = 0
-
-displayWidth :: Real a => KerningTable a -> [Glyph a] -> a
-displayWidth kerningtable glyphs = fst $ foldl accum (0,Null) glyphs
-    where accum (width,prev) g@(Glyph GlyphSpec { xadvance } verts) = let kerning = kerningForGlyphs prev g kerningtable in
-            (xadvance + kerning + width, g)
-          accum (width,prev) g@(Control _) = (width,g)
-          accum (width,prev) g@(Null) = (width,g)
-
-transformTextCommandToVerts :: Real a => PositionedTextCommand -> Font a -> [[Float]]
-transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand text fontSize align valign color commandBump) )
-                            font@(Font FontInfo { lineHeight } chartable kerningtable) = 
-        let fsize = fontSize / 12
-            glyphs = fontGlyphs text font
-            width = displayWidth kerningtable glyphs
-            xoffset = commandBump + (lineShiftX (realToFrac width) align)
-            yoffset = lineShiftY fsize (realToFrac lineHeight) valign 
-            accum :: Real a => (Scalar, [[Scalar]], [Scalar]) -> Glyph a -> (Scalar, [[Scalar]], [Scalar])
-            accum = \(leftBump, vertlst, color_verts) glyph ->
-                case glyph of
-                    Null -> (leftBump, vertlst, color_verts)
-                    (Control 94) -> (leftBump, vertlst, color_verts)
-                    (Control _) -> (leftBump, vertlst, color_verts)
-                    {-
-                    (let* ([next (cadr lst)]
-                        [num (if (integer? next) next (font-character-id next))]
-                                [newcolor (color-for-code num)]
-                                [new-color-verts (append newcolor alpha-list)]
-                                )
-                                (accum (cddr lst) left-bump new-color-verts res)
-                                )] -}
-                    Glyph GlyphSpec { xadvance } (GlyphVerts gverts tc) ->
-                        let transform :: V2 -> V3
-                            transform = \(Vector2 vx vy) -> v3 (x + fsize * (vx + leftBump)) (y + fsize * (vy + yoffset)) z
-                            new_verts = map transform gverts
-                            vert_set = foldr (\(v, w) lst -> (vunpack v) ++ (vunpack w) ++ color_verts ++ lst) [] (zip new_verts tc) in
-                                ((leftBump + (realToFrac xadvance)), (vert_set : vertlst), color_verts)
-            (_, vert_result, _) = foldl accum (xoffset, [], (vunpack color)) glyphs
-            in map (map realToFrac) vert_result
-
-transformTextCommandsToVerts :: Real a => [PositionedTextCommand] -> Font a -> [[Float]]
-transformTextCommandsToVerts commands font = foldl processCommand [] commands
-    where processCommand :: [[Float]] -> PositionedTextCommand -> [[Float]]
-          processCommand verts command = (transformTextCommandToVerts command font) ++ verts
-
-                    {- Embedded textures
-                    (Control 96) -> 
-                                           (let* ([next (cadr lst)])
-                                             (draw-embedded-tex (if (integer? next) next (font-character-id next))
-                                                                left-bump
-                                                                pos
-                                                                fsize
-                                                                yoffset
-                                                                color-verts)
-                                             (accum (cddr lst) (+ left-bump embedded-tex-x-advance) color-verts res)
-                                             )])
-                                             -}
-
-type PrinterID = Int
+appendToAL :: Eq key => [(key, [a])] -> key -> a -> [(key, [a])]
+appendToAL [] key val = [(key, [val])]
+appendToAL (x@(k, vals):xs) key val
+        | k == key = ((k, val:vals):xs)
+        | otherwise = (x:(appendToAL xs key val))
 

@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Textures where
+module Textures.Textures (loadTexture) where
 
 import Graphics.GLUtils
 import Foreign.Marshal.Alloc

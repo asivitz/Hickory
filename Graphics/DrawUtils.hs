@@ -1,19 +1,21 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Systems.Draw where
+module Graphics.DrawUtils where
 
 import Types.Types
 
 import Graphics.GLUtils
+import Graphics.Shader
 import Math.Matrix
 import Math.Vector
 import Math.VectorMatrix
 
-import Camera.Camera
-
-import Foreign.C.String
 import Graphics.Drawing
-import Graphics.Rendering.OpenGL.Raw.Core31
+import Types.Color
+
+data DrawSpec = Square FSize Color TexID Shader
+              | SolidSquare FSize Color Shader
+              deriving (Show)
 
 drawSpec :: Vector3 -> Label -> DrawSpec -> IO ()
 drawSpec pos label (Square (Size w h) color tex shader) = 
@@ -27,31 +29,7 @@ drawSpecRot pos rot label (Square (Size w h) color tex shader) =
       addDrawCommand model color color tex shader label (realToFrac . v3z $ pos) True
          where model = mat44Scale w h 1 $ mat44Rotate 0 0 1 (realToFrac rot) $ mat44TranslateV pos mat44Identity
 
-renderCommandsWithCamera :: Camera -> Label -> Scalar -> IO ()
-renderCommandsWithCamera cam label aspect = renderCommands matrix label
-    where matrix = cameraMatrix cam aspect
-
-    {-
-    glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-    renderCommandsWithCamera uicam backgroundLabel ar
-    renderCommands worldMatrix' worldLabel
-    renderCommandsWithCamera uicam uiLabel ar
-
-    resetRenderer
-    -}
-
-loadShader resPath vert frag = do
-   let prefix = resPath ++ "/Shaders/"
-   let (vsp, fsp) = ( prefix ++ vert, prefix ++ frag)
-
-   shader <- loadShaderFromPaths vsp fsp
-   return shader
-
 data ParticleShader = ParticleShader Shader UniformLoc
-
-getUniformLoc (Shader s) name =
-        withCString name $ \ptrname ->
-            glGetUniformLocation s ptrname
 
 {-
 reserveParticleShader :: IORef SysData -> SysMonad c IO (Maybe ParticleShader)

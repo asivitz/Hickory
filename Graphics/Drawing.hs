@@ -1,6 +1,43 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Graphics.Drawing where
+module Graphics.Drawing ( module Graphics.GLUtils,
+                          renderCommands,
+                          Label,
+                          worldLabel,
+                          uiLabel,
+                          backgroundLabel,
+                          addDrawCommand,
+                          setTCCommand,
+                          setVAOCommand,
+                          getUniformLoc,
+                          grabUniformLoc,
+                          addFloatUniform,
+                          Uniform,
+                          UniformLoc,
+                          Attachment(..),
+                          VertexGroup(..),
+                          VAOConfig(..),
+                          drawPoints,
+                          initRenderer,
+                          resetRenderer,
+                          createVAOConfig,
+                          indexVAOConfig,
+                          bindVAO,
+                          bufferVertices,
+                          bufferSquareIndices,
+                          unbindVAO,
+                          sp_ATTR_POSITION,
+                          sp_ATTR_TEX_COORDS,
+                          sp_ATTR_COLOR,
+                          sp_ATTR_COLOR2,
+                          sp_UNIFORM_TEXID,
+                          sp_UNIFORM_COLOR,
+                          sp_UNIFORM_COLOR2,
+                          sp_UNIFORM_MODEL_MAT,
+                          sp_UNIFORM_VIEW_MAT,
+                          sp_UNIFORM_SIZE
+                        )
+                        where
 
 import Types.Color
 import Math.Matrix
@@ -10,29 +47,10 @@ import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Marshal.Array
 import Graphics.GLUtils
+import Graphics.Shader
 import Foreign.Ptr
 import Graphics.Rendering.OpenGL.Raw.Core31
 import qualified Data.Foldable as Fold
-import Types.Types
-
-newtype Shader = Shader CUInt deriving (Eq, Ord, Show)
-
-nullShader :: Shader
-nullShader = Shader (-1)
-
-loadShaderFromPaths :: String -> String -> IO (Maybe Shader)
-loadShaderFromPaths vertShaderPath fragShaderPath = 
-        withCString vertShaderPath $ \vpath ->
-            withCString fragShaderPath $ \fpath ->
-                do
-                    val <- c'loadShader vpath fpath
-                    if val >= 0
-                        then
-                            return $ Just $ Shader val
-                        else return Nothing
-
-foreign import ccall "load_shader" c'loadShader
-    :: CString -> CString -> IO CUInt
 
 type VAO = CUInt
 type VBO = CUInt
@@ -47,6 +65,10 @@ renderCommands :: Mat44 -> Label -> IO ()
 renderCommands mat label = 
       withMat44 mat $ \ptr ->
          c'renderCommands ptr label
+
+getUniformLoc (Shader s) name =
+        withCString name $ \ptrname ->
+            glGetUniformLocation s ptrname
 
 type Label = CInt
 
@@ -228,7 +250,3 @@ foreign import ccall "attach_vertex_array" attachVertexArray
 
 foreign import ccall "getMainVAO" getMainVAO
     :: IO CUInt
-
-data DrawSpec = Square FSize Color TexID Shader
-              | SolidSquare FSize Color Shader
-              deriving (Show)

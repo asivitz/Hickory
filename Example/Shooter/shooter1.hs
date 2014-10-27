@@ -12,7 +12,7 @@ import GLFW.Run
 data Model = EmptyModel
 
 -- Our event type
-type Event = RawInput Int
+type Event = RawInput
 
 -- This function runs our game logic. It steps through one frame of simulation.
 -- This stub function does nothing to the model, and it returns an empty
