@@ -24,7 +24,7 @@ make = do
         registerResource sysCon uiCamera (camera' uicam)
         return $ System (run uicam)
 
-empty = SysData (Camera (Ortho 800 (-20) 1) (Route pZero Nothing))
+empty = SysData (Camera (Ortho 800 (-20) 1) (Route vZero Nothing))
 
 
 run camera delta =

@@ -90,7 +90,7 @@ stepComponents delta model = noEvents $
 makeScene = do
         board <- makeGame
         is <- newIORef (Input [])
-        let cam = \size -> Camera (Ortho 10 1 100) (Route pZero Nothing)
+        let cam = \size -> Camera (Ortho 10 1 100) (Route vZero Nothing)
             scene = Scene {
                           _name = "Game",
                           _model = (newModel cam emptyComponentStore (GameModel board)),

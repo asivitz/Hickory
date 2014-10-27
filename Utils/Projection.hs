@@ -13,4 +13,4 @@ unproject pos z (RenderInfo mat ss _) = lerpUnproject pos z mat (viewportFromSiz
 -- Useful for transforming a difference in touch coordinates into
 -- a world difference vector
 unprojectDelta :: V2 -> Scalar -> RenderInfo -> V3
-unprojectDelta p depth renderinfo = (unproject p depth renderinfo) - (unproject pZero depth renderinfo)
+unprojectDelta p depth renderinfo = (unproject p depth renderinfo) - (unproject vZero depth renderinfo)

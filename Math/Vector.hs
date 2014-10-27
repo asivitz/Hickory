@@ -10,14 +10,15 @@ module Math.Vector
     v2,
     v3,
     v4,
-    pZero,
+    vZero,
     v2tov3,
     v3tov4,
     v4tov3,
     v3tov2,
     movePos,
     moveVal,
-    vmidpoint
+    vmidpoint,
+    vnull
     )
     where
 
@@ -35,8 +36,8 @@ v2 = Vector2
 v3 = Vector3
 v4 = Vector4
 
-pZero :: BasicVector a => a
-pZero = vpromote 0
+vZero :: BasicVector a => a
+vZero = vpromote 0
 
 v2tov3 :: V2 -> Scalar -> V3
 v2tov3 (Vector2 x y) z = v3 x y z
@@ -52,6 +53,9 @@ v4tov3 (Vector4 x y z w) = (Vector3 x y z)
 
 vmidpoint :: Vector a => a -> a -> a
 vmidpoint v t = vlinear 0.5 v t
+
+vnull :: Vector a => a -> Bool
+vnull v = vmag v == 0
 
 movePos :: Vector a => a -> a -> Scalar -> Scalar -> a
 movePos p1 p2 speed time = 

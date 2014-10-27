@@ -29,7 +29,7 @@ make = do
         registerResource sysCon setWorldProjection (setWP worldcam)
         return $ System (run worldcam)
 
-empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route pZero Nothing))
+empty = SysData (Camera (Perspective (pi / 2) 1 100) (Route vZero Nothing))
 
 run :: IORef SysData -> Double -> SysMonad r IO ()
 run camera delta =

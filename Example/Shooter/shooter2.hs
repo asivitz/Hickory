@@ -19,7 +19,7 @@ data Model = Model {
            }
 
 newGame :: Model
-newGame = Model pZero
+newGame = Model vZero
 
 -- Our event type
 type Event = RawInput
@@ -36,8 +36,8 @@ collectInput events = foldl process (GameInput Nothing) events
                                                                         Key'A -> v2 (-1) 0
                                                                         Key'S -> v2 0 (-1)
                                                                         Key'D -> v2 1 0
-                                                                        _ -> pZero))
-                                    pZero
+                                                                        _ -> vZero))
+                                    vZero
                                     (HashMap.toList hash)
                 in GameInput (Just movementVec)
           process gameInput _ = gameInput
@@ -71,7 +71,7 @@ loadResources path = do
 calcCameraMatrix :: Size Int -> Model -> Mat44
 calcCameraMatrix (Size w h) model = 
         let proj = Ortho (realToFrac w) 1 100 True
-            camera = Camera proj pZero in
+            camera = Camera proj vZero in
                 cameraMatrix camera (aspectRatio (Size w h))
 
 -- Our render function

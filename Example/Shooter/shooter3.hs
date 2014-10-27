@@ -1,12 +1,19 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 import Engine.Scene.Scene
 import Engine.Scene.Input
-import Types.Types
 import Math.Vector
 import Math.Matrix
 import Graphics.Drawing
 import GLFW.Run
+import Graphics.GLUtils
 import Camera.Camera
 import Systems.Draw
+import Systems.Textures
+import Types.Types
+import Types.Color
+import Control.Monad
+import qualified Data.HashMap.Strict as HashMap
 
 -- Our game data
 data Model = Model { 
@@ -17,7 +24,7 @@ data Model = Model {
 
 -- By default, or firingDirection is to the right
 newGame :: Model
-newGame = Model pZero (v2 1 0) []
+newGame = Model vZero (v2 1 0) []
 
 -- Our event type
 type Event = RawInput
@@ -28,37 +35,46 @@ data GameInput = GameInput {
                didFire :: Bool
                }
 
+collectInput :: [Event] -> GameInput
 collectInput events = foldl process (GameInput Nothing False) events
     where process gameInput (InputKeysHeld hash) = 
             let moveVec = foldl (\vec (key,heldTime) -> vec + (case key of
                                                                         Key'W -> v2 0 1
-                                                                        Key'A -> v2 1 0
+                                                                        Key'A -> v2 (-1) 0
                                                                         Key'S -> v2 0 (-1)
-                                                                        Key'D -> v2 1 0))
-                                    pZero
+                                                                        Key'D -> v2 1 0
+                                                                        _ -> vZero))
+                                    vZero
                                     (HashMap.toList hash)
                 in gameInput { movementVec = (Just moveVec) }
           process gameInput (InputKeyDown Key'Space) = gameInput { didFire = True }
           process gameInput _ = gameInput
 
+playerMovementSpeed = 100
+missileMovementSpeed = 200
+
+missileInBounds :: (V2, V2) -> Bool
+missileInBounds (pos, _) = vmag pos < 500
+
 stepModel :: RenderInfo -> [Event] -> Double -> Model -> (Model, [Event])
-stepModel renderinfo events delta model@Model { playerPos, firingDirection, missiles } =
+stepModel renderinfo events delta Model { playerPos, firingDirection, missiles } =
         let GameInput { movementVec, didFire } = collectInput events 
-            model' = case movementVec of
-                         Nothing -> model
+            (fireDir', playerPos') = case movementVec of
+                         Nothing -> (firingDirection, playerPos)
                          -- If we move, then the firingDirection should
                          -- change as well
-                         Just v -> model { firingDirection = movementVec, playerPos + (v |* delta) }
+                         Just v | vnull v -> (firingDirection, playerPos)
+                         Just v -> (v, playerPos + (v |* (delta * playerMovementSpeed)))
 
-            -- Fire 'ze missiles!
+            -- Fire ze missiles!
             missiles' = if didFire
-                            then let newMissile = (playerPos, firingDirection) 
+                            then let newMissile = (playerPos', fireDir') 
                                      in (newMissile : missiles)
                             else missiles
 
             -- and finally we move all of the missiles
-            movedMissiles = map (\(pos, dir) -> pos + (dir |* delta)) missiles'
-                in (model' { missiles = movedMissiles }, [])
+            movedMissiles = filter missileInBounds $ map (\(pos, dir) -> (pos + (dir |* (delta * missileMovementSpeed)), dir)) missiles'
+                in (Model { playerPos = playerPos', firingDirection = fireDir', missiles = movedMissiles }, [])
 
 -- The resources used by our rendering function
 data Resources = Resources {
@@ -78,13 +94,13 @@ loadResources path = do
 
         case (solid, textured, missiletex) of
             (Just solSh, Just texSh, Just missTex) -> return $ Resources solSh texSh missTex
-            Nothing -> error "Couldn't load resources."
+            _ -> error "Couldn't load resources."
 
 -- This function calculates a view matrix, used during rendering
 calcCameraMatrix :: Size Int -> Model -> Mat44
 calcCameraMatrix (Size w h) model = 
         let proj = Ortho (realToFrac w) 1 100 True
-            camera = Camera proj pZero in
+            camera = Camera proj vZero in
                 cameraMatrix camera (aspectRatio (Size w h))
 
 -- Our render function

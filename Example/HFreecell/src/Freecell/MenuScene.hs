@@ -106,7 +106,7 @@ simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 
 
 makeScene = do
         is <- newIORef (Input [])
-        let cam = \(Size w h) -> Camera (Ortho (realToFrac w) (-20) 1) (Route pZero Nothing)
+        let cam = \(Size w h) -> Camera (Ortho (realToFrac w) (-20) 1) (Route vZero Nothing)
             scene = Scene {
                           _name = "Menu",
                           _model = newModel cam ComponentStore (pushScreen mainMenu emptyTransitionStack),
