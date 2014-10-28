@@ -1,4 +1,4 @@
-module GLFW.Utils (buildWindow, withWindow) where
+module Platforms.GLFW.Utils (buildWindow, withWindow) where
 
 import qualified Graphics.UI.GLFW          as GLFW
 import Control.Monad

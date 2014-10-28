@@ -38,7 +38,7 @@ extra-source-files:  Readme.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     IOS.Utils, IOS.Run
+  exposed-modules:     Platforms.IOS
   other-extensions:    NamedFieldPuns, Rank2Types, BangPatterns, OverloadedStrings
   build-depends:       base >=4.7 && <4.8, OpenGLRaw >=1.5 && <1.6, AC-Vector >=2.3 && <2.4, time >=1.4 && <1.5, unordered-containers >=0.2 && <0.3, Hickory
   default-language:    Haskell2010

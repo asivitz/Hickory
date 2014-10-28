@@ -3,7 +3,7 @@ import Engine.Scene.Input
 import Types.Types
 import Math.Matrix
 import Graphics.Drawing
-import GLFW.Run
+import Platforms.GLFW
 
 -- This file just contains stub functions and datatypes.
 -- We'll fill them in as we build our example game.
@@ -35,7 +35,6 @@ calcCameraMatrix (Size w h) model = mat44Identity
 -- Our render function
 render :: Resources -> RenderInfo -> Model -> IO ()
 render resources renderinfo model = return ()
-
 
 makeScene :: IO (SceneOperator (Event))
 makeScene = makeSceneOperator EmptyModel

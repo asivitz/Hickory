@@ -1,8 +1,8 @@
-module GLFW.Run where
+module Platforms.GLFW where
 
 import qualified Graphics.UI.GLFW as GLFW
-import GLFW.Utils
-import qualified GLFW.Platform as Platform
+import Platforms.GLFW.Utils
+import qualified Platforms.GLFW.Bridge as Bridge
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import Data.Bits
@@ -40,7 +40,7 @@ glfwMain (Size w h) operators keyOperator pkgRawInput = do
 
               sequence_ $ mapAll (map _initRenderer operators) scrSize
 
-              stepInp <- Platform.setupInput win (\raw -> (_addEvent keyOperator (pkgRawInput raw)))
+              stepInp <- Bridge.setupInput win (\raw -> (_addEvent keyOperator (pkgRawInput raw)))
               run stepInp
                   operators
                   (glfwRender win)

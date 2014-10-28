@@ -7,7 +7,7 @@ import Math.Matrix
 import Graphics.Drawing
 import Graphics.DrawUtils
 import Graphics.Shader
-import GLFW.Run
+import Platforms.GLFW
 import Camera.Camera
 import Textures.Textures
 import Types.Types

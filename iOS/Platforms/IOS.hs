@@ -1,6 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module IOS.Run where
+module Platforms.IOS where
 
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.Bits

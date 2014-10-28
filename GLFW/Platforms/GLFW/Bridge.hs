@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module GLFW.Platform where
+module Platforms.GLFW.Bridge where
 
 import Data.IORef
 import qualified Data.HashMap.Strict as HashMap
