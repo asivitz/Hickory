@@ -1,11 +1,7 @@
 module Menus.Menus where
 
 import Types.Types
-import Graphics.Drawing
-import Graphics.GLUtils
-import Graphics.DrawText
 import Math.Vector
-import Types.Color
 
 data Button c t = Button (RelativeRect Scalar Scalar) ([c], Maybe (TransitionAction t))
 
@@ -33,6 +29,11 @@ popScreen ts@(TransitionStack stk time leaving) =
         case stk of
             (x:xs) -> (TransitionStack xs 0 (Just x))
             _ -> error "Can't pop empty menu stack."
+
+canPop :: TransitionStack t -> Bool
+canPop (TransitionStack [] _ _) = False
+canPop (TransitionStack [_] _ _) = False
+canPop (TransitionStack _ _ _) = True
 
 incomingScreen :: TransitionStack t -> Maybe t
 incomingScreen (TransitionStack [] _ _) = Nothing

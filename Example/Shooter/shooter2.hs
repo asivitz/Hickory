@@ -1,3 +1,8 @@
+{- shooter2.hs
+ - This game has simple character movement, with the WASD keys.
+ - See shooter3.hs to see a more developed example.
+ -}
+
 {-# LANGUAGE NamedFieldPuns #-}
 
 import Engine.Scene.Scene

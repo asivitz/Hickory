@@ -49,3 +49,8 @@ sortOnMaybe f = map snd . sortBy (comparing fst) . mapMaybe (\x ->
                                  case f x of
                                      Nothing -> Nothing
                                      Just a -> Just (a, x))
+
+modifyAt :: (a -> a) -> Int -> [a] -> [a]
+modifyAt f 0 (x:xs) = f x : xs
+modifyAt f num (x:xs) = x : (modifyAt f (num - 1) xs)
+modifyAt f num [] = []

@@ -1,3 +1,8 @@
+{- shooter1.hs
+ - This is the starting point of a simple game. It shows a blank screen.
+ - See shooter2.hs and shooter3.hs to see more developed examples.
+ -}
+
 import Engine.Scene.Scene
 import Engine.Scene.Input
 import Types.Types

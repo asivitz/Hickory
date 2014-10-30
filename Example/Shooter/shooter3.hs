@@ -1,3 +1,8 @@
+{- shooter3.hs
+ - This game has simple character movement with the WASD keys,
+ - as well as shooting simple missiles with the SpaceBar.
+ -}
+
 {-# LANGUAGE NamedFieldPuns #-}
 
 import Engine.Scene.Scene

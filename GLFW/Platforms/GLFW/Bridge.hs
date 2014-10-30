@@ -82,7 +82,9 @@ keyCallback platform addInput win glfwkey scancode keyState modkeys =
             sd@SysData { keys } <- readIORef platform
 
             time <- getCurrentTime
-            let key = toEnum (fromEnum glfwkey)
+            let key = toEnum (fromEnum glfwkey) -- only possible since our Key type is defined exactly the same as GLFW's
+                -- other platforms will need a more intelligent conversion
+                -- between key values
             case keyState of
                 GLFW.KeyState'Pressed -> do
                     addInput (InputKeyDown key)
