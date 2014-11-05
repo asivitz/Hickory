@@ -54,3 +54,11 @@ modifyAt :: (a -> a) -> Int -> [a] -> [a]
 modifyAt f 0 (x:xs) = f x : xs
 modifyAt f num (x:xs) = x : (modifyAt f (num - 1) xs)
 modifyAt f num [] = []
+
+modify :: Eq a => a -> (a -> a) -> [a] -> [a]
+modify _ _ [] = []
+modify a f (x:xs)
+    | a == x = f x : xs
+    | otherwise = x : modify a f xs
+
+for = flip map

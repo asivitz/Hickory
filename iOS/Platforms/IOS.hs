@@ -43,7 +43,7 @@ makeIOSStepFunc operators stepInput = do
 iosInitFunc :: [SceneOperator ie] -> CInt -> CInt -> IO ()
 iosInitFunc ops w h = iosInit (Size (fromIntegral w) (fromIntegral h)) ops
 
-iosInputInit :: SceneOperator ie -> (RawInput Int -> ie) -> IO (IO ())
+iosInputInit :: SceneOperator ie -> (RawInput -> ie) -> IO (IO ())
 iosInputInit keyOperator pkgRawInput = do
         newDowns <- newIORef []
         newUps <- newIORef []

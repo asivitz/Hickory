@@ -1,18 +1,4 @@
-module Menus.Menus where
-
-import Types.Types
-import Math.Vector
-
-data Button c t = Button (RelativeRect Scalar Scalar) ([c], Maybe (TransitionAction t))
-
-data UIElement c t mi = UIElement (Maybe (Button c t)) [mi]
-
-data MenuScreen c mi = MenuScreen [UIElement c (MenuScreen c mi) mi] Scalar
-
-makeLabel :: mi -> UIElement c t mi
-makeLabel s = UIElement Nothing [s]
-
---
+module UI.Stack where
 
 data TransitionStack t = TransitionStack ![t] !Double !(Maybe t)
 
@@ -20,8 +6,6 @@ transitionTime :: TransitionStack t -> Double
 transitionTime (TransitionStack _ time _) = time
 
 emptyTransitionStack = TransitionStack [] 0 Nothing
-
-type TransitionAction t = TransitionStack t -> TransitionStack t
 
 pushScreen screen (TransitionStack stk time leaving) = (TransitionStack (screen:stk) 0 Nothing)
 
