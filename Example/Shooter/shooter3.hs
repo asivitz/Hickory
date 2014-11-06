@@ -40,17 +40,19 @@ data GameInput = GameInput {
                didFire :: Bool
                }
 
+buildVecWithKeys :: V2 -> (Key, Double) -> V2
+buildVecWithKeys vec (key, heldTime) = 
+    vec + (case key of
+                Key'Up -> v2 0 1
+                Key'Left -> v2 (-1) 0
+                Key'Down -> v2 0 (-1)
+                Key'Right -> v2 1 0
+                _ -> vZero)
+
 collectInput :: [Event] -> GameInput
 collectInput events = foldl process (GameInput Nothing False) events
     where process gameInput (InputKeysHeld hash) = 
-            let moveVec = foldl (\vec (key,heldTime) -> vec + (case key of
-                                                                        Key'Up -> v2 0 1
-                                                                        Key'Left -> v2 (-1) 0
-                                                                        Key'Down -> v2 0 (-1)
-                                                                        Key'Right -> v2 1 0
-                                                                        _ -> vZero))
-                                    vZero
-                                    (HashMap.toList hash)
+            let moveVec = foldl buildVecWithKeys vZero (HashMap.toList hash)
                 in gameInput { movementVec = (Just moveVec) }
           process gameInput (InputKeyDown Key'Space) = gameInput { didFire = True }
           process gameInput _ = gameInput

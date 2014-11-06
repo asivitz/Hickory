@@ -32,17 +32,19 @@ type Event = RawInput
 -- sense for our game
 data GameInput = GameInput (Maybe V2)
 
+buildVecWithKeys :: V2 -> (Key, Double) -> V2
+buildVecWithKeys vec (key, heldTime) = 
+    vec + (case key of
+                Key'Up -> v2 0 1
+                Key'Left -> v2 (-1) 0
+                Key'Down -> v2 0 (-1)
+                Key'Right -> v2 1 0
+                _ -> vZero)
+
 collectInput :: [Event] -> GameInput
 collectInput events = foldl process (GameInput Nothing) events
     where process gameInput (InputKeysHeld hash) = 
-            let movementVec = foldl (\vec (key,heldTime) -> vec + (case key of
-                                                                        Key'Up -> v2 0 1
-                                                                        Key'Left -> v2 (-1) 0
-                                                                        Key'Down -> v2 0 (-1)
-                                                                        Key'Right -> v2 1 0
-                                                                        _ -> vZero))
-                                    vZero
-                                    (HashMap.toList hash)
+            let movementVec = foldl buildVecWithKeys vZero (HashMap.toList hash)
                 in GameInput (Just movementVec)
           process gameInput _ = gameInput
 
