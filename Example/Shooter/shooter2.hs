@@ -1,5 +1,5 @@
 {- shooter2.hs
- - This game has simple character movement, with the WASD keys.
+ - This game has simple character movement, with the arrow keys.
  - See shooter3.hs to see a more developed example.
  -}
 

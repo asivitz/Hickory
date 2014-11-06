@@ -1,5 +1,5 @@
 {- shooter3.hs
- - This game has simple character movement with the WASD keys,
+ - This game has simple character movement with the arrow keys,
  - as well as shooting simple missiles with the SpaceBar.
  -}
 
