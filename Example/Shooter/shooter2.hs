@@ -3,18 +3,17 @@
  - See shooter3.hs to see a more developed example.
  -}
 
-{-# LANGUAGE NamedFieldPuns #-}
-
 import Engine.Scene.Scene
 import Engine.Scene.Input
-import Math.Vector
+import Types.Types
 import Math.Matrix
 import Graphics.Drawing
+import Platforms.GLFW
+
+import Math.Vector
 import Graphics.DrawUtils
 import Graphics.Shader
-import Platforms.GLFW
 import Camera.Camera
-import Types.Types
 import Types.Color
 import qualified Data.HashMap.Strict as HashMap
 
@@ -52,11 +51,11 @@ playerMovementSpeed = 100
 -- Our actual game logic simply turns the movementVector into actual player
 -- movement
 stepModel :: RenderInfo -> [Event] -> Double -> Model -> (Model, [Event])
-stepModel renderinfo events delta model@Model { playerPos } =
+stepModel renderinfo events delta model@Model { playerPos = p } =
         let (GameInput movementVec) = collectInput events 
             newPlayerPos = case movementVec of
-                         Nothing -> playerPos
-                         Just v -> playerPos + (v |* (delta * playerMovementSpeed))
+                         Nothing -> p
+                         Just v -> p + (v |* (delta * playerMovementSpeed))
                 in (model { playerPos = newPlayerPos }, [])
 
 -- The resources used by our rendering function
@@ -81,8 +80,8 @@ calcCameraMatrix (Size w h) model =
 
 -- Our render function
 render :: Resources -> RenderInfo -> Model -> IO ()
-render Resources { solidShader } (RenderInfo _ _ layer)  Model { playerPos } = do
-        drawSpec (v2tov3 playerPos (-5)) layer (Square (Size 10 10) white nullTex solidShader)
+render Resources { solidShader = solid } (RenderInfo _ _ layer)  Model { playerPos = p } = do
+        drawSpec (v2tov3 p (-5)) layer (Square (Size 10 10) white nullTex solid)
 
 makeScene :: String -> IO (SceneOperator Event)
 makeScene resPath = makeSceneOperator newGame
