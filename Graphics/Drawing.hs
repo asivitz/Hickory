@@ -2,10 +2,10 @@
 
 module Graphics.Drawing ( module Graphics.GLUtils,
                           renderCommands,
-                          Label,
-                          worldLabel,
-                          uiLabel,
-                          backgroundLabel,
+                          Layer,
+                          worldLayer,
+                          uiLayer,
+                          backgroundLayer,
                           addDrawCommand,
                           setTCCommand,
                           setVAOCommand,
@@ -61,25 +61,25 @@ foreign import ccall "init_renderer" initRenderer
 foreign import ccall "reset_renderer" resetRenderer
    :: IO ()
 
-renderCommands :: Mat44 -> Label -> IO ()
-renderCommands mat label = 
+renderCommands :: Mat44 -> Layer -> IO ()
+renderCommands mat layer = 
       withMat44 mat $ \ptr ->
-         c'renderCommands ptr label
+         c'renderCommands ptr layer
 
 getUniformLoc (Shader s) name =
         withCString name $ \ptrname ->
             glGetUniformLocation s ptrname
 
-type Label = CInt
+type Layer = CInt
 
-worldLabel :: Label
-worldLabel = 0
+worldLayer :: Layer
+worldLayer = 0
 
-uiLabel :: Label
-uiLabel = 1
+uiLayer :: Layer
+uiLayer = 1
 
-backgroundLabel :: Label
-backgroundLabel = 3
+backgroundLayer :: Layer
+backgroundLayer = 3
 
 boolToCInt :: Bool -> CInt
 boolToCInt b = if b then 1 else 0
@@ -90,12 +90,12 @@ foreign import ccall "render_commands" c'renderCommands
 data DrawCommandStruct = DrawCommandStruct
 type DrawCommandHandle = Ptr DrawCommandStruct
 
-addDrawCommand :: Mat44 -> Color -> Color -> TexID -> Shader -> Label -> GLfloat -> Bool -> IO (DrawCommandHandle)
-addDrawCommand mat color1 color2 (TexID texid) (Shader shader) label depth blend =
+addDrawCommand :: Mat44 -> Color -> Color -> TexID -> Shader -> Layer -> GLfloat -> Bool -> IO (DrawCommandHandle)
+addDrawCommand mat color1 color2 (TexID texid) (Shader shader) layer depth blend =
       withMat44 mat $ \matptr ->
          withVec4 color1 $ \color1ptr ->
             withVec4 color2 $ \color2ptr ->
-               c'addDrawCommand matptr color1ptr color2ptr texid shader label depth (boolToCInt blend)
+               c'addDrawCommand matptr color1ptr color2ptr texid shader layer depth (boolToCInt blend)
                
 foreign import ccall "add_draw_command" c'addDrawCommand
    :: Mat44Raw -> Ptr CFloat -> Ptr CFloat -> CInt -> CUInt -> CInt -> CFloat -> CInt -> IO (DrawCommandHandle)
@@ -179,7 +179,7 @@ drawPoints (VAOConfig vao Nothing [vbo] shader) points@(x:_) size = do
         bufferVertices vbo points
         unbindVAO
 
-        dc <- addDrawCommand mat44Identity white white nullTex shader worldLabel 0.0 False
+        dc <- addDrawCommand mat44Identity white white nullTex shader worldLayer 0.0 False
         vao_payload <- setVAOCommand dc vao (halveInt (length points)) gl_POINTS
         uniloc <- grabUniformLoc shader sp_UNIFORM_SIZE
         addFloatUniform dc uniloc [size]

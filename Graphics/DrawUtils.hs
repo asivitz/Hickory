@@ -17,16 +17,16 @@ data DrawSpec = Square FSize Color TexID Shader
               | SolidSquare FSize Color Shader
               deriving (Show)
 
-drawSpec :: Vector3 -> Label -> DrawSpec -> IO ()
-drawSpec pos label (Square (Size w h) color tex shader) = 
-      addDrawCommand model color color tex shader label (realToFrac . v3z $ pos) True >> return ()
+drawSpec :: Vector3 -> Layer -> DrawSpec -> IO ()
+drawSpec pos layer (Square (Size w h) color tex shader) = 
+      addDrawCommand model color color tex shader layer (realToFrac . v3z $ pos) True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
-drawSpec pos label (SolidSquare (Size w h) color shader) = 
-      addDrawCommand model color color nullTex shader label (realToFrac . v3z $ pos) True >> return ()
+drawSpec pos layer (SolidSquare (Size w h) color shader) = 
+      addDrawCommand model color color nullTex shader layer (realToFrac . v3z $ pos) True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 
-drawSpecRot pos rot label (Square (Size w h) color tex shader) = 
-      addDrawCommand model color color tex shader label (realToFrac . v3z $ pos) True
+drawSpecRot pos rot layer (Square (Size w h) color tex shader) = 
+      addDrawCommand model color color tex shader layer (realToFrac . v3z $ pos) True
          where model = mat44Scale w h 1 $ mat44Rotate 0 0 1 (realToFrac rot) $ mat44TranslateV pos mat44Identity
 
 data ParticleShader = ParticleShader Shader UniformLoc

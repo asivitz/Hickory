@@ -41,19 +41,19 @@ calcCameraMatrix (Size w h) model = mat44Identity
 render :: Resources -> RenderInfo -> Model -> IO ()
 render resources renderinfo model = return ()
 
-makeScene :: IO (SceneOperator (Event))
+makeScene :: IO (SceneOperator Event)
 makeScene = makeSceneOperator EmptyModel
-                stepModel
-                loadResources
-                calcCameraMatrix
-                render
-                worldLabel
+                              stepModel
+                              loadResources
+                              calcCameraMatrix
+                              render
+                              worldLayer
 
 main :: IO ()
 main = do
         operator <- makeScene
          
-        glfwMain (Size 480 640)
-            [operator]
-            operator
-            id
+        glfwMain "Demo"
+                 (Size 480 640)
+                 [operator]
+                 (_addEvent operator)

@@ -9,7 +9,7 @@ import Math.Matrix
 
 -- Each frame, the RenderInfo struct provides the matrix, screen size, 
 -- and layer used to render the previous frame
-data RenderInfo = RenderInfo Mat44 (Size Int) Label deriving Show
+data RenderInfo = RenderInfo Mat44 (Size Int) Layer deriving Show
 
 -- mdl - The model used to represent the data for this Scene
 -- ie - The InputEvent data type shared by all scenes
@@ -46,16 +46,16 @@ makeSceneOperator :: (Show ie) => mdl ->
                                   IO re -> 
                                   (Size Int -> mdl -> Mat44) ->
                                   (re -> Render mdl) -> 
-                                  Label -> 
+                                  Layer -> 
                                   IO (SceneOperator ie)
-makeSceneOperator model modelStep resourceLoader viewmat render label = do
+makeSceneOperator model modelStep resourceLoader viewmat render layer = do
         ref <- newIORef Nothing
         is <- newIORef []
         return $ SceneOperator { 
             _initRenderer = (\scrSize -> do
                     res <- resourceLoader
                     writeIORef ref $ Just (Scene model 
-                                               (RenderInfo (viewmat scrSize model) scrSize label)
+                                               (RenderInfo (viewmat scrSize model) scrSize layer)
                                                modelStep
                                                viewmat
                                                (render res)
@@ -89,7 +89,7 @@ addSceneInput :: Scene mdl ie re -> ie -> IO ()
 addSceneInput Scene { _inputStream } ev = 
         atomicModifyIORef _inputStream (\evs -> ((evs ++ [ev]), ()))
 
-renderCommandsForScene Scene { _renderInfo = (RenderInfo mat _ label) } = renderCommands mat label
+renderCommandsForScene Scene { _renderInfo = (RenderInfo mat _ layer) } = renderCommands mat layer
 
 grabSceneInput :: Show ie => Scene mdl ie re -> IO ([ie])
 grabSceneInput Scene { _inputStream } = do
@@ -100,13 +100,13 @@ stepScene :: (Show ie) => Scene mdl ie re -> Double -> IO (Scene mdl ie re, [ie]
 stepScene scene@Scene { _render = renderFunc, 
                       _model, 
                       _calcViewMatrix,
-                      _renderInfo = (ri@(RenderInfo _ ss label)), 
+                      _renderInfo = (ri@(RenderInfo _ ss layer)), 
                       _stepModel } 
                       delta = do
         input <- grabSceneInput scene
         let (model', outEvents) = _stepModel ri input delta _model 
             matrix' = (_calcViewMatrix ss model')
-            scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss label) }
+            scene' = scene { _model = model', _renderInfo = (RenderInfo matrix' ss layer) }
         renderFunc ri model'
         return (scene', outEvents)
 

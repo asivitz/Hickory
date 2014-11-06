@@ -64,13 +64,13 @@ resolveElementDrawCommands screenSize incoming fract (UIElement _ menuItems) = m
 positionTextCommand ss (rvec, tc) = PositionedTextCommand (screenPos ss rvec) tc
 
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
-render Resources { pvcShader, printer } (RenderInfo _ ss label) Model { _game = transitionStack } = 
+render Resources { pvcShader, printer } (RenderInfo _ ss layer) Model { _game = transitionStack } = 
         case incomingScreen transitionStack of
             Just (MenuScreen elements duration) -> let fract = min 1 $ (transitionTime transitionStack) / duration
                                                        commands = concatMap (resolveElementDrawCommands ss True fract) elements 
                                                        ptcs = map (positionTextCommand ss) commands
                                                        in
-                printCommands pvcShader label printer ptcs
+                printCommands pvcShader layer printer ptcs
             Nothing -> return ()
 
 makeButton rRect events action items =

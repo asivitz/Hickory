@@ -44,10 +44,10 @@ collectInput :: [Event] -> GameInput
 collectInput events = foldl process (GameInput Nothing False) events
     where process gameInput (InputKeysHeld hash) = 
             let moveVec = foldl (\vec (key,heldTime) -> vec + (case key of
-                                                                        Key'W -> v2 0 1
-                                                                        Key'A -> v2 (-1) 0
-                                                                        Key'S -> v2 0 (-1)
-                                                                        Key'D -> v2 1 0
+                                                                        Key'Up -> v2 0 1
+                                                                        Key'Left -> v2 (-1) 0
+                                                                        Key'Down -> v2 0 (-1)
+                                                                        Key'Right -> v2 1 0
                                                                         _ -> vZero))
                                     vZero
                                     (HashMap.toList hash)
@@ -110,26 +110,26 @@ calcCameraMatrix (Size w h) model =
 
 -- Our render function
 render :: Resources -> RenderInfo -> Model -> IO ()
-render Resources { solidShader, texturedShader, missileTex } (RenderInfo _ _ label)  Model { playerPos, missiles } = do
-        drawSpec (v2tov3 playerPos (-5)) label (Square (Size 10 10) white nullTex solidShader)
+render Resources { solidShader, texturedShader, missileTex } (RenderInfo _ _ layer)  Model { playerPos, missiles } = do
+        drawSpec (v2tov3 playerPos (-5)) layer (Square (Size 10 10) white nullTex solidShader)
 
         -- Draw the missiles
         forM_ missiles $ \(pos, _) ->
-            drawSpec (v2tov3 pos (-5)) label (Square (Size 5 5) (rgb 1 0 0) missileTex texturedShader)
+            drawSpec (v2tov3 pos (-5)) layer (Square (Size 5 5) (rgb 1 0 0) missileTex texturedShader)
 
-makeScene :: String -> IO (SceneOperator (Event))
+makeScene :: String -> IO (SceneOperator Event)
 makeScene resPath = makeSceneOperator newGame
                                       stepModel
                                       (loadResources resPath)
                                       calcCameraMatrix
                                       render
-                                      worldLabel
+                                      worldLayer
 
 main :: IO ()
 main = do
         operator <- makeScene "resources"
          
-        glfwMain (Size 480 640)
-            [operator]
-            operator
-            id
+        glfwMain "Demo"
+                 (Size 480 640)
+                 [operator]
+                 (_addEvent operator)

@@ -34,12 +34,12 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-drawCard ::  Shader -> HashMap.HashMap Card TexID -> Label -> (e, Card, DrawState) -> IO ()
-drawCard shader cardTexHash label (_, card, (DrawState pos)) = do
+drawCard ::  Shader -> HashMap.HashMap Card TexID -> Layer -> (e, Card, DrawState) -> IO ()
+drawCard shader cardTexHash layer (_, card, (DrawState pos)) = do
         let tid = HashMap.lookup card cardTexHash
         whenMaybe tid $ \t -> do
             let spec = Square (Size 1 1) white t shader
-            drawSpec pos label spec
+            drawSpec pos layer spec
 
 depth :: Board -> EntHash MouseDrag -> (Entity, Card, DrawState) -> Maybe Int
 depth board mouseDragHash (e, card, _) = 
@@ -47,14 +47,14 @@ depth board mouseDragHash (e, card, _) =
             Nothing -> cardDepth board card
             _ -> Just (-2)
 
-drawPile shader tex label pos = do
-        drawSpec (v2tov3 pos (-40)) label (Square (Size 1 1) white tex shader)
+drawPile shader tex layer pos = do
+        drawSpec (v2tov3 pos (-40)) layer (Square (Size 1 1) white tex shader)
 
 render :: Resources -> RenderInfo -> Model ComponentStore GameModel -> IO ()
-render (Resources nillaSh blankTex cardTexHash) (RenderInfo _ _ label) model = do
+render (Resources nillaSh blankTex cardTexHash) (RenderInfo _ _ layer) model = do
 
         whenMaybe2 nillaSh blankTex $ \sh tid -> do
-            forM_ (drop 8 pilePositions) (drawPile sh tid label)
+            forM_ (drop 8 pilePositions) (drawPile sh tid layer)
 
         whenMaybe nillaSh $ \sh -> do
                 let mds = getModelComponents mouseDrags model
@@ -67,7 +67,7 @@ render (Resources nillaSh blankTex cardTexHash) (RenderInfo _ _ label) model = d
                                                                         Just a -> Just (a, x))
                                                                         $ zipHashes2 cds ds
 
-                mapM_ (drawCard sh cardTexHash label) sorted
+                mapM_ (drawCard sh cardTexHash layer) sorted
 
 rankSymbol rk = case rk of
                     Ace -> "A"

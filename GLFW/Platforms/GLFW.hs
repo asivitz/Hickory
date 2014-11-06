@@ -24,9 +24,9 @@ glfwRender win operators = do
 mapAll :: [a -> b] -> a -> [b]
 mapAll fs a = map (\f -> f a) fs
 
-glfwMain :: Show ie => Size Int -> [SceneOperator ie] -> SceneOperator ie -> (RawInput -> ie) -> IO ()
-glfwMain (Size w h) operators keyOperator pkgRawInput = do 
-          withWindow w h "MVC!" $ \win -> do
+glfwMain :: Show ie => String -> Size Int -> [SceneOperator ie] -> (RawInput -> IO ()) -> IO ()
+glfwMain name (Size w h) operators sendRawInput = do 
+          withWindow w h name $ \win -> do
               initRenderer
               glClearColor 0.125 0.125 0.125 1
               glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
@@ -40,7 +40,7 @@ glfwMain (Size w h) operators keyOperator pkgRawInput = do
 
               sequence_ $ mapAll (map _initRenderer operators) scrSize
 
-              stepInp <- Bridge.setupInput win (\raw -> (_addEvent keyOperator (pkgRawInput raw)))
+              stepInp <- Bridge.setupInput win sendRawInput
               run stepInp
                   operators
                   (glfwRender win)
