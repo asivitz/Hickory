@@ -111,7 +111,7 @@ calcCameraMatrix (Size w h) model =
 -- Our render function
 render :: Resources -> RenderInfo -> Model -> IO ()
 render Resources { solidShader, texturedShader, missileTex } (RenderInfo _ _ layer)  Model { playerPos, missiles } = do
-        drawSpec (v2tov3 playerPos (-5)) layer (Square (Size 10 10) white nullTex solidShader)
+        drawSpec (v2tov3 playerPos (-5)) layer (SolidSquare (Size 10 10) white solidShader)
 
         -- Draw the missiles
         forM_ missiles $ \(pos, _) ->

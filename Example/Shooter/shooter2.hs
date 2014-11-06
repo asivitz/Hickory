@@ -81,7 +81,7 @@ calcCameraMatrix (Size w h) model =
 -- Our render function
 render :: Resources -> RenderInfo -> Model -> IO ()
 render Resources { solidShader = solid } (RenderInfo _ _ layer)  Model { playerPos = p } = do
-        drawSpec (v2tov3 p (-5)) layer (Square (Size 10 10) white nullTex solid)
+        drawSpec (v2tov3 p (-5)) layer (SolidSquare (Size 10 10) white solid)
 
 makeScene :: String -> IO (SceneOperator Event)
 makeScene resPath = makeSceneOperator newGame
