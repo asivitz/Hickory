@@ -13,16 +13,19 @@ import Data.IORef
 import Engine.Scene.Input
 import Math.Vector
 import qualified Data.HashMap.Strict as HashMap
-import Control.Monad
 
 import Foreign
 import Foreign.C
-import Foreign.Ptr
 
 foreign import ccall safe "register_touch_began_callback" regTouchBeganCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()
 foreign import ccall safe "register_touch_ended_callback" regTouchEndedCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()
 foreign import ccall safe "register_touch_moved_callback" regTouchMovedCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()
+foreign import ccall safe "register_init_draw_callback" regInitDrawCallback :: FunPtr (CInt -> CInt -> IO ()) -> IO ()
+foreign import ccall safe "register_draw_frame_callback" regDrawFrameCallback :: FunPtr (IO ()) -> IO ()
 foreign import ccall "wrapper" mkTouchFunWrap :: (CInt -> CDouble -> CDouble -> IO ()) -> IO (FunPtr (CInt -> CDouble -> CDouble -> IO ()))
+foreign import ccall "wrapper" mkDrawFrame :: IO () -> IO (FunPtr (IO ()))
+foreign import ccall "wrapper" mkInit :: (CInt -> CInt -> IO ()) -> IO (FunPtr (CInt -> CInt -> IO ()))
+foreign import ccall safe "c_main" c_main :: IO ()
 
 mkTouchFun f = mkTouchFunWrap (\ident x y -> f (fromIntegral ident) (realToFrac x) (realToFrac y))
 
@@ -43,8 +46,8 @@ makeIOSStepFunc operators stepInput = do
 iosInitFunc :: [SceneOperator ie] -> CInt -> CInt -> IO ()
 iosInitFunc ops w h = iosInit (Size (fromIntegral w) (fromIntegral h)) ops
 
-iosInputInit :: SceneOperator ie -> (RawInput -> ie) -> IO (IO ())
-iosInputInit keyOperator pkgRawInput = do
+iosInputInit :: (RawInput -> IO ()) -> IO (IO ())
+iosInputInit handleRawInput = do
         newDowns <- newIORef []
         newUps <- newIORef []
         newMoves <- newIORef []
@@ -72,18 +75,18 @@ iosInputInit keyOperator pkgRawInput = do
             let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (v2 x y, time)) ident hsh) curhash moves
 
             -- Broadcast a loc event for touches held over from last frame
-            _addEvent keyOperator (pkgRawInput (InputTouchesLoc (map (\(ident, (loc, _)) -> (loc, ident)) (HashMap.toList hash'))))
+            handleRawInput (InputTouchesLoc (map (\(ident, (loc, _)) -> (loc, ident)) (HashMap.toList hash')))
 
             -- Add new touches
-            _addEvent keyOperator (pkgRawInput (InputTouchesDown (map (\(ident, x, y, time) -> (v2 x y, ident)) downs)))
+            handleRawInput (InputTouchesDown (map (\(ident, x, y, time) -> (v2 x y, ident)) downs))
             let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (v2 x y, time) hsh) hash' downs
 
             -- Remove released touches
-            _addEvent keyOperator (pkgRawInput (InputTouchesUp (map (\(ident, x, y, time) -> 
+            handleRawInput (InputTouchesUp (map (\(ident, x, y, time) -> 
                                                                     case HashMap.lookup ident hash'' of
                                                                         Nothing -> (0, v2 x y, ident)
                                                                         Just (_, prev) -> (realToFrac (diffUTCTime time prev), v2 x y, ident))
-                                                                ups)))
+                                                                ups))
             let hash''' = foldl (\hsh (ident, x, y, time) -> HashMap.delete ident hsh) hash'' ups
 
             -- Record the new hash
@@ -110,3 +113,16 @@ iosRender operators = do
 
 mapAll :: [a -> b] -> a -> [b]
 mapAll fs a = map (\f -> f a) fs
+
+iosMain :: Show ie => [SceneOperator ie] -> (RawInput -> IO ()) -> IO ()
+iosMain operators inputHandler = do
+        inputStep <- iosInputInit inputHandler
+
+        drawFrame <- mkDrawFrame =<< (makeIOSStepFunc operators inputStep)
+
+        initCallback <- mkInit $ iosInitFunc operators
+
+        regInitDrawCallback initCallback
+        regDrawFrameCallback drawFrame
+
+        c_main
