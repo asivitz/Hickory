@@ -13,10 +13,12 @@ module Types.Types
    Rect(..),
    posInRect,
    transform,
+   transform2,
    RelativeRect(..),
    transformRect,
    convertSize,
-   screenCenter
+   screenCenter,
+   addConst
    ) where
 
 import Math.Vector
@@ -70,5 +72,11 @@ end a = RScal 1 (negate a)
 center :: Fractional b => a -> RelativeScalar b a
 center a = RScal 0.5 a
 
+addConst :: Num a => RelativeScalar b a -> a -> RelativeScalar b a
+addConst (RScal fr con) plusConst = RScal fr (con + plusConst)
+
 screenPos :: (Real a, Real b) => Size a -> RelativeVec Scalar b -> V3
 screenPos (Size w h) (RVec xl yl) = v3 (transform xl w) (transform yl h) 0
+
+transform2 :: (Real a, Real b) => Size a -> RelativeVec Scalar b -> V2
+transform2 (Size w h) (RVec xl yl) = v2 (transform xl w) (transform yl h)

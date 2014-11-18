@@ -4,6 +4,7 @@ module Text.Text where
 
 import Text.Font
 import Types.Color
+import Types.Types
 import qualified Data.HashMap.Strict as HashMap
 import Data.Char (ord)
 import Data.Maybe
@@ -32,8 +33,8 @@ makeVerts bottomleft@(Vector2 leftx bottomy) width height =
 makeGlyph :: Real a => FontInfo a -> GlyphSpec a -> Glyph a
 makeGlyph FontInfo { lineHeight, base } spec@GlyphSpec { x, y, width, height, xoffset, yoffset} = Glyph spec (GlyphVerts verts tcverts)
     where [tcx, tcy, tcw, tch] = map ((/512) . realToFrac) [x, y, width, height]
-          center = v2 (realToFrac xoffset) (realToFrac (lineHeight - yoffset - base))
-          verts = makeVerts center (realToFrac width) (realToFrac height)
+          centerPoint = v2 (realToFrac xoffset) (realToFrac (lineHeight - yoffset - base))
+          verts = makeVerts centerPoint (realToFrac width) (realToFrac height)
           tcverts = [v2 tcx tcy,
                     v2 tcx (tcy + tch),
                     v2 (tcx + tcw) tcy,
@@ -96,6 +97,12 @@ displayWidth kerningtable glyphs = fst $ foldl accum (0,Null) glyphs
           accum (width,prev) g@(Control _) = (width,g)
           accum (width,prev) g@(Null) = (width,g)
 
+renderedTextSize :: Font Scalar -> TextCommand -> Size Scalar
+renderedTextSize font@(Font info chartable kerningtable) (TextCommand text fontSize align valign color commandBump) =
+        let glyphs = fontGlyphs text font
+            width = displayWidth kerningtable glyphs
+            in Size (width * fontSize) (10 * fontSize)
+
 transformTextCommandToVerts :: Real a => PositionedTextCommand -> Font a -> [[Float]]
 transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand text fontSize align valign color commandBump) )
                             font@(Font FontInfo { lineHeight } chartable kerningtable) = 
@@ -119,9 +126,9 @@ transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand 
                                 (accum (cddr lst) left-bump new-color-verts res)
                                 )] -}
                     Glyph GlyphSpec { xadvance } (GlyphVerts gverts tc) ->
-                        let transform :: V2 -> V3
-                            transform = \(Vector2 vx vy) -> v3 (x + fsize * (vx + leftBump)) (y + fsize * (vy + yoffset)) z
-                            new_verts = map transform gverts
+                        let dotransform :: V2 -> V3
+                            dotransform = \(Vector2 vx vy) -> v3 (x + fsize * (vx + leftBump)) (y + fsize * (vy + yoffset)) z
+                            new_verts = map dotransform gverts
                             vert_set = foldr (\(v, w) lst -> (vunpack v) ++ (vunpack w) ++ color_verts ++ lst) [] (zip new_verts tc) in
                                 ((leftBump + (realToFrac xadvance)), (vert_set : vertlst), color_verts)
             (_, vert_result, _) = foldl accum (xoffset, [], (vunpack color)) glyphs

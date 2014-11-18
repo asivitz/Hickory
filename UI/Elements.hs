@@ -22,7 +22,8 @@ data UIElement re model = UIElement re (RelativeVec Scalar Scalar) (Maybe (Butto
 data Target = Circle (RelativeScalar Scalar Scalar)
             | Box (RelativeVec Scalar Scalar)
 
-data Button model = Button Target (model -> model)
+data Button model = TapButton Target (model -> model)
+                  | TrackButton Target (V2 -> model -> model)
 
 makeLabel :: re -> RelativeVec Scalar Scalar -> UIElement re model
 makeLabel re rvec = UIElement re rvec Nothing
@@ -40,17 +41,19 @@ hitTarget vec ss rvec (Box (rsize)) =
 
 itemHitTarget :: V2 -> (Size Int) -> UIElement re model -> Maybe (model -> model)
 itemHitTarget vec ss (UIElement _ rvec Nothing) = Nothing
-itemHitTarget vec ss (UIElement _ rvec (Just (Button target f))) =
+itemHitTarget vec ss (UIElement _ rvec (Just (TapButton target f))) =
         if hitTarget vec ss rvec target
             then Just f
             else Nothing
+itemHitTarget vec ss (UIElement _ rvec (Just (TrackButton target f))) =
+        if hitTarget vec ss rvec target
+            then Just (f ((transform2 ss rvec) - vec))
+            else Nothing
 
 clickSurface :: (Size Int) -> [UIElement re model] -> (model -> model) -> model -> V2 -> model
-clickSurface ss xforms nohit model click = case listToMaybe $ 
-                                                mapMaybe (itemHitTarget click ss) xforms
-                                          of
-                                          Just f -> f model
-                                          Nothing -> nohit model
+clickSurface ss xforms nohit model click = case listToMaybe $ mapMaybe (itemHitTarget click ss) xforms of
+                                               Just f -> f model
+                                               Nothing -> nohit model
 
 -- Intervals
 
