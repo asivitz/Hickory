@@ -25,6 +25,9 @@ data Target = Circle (RelativeScalar Scalar Scalar)
 data Button model = TapButton Target (model -> model)
                   | TrackButton Target (V2 -> model -> model)
 
+data TouchType = TouchUp Scalar | TouchMove | TouchDown
+data Touch = Touch TouchType V2
+
 makeLabel :: re -> RelativeVec Scalar Scalar -> UIElement re model
 makeLabel re rvec = UIElement re rvec Nothing
 
@@ -45,18 +48,21 @@ targetHitRelativeLocation vec ss rvec (Box (rsize)) =
         let rect = transformRect (RRect rvec rsize) ss
             in relativePosInRect vec rect
 
-itemHitTarget :: V2 -> (Size Int) -> UIElement re model -> Maybe (model -> model)
-itemHitTarget vec ss (UIElement _ rvec Nothing) = Nothing
-itemHitTarget vec ss (UIElement _ rvec (Just (TapButton target f))) =
-        if hitTarget vec ss rvec target
-            then Just f
-            else Nothing
-itemHitTarget vec ss (UIElement _ rvec (Just (TrackButton target f))) =
+itemHitTarget :: Touch -> (Size Int) -> UIElement re model -> Maybe (model -> model)
+itemHitTarget (Touch touchtype vec) ss (UIElement _ rvec Nothing) = Nothing
+itemHitTarget (Touch (TouchUp time) vec) ss (UIElement _ rvec (Just (TapButton target f)))
+        | time < 0.4 =
+            if hitTarget vec ss rvec target
+                then Just f
+                else Nothing
+        | otherwise = Nothing
+itemHitTarget (Touch touchtype vec) ss (UIElement _ rvec (Just (TrackButton target f))) =
         case targetHitRelativeLocation vec ss rvec target of
             Just v -> Just (f v)
             _ -> Nothing
+itemHitTarget _ _ _ = Nothing
 
-clickSurface :: (Size Int) -> [UIElement re model] -> (model -> model) -> model -> V2 -> model
+clickSurface :: (Size Int) -> [UIElement re model] -> (model -> model) -> model -> Touch -> model
 clickSurface ss xforms nohit model click = case listToMaybe $ mapMaybe (itemHitTarget click ss) xforms of
                                                Just f -> f model
                                                Nothing -> nohit model
