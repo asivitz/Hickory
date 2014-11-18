@@ -18,7 +18,8 @@ module Types.Types
    transformRect,
    convertSize,
    screenCenter,
-   addConst
+   addConst,
+   relativePosInRect
    ) where
 
 import Math.Vector
@@ -59,6 +60,14 @@ transformRect (RRect (RVec rx ry) (RVec rw rh)) (Size w h) =
 posInRect :: V2 -> Rect -> Bool
 posInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
         ((abs (ox - px)) < (w/2)) && ((abs (oy - py)) < (h/2))
+
+relativePosInRect :: V2 -> Rect -> Maybe V2
+relativePosInRect (Vector2 px py) (Rect (Vector2 ox oy) (Size w h)) =
+        let rx = (px - ox + (w/2)) / w
+            ry = (py - oy + (h/2)) / h
+            in if (rx >= 0 && rx <= 1) && (ry >= 0 && ry <= 1)
+                   then Just $ v2 rx ry
+                   else Nothing
 
 data RelativeScalar fract offset = RScal fract offset
 

@@ -39,6 +39,12 @@ hitTarget vec ss rvec (Box (rsize)) =
         let rect = transformRect (RRect rvec rsize) ss
             in posInRect vec rect
 
+targetHitRelativeLocation :: V2 -> Size Int -> RelativeVec Scalar Scalar -> Target -> Maybe V2
+targetHitRelativeLocation vec ss@(Size w h) rvec (Circle rscal) = error "Not implemented"
+targetHitRelativeLocation vec ss rvec (Box (rsize)) =
+        let rect = transformRect (RRect rvec rsize) ss
+            in relativePosInRect vec rect
+
 itemHitTarget :: V2 -> (Size Int) -> UIElement re model -> Maybe (model -> model)
 itemHitTarget vec ss (UIElement _ rvec Nothing) = Nothing
 itemHitTarget vec ss (UIElement _ rvec (Just (TapButton target f))) =
@@ -46,9 +52,9 @@ itemHitTarget vec ss (UIElement _ rvec (Just (TapButton target f))) =
             then Just f
             else Nothing
 itemHitTarget vec ss (UIElement _ rvec (Just (TrackButton target f))) =
-        if hitTarget vec ss rvec target
-            then Just (f ((transform2 ss rvec) - vec))
-            else Nothing
+        case targetHitRelativeLocation vec ss rvec target of
+            Just v -> Just (f v)
+            _ -> Nothing
 
 clickSurface :: (Size Int) -> [UIElement re model] -> (model -> model) -> model -> V2 -> model
 clickSurface ss xforms nohit model click = case listToMaybe $ mapMaybe (itemHitTarget click ss) xforms of
