@@ -22,8 +22,10 @@ data UIElement re model = UIElement re (RelativeVec Scalar Scalar) (Maybe (Butto
 data Target = Circle (RelativeScalar Scalar Scalar)
             | Box (RelativeVec Scalar Scalar)
 
-data Button model = TapButton Target (model -> model)
-                  | TrackButton Target (V2 -> model -> model)
+data Interaction model = Tap (model -> model)
+                 | Track (V2 -> model -> model)
+
+data Button model = Button Target (Interaction model)
 
 data TouchType = TouchUp Scalar | TouchMove | TouchDown
 data Touch = Touch TouchType V2
@@ -48,24 +50,21 @@ targetHitRelativeLocation vec ss rvec (Box (rsize)) =
         let rect = transformRect (RRect rvec rsize) ss
             in relativePosInRect vec rect
 
-itemHitTarget :: Touch -> (Size Int) -> UIElement re model -> Maybe (model -> model)
-itemHitTarget (Touch touchtype vec) ss (UIElement _ rvec Nothing) = Nothing
-itemHitTarget (Touch (TouchUp time) vec) ss (UIElement _ rvec (Just (TapButton target f)))
-        | time < 0.4 =
-            if hitTarget vec ss rvec target
-                then Just f
-                else Nothing
-        | otherwise = Nothing
-itemHitTarget (Touch touchtype vec) ss (UIElement _ rvec (Just (TrackButton target f))) =
-        case targetHitRelativeLocation vec ss rvec target of
-            Just v -> Just (f v)
-            _ -> Nothing
-itemHitTarget _ _ _ = Nothing
+applyTouch (Touch (TouchUp time) vec) ss (UIElement _ _ (Just (Button targ (Tap f))))
+    | time < 0.4 = f
+applyTouch (Touch touchtype vec) ss (UIElement _ rvec (Just (Button target (Track f))))
+    = case targetHitRelativeLocation vec ss rvec target of
+          Just v -> f v
+          Nothing -> id
+applyTouch _ _ _ = id
 
-clickSurface :: (Size Int) -> [UIElement re model] -> (model -> model) -> model -> Touch -> model
-clickSurface ss xforms nohit model click = case listToMaybe $ mapMaybe (itemHitTarget click ss) xforms of
-                                               Just f -> f model
-                                               Nothing -> nohit model
+clickSurface :: (Size Int) -> [UIElement re model] -> (Touch -> model -> model) -> model -> Touch -> model
+clickSurface ss xforms nohit model click@(Touch ttype vec) = case closestXForm of
+                                               Nothing -> nohit click model
+                                               Just x -> (applyTouch click ss x) model
+        where closestXForm = listToMaybe $ filter hits xforms
+              hits (UIElement _ rvec (Just (Button target _))) = hitTarget vec ss rvec target
+              hits _ = False
 
 -- Intervals
 
