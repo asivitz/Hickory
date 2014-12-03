@@ -17,10 +17,10 @@ import Math.Vector
 {-makeLabel :: mi -> UIElement c t mi-}
 {-makeLabel s = UIElement Nothing [s]-}
 
-data UIElement re model = UIElement re (RelativeVec Scalar Scalar) (Maybe (Button model))
+data UIElement re model = UIElement re V2 (Maybe (Button model))
 
-data Target = Circle (RelativeScalar Scalar Scalar)
-            | Box (RelativeVec Scalar Scalar)
+data Target = Circle Scalar
+            | Box (Size Scalar)
 
 data Interaction model = Tap (model -> model)
                  | Track (V2 -> model -> model)
@@ -30,8 +30,8 @@ data Button model = Button Target (Interaction model)
 data TouchType = TouchUp Scalar | TouchMove | TouchDown
 data Touch = Touch TouchType V2
 
-makeLabel :: re -> RelativeVec Scalar Scalar -> UIElement re model
-makeLabel re rvec = UIElement re rvec Nothing
+makeLabel :: re -> V2 -> UIElement re model
+makeLabel re vec = UIElement re vec Nothing
 
 gridPositions :: V2 -> Int -> Scalar -> Scalar -> [V2]
 gridPositions topLeft cols colSpacing rowSpacing =
@@ -41,22 +41,22 @@ gridPositions topLeft cols colSpacing rowSpacing =
 cartProd :: [a] -> [b] -> [(a,b)]
 cartProd xs ys = [(x,y) | y <- ys, x <- xs]
 
-hitTarget :: V2 -> Size Int -> RelativeVec Scalar Scalar -> Target -> Bool
-hitTarget vec ss@(Size w h) rvec (Circle rscal) = vmag ((v3tov2 $ screenPos ss rvec) - vec) < (transform rscal w)
-hitTarget vec ss rvec (Box (rsize)) =
-        let rect = transformRect (RRect rvec rsize) ss
+hitTarget :: V2 -> V2 -> Target -> Bool
+hitTarget vec vec' (Circle scal) = vmag (vec' - vec) < scal
+hitTarget vec vec' (Box (size)) =
+        let rect = (Rect vec' size)
             in posInRect vec rect
 
-targetHitRelativeLocation :: V2 -> Size Int -> RelativeVec Scalar Scalar -> Target -> Maybe V2
-targetHitRelativeLocation vec ss@(Size w h) rvec (Circle rscal) = error "Not implemented"
-targetHitRelativeLocation vec ss rvec (Box (rsize)) =
-        let rect = transformRect (RRect rvec rsize) ss
+targetHitRelativeLocation :: V2 -> V2 -> Target -> Maybe V2
+targetHitRelativeLocation vec rvec (Circle rscal) = error "Not implemented"
+targetHitRelativeLocation vec vec' (Box (rsize)) =
+        let rect = (Rect vec' rsize)
             in relativePosInRect vec rect
 
 applyTouch (Touch (TouchUp time) vec) ss (UIElement _ _ (Just (Button targ (Tap f))))
     | time < 0.4 = f
-applyTouch (Touch touchtype vec) ss (UIElement _ rvec (Just (Button target (Track f))))
-    = case targetHitRelativeLocation vec ss rvec target of
+applyTouch (Touch touchtype vec) ss (UIElement _ vec' (Just (Button target (Track f))))
+    = case targetHitRelativeLocation vec vec' target of
           Just v -> f v
           Nothing -> id
 applyTouch _ _ _ = id
@@ -66,7 +66,7 @@ clickSurface ss xforms nohit model click@(Touch ttype vec) = case closestXForm o
                                                Nothing -> nohit click model
                                                Just x -> (applyTouch click ss x) model
         where closestXForm = listToMaybe $ filter hits xforms
-              hits (UIElement _ rvec (Just (Button target _))) = hitTarget vec ss rvec target
+              hits (UIElement _ rvec (Just (Button target _))) = hitTarget vec rvec target
               hits _ = False
 
 -- Intervals
