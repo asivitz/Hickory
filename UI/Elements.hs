@@ -38,6 +38,9 @@ gridPositions topLeft cols colSpacing rowSpacing =
         let row = map (\i -> topLeft + (v2 (colSpacing * (realToFrac i)) 0)) [0..(cols - 1)] in
             row ++ (gridPositions (topLeft + (v2 0 rowSpacing)) cols colSpacing rowSpacing)
 
+cartProd :: [a] -> [b] -> [(a,b)]
+cartProd xs ys = [(x,y) | y <- ys, x <- xs]
+
 hitTarget :: V2 -> Size Int -> RelativeVec Scalar Scalar -> Target -> Bool
 hitTarget vec ss@(Size w h) rvec (Circle rscal) = vmag ((v3tov2 $ screenPos ss rvec) - vec) < (transform rscal w)
 hitTarget vec ss rvec (Box (rsize)) =
