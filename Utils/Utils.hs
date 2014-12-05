@@ -62,3 +62,8 @@ modify a f (x:xs)
     | otherwise = x : modify a f xs
 
 for = flip map
+
+deleteAt :: [a] -> Int -> [a]
+deleteAt [] _ = []
+deleteAt (x:xs) 0 = xs
+deleteAt (x:xs) n = x : (deleteAt xs (n - 1))

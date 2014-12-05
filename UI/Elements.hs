@@ -18,6 +18,7 @@ import Math.Vector
 {-makeLabel s = UIElement Nothing [s]-}
 
 data UIElement re model = UIElement re V2 (Maybe (Button model))
+                        | FullscreenElement re
 
 data Target = Circle Scalar
             | Box (Size Scalar)

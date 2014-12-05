@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Math.Vector 
     (
     module Data.Vector.V2,
@@ -16,9 +18,12 @@ module Math.Vector
     v4tov3,
     v3tov2,
     movePos,
+    movePosNoStop,
     moveVal,
     vmidpoint,
-    vnull
+    vnull,
+    Interpolatable,
+    glerp
     )
     where
 
@@ -27,6 +32,7 @@ import Data.Vector.V2
 import Data.Vector.V3
 import Data.Vector.V4
 import Data.Vector.Class
+import Utils.Utils
 
 type V2 = Vector2
 type V3 = Vector3
@@ -66,6 +72,13 @@ movePos p1 p2 speed time =
                     then p1 + diff |* (amt / mag)
                     else p2
 
+movePosNoStop :: Vector a => a -> a -> Scalar -> Scalar -> a
+movePosNoStop p1 p2 speed time = 
+        let diff = p2 - p1 
+            amt = speed * time 
+            mag = vmag diff in
+                p1 + diff |* (amt / mag)
+
 moveVal :: (Real a, Fractional a) => a -> a -> a -> a -> a
 moveVal p1 p2 speed time = 
         let diff = p2 - p1 
@@ -74,3 +87,15 @@ moveVal p1 p2 speed time =
                 if mag > amt
                     then p1 + diff * (amt / mag)
                     else p2
+
+class Interpolatable i where
+        glerp :: Scalar -> i -> i -> i
+        
+instance Interpolatable Double where
+        glerp = lerp
+instance Interpolatable Vector2 where
+        glerp = vlinear
+instance Interpolatable Vector3 where
+        glerp = vlinear
+instance Interpolatable Vector4 where
+        glerp = vlinear
