@@ -25,7 +25,7 @@ foreign import ccall safe "register_draw_frame_callback" regDrawFrameCallback ::
 foreign import ccall "wrapper" mkTouchFunWrap :: (CInt -> CDouble -> CDouble -> IO ()) -> IO (FunPtr (CInt -> CDouble -> CDouble -> IO ()))
 foreign import ccall "wrapper" mkDrawFrame :: IO () -> IO (FunPtr (IO ()))
 foreign import ccall "wrapper" mkInit :: (CInt -> CInt -> IO ()) -> IO (FunPtr (CInt -> CInt -> IO ()))
-foreign import ccall unsafe "c_main" c_main :: IO ()
+foreign import ccall safe "c_main" c_main :: IO ()
 
 mkTouchFun f = mkTouchFunWrap (\ident x y -> f (fromIntegral ident) (realToFrac x) (realToFrac y))
 
