@@ -41,7 +41,7 @@ executable freecell
   default-language:    Haskell2010
   main-is:         main.hs
   other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
-  build-depends:       base >=4.7 && <4.8, GLFW-b >= 1.4 && < 1.5, Hickory, Hickory-GLFW, lens >= 4.3 && < 4.4, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, unordered-containers >=0.2 && <0.3, random >= 1.0, containers >= 0.5, hashable
+  build-depends:       base >=4.7 && <5, GLFW-b >= 1.4 && < 1.5, Hickory, Hickory-GLFW, lens >= 4.12 && < 4.13, mtl >=2.2 && <2.3, OpenGLRaw >=1.5 && <1.6, unordered-containers >=0.2 && <0.3, random >= 1.0, containers >= 0.5, hashable
   hs-source-dirs:  src, Freecell
   other-modules:     FreeCell
   ghc-options: -rtsopts -Wall -fno-warn-unused-matches -fno-warn-missing-signatures -fno-warn-unused-do-bind
