@@ -39,10 +39,6 @@ applyList :: [a -> a] -> a -> a
 applyList [] arg = arg
 applyList (x:xs) arg = x (applyList xs arg)
 
-{-| Like sortBy, but memoizes the results of the comparison function -}
-sortOn :: Ord b => (a -> b) -> [a] -> [a]
-sortOn f = map snd . sortBy (comparing fst) . map (\x -> (f x, x))
-
 {-| Like sortOn, but throws out items that get turned into Nothing -}
 sortOnMaybe :: Ord b => (a -> Maybe b) -> [a] -> [a]
 sortOnMaybe f = map snd . sortBy (comparing fst) . mapMaybe (\x ->
