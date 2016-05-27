@@ -7,6 +7,8 @@
 
 import Debug.Trace
 
+import Data.List
+import Data.Maybe
 import Engine.Scene.Scene
 import Engine.Scene.Input
 import Math.Vector
@@ -35,41 +37,32 @@ import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 -- Our game data
 data Model = Model { 
            playerPos :: V2,
+           playerMoveDir :: V2,
            firingDirection :: V2,
            missiles :: [(V2, V2)]
            }
 
 -- By default, or firingDirection is to the right
 newGame :: Model
-newGame = Model vZero (v2 1 0) []
+newGame = Model vZero vZero (v2 1 0) []
 
-data Msg = Fire | Move V2
+data Msg = Fire | AddMove V2 | SubMove V2
 
 -- Our event type
 type Event = RawInput
 
--- We need to determine from our input whether we should fire a missile
-data GameInput = GameInput {
-               movementVec :: (Maybe V2),
-               didFire :: Bool
-               }
+isMoveKey key = elem key [Key'Up, Key'Down, Key'Left, Key'Right]
 
-buildVecWithKeys :: V2 -> (Key, Double) -> V2
-buildVecWithKeys vec (key, heldTime) = 
-    vec + (case key of
-                Key'Up -> v2 0 1
-                Key'Left -> v2 (-1) 0
-                Key'Down -> v2 0 (-1)
-                Key'Right -> v2 1 0
-                _ -> vZero)
+moveKeyVec Key'Up = v2 0 1
+moveKeyVec Key'Down = v2 0 (-1)
+moveKeyVec Key'Left = v2 (-1) 0
+moveKeyVec Key'Right = v2 1 0
 
-collectInput :: [Event] -> GameInput
-collectInput events = foldl process (GameInput Nothing False) events
-    where process gameInput (InputKeysHeld hash) = 
-            let moveVec = foldl buildVecWithKeys vZero (HashMap.toList hash)
-                in gameInput { movementVec = (Just moveVec) }
-          process gameInput (InputKeyDown Key'Space) = gameInput { didFire = True }
-          process gameInput _ = gameInput
+makeMsg :: Event -> Maybe Msg
+makeMsg (InputKeyDown Key'Space) = Just Fire
+makeMsg (InputKeyDown key) | isMoveKey key = Just (AddMove (moveKeyVec key))
+makeMsg (InputKeyUp key dur) | isMoveKey key = Just (SubMove (moveKeyVec key))
+makeMsg _ = Nothing
 
 playerMovementSpeed = 100
 missileMovementSpeed = 200
@@ -77,34 +70,19 @@ missileMovementSpeed = 200
 missileInBounds :: (V2, V2) -> Bool
 missileInBounds (pos, _) = vmag pos < 500
 
+adjustMoveDir dir model@Model { playerMoveDir, firingDirection } = model { playerMoveDir = newMoveDir, firingDirection = if vnull newMoveDir then firingDirection else newMoveDir }
+    where newMoveDir = playerMoveDir + dir
+
 update :: Msg -> Model -> Model
 update Fire model@Model { playerPos, firingDirection, missiles } = model { missiles = missiles' }
     where missiles' = (playerPos, firingDirection) : missiles
-update (Move dir) model = model { firingDirection = dir }
+update (AddMove dir) model = adjustMoveDir dir model
+update (SubMove dir) model = adjustMoveDir (- dir) model
 
 physics :: Double -> Model -> Model
-physics delta model@Model { missiles } = model { missiles = missiles' }
+physics delta model@Model { playerPos, playerMoveDir, missiles } = model { playerPos = playerPos', missiles = missiles' }
     where missiles' = filter missileInBounds $ map (\(pos, dir) -> (pos + (dir |* (delta * missileMovementSpeed)), dir)) missiles
-
-stepModel :: RenderInfo -> [Event] -> Double -> Model -> (Model, [Event])
-stepModel renderinfo events delta Model { playerPos, firingDirection, missiles } =
-        let GameInput { movementVec, didFire } = collectInput events 
-            (fireDir', playerPos') = case movementVec of
-                         Nothing -> (firingDirection, playerPos)
-                         -- If we move, then the firingDirection should
-                         -- change as well
-                         Just v | vnull v -> (firingDirection, playerPos)
-                         Just v -> (v, playerPos + (v |* (delta * playerMovementSpeed)))
-
-            -- Fire ze missiles!
-            missiles' = if didFire
-                            then let newMissile = (playerPos', fireDir') 
-                                     in (newMissile : missiles)
-                            else missiles
-
-            -- and finally we move all of the missiles
-            movedMissiles = filter missileInBounds $ map (\(pos, dir) -> (pos + (dir |* (delta * missileMovementSpeed)), dir)) missiles'
-                in (Model { playerPos = playerPos', firingDirection = fireDir', missiles = movedMissiles }, [])
+          playerPos' = playerPos + (playerMoveDir |* (delta * playerMovementSpeed))
 
 -- The resources used by our rendering function
 data Resources = Resources {
@@ -175,6 +153,7 @@ doglfw name (Size w h) = do
             let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
 
             input <- inputPoller
+            let msgs = catMaybes $ map makeMsg input
 
             glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
@@ -185,7 +164,7 @@ doglfw name (Size w h) = do
             resetRenderer
             GLFW.swapBuffers win
 
-            let mdl' = physics delta $ update Fire mdl
+            let mdl' = physics delta $ foldl' (flip update) mdl msgs
 
             go mdl' current_time
 
