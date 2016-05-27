@@ -26,6 +26,7 @@ import qualified Data.HashMap.Strict as HashMap
 
 import React.React
 
+import Data.Time
 import Data.Bits
 import Platforms.GLFW.Utils
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -41,6 +42,8 @@ data Model = Model {
 -- By default, or firingDirection is to the right
 newGame :: Model
 newGame = Model vZero (v2 1 0) []
+
+data Msg = Fire | Move V2
 
 -- Our event type
 type Event = RawInput
@@ -73,6 +76,15 @@ missileMovementSpeed = 200
 
 missileInBounds :: (V2, V2) -> Bool
 missileInBounds (pos, _) = vmag pos < 500
+
+update :: Msg -> Model -> Model
+update Fire model@Model { playerPos, firingDirection, missiles } = model { missiles = missiles' }
+    where missiles' = (playerPos, firingDirection) : missiles
+update (Move dir) model = model { firingDirection = dir }
+
+physics :: Double -> Model -> Model
+physics delta model@Model { missiles } = model { missiles = missiles' }
+    where missiles' = filter missileInBounds $ map (\(pos, dir) -> (pos + (dir |* (delta * missileMovementSpeed)), dir)) missiles
 
 stepModel :: RenderInfo -> [Event] -> Double -> Model -> (Model, [Event])
 stepModel renderinfo events delta Model { playerPos, firingDirection, missiles } =
@@ -157,22 +169,28 @@ doglfw name (Size w h) = do
         resources <- loadResources "resources"
         inputPoller <- makeInputPoller win
 
-        let model = newGame
+        let go mdl prev_time = do
 
-        let go = do
+            current_time <- getCurrentTime
+            let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
+
             input <- inputPoller
 
             glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-            let mat = calcCameraMatrix scrSize model
-            render resources (RenderInfo mat scrSize worldLayer) model
+            let mat = calcCameraMatrix scrSize mdl
+            render resources (RenderInfo mat scrSize worldLayer) mdl
             renderCommands mat worldLayer
 
             resetRenderer
             GLFW.swapBuffers win
 
-            go
-        go
+            let mdl' = physics delta $ update Fire mdl
+
+            go mdl' current_time
+
+        t <- getCurrentTime
+        go newGame t
 
 main :: IO ()
 main = do
