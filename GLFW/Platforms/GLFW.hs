@@ -6,11 +6,13 @@ import qualified Platforms.GLFW.Bridge as Bridge
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import Data.Bits
+import Data.IORef
 import Graphics.Drawing
 import Engine.Scene.Scene
 import Engine.Scene.Run
 import Engine.Scene.Input
 import Types.Types
+import Data.Time
 
 glfwRender :: GLFW.Window -> [SceneOperator ie] -> IO ()
 glfwRender win operators = do
@@ -44,3 +46,31 @@ glfwMain name (Size w h) operators sendRawInput = do
               run stepInp
                   operators
                   (glfwRender win)
+
+-- NEW
+
+makeInputPoller :: GLFW.Window -> IO (IO [RawInput])
+makeInputPoller win = do
+        is <- newIORef []
+        stepInp <- Bridge.setupInput win (addRawInput is)
+        return $ do
+            stepInp
+            atomicModifyIORef is (\i -> ([], i))
+    where addRawInput stream event = do
+            atomicModifyIORef stream (\evs -> ((evs ++ [event]), ()))
+
+makeTimePoller :: IO (IO Double)
+makeTimePoller = do
+        initial_time <- getCurrentTime
+        time <- newIORef initial_time
+        return $ do
+            new_time <- getCurrentTime
+            atomicModifyIORef time (\prev_time -> (new_time, min 0.1 $ realToFrac (diffUTCTime new_time prev_time)))
+
+glfwMain' :: String -> Size Int -> (GLFW.Window -> Size Int -> IO ()) -> IO ()
+glfwMain' name (Size w h) callback = do 
+    withWindow w h name $ \win -> do
+        (width, height) <- GLFW.getFramebufferSize win
+        let scrSize = (Size width height)
+
+        callback win scrSize

@@ -5,11 +5,8 @@
 
 {-# LANGUAGE NamedFieldPuns #-}
 
-import Debug.Trace
-
 import Data.List
 import Data.Maybe
-import Engine.Scene.Scene
 import Engine.Scene.Input
 import Math.Vector
 import Math.Matrix
@@ -21,16 +18,12 @@ import Textures.Textures
 import Types.Types
 import Types.Color
 import Control.Monad
-import Data.IORef
 import qualified Graphics.UI.GLFW as GLFW
-import qualified Platforms.GLFW.Bridge as Bridge
-import qualified Data.HashMap.Strict as HashMap
+import Platforms.GLFW
 
 import React.React
 
-import Data.Time
 import Data.Bits
-import Platforms.GLFW.Utils
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 
@@ -42,7 +35,7 @@ data Model = Model {
            missiles :: [(V2, V2)]
            }
 
--- By default, or firingDirection is to the right
+-- By default, our firingDirection is to the right
 newGame :: Model
 newGame = Model vZero vZero (v2 1 0) []
 
@@ -51,12 +44,15 @@ data Msg = Fire | AddMove V2 | SubMove V2
 -- Our event type
 type Event = RawInput
 
+isMoveKey :: Key -> Bool
 isMoveKey key = elem key [Key'Up, Key'Down, Key'Left, Key'Right]
 
+moveKeyVec :: Key -> V2
 moveKeyVec Key'Up = v2 0 1
 moveKeyVec Key'Down = v2 0 (-1)
 moveKeyVec Key'Left = v2 (-1) 0
 moveKeyVec Key'Right = v2 1 0
+moveKeyVec _ = vZero
 
 makeMsg :: Event -> Maybe Msg
 makeMsg (InputKeyDown Key'Space) = Just Fire
@@ -70,6 +66,7 @@ missileMovementSpeed = 200
 missileInBounds :: (V2, V2) -> Bool
 missileInBounds (pos, _) = vmag pos < 500
 
+adjustMoveDir :: V2 -> Model -> Model
 adjustMoveDir dir model@Model { playerMoveDir, firingDirection } = model { playerMoveDir = newMoveDir, firingDirection = if vnull newMoveDir then firingDirection else newMoveDir }
     where newMoveDir = playerMoveDir + dir
 
@@ -112,66 +109,51 @@ calcCameraMatrix (Size w h) model =
                 cameraMatrix camera (aspectRatio (Size w h))
 
 -- Our render function
-render :: Resources -> RenderInfo -> Model -> IO ()
-render Resources { solidShader, texturedShader, missileTex } (RenderInfo _ _ layer)  Model { playerPos, missiles } = do
+render :: Resources -> Layer -> Model -> IO ()
+render Resources { solidShader, texturedShader, missileTex } layer  Model { playerPos, missiles } = do
         drawSpec (v2tov3 playerPos (-5)) layer (SolidSquare (Size 10 10) white solidShader)
 
         -- Draw the missiles
         forM_ missiles $ \(pos, _) ->
             drawSpec (v2tov3 pos (-5)) layer (Square (Size 5 5) (rgb 1 0 0) missileTex texturedShader)
 
-makeInputPoller :: GLFW.Window -> IO (IO [Event])
-makeInputPoller win = do
-        is <- newIORef []
-        stepInp <- Bridge.setupInput win (addRawInput is)
-        return $ do
-            stepInp
-            atomicModifyIORef is (\i -> ([], i))
-    where addRawInput stream event = do
-            atomicModifyIORef stream (\evs -> ((evs ++ [event]), ()))
 
-doglfw :: String -> Size Int -> IO ()
-doglfw name (Size w h) = do 
-    withWindow w h name $ \win -> do
-        initRenderer
-        glClearColor 0.125 0.125 0.125 1
-        glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
-        glActiveTexture gl_TEXTURE0
-                
-        glEnable gl_PROGRAM_POINT_SIZE -- for OSX
+gameMain :: GLFW.Window -> Size Int -> IO ()
+gameMain win scrSize = do 
+    initRenderer
+    glClearColor 0.125 0.125 0.125 1
+    glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
+    glActiveTexture gl_TEXTURE0
 
-        (width, height) <- GLFW.getFramebufferSize win
+    glEnable gl_PROGRAM_POINT_SIZE -- for OSX
 
-        let scrSize = (Size width height)
+    resources <- loadResources "resources"
+    inputPoller <- makeInputPoller win
+    timePoller <- makeTimePoller
 
-        resources <- loadResources "resources"
-        inputPoller <- makeInputPoller win
+    let go mdl = do
+        delta <- timePoller
+        input <- inputPoller
 
-        let go mdl prev_time = do
+        let msgs = catMaybes $ map makeMsg input
+        let mat = calcCameraMatrix scrSize mdl
 
-            current_time <- getCurrentTime
-            let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
+        glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-            input <- inputPoller
-            let msgs = catMaybes $ map makeMsg input
+        render resources worldLayer mdl
+        renderCommands mat worldLayer
 
-            glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
+        resetRenderer
+        GLFW.swapBuffers win
 
-            let mat = calcCameraMatrix scrSize mdl
-            render resources (RenderInfo mat scrSize worldLayer) mdl
-            renderCommands mat worldLayer
+        let mdl' = physics delta $ foldl' (flip update) mdl msgs
 
-            resetRenderer
-            GLFW.swapBuffers win
+        go mdl'
 
-            let mdl' = physics delta $ foldl' (flip update) mdl msgs
-
-            go mdl' current_time
-
-        t <- getCurrentTime
-        go newGame t
+    go newGame
 
 main :: IO ()
 main = do
-        doglfw "Demo"
-               (Size 480 640)
+        glfwMain' "Demo"
+                  (Size 480 640)
+                  gameMain
