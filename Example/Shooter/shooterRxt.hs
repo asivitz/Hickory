@@ -45,7 +45,7 @@ data Msg = Fire | AddMove V2 | SubMove V2
 type Event = RawInput
 
 isMoveKey :: Key -> Bool
-isMoveKey key = elem key [Key'Up, Key'Down, Key'Left, Key'Right]
+isMoveKey key = key `elem` [Key'Up, Key'Down, Key'Left, Key'Right]
 
 moveKeyVec :: Key -> V2
 moveKeyVec Key'Up = v2 0 1
@@ -135,7 +135,7 @@ gameMain win scrSize = do
         delta <- timePoller
         input <- inputPoller
 
-        let msgs = catMaybes $ map makeMsg input
+        let msgs = mapMaybe makeMsg input
         let mat = calcCameraMatrix scrSize mdl
 
         glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
@@ -153,7 +153,6 @@ gameMain win scrSize = do
     go newGame
 
 main :: IO ()
-main = do
-        glfwMain' "Demo"
+main = glfwMain' "Demo"
                   (Size 480 640)
                   gameMain
