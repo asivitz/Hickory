@@ -1,13 +1,15 @@
-{-# LANGUAGE TemplateHaskell #-}
+-- {-# LANGUAGE TemplateHaskell #-}
 
 module Freecell.Component where
 
-import Engine.Component.Component
+{-import Engine.Component.Component-}
 import FreeCell
-import Control.Lens
-import Data.HashMap.Strict
-import Engine.Component.Model
+import System.Random
+{-import Control.Lens-}
+{-import Data.HashMap.Strict-}
+{-import Engine.Component.Model-}
 
+{-
 data ComponentStore = ComponentStore { 
                     _drawStates :: CompMap DrawState,
                     _newtonianMovers :: CompMap NewtonianMover,
@@ -27,13 +29,18 @@ emptyComponentStore = ComponentStore {
                                      _mouseDrags = empty,
                                      _cardComps = empty
                                      }
+                                     -}
 
+data Model = Model StdGen Board
+
+{-
 data GameModel = GameModel {
                _curBoard :: Board
                }
+               -}
 
-makeLenses ''GameModel
+{-makeLenses ''GameModel-}
 
-getBoard model = view (game . curBoard) model
-setBoard model board = set (game. curBoard) board model
+{-getBoard model = view (game . curBoard) model-}
+{-setBoard model board = set (game. curBoard) board model-}
 

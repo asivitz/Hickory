@@ -2,61 +2,61 @@
 
 module Freecell.Render (render, loadResources) where
 
+import Data.Maybe
 import FreeCell
 import Freecell.Utils
 import Graphics.Drawing
-import Graphics.GLUtils
-import Systems.Textures
+import Graphics.Shader
+import Graphics.DrawUtils
 import Utils.Utils
-import Engine.Component.CompUtils
-import Engine.Component.Component
-import Engine.Component.Model
-import Engine.Component.Entity
-import Engine.Scene.Scene
+import Math.Matrix
 import Types.Color
 import Freecell.Component
-import Systems.Textures
 import Types.Types
-import Systems.Draw
 import qualified Data.HashMap.Strict as HashMap
 import Data.Foldable (foldlM)
-import Utils.HashMap
-import Data.List
-import Data.Ord
-import Data.Maybe
 import Control.Monad
 import Math.Vector
 import Graphics.Rendering.OpenGL.Raw.Core31
+import Textures.Textures
 
 data Resources = Resources {
-               vanillaShader :: Maybe Shader,
-               blankCard :: Maybe TexID,
+               vanillaShader :: Shader,
+               blankCard :: TexID,
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-drawCard ::  Shader -> HashMap.HashMap Card TexID -> Layer -> (e, Card, DrawState) -> IO ()
-drawCard shader cardTexHash layer (_, card, (DrawState pos)) = do
+drawCard ::  Shader -> HashMap.HashMap Card TexID -> Layer -> Card -> V3 -> IO ()
+drawCard shader cardTexHash layer card pos = do
         let tid = HashMap.lookup card cardTexHash
         whenMaybe tid $ \t -> do
             let spec = Square (Size 1 1) white t shader
             drawSpec pos layer spec
 
+{-
 depth :: Board -> EntHash MouseDrag -> (Entity, Card, DrawState) -> Maybe Int
 depth board mouseDragHash (e, card, _) = 
-        case (HashMap.lookup e mouseDragHash) of
+        case HashMap.lookup e mouseDragHash of
             Nothing -> cardDepth board card
             _ -> Just (-2)
+            -}
 
 drawPile shader tex layer pos = do
         drawSpec (v2tov3 pos (-40)) layer (Square (Size 1 1) white tex shader)
 
-render :: Resources -> RenderInfo -> Model ComponentStore GameModel -> IO ()
-render (Resources nillaSh blankTex cardTexHash) (RenderInfo _ _ layer) model = do
+render :: Resources -> Layer -> Model -> IO ()
+render (Resources nillaSh blankTex cardTexHash) layer (Model _ board) = do
+        {-whenMaybe2 nillaSh blankTex $ \sh tid -> do-}
+        forM_ (drop 8 pilePositions) (drawPile nillaSh blankTex layer)
 
-        whenMaybe2 nillaSh blankTex $ \sh tid -> do
-            forM_ (drop 8 pilePositions) (drawPile sh tid layer)
 
-        whenMaybe nillaSh $ \sh -> do
+        forM_ allCards $ \card -> do
+            let pilePos = posForCard board card 
+            drawCard nillaSh cardTexHash worldLayer card pilePos
+
+        {-whenMaybe nillaSh $ \sh -> do-}
+        return ()
+            {-
                 let mds = getModelComponents mouseDrags model
                     ds = getModelComponents drawStates model
                     cds = getModelComponents cardComps model
@@ -68,6 +68,7 @@ render (Resources nillaSh blankTex cardTexHash) (RenderInfo _ _ layer) model = d
                                                                         $ zipHashes2 cds ds
 
                 mapM_ (drawCard sh cardTexHash layer) sorted
+                -}
 
 rankSymbol rk = case rk of
                     Ace -> "A"
@@ -112,4 +113,4 @@ loadResources path = do
 
         nilla <- loadShader path "Shader.vsh" "Shader.fsh"
         {-solid <- loadShader path "Shader.vsh" "SolidColor.fsh"-}
-        return $ Resources nilla blank texes
+        return $ Resources (fromJust nilla) (fromJust blank) texes

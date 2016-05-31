@@ -8,7 +8,6 @@ import Data.List
 import FreeCell
 import Math.Vector
 import Debug.Trace
-import Utils.Utils
 
 class CardStack a => VisibleCardStack a where
         depthIfVisible :: Card -> a -> Maybe Int

@@ -1,46 +1,49 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.GameScene (makeScene, InputEvent(..)) where
+module Freecell.GameScene (update) where
 
 import FreeCell
 import Freecell.Events
-import Freecell.Utils
-import Engine.Component.Component
-import Engine.Component.CompUtils
-import Engine.Component.Model
-import Engine.Scene.Input
+{-import Freecell.Utils-}
+{-import Engine.Component.Component-}
+{-import Engine.Component.CompUtils-}
+{-import Engine.Component.Model-}
+{-import Engine.Scene.Input-}
 import Engine.Scene.Scene
-import Math.Matrix
-import Math.VectorMatrix
-import Types.Types
-import Data.IORef
-import Graphics.Drawing
-import Control.Lens
-import Camera.Camera
-import qualified Systems.DrawState as DrawState
-import Math.Vector
-import Freecell.Render
+{-import Math.Matrix-}
+{-import Math.VectorMatrix-}
+{-import Types.Types-}
+{-import Data.IORef-}
+{-import Graphics.Drawing-}
+{-import Control.Lens-}
+{-import Camera.Camera-}
+{-import qualified Systems.DrawState as DrawState-}
+{-import Math.Vector-}
+{-import Freecell.Render-}
 import Freecell.Component
-import Data.Maybe
-import Utils.Utils
-import Control.Monad.State
-import Utils.Projection
+{-import Data.Maybe-}
+{-import Utils.Utils-}
+{-import Control.Monad.State-}
+{-import Utils.Projection-}
 
-spawnCard pos card = do
-        let scale = 1
-        e <- spawnEntity
-        addComp e drawStates $ DrawState pos
-        addComp e selectables $ Selectable (Size (0.726 * scale) scale)
-        addComp e cardComps card
+{-spawnCard pos card = do-}
+        {-let scale = 1-}
+        {-e <- spawnEntity-}
+        {-addComp e drawStates $ DrawState pos-}
+        {-addComp e selectables $ Selectable (Size (0.726 * scale) scale)-}
+        {-addComp e cardComps card-}
         {-addComp e mouseDrags $ MouseDrag (v3 0 0 0)-}
         {-addComp components e newtonianMovers $ NewtonianMover (v3 40 16 0) (v3 0 0 0)-}
-        return []
+        {-return []-}
 
-pickSelectable pos (e, (Selectable size), card, (DrawState p)) =
-        posInRect (v3tov2 pos) (Rect (v3tov2 p) size)
+{-pickSelectable pos (e, (Selectable size), card, (DrawState p)) =-}
+        {-posInRect (v3tov2 pos) (Rect (v3tov2 p) size)-}
 
 -- swap $ runModel (spawnThing p') model
 
+update NewGame (Model rgen _) = Model rgen (makeGame rgen)
+
+{-
 processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
 processInput renderinfo (RawEvent (InputTouchDown pos pid)) model = forModel model $ do
         let zipped = zipComps3 model selectables cardComps drawStates
@@ -80,28 +83,17 @@ processInput renderinfo NewGame model =
         forModel model $ do
             mapM_ (\c -> spawnCard (v3 0 0 (-5)) c) allCards
             return []
+            -}
 
 processInput _ _ model = noEvents model
 
+{-
 stepComponents :: Double -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
 stepComponents delta model = noEvents $ 
         model { _components = upComps2Ent (_components model) drawStates cardComps (upCardDS delta (getBoard model) model) }
+        -}
 
-makeScene = do
-        board <- makeGame
-        is <- newIORef (Input [])
-        let cam = \size -> Camera (Ortho 10 1 100) (Route vZero Nothing)
-            scene = Scene {
-                          _name = "Game",
-                          _model = (newModel cam emptyComponentStore (GameModel board)),
-                          _renderInfo = RenderInfo mat44Identity nullSize worldLabel,
-                          _loadResources = loadResources "resources",
-                          _stepModel = makeStepModel processInput stepComponents,
-                          _render = render,
-                          _inputStream = is,
-                          _loadedRender = Nothing }
-        return scene
-
+{-
 upCardDS delta board model e (DrawState p) card =
       let delta' = realToFrac delta 
           pilePos = posForCard board card 
@@ -110,3 +102,4 @@ upCardDS delta board model e (DrawState p) card =
                   -- Only move toward pile if we're not dragging
                   Nothing -> DrawState (movePos p pilePos 10 delta')
                   _ -> DrawState p
+                -}
