@@ -82,7 +82,7 @@ forceUntilStable board = case length possible of
 
 posForCard :: Board -> Card -> V3
 posForCard board card = case pileLocationForCard board card of
-                            Just (index, depth) -> flip v2tov3 (-5) $ (pilePositions !! index) + v2 0 ((-0.35) * (realToFrac depth))
+                            Just (index, depth) -> flip v2tov3 ((-10) + 0.02 * realToFrac depth) $ (pilePositions !! index) + v2 0 ((-0.35) * (realToFrac depth))
                             Nothing -> v3 0 0 0
 
 moveCard board card location = let move = Move card (currentLocation board card) location in

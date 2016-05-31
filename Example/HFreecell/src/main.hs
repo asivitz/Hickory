@@ -65,7 +65,8 @@ loop mdl win timePoller inputPoller rgen scrSize resources = do
 
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-    render resources worldLayer mdl
+    render worldLayer (view resources mdl)
+
     renderCommands mat worldLayer
 
     resetRenderer

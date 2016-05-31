@@ -1,7 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (render, loadResources) where
+module Freecell.Render (render, loadResources, view) where
 
+import Data.List
 import Data.Maybe
 import FreeCell
 import Freecell.Utils
@@ -19,6 +20,7 @@ import Control.Monad
 import Math.Vector
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Textures.Textures
+import React.React
 
 data Resources = Resources {
                vanillaShader :: Shader,
@@ -26,49 +28,36 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-drawCard ::  Shader -> HashMap.HashMap Card TexID -> Layer -> Card -> V3 -> IO ()
-drawCard shader cardTexHash layer card pos = do
-        let tid = HashMap.lookup card cardTexHash
-        whenMaybe tid $ \t -> do
-            let spec = Square (Size 1 1) white t shader
-            drawSpec pos layer spec
+mkCard ::  Shader -> HashMap.HashMap Card TexID -> Card -> V3 -> Comp
+mkCard shader cardTexHash card pos = let tid = HashMap.lookup card cardTexHash in
+    case tid of
+        Just t -> mkTerminal $ RSquare (Size 1 1) pos white t shader
+        Nothing -> mkTerminal NoRender
 
-{-
-depth :: Board -> EntHash MouseDrag -> (Entity, Card, DrawState) -> Maybe Int
-depth board mouseDragHash (e, card, _) = 
-        case HashMap.lookup e mouseDragHash of
-            Nothing -> cardDepth board card
-            _ -> Just (-2)
-            -}
+data RenderTree = RSquare (Size Float) V3 Color TexID Shader
+                | List [RenderTree]
+                | NoRender
+                deriving (Show)
 
-drawPile shader tex layer pos = do
-        drawSpec (v2tov3 pos (-40)) layer (Square (Size 1 1) white tex shader)
+rtDepth :: RenderTree -> Scalar
+rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z
+rtDepth _ = 0
 
-render :: Resources -> Layer -> Model -> IO ()
-render (Resources nillaSh blankTex cardTexHash) layer (Model _ board) = do
-        {-whenMaybe2 nillaSh blankTex $ \sh tid -> do-}
-        forM_ (drop 8 pilePositions) (drawPile nillaSh blankTex layer)
+type Comp = Component RenderTree
 
+view :: Resources -> Model -> Comp
+view (Resources nillaSh blankTex cardTexHash) (Model _ board) = Stateless (List . map renderComp) (piles ++ cards)
+        where piles = map (\pos -> mkTerminal $ RSquare (Size 1 1) (v2tov3 pos (-40)) white blankTex nillaSh) (drop 8 pilePositions)
+              cards = map (\card -> let pilePos = posForCard board card in
+                          mkCard nillaSh cardTexHash card pilePos) allCards
 
-        forM_ allCards $ \card -> do
-            let pilePos = posForCard board card 
-            drawCard nillaSh cardTexHash worldLayer card pilePos
+render :: Layer -> Comp -> IO ()
+render layer comp = renderTree layer (renderComp comp)
 
-        {-whenMaybe nillaSh $ \sh -> do-}
-        return ()
-            {-
-                let mds = getModelComponents mouseDrags model
-                    ds = getModelComponents drawStates model
-                    cds = getModelComponents cardComps model
-                    board = getBoard model
-                    sorted = map snd . sortBy (comparing fst) . mapMaybe (\x -> 
-                                              case depth board mds x of 
-                                                                        Nothing -> Nothing 
-                                                                        Just a -> Just (a, x))
-                                                                        $ zipHashes2 cds ds
-
-                mapM_ (drawCard sh cardTexHash layer) sorted
-                -}
+renderTree :: Layer -> RenderTree -> IO ()
+renderTree layer NoRender = return ()
+renderTree layer (RSquare size pos color tex shader) = drawSpec pos layer (Square size color tex shader)
+renderTree layer (List children) = mapM_ (renderTree layer) (sortOn rtDepth children)
 
 rankSymbol rk = case rk of
                     Ace -> "A"
@@ -99,8 +88,6 @@ loadResources :: String -> IO Resources
 loadResources path = do
         glClearColor 0.3 0.5 0.1 1
         
-        {-card_texes <- mapM loadTexture texes-}
-
         texes <- foldlM (\hash card -> do
                tid <- loadTexture path (cardTexPath card)
                case tid of
