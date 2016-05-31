@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Textures.Textures (loadTexture) where
+module Textures.Textures (loadTexture, loadTexture') where
 
 import Graphics.GLUtils
 import Foreign.Marshal.Alloc
@@ -64,3 +64,10 @@ loadTexture resPath image = do
         tid <- loadTextureFromPath ipath
         whenNothing tid $ print ("Couldn't load texture: " ++ image)
         return tid
+
+loadTexture' :: String -> String -> IO TexID
+loadTexture' path image = do
+        tex <- loadTexture path image
+        case tex of
+            Just t -> return t
+            Nothing -> error ("Can't load texture " ++ image)

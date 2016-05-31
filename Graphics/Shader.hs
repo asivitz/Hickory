@@ -1,7 +1,8 @@
 module Graphics.Shader (
               Shader(..),
               nullShader,
-              loadShader
+              loadShader,
+              loadShader'
               )
               where
 
@@ -30,6 +31,12 @@ loadShader resPath vert frag = do
 
    shader <- loadShaderFromPaths vsp fsp
    return shader
+
+loadShader' resPath vert frag = do
+        s <- loadShader resPath vert frag
+        case s of
+            Just sh -> return sh
+            Nothing -> error $ "Can't load shader: " ++ vert ++ " " ++ frag
 
 foreign import ccall "load_shader" c'loadShader
     :: CString -> CString -> IO CUInt

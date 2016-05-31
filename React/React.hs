@@ -9,30 +9,39 @@ import Data.Maybe
 -- Library
 
 conv :: Typeable a => Dynamic -> a
-conv = fromJust . fromDynamic
+conv x = case fromDynamic x of
+             Just s -> s
+             Nothing -> error ("Wrong state type found: " ++ show x)
 
-data Component gfx = Stateless ([Component gfx] -> gfx) [Component gfx]
+data Component gfx input = Stateless ([Component gfx input] -> gfx) [Component gfx input]
                | Stateful {
                           step :: (Dynamic -> Dynamic),
                           snapshot :: Dynamic,
-                          renderFunc :: Dynamic -> [Component gfx] -> gfx,
-                          children :: [Component gfx]
+                          renderFunc :: Dynamic -> [Component gfx input] -> gfx,
+                          children :: [Component gfx input],
+                          inputFunc :: input -> Dynamic -> Dynamic,
+                          debugPrint :: Dynamic -> String
                           }
 
-instance Show (Component gfx) where
-        show Stateful { snapshot, children } = "Component { state: " ++ show snapshot ++ ", children: " ++ show children ++ " }"
+instance Show (Component gfx input) where
+        show Stateful { snapshot, children, debugPrint } = let val = debugPrint snapshot in
+            "Component { state: " ++ show val ++ ", children: " ++ show children ++ " }"
         show (Stateless _ children)  = "Component { children: " ++ show children ++ " }"
 
-stepComp :: Component gfx -> Component gfx
-stepComp Stateful { step, snapshot, renderFunc, children } = Stateful step (step snapshot) renderFunc (map stepComp children)
+stepComp :: Component gfx input -> Component gfx input
+stepComp comp@Stateful { step, snapshot, renderFunc, children, inputFunc } = comp { snapshot = (step snapshot), children = (map stepComp children) }
 stepComp (Stateless render children) = Stateless render (map stepComp children)
 
-renderComp :: Component gfx -> gfx
+renderComp :: Component gfx input -> gfx
 renderComp Stateful { snapshot, renderFunc, children } = renderFunc snapshot children
 renderComp (Stateless renderFunc children) = renderFunc children
 
-mkTerminal :: gfx -> Component gfx
+mkTerminal :: gfx -> Component gfx input
 mkTerminal tree = Stateless (\_ -> tree) []
+
+inputComp :: input -> Component gfx input -> Component gfx input
+inputComp input (Stateless rfunc cs) = Stateless rfunc (map (inputComp input) cs)
+inputComp input c@Stateful { snapshot, inputFunc, children } = c { snapshot = inputFunc input snapshot, children = map (inputComp input) children }
 
 
 {-

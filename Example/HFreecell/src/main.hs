@@ -22,6 +22,9 @@ import FreeCell
 import Data.Maybe
 import Data.List
 import Engine.Scene.Input
+import Data.Dynamic
+import React.React
+import Debug.Trace
 
 import Freecell.Render
 
@@ -54,7 +57,7 @@ gameMain win scrSize = do
             inputPoller <- makeInputPoller win
             timePoller <- makeTimePoller
 
-            loop (Model rgen game )  win timePoller inputPoller rgen scrSize resources
+            loop (Model rgen game)  win timePoller inputPoller rgen scrSize resources
 
 loop mdl win timePoller inputPoller rgen scrSize resources = do
     delta <- timePoller
@@ -65,7 +68,11 @@ loop mdl win timePoller inputPoller rgen scrSize resources = do
 
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-    render worldLayer (view resources mdl)
+
+    let comp = view resources mat scrSize mdl
+        comp' = foldl' (\c i -> inputComp i c) comp input
+
+    render worldLayer comp'
 
     renderCommands mat worldLayer
 

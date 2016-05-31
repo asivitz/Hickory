@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (render, loadResources, view) where
+module Freecell.Render (render, loadResources, view, Comp) where
 
 import Data.List
 import Data.Maybe
@@ -21,6 +21,10 @@ import Math.Vector
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Textures.Textures
 import React.React
+import Data.Dynamic
+import Engine.Scene.Input
+import Utils.Projection
+import Debug.Trace
 
 data Resources = Resources {
                vanillaShader :: Shader,
@@ -28,11 +32,20 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-mkCard ::  Shader -> HashMap.HashMap Card TexID -> Card -> V3 -> Comp
-mkCard shader cardTexHash card pos = let tid = HashMap.lookup card cardTexHash in
+mkCard ::  Shader -> HashMap.HashMap Card TexID -> Mat44 -> Size Int -> Card -> V3 -> Comp
+mkCard shader cardTexHash mat ss card pos = let tid = HashMap.lookup card cardTexHash in
     case tid of
-        Just t -> mkTerminal $ RSquare (Size 1 1) pos white t shader
+        Just t -> Stateful id (toDyn pos) (\p _ -> RSquare (Size 1 1) (conv p) white t shader) [] (cardInputFunc mat ss) (\x -> show (conv x :: V3))
         Nothing -> mkTerminal NoRender
+
+cardInputFunc :: Mat44 -> Size Int -> RawInput -> Dynamic -> Dynamic
+cardInputFunc mat ss (InputTouchesLoc [(pos, _)]) s = if v3tov2 cursorPos `posInRect` Rect (v3tov2 oldPos) (Size 1 1)
+                                                          then toDyn cursorPos
+                                                          else s
+    where oldPos = conv s
+          cursorPos = unproject pos (-5) mat ss :: V3
+
+cardInputFunc _ _ _ s = s
 
 data RenderTree = RSquare (Size Float) V3 Color TexID Shader
                 | List [RenderTree]
@@ -43,13 +56,13 @@ rtDepth :: RenderTree -> Scalar
 rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z
 rtDepth _ = 0
 
-type Comp = Component RenderTree
+type Comp = Component RenderTree RawInput
 
-view :: Resources -> Model -> Comp
-view (Resources nillaSh blankTex cardTexHash) (Model _ board) = Stateless (List . map renderComp) (piles ++ cards)
+view :: Resources -> Mat44 -> Size Int -> Model -> Comp
+view (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) = Stateless (List . map renderComp) (piles ++ cards)
         where piles = map (\pos -> mkTerminal $ RSquare (Size 1 1) (v2tov3 pos (-40)) white blankTex nillaSh) (drop 8 pilePositions)
               cards = map (\card -> let pilePos = posForCard board card in
-                          mkCard nillaSh cardTexHash card pilePos) allCards
+                          mkCard nillaSh cardTexHash mat ss card pilePos) allCards
 
 render :: Layer -> Comp -> IO ()
 render layer comp = renderTree layer (renderComp comp)
@@ -89,15 +102,13 @@ loadResources path = do
         glClearColor 0.3 0.5 0.1 1
         
         texes <- foldlM (\hash card -> do
-               tid <- loadTexture path (cardTexPath card)
-               case tid of
-                   Nothing -> return hash
-                   Just t -> return $ HashMap.insert card t hash)
+               tid <- loadTexture' path (cardTexPath card)
+               return $ HashMap.insert card tid hash)
                HashMap.empty
                allCards
 
-        blank <- loadTexture path "PlayingCards/blank.png"
+        blank <- loadTexture' path "PlayingCards/blank.png"
 
-        nilla <- loadShader path "Shader.vsh" "Shader.fsh"
+        nilla <- loadShader' path "Shader.vsh" "Shader.fsh"
         {-solid <- loadShader path "Shader.vsh" "SolidColor.fsh"-}
-        return $ Resources (fromJust nilla) (fromJust blank) texes
+        return $ Resources nilla blank texes
