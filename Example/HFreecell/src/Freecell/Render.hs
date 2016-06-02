@@ -32,19 +32,35 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-mkCard ::  Shader -> HashMap.HashMap Card TexID -> Mat44 -> Size Int -> Card -> V3 -> Comp
-mkCard shader cardTexHash mat ss card pos = let tid = HashMap.lookup card cardTexHash in
+data CardState = CardState Bool V3
+               deriving (Show)
+
+mkCard ::  Shader -> HashMap.HashMap Card TexID -> Mat44 -> Size Int -> Card -> CardState -> Comp
+mkCard shader cardTexHash mat ss card state = let tid = HashMap.lookup card cardTexHash in
     case tid of
-        Just t -> Stateful id (toDyn pos) (\p _ -> RSquare (Size 1 1) (conv p) white t shader) [] (cardInputFunc mat ss) (\x -> show (conv x :: V3))
+        Just t -> Stateful id (toDyn state) (\s _ -> let CardState _ p = conv s in RSquare (Size 1 1) p white t shader) [] (cardInputFunc mat ss) (\x -> show (conv x :: CardState))
         Nothing -> mkTerminal NoRender
 
 cardInputFunc :: Mat44 -> Size Int -> RawInput -> Dynamic -> Dynamic
-cardInputFunc mat ss (InputTouchesLoc [(pos, _)]) s = if v3tov2 cursorPos `posInRect` Rect (v3tov2 oldPos) (Size 1 1)
-                                                          then toDyn cursorPos
-                                                          else s
-    where oldPos = conv s
+cardInputFunc mat ss (InputTouchesLoc [(pos, _)]) s =
+        if sel
+            then toDyn (CardState True cursorPos)
+            else s
+    where CardState sel oldPos = conv s
           cursorPos = unproject pos (-5) mat ss :: V3
 
+cardInputFunc mat ss (InputTouchesDown [(pos, _)]) s =
+        if v3tov2 cursorPos `posInRect` Rect (v3tov2 oldPos) (Size 1 1)
+            then toDyn (CardState True cursorPos)
+            else s
+    where CardState sel oldPos = conv s
+          cursorPos = unproject pos (-5) mat ss :: V3
+
+cardInputFunc mat ss (InputTouchesUp [(_, pos, _)]) s =
+        if sel
+            then toDyn (CardState False oldPos)
+            else s
+    where CardState sel oldPos = conv s
 cardInputFunc _ _ _ s = s
 
 data RenderTree = RSquare (Size Float) V3 Color TexID Shader
@@ -62,7 +78,7 @@ view :: Resources -> Mat44 -> Size Int -> Model -> Comp
 view (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) = Stateless (List . map renderComp) (piles ++ cards)
         where piles = map (\pos -> mkTerminal $ RSquare (Size 1 1) (v2tov3 pos (-40)) white blankTex nillaSh) (drop 8 pilePositions)
               cards = map (\card -> let pilePos = posForCard board card in
-                          mkCard nillaSh cardTexHash mat ss card pilePos) allCards
+                          mkCard nillaSh cardTexHash mat ss card (CardState False pilePos)) allCards
 
 render :: Layer -> Comp -> IO ()
 render layer comp = renderTree layer (renderComp comp)
