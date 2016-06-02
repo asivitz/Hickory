@@ -43,6 +43,29 @@ inputComp :: input -> Component gfx input -> Component gfx input
 inputComp input (Stateless rfunc cs) = Stateless rfunc (map (inputComp input) cs)
 inputComp input c@Stateful { snapshot, inputFunc, children } = c { snapshot = inputFunc input snapshot, children = map (inputComp input) children }
 
+resolveComponents :: Component gfx input -> Component gfx input -> Component gfx input
+resolveComponents a@(Stateless _ _) b@Stateful {} = b
+resolveComponents a@Stateful {} b@(Stateless _ _) = b
+resolveComponents (Stateless _ as) (Stateless rfunc bs) = Stateless rfunc (resolveList as bs)
+resolveComponents a@Stateful {} b@Stateful {} = if (ctype a == ctype b)
+                                              then a { children = resolveList (children a) (children b) }
+                                              else b
+
+data Tri a b = Both a b | OnlyA a | OnlyB b
+
+triMap :: (Tri a b -> c) -> [a] -> [b] -> [c]
+triMap f (a:as) (b:bs) = f (Both a b) : triMap f as bs
+triMap f (a:as) [] = f (OnlyA a) : triMap f as []
+triMap f [] (b:bs) = f (OnlyB b) : triMap f [] bs
+triMap f [] [] = []
+
+resolveList :: [Component gfx input] -> [Component gfx input] -> [Component gfx input]
+resolveList as bs = catMaybes $ triMap f as bs
+    where f (Both a b) = Just $ resolveComponents a b
+          f (OnlyA a) = Nothing
+          f (OnlyB b) = Just b
+
+ctype = dynTypeRep . snapshot
 
 {-
 -- Presentation

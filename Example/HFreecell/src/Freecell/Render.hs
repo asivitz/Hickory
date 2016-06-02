@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (render, loadResources, view, Comp) where
+module Freecell.Render (render, loadResources, view, Comp, RenderTree(..)) where
 
 import Data.List
 import Data.Maybe

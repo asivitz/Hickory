@@ -57,9 +57,9 @@ gameMain win scrSize = do
             inputPoller <- makeInputPoller win
             timePoller <- makeTimePoller
 
-            loop (Model rgen game)  win timePoller inputPoller rgen scrSize resources
+            loop (Model rgen game)  win timePoller inputPoller rgen scrSize resources (mkTerminal NoRender)
 
-loop mdl win timePoller inputPoller rgen scrSize resources = do
+loop mdl win timePoller inputPoller rgen scrSize resources oldcomp = do
     delta <- timePoller
     input <- inputPoller
 
@@ -70,9 +70,10 @@ loop mdl win timePoller inputPoller rgen scrSize resources = do
 
 
     let comp = view resources mat scrSize mdl
-        comp' = foldl' (\c i -> inputComp i c) comp input
+        comp' = resolveComponents oldcomp comp
+        comp'' = foldl' (\c i -> inputComp i c) comp' input
 
-    render worldLayer comp'
+    render worldLayer comp''
 
     renderCommands mat worldLayer
 
@@ -81,7 +82,7 @@ loop mdl win timePoller inputPoller rgen scrSize resources = do
 
     let mdl' = physics delta $ foldl' (flip GameScene.update) mdl msgs
 
-    loop mdl' win timePoller inputPoller rgen scrSize resources
+    loop mdl' win timePoller inputPoller rgen scrSize resources comp''
 
 main :: IO ()
 main = glfwMain' "Demo"
