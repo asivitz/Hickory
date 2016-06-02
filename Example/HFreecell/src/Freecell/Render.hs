@@ -38,30 +38,28 @@ data CardState = CardState Bool V3
 mkCard ::  Shader -> HashMap.HashMap Card TexID -> Mat44 -> Size Int -> Card -> CardState -> Comp
 mkCard shader cardTexHash mat ss card state = let tid = HashMap.lookup card cardTexHash in
     case tid of
-        Just t -> Stateful id (toDyn state) (\s _ -> let CardState _ p = conv s in RSquare (Size 1 1) p white t shader) [] (cardInputFunc mat ss) (\x -> show (conv x :: CardState))
+        Just t -> Stateful id
+                           (toDyn state)
+                           (\s _ -> let CardState _ p = conv s in RSquare (Size 1 1) p white t shader)
+                           []
+                           (\i s -> toDyn $ cardInputFunc mat ss i (conv s))
+                           (\x -> show (conv x :: CardState))
         Nothing -> mkTerminal NoRender
 
-cardInputFunc :: Mat44 -> Size Int -> RawInput -> Dynamic -> Dynamic
-cardInputFunc mat ss (InputTouchesLoc [(pos, _)]) s =
-        if sel
-            then toDyn (CardState True cursorPos)
-            else s
-    where CardState sel oldPos = conv s
-          cursorPos = unproject pos (-5) mat ss :: V3
-
-cardInputFunc mat ss (InputTouchesDown [(pos, _)]) s =
-        if v3tov2 cursorPos `posInRect` Rect (v3tov2 oldPos) (Size 1 1)
-            then toDyn (CardState True cursorPos)
-            else s
-    where CardState sel oldPos = conv s
-          cursorPos = unproject pos (-5) mat ss :: V3
-
-cardInputFunc mat ss (InputTouchesUp [(_, pos, _)]) s =
-        if sel
-            then toDyn (CardState False oldPos)
-            else s
-    where CardState sel oldPos = conv s
-cardInputFunc _ _ _ s = s
+cardInputFunc :: Mat44 -> Size Int -> RawInput -> CardState -> CardState
+cardInputFunc mat ss input s@(CardState sel oldPos) =
+        case input of
+            InputTouchesLoc [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3 in
+                if sel then CardState True cursorPos else s
+            InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3 in
+                if v3tov2 cursorPos `posInRect` Rect (v3tov2 oldPos) (Size 1 1)
+                    then CardState True cursorPos
+                    else s
+            InputTouchesUp [(_, pos, _)] ->
+                if sel
+                    then CardState False oldPos
+                    else s
+            _ -> s
 
 data RenderTree = RSquare (Size Float) V3 Color TexID Shader
                 | List [RenderTree]
