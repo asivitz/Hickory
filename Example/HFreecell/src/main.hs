@@ -71,7 +71,7 @@ loop mdl win timePoller inputPoller rgen scrSize resources oldcomp = do
 
     let comp = view resources mat scrSize mdl
         comp' = resolveComponents oldcomp comp
-        comp'' = foldl' (\c i -> inputComp i c) comp' input
+        comp'' = stepComp $ foldl' (\c i -> inputComp i c) comp' input
 
     render worldLayer comp''
 
