@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.GameScene (update) where
+module Freecell.GameScene () where
 
 import FreeCell
 import Freecell.Events
@@ -41,7 +41,7 @@ import Freecell.Component
 
 -- swap $ runModel (spawnThing p') model
 
-update NewGame (Model rgen _) = Model rgen (makeGame rgen)
+{-update NewGame (Model rgen _) = Model rgen (makeGame rgen)-}
 
 {-
 processInput :: RenderInfo -> InputEvent -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])
@@ -85,7 +85,7 @@ processInput renderinfo NewGame model =
             return []
             -}
 
-processInput _ _ model = noEvents model
+{-processInput _ _ model = noEvents model-}
 
 {-
 stepComponents :: Double -> Model ComponentStore GameModel -> (Model ComponentStore GameModel, [InputEvent])

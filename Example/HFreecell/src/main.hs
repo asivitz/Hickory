@@ -70,8 +70,9 @@ loop (mdl, ui) win timePoller inputPoller rgen scrSize resources = do
 
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-    let ui' = foldl' (uiInput mat scrSize mdl) ui input
-        rt = render resources mat scrSize mdl ui'
+    let (ui', msgs) = foldl' (\(u, msgs) i -> let (u', msgs') = uiInput mat scrSize mdl u i in (u', msgs ++ msgs')) (ui, []) input
+        mdl' = foldl' update mdl msgs
+        rt = render resources mat scrSize mdl' ui'
 
     renderTree worldLayer rt
 
@@ -80,7 +81,7 @@ loop (mdl, ui) win timePoller inputPoller rgen scrSize resources = do
     resetRenderer
     GLFW.swapBuffers win
 
-    loop (mdl, ui') win timePoller inputPoller rgen scrSize resources
+    loop (mdl', ui') win timePoller inputPoller rgen scrSize resources
 
 main :: IO ()
 main = glfwMain' "Demo"

@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (render, loadResources, RenderTree(..), mkUI, renderTree, uiInput) where
+module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput) where
 
 import Data.List
 import Data.Maybe
@@ -32,19 +32,29 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
+data Msg = NewGame | Won | Lost | MoveCard Card Location
+
 data UIState = UIState {
              sel :: Maybe Card,
              cursor :: V2,
              offset :: V2
              }
 
+
+update :: Model -> Msg -> Model
+update (Model rgen board) (MoveCard card loc) =
+             case moveCard board card loc of
+                 x | solvedBoard x -> error "Handle solved board"
+                 x | null $ allPermissable x -> error "Handle lost game"
+                 x | otherwise -> Model rgen x
+
 mkUI :: Model -> UIState
 mkUI model = UIState Nothing vZero vZero
 
-uiInput :: Mat44 -> Size Int -> Model -> UIState -> RawInput -> UIState
+uiInput :: Mat44 -> Size Int -> Model -> UIState -> RawInput -> (UIState, [Msg])
 uiInput mat ss (Model _ board) (UIState sel cursor offset) input =
         case input of
-            InputTouchesLoc [(pos, _)] -> UIState sel pos offset
+            InputTouchesLoc [(pos, _)] -> (UIState sel pos offset, [])
             InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3
                                                predicate :: Card -> Maybe (V3, Card)
                                                predicate c = let homePos = posForCard board c in
@@ -55,9 +65,13 @@ uiInput mat ss (Model _ board) (UIState sel cursor offset) input =
                                                offset = case card of
                                                             Just (p, c) -> v3tov2 (p - cursorPos)
                                                             Nothing -> vZero
-                                               in UIState (fmap snd card) pos offset
-            InputTouchesUp [(_, pos, _)] -> UIState Nothing pos offset
-            _ -> UIState sel cursor offset
+                                               in (UIState (fmap snd card) pos offset, [])
+            InputTouchesUp [(_, pos, _)] -> case sel of
+                                                Just c -> let cursorPos = unproject pos (-5) mat ss :: V3
+                                                              targetLocation = dropLocationForPos board ((v3tov2 cursorPos) + offset) in
+                                                                  (UIState Nothing pos offset, [MoveCard c targetLocation])
+                                                Nothing -> (UIState Nothing pos offset, [])
+            _ -> (UIState sel cursor offset, [])
 
 render :: Resources -> Mat44 -> Size Int -> Model -> UIState -> RenderTree
 render (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) (UIState sel cursor offset) = List (piles ++ cards)

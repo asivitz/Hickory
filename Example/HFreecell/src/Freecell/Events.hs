@@ -10,4 +10,3 @@ data InputEvent = RawEvent (RawInput GLFW.Key)
                 | LostGame deriving Show
                 -}
 
-data Msg = NewGame | Won | Lost
