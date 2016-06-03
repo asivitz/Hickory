@@ -52,14 +52,16 @@ gameMain win scrSize = do
 
             rgen <- getStdGen
             let game = makeGame rgen
+                mdl = Model rgen game
+                ui = mkUI mdl
 
             resources <- loadResources "resources"
             inputPoller <- makeInputPoller win
             timePoller <- makeTimePoller
 
-            loop (Model rgen game)  win timePoller inputPoller rgen scrSize resources (mkTerminal NoRender)
+            loop (mdl, ui) win timePoller inputPoller rgen scrSize resources
 
-loop mdl win timePoller inputPoller rgen scrSize resources oldcomp = do
+loop (mdl, ui) win timePoller inputPoller rgen scrSize resources = do
     delta <- timePoller
     input <- inputPoller
 
@@ -68,21 +70,17 @@ loop mdl win timePoller inputPoller rgen scrSize resources oldcomp = do
 
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
+    let ui' = foldl' (uiInput mat scrSize mdl) ui input
+        rt = render resources mat scrSize mdl ui'
 
-    let comp = view resources mat scrSize mdl
-        comp' = resolveComponents oldcomp comp
-        comp'' = stepComp $ foldl' (\c i -> inputComp i c) comp' input
-
-    render worldLayer comp''
+    renderTree worldLayer rt
 
     renderCommands mat worldLayer
 
     resetRenderer
     GLFW.swapBuffers win
 
-    let mdl' = physics delta $ foldl' (flip GameScene.update) mdl msgs
-
-    loop mdl' win timePoller inputPoller rgen scrSize resources comp''
+    loop (mdl, ui') win timePoller inputPoller rgen scrSize resources
 
 main :: IO ()
 main = glfwMain' "Demo"

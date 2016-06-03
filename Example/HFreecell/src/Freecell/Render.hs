@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (render, loadResources, view, Comp, RenderTree(..)) where
+module Freecell.Render (render, loadResources, RenderTree(..), mkUI, renderTree, uiInput) where
 
 import Data.List
 import Data.Maybe
@@ -32,37 +32,46 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-data CardState = CardState Bool V3
-               deriving (Show)
+data UIState = UIState {
+             sel :: Maybe Card,
+             cursor :: V2,
+             offset :: V2
+             }
 
-mapDyn :: Typeable a => (a -> a) -> Dynamic -> Dynamic
-mapDyn f dyn = toDyn . f $ conv dyn
+mkUI :: Model -> UIState
+mkUI model = UIState Nothing vZero vZero
 
-mkCard ::  Shader -> HashMap.HashMap Card TexID -> Mat44 -> Size Int -> Card -> V3 -> Comp
-mkCard shader cardTexHash mat ss card homePos = let tid = HashMap.lookup card cardTexHash in
-    case tid of
-        Just t -> Stateful (mapDyn $ \(CardState sel p) -> if sel then CardState sel p else CardState sel homePos)
-                           (toDyn (CardState False homePos))
-                           (\s _ -> let CardState _ p = conv s in RSquare (Size 1 1) p white t shader)
-                           []
-                           (\i s -> toDyn $ cardInputFunc mat ss i (conv s))
-                           (\x -> show (conv x :: CardState))
-        Nothing -> mkTerminal NoRender
-
-cardInputFunc :: Mat44 -> Size Int -> RawInput -> CardState -> CardState
-cardInputFunc mat ss input s@(CardState sel oldPos) =
+uiInput :: Mat44 -> Size Int -> Model -> UIState -> RawInput -> UIState
+uiInput mat ss (Model _ board) (UIState sel cursor offset) input =
         case input of
-            InputTouchesLoc [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3 in
-                if sel then CardState True cursorPos else s
-            InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3 in
-                if v3tov2 cursorPos `posInRect` Rect (v3tov2 oldPos) (Size 1 1)
-                    then CardState True cursorPos
-                    else s
-            InputTouchesUp [(_, pos, _)] ->
-                if sel
-                    then CardState False oldPos
-                    else s
-            _ -> s
+            InputTouchesLoc [(pos, _)] -> UIState sel pos offset
+            InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3
+                                               predicate :: Card -> Maybe (V3, Card)
+                                               predicate c = let homePos = posForCard board c in
+                                                   if v3tov2 cursorPos `posInRect` Rect (v3tov2 homePos) (Size 0.66 1)
+                                                       then Just (homePos, c)
+                                                       else Nothing
+                                               card = listToMaybe $ reverse $ sortOn (\(Vector3 _ _ z, c) -> z) $ mapMaybe predicate allCards
+                                               offset = case card of
+                                                            Just (p, c) -> v3tov2 (p - cursorPos)
+                                                            Nothing -> vZero
+                                               in UIState (fmap snd card) pos offset
+            InputTouchesUp [(_, pos, _)] -> UIState Nothing pos offset
+            _ -> UIState sel cursor offset
+
+render :: Resources -> Mat44 -> Size Int -> Model -> UIState -> RenderTree
+render (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) (UIState sel cursor offset) = List (piles ++ cards)
+    where cursorPos = unproject cursor (-5) mat ss :: V3
+          renderCard card = let tid = HashMap.lookup card cardTexHash
+                                homePos = posForCard board card
+                                pos = case sel of
+                                          Just c -> if c == card
+                                                        then if cardDepth board c == Just 0 then cursorPos + (v2tov3 offset 0) else v2tov3 (v3tov2 homePos) (-5)
+                                                        else homePos
+                                          Nothing -> homePos
+                                in RSquare (Size 1 1) pos white (fromJust tid) nillaSh
+          cards = map renderCard allCards
+          piles = map (\pos -> RSquare (Size 1 1) (v2tov3 pos (-40)) white blankTex nillaSh) (drop 8 pilePositions)
 
 data RenderTree = RSquare (Size Float) V3 Color TexID Shader
                 | List [RenderTree]
@@ -72,17 +81,6 @@ data RenderTree = RSquare (Size Float) V3 Color TexID Shader
 rtDepth :: RenderTree -> Scalar
 rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z
 rtDepth _ = 0
-
-type Comp = Component RenderTree RawInput
-
-view :: Resources -> Mat44 -> Size Int -> Model -> Comp
-view (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) = Stateless (List . map renderComp) (piles ++ cards)
-        where piles = map (\pos -> mkTerminal $ RSquare (Size 1 1) (v2tov3 pos (-40)) white blankTex nillaSh) (drop 8 pilePositions)
-              cards = map (\card -> let pilePos = posForCard board card in
-                          mkCard nillaSh cardTexHash mat ss card pilePos) allCards
-
-render :: Layer -> Comp -> IO ()
-render layer comp = renderTree layer (renderComp comp)
 
 renderTree :: Layer -> RenderTree -> IO ()
 renderTree layer NoRender = return ()
