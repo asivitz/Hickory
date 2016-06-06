@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput) where
+module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput, stepUI) where
 
 import Data.List
 import Data.Maybe
@@ -32,29 +32,24 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-data Msg = NewGame | Won | Lost | MoveCard Card Location
+data Msg = MoveCard Card Location
+
+data UIMsg = Lost | Won | NewGame
 
 data UIState = UIState {
              sel :: Maybe Card,
              cursor :: V2,
-             offset :: V2
+             offset :: V2,
+             cardPos :: HashMap.HashMap Card V3
              }
 
-
-update :: Model -> Msg -> Model
-update (Model rgen board) (MoveCard card loc) =
-             case moveCard board card loc of
-                 x | solvedBoard x -> error "Handle solved board"
-                 x | null $ allPermissable x -> error "Handle lost game"
-                 x | otherwise -> Model rgen x
-
 mkUI :: Model -> UIState
-mkUI model = UIState Nothing vZero vZero
+mkUI model = UIState Nothing vZero vZero HashMap.empty
 
 uiInput :: Mat44 -> Size Int -> Model -> UIState -> RawInput -> (UIState, [Msg])
-uiInput mat ss (Model _ board) (UIState sel cursor offset) input =
+uiInput mat ss (Model _ board) ui@(UIState sel cursor offset cardPosMap) input =
         case input of
-            InputTouchesLoc [(pos, _)] -> (UIState sel pos offset, [])
+            InputTouchesLoc [(pos, _)] -> (ui { cursor = pos }, [])
             InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3
                                                predicate :: Card -> Maybe (V3, Card)
                                                predicate c = let homePos = posForCard board c in
@@ -65,24 +60,48 @@ uiInput mat ss (Model _ board) (UIState sel cursor offset) input =
                                                offset = case card of
                                                             Just (p, c) -> v3tov2 (p - cursorPos)
                                                             Nothing -> vZero
-                                               in (UIState (fmap snd card) pos offset, [])
+                                               in (ui { sel = fmap snd card, cursor = pos, offset = offset }, [])
             InputTouchesUp [(_, pos, _)] -> case sel of
                                                 Just c -> let cursorPos = unproject pos (-5) mat ss :: V3
-                                                              targetLocation = dropLocationForPos board ((v3tov2 cursorPos) + offset) in
-                                                                  (UIState Nothing pos offset, [MoveCard c targetLocation])
-                                                Nothing -> (UIState Nothing pos offset, [])
-            _ -> (UIState sel cursor offset, [])
+                                                              cardLoc = v3tov2 cursorPos + offset
+                                                              targetLocation = dropLocationForPos board cardLoc in
+                                                                  (ui { sel = Nothing, cursor = pos, cardPos = HashMap.insert c (v2tov3 cardLoc (-5)) cardPosMap }, [MoveCard c targetLocation])
+                                                Nothing -> (ui { sel = Nothing, cursor = pos }, [])
+            _ -> (ui, [])
+
+update :: Model -> Msg -> (Model, [UIMsg])
+update (Model rgen board) (MoveCard card loc) =
+             case moveCard board card loc of
+                 x | solvedBoard x -> (Model rgen x, [Won])
+                 x | null $ allPermissable x -> (Model rgen x, [Lost])
+                 x | otherwise -> (Model rgen x, [])
+
+
+stepUI :: Model -> Double -> UIState -> UIState
+stepUI (Model rgen board) delta ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
+    where updateCardPos map card = let homePos = posForCard board card
+                                       Vector3 x y z = homePos
+                                       p = fromMaybe homePos (HashMap.lookup card map)
+                                       p' = movePos (v3tov2 p) (v3tov2 homePos) 20 delta
+                                       in HashMap.insert card (v2tov3 p' z) map
+
+updateUI :: Model -> UIState -> UIMsg -> UIState
+updateUI (Model rgen board) ui uimsg =
+        case uimsg of
+            Won -> ui
+            Lost -> ui
 
 render :: Resources -> Mat44 -> Size Int -> Model -> UIState -> RenderTree
-render (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) (UIState sel cursor offset) = List (piles ++ cards)
+render (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) (UIState sel cursor offset cardPosMap) = List (piles ++ cards)
     where cursorPos = unproject cursor (-5) mat ss :: V3
           renderCard card = let tid = HashMap.lookup card cardTexHash
                                 homePos = posForCard board card
+                                cardPos = fromMaybe homePos (HashMap.lookup card cardPosMap)
                                 pos = case sel of
                                           Just c -> if c == card
-                                                        then if cardDepth board c == Just 0 then cursorPos + (v2tov3 offset 0) else v2tov3 (v3tov2 homePos) (-5)
-                                                        else homePos
-                                          Nothing -> homePos
+                                                        then if cardDepth board c == Just 0 then cursorPos + (v2tov3 offset 0) else v2tov3 (v3tov2 cardPos) (-5)
+                                                        else cardPos
+                                          Nothing -> cardPos
                                 in RSquare (Size 1 1) pos white (fromJust tid) nillaSh
           cards = map renderCard allCards
           piles = map (\pos -> RSquare (Size 1 1) (v2tov3 pos (-40)) white blankTex nillaSh) (drop 8 pilePositions)
