@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput, stepUI, Model) where
+module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput, stepUI, updateUI, Model, UIState, Resources) where
 
 import Data.List
 import Data.Maybe
@@ -56,9 +56,10 @@ mkUI model stdgen = UIState {
                             randGen = stdgen
                             }
 
-uiInput :: Mat44 -> Size Int -> Model -> UIState -> RawInput -> (UIState, [Msg])
-uiInput mat
-        ss
+type ViewInfo = (Mat44, Size Int)
+
+uiInput :: ViewInfo -> Model -> UIState -> RawInput -> (UIState, [Msg])
+uiInput (mat, ss)
         board
         ui@UIState { sel, cursor, offset, cardPos = cardPosMap, lastUIMsg }
         input =
@@ -105,10 +106,9 @@ updateUI board ui uimsg =
             Won -> ui { lastUIMsg = Just uimsg }
             Lost -> ui { lastUIMsg = Just uimsg }
 
-render :: Resources -> Mat44 -> Size Int -> Model -> UIState -> RenderTree
+render :: Resources -> ViewInfo -> Model -> UIState -> RenderTree
 render (Resources nillaSh blankTex cardTexHash)
-       mat
-       ss
+       (mat, ss)
        board
        UIState { sel, cursor, offset, cardPos = cardPosMap }
        = List (piles ++ cards)
@@ -118,7 +118,7 @@ render (Resources nillaSh blankTex cardTexHash)
                                 cardPos = fromMaybe homePos (HashMap.lookup card cardPosMap)
                                 pos = case sel of
                                           Just c -> if c == card
-                                                        then if cardDepth board c == Just 0 then cursorPos + (v2tov3 offset 0) else v2tov3 (v3tov2 cardPos) (-5)
+                                                        then if cardDepth board c == Just 0 then cursorPos + v2tov3 offset 0 else v2tov3 (v3tov2 cardPos) (-5)
                                                         else cardPos
                                           Nothing -> cardPos
                                 in RSquare (Size 1 1) pos white (fromJust tid) nillaSh

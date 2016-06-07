@@ -35,6 +35,13 @@ calcCameraMatrix (Size w h) model =
             camera = Camera proj (v3 5 3 0) in
                 cameraMatrix camera (aspectRatio (Size w h))
 
+data Environment = Environment {
+                 win :: GLFW.Window,
+                 timePoller :: IO Double,
+                 inputPoller :: IO [RawInput],
+                 scrSize :: Size Int
+                 }
+
 gameMain :: GLFW.Window -> Size Int -> IO ()
 gameMain win scrSize = do 
             initRenderer
@@ -52,29 +59,33 @@ gameMain win scrSize = do
             inputPoller <- makeInputPoller win
             timePoller <- makeTimePoller
 
-            loop (mdl, ui) win timePoller inputPoller rgen scrSize resources
+            let env = Environment { win, timePoller, inputPoller, scrSize }
 
-loop (mdl, ui) win timePoller inputPoller rgen scrSize resources = do
-    delta <- timePoller
-    input <- inputPoller
+            loop (mdl, ui) env resources
 
-    let mat = calcCameraMatrix scrSize mdl
+loop :: (Model, UIState) -> Environment -> Resources -> IO ()
+loop (mdl, ui) env resources = do
+    delta <- timePoller env
+    input <- inputPoller env
+
+    let mat = calcCameraMatrix (scrSize env) mdl
 
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-    let (ui', msgs) = mapAccumL (uiInput mat scrSize mdl) ui input
+    let viewInfo = (mat, scrSize env)
+        (ui', msgs) = mapAccumL (uiInput viewInfo mdl) ui input
         (mdl', uimsgs) = mapAccumL update mdl (concat msgs)
-        ui'' = stepUI mdl' delta ui'
-        rt = render resources mat scrSize mdl' ui''
+        ui'' = stepUI mdl' delta $ foldl' (updateUI mdl') ui' (concat uimsgs)
+        rt = render resources viewInfo mdl' ui''
 
     renderTree worldLayer rt
 
     renderCommands mat worldLayer
 
     resetRenderer
-    GLFW.swapBuffers win
+    GLFW.swapBuffers (win env)
 
-    loop (mdl', ui'') win timePoller inputPoller rgen scrSize resources
+    loop (mdl', ui'') env resources
 
 main :: IO ()
 main = glfwMain' "Demo"
