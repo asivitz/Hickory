@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput, stepUI) where
+module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput, stepUI, Model) where
 
 import Data.List
 import Data.Maybe
@@ -12,7 +12,6 @@ import Graphics.DrawUtils
 import Utils.Utils
 import Math.Matrix
 import Types.Color
-import Freecell.Component
 import Types.Types
 import qualified Data.HashMap.Strict as HashMap
 import Data.Foldable (foldlM)
@@ -24,7 +23,7 @@ import React.React
 import Data.Dynamic
 import Engine.Scene.Input
 import Utils.Projection
-import Debug.Trace
+import System.Random
 
 data Resources = Resources {
                vanillaShader :: Shader,
@@ -36,18 +35,33 @@ data Msg = MoveCard Card Location
 
 data UIMsg = Lost | Won | NewGame
 
+type Model = Board
+
 data UIState = UIState {
              sel :: Maybe Card,
              cursor :: V2,
              offset :: V2,
-             cardPos :: HashMap.HashMap Card V3
+             cardPos :: HashMap.HashMap Card V3,
+             lastUIMsg :: Maybe UIMsg,
+             randGen :: StdGen
              }
 
-mkUI :: Model -> UIState
-mkUI model = UIState Nothing vZero vZero HashMap.empty
+mkUI :: Model -> StdGen -> UIState
+mkUI model stdgen = UIState {
+                            sel = Nothing,
+                            cursor = vZero,
+                            offset = vZero,
+                            cardPos = HashMap.empty,
+                            lastUIMsg = Nothing,
+                            randGen = stdgen
+                            }
 
 uiInput :: Mat44 -> Size Int -> Model -> UIState -> RawInput -> (UIState, [Msg])
-uiInput mat ss (Model _ board) ui@(UIState sel cursor offset cardPosMap) input =
+uiInput mat
+        ss
+        board
+        ui@UIState { sel, cursor, offset, cardPos = cardPosMap, lastUIMsg }
+        input =
         case input of
             InputTouchesLoc [(pos, _)] -> (ui { cursor = pos }, [])
             InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3
@@ -70,15 +84,15 @@ uiInput mat ss (Model _ board) ui@(UIState sel cursor offset cardPosMap) input =
             _ -> (ui, [])
 
 update :: Model -> Msg -> (Model, [UIMsg])
-update (Model rgen board) (MoveCard card loc) =
+update board (MoveCard card loc) =
              case moveCard board card loc of
-                 x | solvedBoard x -> (Model rgen x, [Won])
-                 x | null $ allPermissable x -> (Model rgen x, [Lost])
-                 x | otherwise -> (Model rgen x, [])
+                 x | solvedBoard x -> (x, [Won])
+                 x | null $ allPermissable x -> (x, [Lost])
+                 x | otherwise -> (x, [])
 
 
 stepUI :: Model -> Double -> UIState -> UIState
-stepUI (Model rgen board) delta ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
+stepUI board delta ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
     where updateCardPos map card = let homePos = posForCard board card
                                        Vector3 x y z = homePos
                                        p = fromMaybe homePos (HashMap.lookup card map)
@@ -86,13 +100,18 @@ stepUI (Model rgen board) delta ui@UIState { cardPos } = ui { cardPos = foldl' u
                                        in HashMap.insert card (v2tov3 p' z) map
 
 updateUI :: Model -> UIState -> UIMsg -> UIState
-updateUI (Model rgen board) ui uimsg =
+updateUI board ui uimsg =
         case uimsg of
-            Won -> ui
-            Lost -> ui
+            Won -> ui { lastUIMsg = Just uimsg }
+            Lost -> ui { lastUIMsg = Just uimsg }
 
 render :: Resources -> Mat44 -> Size Int -> Model -> UIState -> RenderTree
-render (Resources nillaSh blankTex cardTexHash) mat ss (Model _ board) (UIState sel cursor offset cardPosMap) = List (piles ++ cards)
+render (Resources nillaSh blankTex cardTexHash)
+       mat
+       ss
+       board
+       UIState { sel, cursor, offset, cardPos = cardPosMap }
+       = List (piles ++ cards)
     where cursorPos = unproject cursor (-5) mat ss :: V3
           renderCard card = let tid = HashMap.lookup card cardTexHash
                                 homePos = posForCard board card

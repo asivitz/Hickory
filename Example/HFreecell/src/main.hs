@@ -3,9 +3,6 @@
 import Engine.Scene.Run
 import Engine.Scene.Scene
 import Types.Types
-import Freecell.Events
-import Freecell.Component
-import qualified Freecell.GameScene as GameScene
 import Math.VectorMatrix
 import Math.Vector
 import Math.Matrix
@@ -28,9 +25,6 @@ import Debug.Trace
 
 import Freecell.Render
 
-makeMsg :: RawInput -> Maybe Msg
-makeMsg _ = Nothing
-
 physics :: Double -> Model -> Model
 physics delta model = model
 
@@ -51,9 +45,8 @@ gameMain win scrSize = do
             glEnable gl_PROGRAM_POINT_SIZE -- for OSX
 
             rgen <- getStdGen
-            let game = makeGame rgen
-                mdl = Model rgen game
-                ui = mkUI mdl
+            let mdl = makeGame rgen
+                ui = mkUI mdl rgen
 
             resources <- loadResources "resources"
             inputPoller <- makeInputPoller win
@@ -65,8 +58,7 @@ loop (mdl, ui) win timePoller inputPoller rgen scrSize resources = do
     delta <- timePoller
     input <- inputPoller
 
-    let msgs = mapMaybe makeMsg input
-        mat = calcCameraMatrix scrSize mdl
+    let mat = calcCameraMatrix scrSize mdl
 
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
