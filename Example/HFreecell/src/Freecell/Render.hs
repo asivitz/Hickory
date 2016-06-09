@@ -1,10 +1,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
 --{-# LANGUAGE TypeSynonymInstances #-}
 
 module Freecell.Render where
 
+import Layer.Layer
 import Data.List
 import Data.Maybe
 import FreeCell
@@ -34,22 +33,12 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-type LayerRunner s i = s -> [i] -> s
 
-constructLayer :: (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
-                  (lay2 -> lay1 -> lay1) ->
-                  LayerRunner lay2 msg2 ->
-                  LayerRunner (lay1, lay2) msg1
-constructLayer inputf stepf runNextLayer (lay1, lay2) msg1s =
-        let (lay1', msgs) = mapAccumL (inputf lay2) lay1 msg1s
-            lay2' = runNextLayer lay2 (concat msgs)
-            lay1'' = stepf lay2' lay1' in (lay1'', lay2')
+layer1 :: (Double, ViewInfo) -> Layer (UIState, Model) RawInput
+layer1 input = constructLayer (uiInput input) (stepUI input) (layer2 (fst input))
 
-runLayer1 :: (Double, ViewInfo) -> LayerRunner (UIState, Model) RawInput
-runLayer1 input = constructLayer (uiInput input) (stepUI input) (runLayer2 (fst input))
-
-runLayer2 :: Double -> LayerRunner Model Msg
-runLayer2 delta = foldl' update
+layer2 :: Double -> Layer Model Msg
+layer2 delta = foldl' update
 
 {-
                  x | solvedBoard x -> (x, [Won])
@@ -145,7 +134,7 @@ rtDepth :: RenderTree -> Scalar
 rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z
 rtDepth _ = 0
 
-renderTree :: Layer -> RenderTree -> IO ()
+renderTree :: RenderLayer -> RenderTree -> IO ()
 renderTree layer NoRender = return ()
 renderTree layer (RSquare size pos color tex shader) = drawSpec pos layer (Square size color tex shader)
 renderTree layer (List children) = mapM_ (renderTree layer) (sortOn rtDepth children)

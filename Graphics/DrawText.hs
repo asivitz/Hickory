@@ -50,7 +50,7 @@ textcommand = TextCommand {
 
 pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")
 
-printCommands :: Real a => Shader -> Layer -> Printer a -> [PositionedTextCommand] -> IO ()
+printCommands :: Real a => Shader -> RenderLayer -> Printer a -> [PositionedTextCommand] -> IO ()
 printCommands _ _ _ [] = return ()
 printCommands shader layer (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
         let squarelists = transformTextCommandsToVerts commands font

@@ -2,7 +2,7 @@
 
 module Graphics.Drawing ( module Graphics.GLUtils,
                           renderCommands,
-                          Layer,
+                          RenderLayer,
                           worldLayer,
                           uiLayer,
                           backgroundLayer,
@@ -61,7 +61,7 @@ foreign import ccall "init_renderer" initRenderer
 foreign import ccall "reset_renderer" resetRenderer
    :: IO ()
 
-renderCommands :: Mat44 -> Layer -> IO ()
+renderCommands :: Mat44 -> RenderLayer -> IO ()
 renderCommands mat layer = 
       withMat44 mat $ \ptr ->
          c'renderCommands ptr layer
@@ -70,15 +70,15 @@ getUniformLoc (Shader s) name =
         withCString name $ \ptrname ->
             glGetUniformLocation s ptrname
 
-type Layer = CInt
+type RenderLayer = CInt
 
-worldLayer :: Layer
+worldLayer :: RenderLayer
 worldLayer = 0
 
-uiLayer :: Layer
+uiLayer :: RenderLayer
 uiLayer = 1
 
-backgroundLayer :: Layer
+backgroundLayer :: RenderLayer
 backgroundLayer = 3
 
 boolToCInt :: Bool -> CInt
@@ -90,7 +90,7 @@ foreign import ccall "render_commands" c'renderCommands
 data DrawCommandStruct = DrawCommandStruct
 type DrawCommandHandle = Ptr DrawCommandStruct
 
-addDrawCommand :: Mat44 -> Color -> Color -> TexID -> Shader -> Layer -> GLfloat -> Bool -> IO (DrawCommandHandle)
+addDrawCommand :: Mat44 -> Color -> Color -> TexID -> Shader -> RenderLayer -> GLfloat -> Bool -> IO (DrawCommandHandle)
 addDrawCommand mat color1 color2 (TexID texid) (Shader shader) layer depth blend =
       withMat44 mat $ \matptr ->
          withVec4 color1 $ \color1ptr ->

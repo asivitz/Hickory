@@ -9,7 +9,7 @@ import Math.Matrix
 
 -- Each frame, the RenderInfo struct provides the matrix, screen size, 
 -- and layer used to render the previous frame
-data RenderInfo = RenderInfo Mat44 (Size Int) Layer deriving Show
+data RenderInfo = RenderInfo Mat44 (Size Int) RenderLayer deriving Show
 
 -- mdl - The model used to represent the data for this Scene
 -- ie - The InputEvent data type shared by all scenes
@@ -46,7 +46,7 @@ makeSceneOperator :: (Show ie) => mdl ->
                                   IO re -> 
                                   (Size Int -> mdl -> Mat44) ->
                                   (re -> Render mdl) -> 
-                                  Layer -> 
+                                  RenderLayer ->
                                   IO (SceneOperator ie)
 makeSceneOperator model modelStep resourceLoader viewmat render layer = do
         ref <- newIORef Nothing

@@ -17,7 +17,7 @@ data DrawSpec = Square FSize Color TexID Shader
               | SolidSquare FSize Color Shader
               deriving (Show)
 
-drawSpec :: Vector3 -> Layer -> DrawSpec -> IO ()
+drawSpec :: Vector3 -> RenderLayer -> DrawSpec -> IO ()
 drawSpec pos layer (Square (Size w h) color tex shader) = 
       addDrawCommand model color color tex shader layer (realToFrac . v3z $ pos) True >> return ()
          where model = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
