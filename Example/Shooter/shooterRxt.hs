@@ -21,7 +21,7 @@ import Control.Monad
 import qualified Graphics.UI.GLFW as GLFW
 import Platforms.GLFW
 
-import React.React
+import Layer.Layer
 
 import Data.Bits
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -40,6 +40,12 @@ newGame :: Model
 newGame = Model vZero vZero (v2 1 0) []
 
 data Msg = Fire | AddMove V2 | SubMove V2
+
+uiLayer :: Double -> Layer ((), Model) RawInput
+uiLayer input = constructStatelessLayer (\_ ri -> maybeToList (makeMsg ri)) (gameLayer input)
+
+gameLayer :: Double -> Layer Model Msg
+gameLayer delta mdl msgs = physics delta $ foldl' update mdl msgs
 
 -- Our event type
 type Event = RawInput
@@ -70,11 +76,11 @@ adjustMoveDir :: V2 -> Model -> Model
 adjustMoveDir dir model@Model { playerMoveDir, firingDirection } = model { playerMoveDir = newMoveDir, firingDirection = if vnull newMoveDir then firingDirection else newMoveDir }
     where newMoveDir = playerMoveDir + dir
 
-update :: Msg -> Model -> Model
-update Fire model@Model { playerPos, firingDirection, missiles } = model { missiles = missiles' }
+update :: Model -> Msg -> Model
+update model@Model { playerPos, firingDirection, missiles } Fire = model { missiles = missiles' }
     where missiles' = (playerPos, firingDirection) : missiles
-update (AddMove dir) model = adjustMoveDir dir model
-update (SubMove dir) model = adjustMoveDir (- dir) model
+update model (AddMove dir) = adjustMoveDir dir model
+update model (SubMove dir) = adjustMoveDir (- dir) model
 
 physics :: Double -> Model -> Model
 physics delta model@Model { playerPos, playerMoveDir, missiles } = model { playerPos = playerPos', missiles = missiles' }
@@ -109,7 +115,7 @@ calcCameraMatrix (Size w h) model =
                 cameraMatrix camera (aspectRatio (Size w h))
 
 -- Our render function
-render :: Resources -> Layer -> Model -> IO ()
+render :: Resources -> RenderLayer -> Model -> IO ()
 render Resources { solidShader, texturedShader, missileTex } layer  Model { playerPos, missiles } = do
         drawSpec (v2tov3 playerPos (-5)) layer (SolidSquare (Size 10 10) white solidShader)
 
@@ -135,7 +141,6 @@ gameMain win scrSize = do
         delta <- timePoller
         input <- inputPoller
 
-        let msgs = mapMaybe makeMsg input
         let mat = calcCameraMatrix scrSize mdl
 
         glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
@@ -146,7 +151,7 @@ gameMain win scrSize = do
         resetRenderer
         GLFW.swapBuffers win
 
-        let mdl' = physics delta $ foldl' (flip update) mdl msgs
+        let (_, mdl') = uiLayer delta ((), mdl) input
 
         go mdl'
 
