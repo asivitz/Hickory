@@ -1,6 +1,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+--{-# LANGUAGE TypeSynonymInstances #-}
 
-module Freecell.Render (Msg, update, render, loadResources, RenderTree(..), mkUI, renderTree, uiInput, stepUI, updateUI, Model, UIState, Resources) where
+module Freecell.Render where
 
 import Data.List
 import Data.Maybe
@@ -31,9 +34,33 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-data Msg = MoveCard Card Location
+class RLay a i msg where
+        runLayer :: a -> i -> [msg] -> a
 
-data UIMsg = Lost | Won | NewGame
+constructLayer :: RLay lay2 input2 msg => (lay2 -> input1 -> lay1 -> msg1 -> (lay1, [msg])) ->
+                       (input1 -> input2) ->
+                       (lay2 -> input1 -> lay1 -> lay1) ->
+                       lay1 -> lay2 -> input1 -> [msg1] -> (lay1, lay2)
+constructLayer inputf transf stepf lay1 lay2 input1 msg1s =
+        let (lay1', msgs) = mapAccumL (inputf lay2 input1) lay1 msg1s
+            lay2' = runLayer lay2 (transf input1) (concat msgs)
+            lay1'' = stepf lay2' input1 lay1' in (lay1'', lay2')
+
+
+instance RLay (UIState, Model) (Double, ViewInfo) RawInput where
+        runLayer (uistate, mdl) = constructLayer uiInput fst stepUI uistate mdl
+
+{-
+                 x | solvedBoard x -> (x, [Won])
+                 x | null $ allPermissable x -> (x, [Lost])
+                 x | otherwise -> (x, [])
+                 -}
+
+
+instance RLay Model Double Msg where
+        runLayer mdl delta msg = foldl' update mdl msg
+
+data Msg = MoveCard Card Location
 
 type Model = Board
 
@@ -42,7 +69,6 @@ data UIState = UIState {
              cursor :: V2,
              offset :: V2,
              cardPos :: HashMap.HashMap Card V3,
-             lastUIMsg :: Maybe UIMsg,
              randGen :: StdGen
              }
 
@@ -52,16 +78,15 @@ mkUI model stdgen = UIState {
                             cursor = vZero,
                             offset = vZero,
                             cardPos = HashMap.empty,
-                            lastUIMsg = Nothing,
                             randGen = stdgen
                             }
 
 type ViewInfo = (Mat44, Size Int)
 
-uiInput :: ViewInfo -> Model -> UIState -> RawInput -> (UIState, [Msg])
-uiInput (mat, ss)
-        board
-        ui@UIState { sel, cursor, offset, cardPos = cardPosMap, lastUIMsg }
+uiInput :: Model -> (Double, ViewInfo) -> UIState -> RawInput -> (UIState, [Msg])
+uiInput board
+        (_, (mat, ss))
+        ui@UIState { sel, cursor, offset, cardPos = cardPosMap }
         input =
         case input of
             InputTouchesLoc [(pos, _)] -> (ui { cursor = pos }, [])
@@ -84,27 +109,16 @@ uiInput (mat, ss)
                                                 Nothing -> (ui { sel = Nothing, cursor = pos }, [])
             _ -> (ui, [])
 
-update :: Model -> Msg -> (Model, [UIMsg])
-update board (MoveCard card loc) =
-             case moveCard board card loc of
-                 x | solvedBoard x -> (x, [Won])
-                 x | null $ allPermissable x -> (x, [Lost])
-                 x | otherwise -> (x, [])
+update :: Model -> Msg -> Model
+update board (MoveCard card loc) = moveCard board card loc
 
-
-stepUI :: Model -> Double -> UIState -> UIState
-stepUI board delta ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
+stepUI :: Model -> (Double, ViewInfo) -> UIState -> UIState
+stepUI board (delta, _) ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
     where updateCardPos map card = let homePos = posForCard board card
                                        Vector3 x y z = homePos
                                        p = fromMaybe homePos (HashMap.lookup card map)
                                        p' = movePos (v3tov2 p) (v3tov2 homePos) 20 delta
                                        in HashMap.insert card (v2tov3 p' z) map
-
-updateUI :: Model -> UIState -> UIMsg -> UIState
-updateUI board ui uimsg =
-        case uimsg of
-            Won -> ui { lastUIMsg = Just uimsg }
-            Lost -> ui { lastUIMsg = Just uimsg }
 
 render :: Resources -> ViewInfo -> Model -> UIState -> RenderTree
 render (Resources nillaSh blankTex cardTexHash)

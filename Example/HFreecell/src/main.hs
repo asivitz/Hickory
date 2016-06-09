@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TupleSections #-}
  
 import Engine.Scene.Run
 import Engine.Scene.Scene
@@ -73,10 +74,13 @@ loop (mdl, ui) env resources = do
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
     let viewInfo = (mat, scrSize env)
-        (ui', msgs) = mapAccumL (uiInput viewInfo mdl) ui input
-        (mdl', uimsgs) = mapAccumL update mdl (concat msgs)
-        ui'' = stepUI mdl' delta $ foldl' (updateUI mdl') ui' (concat uimsgs)
-        rt = render resources viewInfo mdl' ui''
+        {-(ui', msgs) = mapAccumL (uiInput viewInfo mdl) ui input-}
+        {-mdl' = foldl' update mdl (concat msgs)-}
+        {-ui'' = stepUI mdl' delta ui'-}
+        {-rt = render resources viewInfo mdl' ui''-}
+
+    let (ui', mdl') = runLayer (ui, mdl) (delta, viewInfo) input
+        rt = render resources viewInfo mdl' ui'
 
     renderTree worldLayer rt
 
@@ -85,7 +89,7 @@ loop (mdl, ui) env resources = do
     resetRenderer
     GLFW.swapBuffers (win env)
 
-    loop (mdl', ui'') env resources
+    loop (mdl', ui') env resources
 
 main :: IO ()
 main = glfwMain' "Demo"
