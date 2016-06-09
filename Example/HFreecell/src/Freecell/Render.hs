@@ -34,31 +34,28 @@ data Resources = Resources {
                cardTexes :: HashMap.HashMap Card TexID
                }
 
-class RLay a i msg where
-        runLayer :: i -> a -> [msg] -> a
+type LayerRunner s i = s -> [i] -> s
 
-constructLayer :: RLay lay2 input2 msg2 => (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
-                       (lay2 -> lay1 -> lay1) ->
-                       input2 ->
-                       (lay1, lay2) -> [msg1] -> (lay1, lay2)
-constructLayer inputf stepf input2 (lay1, lay2) msg1s =
+constructLayer :: (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
+                  (lay2 -> lay1 -> lay1) ->
+                  LayerRunner lay2 msg2 ->
+                  LayerRunner (lay1, lay2) msg1
+constructLayer inputf stepf runNextLayer (lay1, lay2) msg1s =
         let (lay1', msgs) = mapAccumL (inputf lay2) lay1 msg1s
-            lay2' = runLayer input2 lay2 (concat msgs)
+            lay2' = runNextLayer lay2 (concat msgs)
             lay1'' = stepf lay2' lay1' in (lay1'', lay2')
 
+runLayer1 :: (Double, ViewInfo) -> LayerRunner (UIState, Model) RawInput
+runLayer1 input = constructLayer (uiInput input) (stepUI input) (runLayer2 (fst input))
 
-instance RLay (UIState, Model) (Double, ViewInfo) RawInput where
-        runLayer input = constructLayer (uiInput input) (stepUI input) (fst input)
+runLayer2 :: Double -> LayerRunner Model Msg
+runLayer2 delta = foldl' update
 
 {-
                  x | solvedBoard x -> (x, [Won])
                  x | null $ allPermissable x -> (x, [Lost])
                  x | otherwise -> (x, [])
                  -}
-
-
-instance RLay Model Double Msg where
-        runLayer delta mdl msg = foldl' update mdl msg
 
 data Msg = MoveCard Card Location
 
