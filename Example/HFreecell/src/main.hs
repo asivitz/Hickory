@@ -79,7 +79,7 @@ loop (mdl, ui) env resources = do
         {-ui'' = stepUI mdl' delta ui'-}
         {-rt = render resources viewInfo mdl' ui''-}
 
-    let (ui', mdl') = runLayer (ui, mdl) (delta, viewInfo) input
+    let (ui', mdl') = runLayer (delta, viewInfo) (ui, mdl) input
         rt = render resources viewInfo mdl' ui'
 
     renderTree worldLayer rt

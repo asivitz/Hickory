@@ -35,20 +35,20 @@ data Resources = Resources {
                }
 
 class RLay a i msg where
-        runLayer :: a -> i -> [msg] -> a
+        runLayer :: i -> a -> [msg] -> a
 
-constructLayer :: RLay lay2 input2 msg => (lay2 -> input1 -> lay1 -> msg1 -> (lay1, [msg])) ->
-                       (input1 -> input2) ->
-                       (lay2 -> input1 -> lay1 -> lay1) ->
-                       lay1 -> lay2 -> input1 -> [msg1] -> (lay1, lay2)
-constructLayer inputf transf stepf lay1 lay2 input1 msg1s =
-        let (lay1', msgs) = mapAccumL (inputf lay2 input1) lay1 msg1s
-            lay2' = runLayer lay2 (transf input1) (concat msgs)
-            lay1'' = stepf lay2' input1 lay1' in (lay1'', lay2')
+constructLayer :: RLay lay2 input2 msg2 => (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
+                       (lay2 -> lay1 -> lay1) ->
+                       input2 ->
+                       (lay1, lay2) -> [msg1] -> (lay1, lay2)
+constructLayer inputf stepf input2 (lay1, lay2) msg1s =
+        let (lay1', msgs) = mapAccumL (inputf lay2) lay1 msg1s
+            lay2' = runLayer input2 lay2 (concat msgs)
+            lay1'' = stepf lay2' lay1' in (lay1'', lay2')
 
 
 instance RLay (UIState, Model) (Double, ViewInfo) RawInput where
-        runLayer (uistate, mdl) = constructLayer uiInput fst stepUI uistate mdl
+        runLayer input = constructLayer (uiInput input) (stepUI input) (fst input)
 
 {-
                  x | solvedBoard x -> (x, [Won])
@@ -58,7 +58,7 @@ instance RLay (UIState, Model) (Double, ViewInfo) RawInput where
 
 
 instance RLay Model Double Msg where
-        runLayer mdl delta msg = foldl' update mdl msg
+        runLayer delta mdl msg = foldl' update mdl msg
 
 data Msg = MoveCard Card Location
 
@@ -83,9 +83,9 @@ mkUI model stdgen = UIState {
 
 type ViewInfo = (Mat44, Size Int)
 
-uiInput :: Model -> (Double, ViewInfo) -> UIState -> RawInput -> (UIState, [Msg])
-uiInput board
-        (_, (mat, ss))
+uiInput :: (Double, ViewInfo) -> Model -> UIState -> RawInput -> (UIState, [Msg])
+uiInput (_, (mat, ss))
+        board
         ui@UIState { sel, cursor, offset, cardPos = cardPosMap }
         input =
         case input of
@@ -112,8 +112,8 @@ uiInput board
 update :: Model -> Msg -> Model
 update board (MoveCard card loc) = moveCard board card loc
 
-stepUI :: Model -> (Double, ViewInfo) -> UIState -> UIState
-stepUI board (delta, _) ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
+stepUI :: (Double, ViewInfo) -> Model -> UIState -> UIState
+stepUI (delta, _) board ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
     where updateCardPos map card = let homePos = posForCard board card
                                        Vector3 x y z = homePos
                                        p = fromMaybe homePos (HashMap.lookup card map)
