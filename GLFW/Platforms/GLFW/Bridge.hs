@@ -10,6 +10,7 @@ import Math.Vector
 import Engine.Scene.Input
 import Data.Time
 import Data.Maybe
+import Control.Monad
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -32,6 +33,7 @@ setupInput win addInput = do
         sd <- newIORef (SysData HashMap.empty HashMap.empty (Size width height))
         GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd addInput)
         GLFW.setKeyCallback win $ Just (keyCallback sd addInput)
+        GLFW.setFramebufferSizeCallback win $ Just (framebufferSizeCallback sd)
         return $ stepInput sd win addInput
 
 stepInput sd win addInput = do
@@ -39,17 +41,16 @@ stepInput sd win addInput = do
         GLFW.pollEvents
         curPos <- GLFW.getCursorPos win
         let curloc = touchPosToScreenPos fbSize curPos
-            ident = case listToMaybe $ HashMap.keys touches of
-                        Nothing -> 0
-                        Just a -> a
+            ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
         addInput (InputTouchesLoc [(curloc,ident)])
 
-        if not (HashMap.null keys)
-            then do
+        unless (HashMap.null keys) $ do
                 time <- getCurrentTime
                 let relative = HashMap.map (\t -> realToFrac (diffUTCTime time t)) keys
                 addInput (InputKeysHeld relative)
-            else return ()
+
+framebufferSizeCallback :: IORef SysData -> GLFW.Window -> Int -> Int -> IO ()
+framebufferSizeCallback platform win width height = modifyIORef platform (\sd@SysData { fbSize } -> sd { fbSize = Size width height })
 
 mouseButtonCallback :: IORef SysData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform addInput win button buttonState modkeys =
@@ -89,7 +90,7 @@ keyCallback platform addInput win glfwkey scancode keyState modkeys =
                 GLFW.KeyState'Pressed -> do
                     addInput (InputKeyDown key)
                     writeIORef platform sd { keys = HashMap.insert key time keys }
-                GLFW.KeyState'Released -> do
+                GLFW.KeyState'Released ->
                     case HashMap.lookup key keys of
                         Nothing -> addInput (InputKeyUp key 0)
                         Just prev -> do
@@ -109,7 +110,7 @@ touchIdent button = case button of
                         GLFW.MouseButton'8 -> 8
 
 touchPosToScreenPos :: Size Int -> (Double, Double) -> V2
-touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) ((fromIntegral h) - (realToFrac y))
+touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) (fromIntegral h - realToFrac y)
 
 {-
 broadcastTouchLoc win screensize touchid = do

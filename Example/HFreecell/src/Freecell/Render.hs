@@ -1,5 +1,4 @@
 {-# LANGUAGE NamedFieldPuns #-}
---{-# LANGUAGE TypeSynonymInstances #-}
 
 module Freecell.Render where
 

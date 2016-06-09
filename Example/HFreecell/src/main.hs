@@ -12,6 +12,7 @@ import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import System.Random
 import Platforms.GLFW
+import Platforms.GLFW.Utils
 import FreeCell
 import Engine.Scene.Input
 import Freecell.Game
@@ -27,12 +28,11 @@ calcCameraMatrix (Size w h) _ =
 data Environment = Environment {
                  win :: GLFW.Window,
                  timePoller :: IO Double,
-                 inputPoller :: IO [RawInput],
-                 scrSize :: Size Int
+                 inputPoller :: IO [RawInput]
                  }
 
-gameMain :: GLFW.Window -> Size Int -> IO ()
-gameMain win scrSize = do 
+gameMain :: GLFW.Window -> IO ()
+gameMain win = do
             initRenderer
             glClearColor 0.125 0.125 0.125 1
             glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
@@ -48,7 +48,7 @@ gameMain win scrSize = do
             inputPoller <- makeInputPoller win
             timePoller <- makeTimePoller
 
-            let env = Environment { win, timePoller, inputPoller, scrSize }
+            let env = Environment { win, timePoller, inputPoller }
 
             loop (mdl, ui) env resources
 
@@ -56,12 +56,13 @@ loop :: (Model, UIState) -> Environment -> Resources -> IO ()
 loop (mdl, ui) env resources = do
     delta <- timePoller env
     input <- inputPoller env
+    scrSize <- uncurry Size <$> GLFW.getFramebufferSize (win env)
 
-    let mat = calcCameraMatrix (scrSize env) mdl
+    let mat = calcCameraMatrix scrSize mdl
 
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
-    let viewInfo = (mat, scrSize env)
+    let viewInfo = (mat, scrSize)
         (ui', mdl') = uiLayer (delta, viewInfo) (ui, mdl) input
         rt = render resources viewInfo mdl' ui'
 
@@ -75,6 +76,4 @@ loop (mdl, ui) env resources = do
     loop (mdl', ui') env resources
 
 main :: IO ()
-main = glfwMain' "Demo"
-                  (Size 640 480)
-                  gameMain
+main = withWindow 800 600 "Demo" gameMain
