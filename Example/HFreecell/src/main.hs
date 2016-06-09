@@ -1,14 +1,10 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
  
-import Engine.Scene.Run
-import Engine.Scene.Scene
 import Types.Types
-import Math.VectorMatrix
 import Math.Vector
 import Math.Matrix
 import Camera.Camera
-import Graphics.DrawUtils
 import Graphics.Drawing
 import qualified Graphics.UI.GLFW as GLFW
 import Data.Bits
@@ -17,21 +13,13 @@ import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 import System.Random
 import Platforms.GLFW
 import FreeCell
-import Data.Maybe
-import Data.List
 import Engine.Scene.Input
-import Data.Dynamic
-import React.React
-import Debug.Trace
-
+import Freecell.Game
 import Freecell.Render
-
-physics :: Double -> Model -> Model
-physics delta model = model
 
 -- This function calculates a view matrix, used during rendering
 calcCameraMatrix :: Size Int -> Model -> Mat44
-calcCameraMatrix (Size w h) model = 
+calcCameraMatrix (Size w h) _ =
         let proj = Ortho 10 1 100 True
             camera = Camera proj (v3 5 3 0) in
                 cameraMatrix camera (aspectRatio (Size w h))
@@ -74,12 +62,7 @@ loop (mdl, ui) env resources = do
     glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
 
     let viewInfo = (mat, scrSize env)
-        {-(ui', msgs) = mapAccumL (uiInput viewInfo mdl) ui input-}
-        {-mdl' = foldl' update mdl (concat msgs)-}
-        {-ui'' = stepUI mdl' delta ui'-}
-        {-rt = render resources viewInfo mdl' ui''-}
-
-    let (ui', mdl') = layer1 (delta, viewInfo) (ui, mdl) input
+        (ui', mdl') = uiLayer (delta, viewInfo) (ui, mdl) input
         rt = render resources viewInfo mdl' ui'
 
     renderTree worldLayer rt

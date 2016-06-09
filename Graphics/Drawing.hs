@@ -4,7 +4,7 @@ module Graphics.Drawing ( module Graphics.GLUtils,
                           renderCommands,
                           RenderLayer,
                           worldLayer,
-                          uiLayer,
+                          uiRenderLayer,
                           backgroundLayer,
                           addDrawCommand,
                           setTCCommand,
@@ -75,8 +75,8 @@ type RenderLayer = CInt
 worldLayer :: RenderLayer
 worldLayer = 0
 
-uiLayer :: RenderLayer
-uiLayer = 1
+uiRenderLayer :: RenderLayer
+uiRenderLayer = 1
 
 backgroundLayer :: RenderLayer
 backgroundLayer = 3

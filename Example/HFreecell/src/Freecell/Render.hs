@@ -3,7 +3,6 @@
 
 module Freecell.Render where
 
-import Layer.Layer
 import Data.List
 import Data.Maybe
 import FreeCell
@@ -11,100 +10,21 @@ import Freecell.Utils
 import Graphics.Drawing
 import Graphics.Shader
 import Graphics.DrawUtils
-import Utils.Utils
-import Math.Matrix
 import Types.Color
 import Types.Types
 import qualified Data.HashMap.Strict as HashMap
 import Data.Foldable (foldlM)
-import Control.Monad
 import Math.Vector
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Textures.Textures
-import React.React
-import Data.Dynamic
-import Engine.Scene.Input
 import Utils.Projection
-import System.Random
+import Freecell.Game
 
 data Resources = Resources {
                vanillaShader :: Shader,
                blankCard :: TexID,
                cardTexes :: HashMap.HashMap Card TexID
                }
-
-
-layer1 :: (Double, ViewInfo) -> Layer (UIState, Model) RawInput
-layer1 input = constructLayer (uiInput input) (stepUI input) (layer2 (fst input))
-
-layer2 :: Double -> Layer Model Msg
-layer2 delta = foldl' update
-
-{-
-                 x | solvedBoard x -> (x, [Won])
-                 x | null $ allPermissable x -> (x, [Lost])
-                 x | otherwise -> (x, [])
-                 -}
-
-data Msg = MoveCard Card Location
-
-type Model = Board
-
-data UIState = UIState {
-             sel :: Maybe Card,
-             cursor :: V2,
-             offset :: V2,
-             cardPos :: HashMap.HashMap Card V3,
-             randGen :: StdGen
-             }
-
-mkUI :: Model -> StdGen -> UIState
-mkUI model stdgen = UIState {
-                            sel = Nothing,
-                            cursor = vZero,
-                            offset = vZero,
-                            cardPos = HashMap.empty,
-                            randGen = stdgen
-                            }
-
-type ViewInfo = (Mat44, Size Int)
-
-uiInput :: (Double, ViewInfo) -> Model -> UIState -> RawInput -> (UIState, [Msg])
-uiInput (_, (mat, ss))
-        board
-        ui@UIState { sel, cursor, offset, cardPos = cardPosMap }
-        input =
-        case input of
-            InputTouchesLoc [(pos, _)] -> (ui { cursor = pos }, [])
-            InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3
-                                               predicate :: Card -> Maybe (V3, Card)
-                                               predicate c = let homePos = posForCard board c in
-                                                   if v3tov2 cursorPos `posInRect` Rect (v3tov2 homePos) (Size 0.66 1)
-                                                       then Just (homePos, c)
-                                                       else Nothing
-                                               card = listToMaybe $ reverse $ sortOn (\(Vector3 _ _ z, c) -> z) $ mapMaybe predicate allCards
-                                               offset = case card of
-                                                            Just (p, c) -> v3tov2 (p - cursorPos)
-                                                            Nothing -> vZero
-                                               in (ui { sel = fmap snd card, cursor = pos, offset = offset }, [])
-            InputTouchesUp [(_, pos, _)] -> case sel of
-                                                Just c -> let cursorPos = unproject pos (-5) mat ss :: V3
-                                                              cardLoc = v3tov2 cursorPos + offset
-                                                              targetLocation = dropLocationForPos board cardLoc in
-                                                                  (ui { sel = Nothing, cursor = pos, cardPos = HashMap.insert c (v2tov3 cardLoc (-5)) cardPosMap }, [MoveCard c targetLocation])
-                                                Nothing -> (ui { sel = Nothing, cursor = pos }, [])
-            _ -> (ui, [])
-
-update :: Model -> Msg -> Model
-update board (MoveCard card loc) = moveCard board card loc
-
-stepUI :: (Double, ViewInfo) -> Model -> UIState -> UIState
-stepUI (delta, _) board ui@UIState { cardPos } = ui { cardPos = foldl' updateCardPos cardPos allCards }
-    where updateCardPos map card = let homePos = posForCard board card
-                                       Vector3 x y z = homePos
-                                       p = fromMaybe homePos (HashMap.lookup card map)
-                                       p' = movePos (v3tov2 p) (v3tov2 homePos) 20 delta
-                                       in HashMap.insert card (v2tov3 p' z) map
 
 render :: Resources -> ViewInfo -> Model -> UIState -> RenderTree
 render (Resources nillaSh blankTex cardTexHash)
@@ -135,10 +55,11 @@ rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z
 rtDepth _ = 0
 
 renderTree :: RenderLayer -> RenderTree -> IO ()
-renderTree layer NoRender = return ()
+renderTree _ NoRender = return ()
 renderTree layer (RSquare size pos color tex shader) = drawSpec pos layer (Square size color tex shader)
 renderTree layer (List children) = mapM_ (renderTree layer) (sortOn rtDepth children)
 
+rankSymbol :: Rank -> String
 rankSymbol rk = case rk of
                     Ace -> "A"
                     Two -> "2"
@@ -154,12 +75,14 @@ rankSymbol rk = case rk of
                     Queen -> "Q"
                     King -> "K"
 
+suitSymbol :: Suit -> String
 suitSymbol st = case st of
                     Heart -> "he"
                     Spade -> "sp"
                     Diamond -> "di"
                     Club -> "cl"
 
+cardTexPath :: Card -> String
 cardTexPath (Card rk st) = let r = rankSymbol rk
                                s = suitSymbol st in
                                    "PlayingCards/cards/" ++ s ++ "_" ++ r ++ ".png"
