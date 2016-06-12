@@ -42,7 +42,7 @@ sizePosMat (Size w h) pos = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 sizePosRotMat :: Real a => Size Float -> V3 -> a -> Mat44
 sizePosRotMat (Size w h) pos rot = mat44Scale w h 1 $ mat44Rotate 0 0 1 (realToFrac rot) $ mat44TranslateV pos mat44Identity
 
-data RenderTree = RSquare Mat44 Color (Maybe TexID) Shader
+data RenderTree = Primative Mat44 DrawSpec
                 | List [RenderTree]
                 | NoRender
                 deriving (Show)
@@ -53,6 +53,6 @@ data RenderTree = RSquare Mat44 Color (Maybe TexID) Shader
 
 renderTree :: RenderLayer -> RenderTree -> IO ()
 renderTree _ NoRender = return ()
-renderTree layer (RSquare mat color tex shader) = drawSpec mat layer (Square color tex shader)
+renderTree layer (Primative mat spec) = drawSpec mat layer spec
 renderTree layer (List children) = mapM_ (renderTree layer) children -- (sortOn rtDepth children)
 
