@@ -117,11 +117,11 @@ calcCameraMatrix (Size w h) model =
 -- Our render function
 render :: Resources -> RenderLayer -> Model -> IO ()
 render Resources { solidShader, texturedShader, missileTex } layer  Model { playerPos, missiles } = do
-        drawSpec (v2tov3 playerPos (-5)) layer (SolidSquare (Size 10 10) white solidShader)
+        drawSpec (sizePosMat (Size 10 10) (v2tov3 playerPos (-5))) layer (Square white Nothing solidShader)
 
         -- Draw the missiles
         forM_ missiles $ \(pos, _) ->
-            drawSpec (v2tov3 pos (-5)) layer (Square (Size 5 5) (rgb 1 0 0) missileTex texturedShader)
+            drawSpec (sizePosMat (Size 5 5) (v2tov3 pos (-5))) layer (Square (rgb 1 0 0) (Just missileTex) texturedShader)
 
 
 gameMain :: GLFW.Window -> Size Int -> IO ()

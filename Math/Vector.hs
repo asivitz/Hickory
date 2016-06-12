@@ -22,6 +22,7 @@ module Math.Vector
     moveVal,
     vmidpoint,
     vnull,
+    vangle,
     Interpolatable,
     glerp
     )
@@ -62,6 +63,9 @@ vmidpoint v t = vlinear 0.5 v t
 
 vnull :: Vector a => a -> Bool
 vnull v = vmag v == 0
+
+vangle :: Vector a => a -> a -> Scalar
+vangle a b = acos $ vdot (vnormalise a) (vnormalise b)
 
 movePos :: Vector a => a -> a -> Scalar -> Scalar -> a
 movePos p1 p2 speed time = 

@@ -40,23 +40,9 @@ render (Resources nillaSh blankTex cardTexHash)
                                                         then if cardDepth board c == Just 0 then cursorPos + v2tov3 offset 0 else v2tov3 (v3tov2 cardPos) (-5)
                                                         else cardPos
                                           Nothing -> cardPos
-                                in RSquare (Size 1 1) pos white (fromJust tid) nillaSh
+                                in RSquare (sizePosMat (Size 1 1) pos) white tid nillaSh
           cards = map renderCard allCards
-          piles = map (\pos -> RSquare (Size 1 1) (v2tov3 pos (-40)) white blankTex nillaSh) (drop 8 pilePositions)
-
-data RenderTree = RSquare (Size Float) V3 Color TexID Shader
-                | List [RenderTree]
-                | NoRender
-                deriving (Show)
-
-rtDepth :: RenderTree -> Scalar
-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z
-rtDepth _ = 0
-
-renderTree :: RenderLayer -> RenderTree -> IO ()
-renderTree _ NoRender = return ()
-renderTree layer (RSquare size pos color tex shader) = drawSpec pos layer (Square size color tex shader)
-renderTree layer (List children) = mapM_ (renderTree layer) (sortOn rtDepth children)
+          piles = map (\pos -> RSquare (sizePosMat (Size 1 1) (v2tov3 pos (-40))) white (Just blankTex) nillaSh) (drop 8 pilePositions)
 
 rankSymbol :: Rank -> String
 rankSymbol rk = case rk of

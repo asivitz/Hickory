@@ -6,6 +6,7 @@ import Math.Vector
 import Math.Matrix
 import Camera.Camera
 import Graphics.Drawing
+import Graphics.DrawUtils
 import qualified Graphics.UI.GLFW as GLFW
 import Data.Bits
 import Graphics.Rendering.OpenGL.Raw.Core31
