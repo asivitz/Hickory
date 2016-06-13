@@ -11,16 +11,24 @@ import Math.Vector
 import Math.VectorMatrix
 import Data.List
 import Data.Maybe
+import Graphics.DrawText
+import Text.Text
 
 import Graphics.Drawing
 import Types.Color
 
-data DrawSpec = Square Color (Maybe TexID) Shader
+data DrawSpec = Square Color (Maybe TexID) Shader |
+                Text Color Shader (Printer Int) String
               deriving (Show)
 
+
 drawSpec :: Mat44 -> RenderLayer -> DrawSpec -> IO ()
-drawSpec mat layer (Square color tex shader) =
-      addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True >> return ()
+drawSpec mat layer spec =
+        case spec of
+            Square color tex shader ->
+                addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True >> return ()
+            Text color shader printer string ->
+                printCommands mat shader layer printer [PositionedTextCommand vZero (textcommand { text = string, align = AlignLeft })]
     where depth = v4z $ mat44MulVec4 mat (v4 0 0 0 1)
 
 data ParticleShader = ParticleShader Shader UniformLoc

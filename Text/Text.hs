@@ -11,6 +11,7 @@ import Data.Maybe
 import Math.Vector
 import qualified Data.Text as Text
 import Data.Hashable
+import Data.List
 
 type CharTable a = HashMap.HashMap CharIdent (Glyph a)
 type KerningTable a = HashMap.HashMap KerningPair (KerningSpec a)
@@ -84,8 +85,8 @@ data TextCommand = TextCommand {
 data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
 
 fontGlyphs :: Real a => String -> Font a -> [Glyph a]
-fontGlyphs text (Font _ chartable _) = mapMaybe (\x -> HashMap.lookup x chartable) idents
-    where idents = map (CharIdent . ord) text
+fontGlyphs text (Font _ chartable _) = mapMaybe (\x -> if x < 32 then Just $ Control x else HashMap.lookup (CharIdent x) chartable) nums
+    where nums = map ord text
 
 kerningForGlyphs :: Real a => Glyph a -> Glyph a -> KerningTable a -> a
 kerningForGlyphs a b table = 0
@@ -111,12 +112,14 @@ transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand 
             width = displayWidth kerningtable glyphs
             xoffset = commandBump + (lineShiftX (realToFrac width) align)
             yoffset = lineShiftY fsize (realToFrac lineHeight) valign 
-            accum :: Real a => (Scalar, [[Scalar]], [Scalar]) -> Glyph a -> (Scalar, [[Scalar]], [Scalar])
-            accum = \(leftBump, vertlst, color_verts) glyph ->
+            accum :: Real a => (Scalar, Int, [[Scalar]], [Scalar]) -> Glyph a -> (Scalar, Int, [[Scalar]], [Scalar])
+            accum = \(leftBump, linenum, vertlst, color_verts) glyph ->
                 case glyph of
-                    Null -> (leftBump, vertlst, color_verts)
-                    (Control 94) -> (leftBump, vertlst, color_verts)
-                    (Control _) -> (leftBump, vertlst, color_verts)
+                    Null -> (leftBump, linenum, vertlst, color_verts)
+                    (Control 9) -> (leftBump + fsize * 500, linenum, vertlst, color_verts)
+                    (Control 10) -> (0, linenum + 1, vertlst, color_verts)
+                    (Control 94) -> (leftBump, linenum, vertlst, color_verts)
+                    (Control _) -> (leftBump, linenum, vertlst, color_verts)
                     {-
                     (let* ([next (cadr lst)]
                         [num (if (integer? next) next (font-character-id next))]
@@ -127,11 +130,11 @@ transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand 
                                 )] -}
                     Glyph GlyphSpec { xadvance } (GlyphVerts gverts tc) ->
                         let dotransform :: V2 -> V3
-                            dotransform = \(Vector2 vx vy) -> v3 (x + fsize * (vx + leftBump)) (y + fsize * (vy + yoffset)) z
+                            dotransform = \(Vector2 vx vy) -> v3 (x + fsize * (vx + leftBump)) ((realToFrac linenum) * fsize * (realToFrac lineHeight) * (-1) + y + fsize * (vy + yoffset)) z
                             new_verts = map dotransform gverts
                             vert_set = foldr (\(v, w) lst -> (vunpack v) ++ (vunpack w) ++ color_verts ++ lst) [] (zip new_verts tc) in
-                                ((leftBump + (realToFrac xadvance)), (vert_set : vertlst), color_verts)
-            (_, vert_result, _) = foldl accum (xoffset, [], (vunpack color)) glyphs
+                                ((leftBump + (realToFrac xadvance)), linenum, (vert_set : vertlst), color_verts)
+            (_, _, vert_result, _) = foldl' accum (xoffset, 0, [], (vunpack color)) glyphs
             in map (map realToFrac) vert_result
 
 transformTextCommandsToVerts :: Real a => [PositionedTextCommand] -> Font a -> [[Float]]

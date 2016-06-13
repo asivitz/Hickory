@@ -14,6 +14,7 @@ import Textures.Textures
 import Control.Monad
 
 data Printer a = Printer (Font a) TexID VAOConfig
+               deriving (Show)
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do
@@ -50,9 +51,9 @@ textcommand = TextCommand {
 
 pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")
 
-printCommands :: Real a => Shader -> RenderLayer -> Printer a -> [PositionedTextCommand] -> IO ()
-printCommands _ _ _ [] = return ()
-printCommands shader layer (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
+printCommands :: Real a => Mat44 -> Shader -> RenderLayer -> Printer a -> [PositionedTextCommand] -> IO ()
+printCommands _ _ _ _ [] = return ()
+printCommands mat shader layer (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
         let squarelists = transformTextCommandsToVerts commands font
             numsquares = length squarelists
             floats = map realToFrac (foldl (++) [] squarelists)
@@ -63,11 +64,11 @@ printCommands shader layer (Printer font texid VAOConfig { vao, indexVBO = Just 
             numBlockIndices <- bufferSquareIndices ivbo numsquares
             unbindVAO
 
-            dc <- addDrawCommand mat44Identity white white texid shader layer 0.0 True
+            dc <- addDrawCommand mat white white texid shader layer 0.0 True
             vao_payload <- setVAOCommand dc vao numBlockIndices gl_TRIANGLE_STRIP
             return ()
 
-printCommands _ _ _ _ = return ()
+printCommands _ _ _ _ _ = return ()
 
 ---
 
