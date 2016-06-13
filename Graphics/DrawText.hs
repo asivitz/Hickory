@@ -54,9 +54,7 @@ pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")
 printCommands :: Real a => Mat44 -> Shader -> RenderLayer -> Printer a -> [PositionedTextCommand] -> IO ()
 printCommands _ _ _ _ [] = return ()
 printCommands mat shader layer (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
-        let squarelists = transformTextCommandsToVerts commands font
-            numsquares = length squarelists
-            floats = map realToFrac (foldl (++) [] squarelists)
+        let (numsquares, floats) = transformTextCommandsToVerts commands font
 
         when (not $ null floats) $ do
             bindVAO vao

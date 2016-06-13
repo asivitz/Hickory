@@ -23,6 +23,7 @@ module Math.Vector
     vmidpoint,
     vnull,
     vangle,
+    vunpackFractional,
     Interpolatable,
     glerp
     )
@@ -66,6 +67,9 @@ vnull v = vmag v == 0
 
 vangle :: Vector a => a -> a -> Scalar
 vangle a b = acos $ vdot (vnormalise a) (vnormalise b)
+
+vunpackFractional :: (Fractional a, Vector v) => v -> [a]
+vunpackFractional v = map realToFrac (vunpack v)
 
 movePos :: Vector a => a -> a -> Scalar -> Scalar -> a
 movePos p1 p2 speed time = 
