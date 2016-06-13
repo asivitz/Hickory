@@ -13,6 +13,7 @@ import Engine.Scene.Run
 import Engine.Scene.Input
 import Types.Types
 import Data.Time
+import Control.Monad
 
 glfwRender :: GLFW.Window -> [SceneOperator ie] -> IO ()
 glfwRender win operators = do
@@ -66,6 +67,21 @@ makeTimePoller = do
         return $ do
             new_time <- getCurrentTime
             atomicModifyIORef time (\prev_time -> (new_time, min 0.1 $ realToFrac (diffUTCTime new_time prev_time)))
+
+makeFPSTicker :: IO (IO ())
+makeFPSTicker = do
+        initial_time <- getCurrentTime
+        ref <- newIORef (0, initial_time)
+
+        return $ do
+            new_time <- getCurrentTime
+            (count, last_time) <- readIORef ref
+            let diff = diffUTCTime new_time last_time
+            if (diff > 5)
+                then do
+                    print $ "FPS: " ++ (show $ count / diff)
+                    writeIORef ref (0, new_time)
+                else writeIORef ref (count+1, last_time)
 
 glfwMain' :: String -> Size Int -> (GLFW.Window -> Size Int -> IO ()) -> IO ()
 glfwMain' name (Size w h) callback = do 
