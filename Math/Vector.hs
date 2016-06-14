@@ -1,4 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Math.Vector 
     (
@@ -35,6 +37,8 @@ import Data.Vector.V3
 import Data.Vector.V4
 import Data.Vector.Class
 import Utils.Utils
+import GHC.Generics
+import Data.Serialize
 
 type V2 = Vector2
 type V3 = Vector3
@@ -43,6 +47,13 @@ type V4 = Vector4
 v2 = Vector2
 v3 = Vector3
 v4 = Vector4
+
+deriving instance Generic Vector2
+instance Serialize Vector2
+deriving instance Generic Vector3
+instance Serialize Vector3
+deriving instance Generic Vector4
+instance Serialize Vector4
 
 vZero :: BasicVector a => a
 vZero = vpromote 0
