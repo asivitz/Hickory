@@ -15,9 +15,9 @@ constructLayer inputf stepf nextLayer (lay1, lay2) msg1s =
             lay2' = nextLayer lay2 (concat msgs)
             lay1'' = stepf lay2' lay1' in (lay1'', lay2')
 
-constructStatelessLayer :: (lay2 -> msg1 -> [msg2]) -> Layer lay2 msg2 -> Layer (lay1, lay2) msg1
-constructStatelessLayer inputf =
-        constructLayer (\lay2 ui msg1 -> (ui, inputf lay2 msg1)) (const id)
+constructStatelessLayer :: (lay2 -> msg1 -> [msg2]) -> Layer lay2 msg2 -> Layer lay2 msg1
+constructStatelessLayer inputf nextLayer lay2 msg1s =
+        nextLayer lay2 (concatMap (inputf lay2) msg1s)
 
 -- Debug Layer
 data DebugMsg = FlipDebug
