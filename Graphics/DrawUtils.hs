@@ -28,7 +28,7 @@ drawSpec mat layer spec =
             Square color tex shader ->
                 addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True >> return ()
             Text color shader printer string ->
-                printCommands mat shader layer printer [PositionedTextCommand vZero (textcommand { text = string, align = AlignLeft })]
+                printCommands mat shader layer printer [PositionedTextCommand vZero (textcommand { text = string, color = color, align = AlignLeft })]
     where depth = v4z $ mat44MulVec4 mat (v4 0 0 0 1)
 
 data ParticleShader = ParticleShader Shader UniformLoc

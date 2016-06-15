@@ -39,6 +39,9 @@ import Data.Vector.Class
 import Utils.Utils
 import GHC.Generics
 import Data.Serialize
+import Text.PrettyPrint
+import Text.PrettyPrint.GenericPretty
+import Text.Printf
 
 type V2 = Vector2
 type V3 = Vector3
@@ -50,10 +53,21 @@ v4 = Vector4
 
 deriving instance Generic Vector2
 instance Serialize Vector2
+instance Out Vector2 where
+  doc (Vector2 x y) =  parens $ text (printf "%.2f,%.2f" x y)
+  docPrec _ = doc
+
 deriving instance Generic Vector3
 instance Serialize Vector3
+instance Out Vector3 where
+  doc (Vector3 x y z) =  parens $ text (printf "%.2f,%.2f,%.2f" x y z)
+  docPrec _ = doc
+
 deriving instance Generic Vector4
 instance Serialize Vector4
+instance Out Vector4 where
+  doc (Vector4 x y z w) =  parens $ text (printf "%.2f,%.2f,%.2f,%.2f" x y z w)
+  docPrec _ = doc
 
 vZero :: BasicVector a => a
 vZero = vpromote 0
