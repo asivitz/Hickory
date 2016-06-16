@@ -17,7 +17,10 @@ import Foreign.C.Types
 type CharTable a = HashMap.HashMap CharIdent (Glyph a)
 type KerningTable a = HashMap.HashMap KerningPair (KerningSpec a)
 
-data Font a = Font (FontInfo a) (CharTable a) (KerningTable a) deriving Show
+data Font a = Font String (FontInfo a) (CharTable a) (KerningTable a) deriving Show
+
+instance Eq (Font a) where
+        (Font namea _ _ _) == (Font nameb _ _ _) = namea == nameb
 
 addItem :: (Data.Hashable.Hashable k, Eq k) => (v -> k) -> HashMap.HashMap k v -> v -> HashMap.HashMap k v
 addItem keyfunc table item = HashMap.insert (keyfunc item) item table
@@ -49,10 +52,10 @@ makeCharTable fi specs = let glyphs = map (makeGlyph fi) specs in
 makeKerningTable :: [KerningSpec a] -> KerningTable a
 makeKerningTable specs = foldl (addItem (\(KerningSpec pair _) -> pair)) HashMap.empty specs
 
-makeFont :: Integral a => Text.Text -> Either String (Font a)
-makeFont text = case runParseFont text of
+makeFont :: Integral a => Text.Text -> String -> Either String (Font a)
+makeFont text name = case runParseFont text of
                     Right (info, glyphspecs, kernings) ->
-                        Right $ Font info (makeCharTable info glyphspecs) (makeKerningTable kernings)
+                        Right $ Font name info (makeCharTable info glyphspecs) (makeKerningTable kernings)
                     Left s -> Left s
 
 data GlyphVerts = GlyphVerts [V2] [V2] deriving Show
@@ -86,8 +89,8 @@ data TextCommand = TextCommand {
 data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
 
 fontGlyphs :: Real a => Text.Text -> Font a -> [Glyph a]
-fontGlyphs text (Font _ chartable _) = Text.foldr (\char lst -> let x = ord char
-                                                                    glyph = if x < 32 then Just $ Control x else HashMap.lookup (CharIdent x) chartable
+fontGlyphs text (Font _ _ chartable _) = Text.foldr (\char lst -> let x = ord char
+                                                                      glyph = if x < 32 then Just $ Control x else HashMap.lookup (CharIdent x) chartable
                                                                                       in maybe lst (:lst) glyph) [] text
 
 kerningForGlyphs :: Real a => Glyph a -> Glyph a -> KerningTable a -> a
@@ -101,14 +104,14 @@ displayWidth kerningtable glyphs = fst $ foldl accum (0,Null) glyphs
           accum (width,prev) g@(Null) = (width,g)
 
 renderedTextSize :: Font Scalar -> TextCommand -> Size Scalar
-renderedTextSize font@(Font info chartable kerningtable) (TextCommand text fontSize align valign color commandBump) =
+renderedTextSize font@(Font _ info chartable kerningtable) (TextCommand text fontSize align valign color commandBump) =
         let glyphs = fontGlyphs text font
             width = displayWidth kerningtable glyphs
             in Size (width * fontSize) (10 * fontSize)
 
 transformTextCommandToVerts :: Real a => PositionedTextCommand -> Font a -> (Int, [CFloat])
 transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand text fontSize align valign color commandBump) )
-                            font@(Font FontInfo { lineHeight } chartable kerningtable) = 
+                            font@(Font _ FontInfo { lineHeight } chartable kerningtable) =
         let fsize = fontSize / 12
             glyphs = fontGlyphs text font
             width = displayWidth kerningtable glyphs

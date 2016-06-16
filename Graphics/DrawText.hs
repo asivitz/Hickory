@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Graphics.DrawText (Printer(..), loadPrinter, pvcShaderPair, printCommands, PositionedTextCommand(..), textcommand) where
+module Graphics.DrawText (Printer(..), loadPrinter, pvcShaderPair, createPrinterVAOConfig, PositionedTextCommand(..), textcommand) where
 
 import Types.Color
 import Graphics.Drawing
@@ -14,15 +14,15 @@ import Data.Text.IO as TextIO
 import Textures.Textures
 import Control.Monad
 
-data Printer a = Printer (Font a) TexID VAOConfig
-               deriving (Show)
+data Printer a = Printer (Font a) TexID
+               deriving (Show, Eq)
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do
         vaoConfig <- createVAOConfig shader 
-            [(VertexGroup [(Attachment sp_ATTR_POSITION 3),
-                           (Attachment sp_ATTR_TEX_COORDS 2),
-                           (Attachment sp_ATTR_COLOR 4)])]
+            [VertexGroup [Attachment sp_ATTR_POSITION 3,
+                          Attachment sp_ATTR_TEX_COORDS 2,
+                          Attachment sp_ATTR_COLOR 4]]
         config' <- indexVAOConfig vaoConfig
         return config'
 
@@ -33,13 +33,11 @@ loadPrinter resPath shader name = do
             Nothing -> return Nothing
             Just tid -> do
                 text <- TextIO.readFile $ resPath ++ "/fonts/" ++ name ++ ".fnt"
-                case makeFont text of
+                case makeFont text name of
                     Left s -> do
                         print $ "Error: Can't parse font file for " ++ name ++ ".fnt Msg: " ++ s
                         return Nothing
-                    Right font -> do
-                        vaoconfig <- createPrinterVAOConfig shader
-                        return $ Just (Printer font tid vaoconfig)
+                    Right font -> return $ Just (Printer font tid)
 
 textcommand :: TextCommand
 textcommand = TextCommand { 
@@ -51,25 +49,6 @@ textcommand = TextCommand {
                           leftBump = 0 }
 
 pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")
-
-printCommands :: Real a => Mat44 -> Shader -> RenderLayer -> Printer a -> [PositionedTextCommand] -> IO ()
-printCommands _ _ _ _ [] = return ()
-printCommands mat shader layer (Printer font texid VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } ) commands = do
-        let (numsquares, floats) = transformTextCommandsToVerts commands font
-
-        when (not $ null floats) $ do
-            bindVAO vao
-            bufferVertices vbo floats
-            numBlockIndices <- bufferSquareIndices ivbo numsquares
-            unbindVAO
-
-            dc <- addDrawCommand mat white white texid shader layer 0.0 True
-            vao_payload <- setVAOCommand dc vao numBlockIndices gl_TRIANGLE_STRIP
-            return ()
-
-printCommands _ _ _ _ _ = return ()
-
----
 
 deleteIndex :: [a] -> Int -> [a]
 deleteIndex [] _ = []

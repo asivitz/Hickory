@@ -4,6 +4,7 @@ module Graphics.DrawUtils where
 
 import Types.Types
 
+import Control.Monad
 import Graphics.GLUtils
 import Graphics.Shader
 import Math.Matrix
@@ -14,22 +15,27 @@ import Data.Maybe
 import Graphics.DrawText
 import Text.Text
 import qualified Data.Text as Text
+import qualified Data.HashMap.Strict as HashMap
+import Graphics.Rendering.OpenGL.Raw.Core31
 
 import Graphics.Drawing
 import Types.Color
 
 data DrawSpec = Square Color (Maybe TexID) Shader |
-                Text Color Shader (Printer Int) Text.Text
+                Text Color Shader (Printer Int) Text.Text |
+                VAO Color (Maybe TexID) VAOObj
               deriving (Show)
-
 
 drawSpec :: Mat44 -> RenderLayer -> DrawSpec -> IO ()
 drawSpec mat layer spec =
         case spec of
             Square color tex shader ->
                 addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True >> return ()
-            Text color shader printer string ->
-                printCommands mat shader layer printer [PositionedTextCommand vZero (textcommand { text = string, color = color, align = AlignLeft })]
+            Text color shader printer string -> error "Can't print text directly. Should transform into a VAO command."
+            VAO color tex (VAOObj (VAOConfig vao indexVBO vertices shader) numitems) -> do
+                dc <- addDrawCommand mat white white (fromMaybe nullTex tex) shader layer 0.0 True
+                vao_payload <- setVAOCommand dc vao numitems gl_TRIANGLE_STRIP
+                return ()
     where depth = v4z $ mat44MulVec4 mat (v4 0 0 0 1)
 
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -56,12 +62,86 @@ data RenderTree = Primative Mat44 DrawSpec
                 | NoRender
                 deriving (Show)
 
+data VAOObj = VAOObj VAOConfig Int
+            deriving (Show)
+
+type PrintDesc = (Printer Int, Text.Text, Color, Shader)
+
+data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
+
+collectPrintDescs :: RenderTree -> [PrintDesc]
+collectPrintDescs (List subs) = concatMap collectPrintDescs subs
+collectPrintDescs (Primative mat (Text color shader printer text) ) = [(printer, text, color, shader)]
+collectPrintDescs _ = []
+
+textToVAO :: [(Maybe PrintDesc, VAOObj)] -> RenderTree -> RenderTree
+textToVAO m (List subs) = List $ map (textToVAO m) subs
+textToVAO m (Primative mat (Text col sh pr@(Printer font tex) text)) = Primative mat (VAO col (Just tex) (fromJust $ lookup (Just (pr, text, col, sh)) m))
+textToVAO m a = a
+
+updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
+updateVAOObj (Printer font texid, text, color, shader)
+             (VAOObj vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } _ ) = do
+                 let command = PositionedTextCommand vZero (textcommand { text = text, color = color, align = AlignLeft })
+                     (numsquares, floats) = transformTextCommandsToVerts [command] font
+
+                 if not $ null floats then do
+                        bindVAO vao
+                        bufferVertices vbo floats
+                        numBlockIndices <- bufferSquareIndices ivbo numsquares
+                        unbindVAO
+
+                        return (VAOObj vaoconfig numBlockIndices)
+                     else
+                         error ("Null floats: " ++ Text.unpack text)
+
+
+
+renderTree :: RenderLayer -> RenderTree -> RenderState -> IO RenderState
+renderTree layer tree state = do
+        state'@(RenderState vaolst) <- updateRenderState tree state
+        let tree' = textToVAO vaolst tree
+
+        drawTree layer tree'
+
+        return state'
+
+updateRenderState :: RenderTree -> RenderState -> IO RenderState
+updateRenderState tree (RenderState vaolst) = do
+        let texts = collectPrintDescs tree
+            existing = mapMaybe fst vaolst
+            unused = existing \\ texts
+            new = texts \\ existing
+
+            xx :: [(Maybe PrintDesc, VAOObj)] -> [PrintDesc] -> [PrintDesc] -> IO [(Maybe PrintDesc, VAOObj)]
+            xx [] newones notneeded = return []
+            xx ((desc, vaoobj):ys) newones notneeded =
+                case desc of
+                    Nothing -> case newones of
+                                   (x:xs) -> do
+                                       rest <- xx ys xs notneeded
+                                       vo <- updateVAOObj x vaoobj
+                                       return ((Just x, vo) : rest)
+                                   [] -> do
+                                       rest <- xx ys [] notneeded
+                                       return ((desc, vaoobj) : rest)
+                    Just d -> if d `elem` notneeded
+                                  then do
+                                      rest <- xx ys newones notneeded
+                                      return ((Nothing, vaoobj) : rest)
+                                  else do
+                                      rest <- xx ys newones notneeded
+                                      return ((desc, vaoobj) : rest)
+        vaolst' <- xx vaolst new unused
+        return $ RenderState vaolst'
+
+
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
 {-rtDepth _ = 0-}
 
-renderTree :: RenderLayer -> RenderTree -> IO ()
-renderTree _ NoRender = return ()
-renderTree layer (Primative mat spec) = drawSpec mat layer spec
-renderTree layer (List children) = mapM_ (renderTree layer) children -- (sortOn rtDepth children)
+drawTree :: RenderLayer -> RenderTree -> IO ()
+drawTree _ NoRender = return ()
+drawTree layer (Primative mat spec) = drawSpec mat layer spec
+drawTree layer (List children) = mapM_ (drawTree layer) children -- (sortOn rtDepth children)
 
