@@ -76,7 +76,7 @@ lineShiftY _ height Bottom = height
 lineShiftY _ _ Top = 0
 
 data TextCommand = TextCommand {
-                 text :: String,
+                 text :: Text.Text,
                  fontSize :: Scalar,
                  align :: XAlign,
                  valign :: YAlign,
@@ -85,9 +85,10 @@ data TextCommand = TextCommand {
 
 data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
 
-fontGlyphs :: Real a => String -> Font a -> [Glyph a]
-fontGlyphs text (Font _ chartable _) = mapMaybe (\x -> if x < 32 then Just $ Control x else HashMap.lookup (CharIdent x) chartable) nums
-    where nums = map ord text
+fontGlyphs :: Real a => Text.Text -> Font a -> [Glyph a]
+fontGlyphs text (Font _ chartable _) = Text.foldr (\char lst -> let x = ord char
+                                                                    glyph = if x < 32 then Just $ Control x else HashMap.lookup (CharIdent x) chartable
+                                                                                      in maybe lst (:lst) glyph) [] text
 
 kerningForGlyphs :: Real a => Glyph a -> Glyph a -> KerningTable a -> a
 kerningForGlyphs a b table = 0

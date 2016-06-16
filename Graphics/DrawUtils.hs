@@ -13,12 +13,13 @@ import Data.List
 import Data.Maybe
 import Graphics.DrawText
 import Text.Text
+import qualified Data.Text as Text
 
 import Graphics.Drawing
 import Types.Color
 
 data DrawSpec = Square Color (Maybe TexID) Shader |
-                Text Color Shader (Printer Int) String
+                Text Color Shader (Printer Int) Text.Text
               deriving (Show)
 
 

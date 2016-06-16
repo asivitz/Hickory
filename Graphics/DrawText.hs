@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Graphics.DrawText (Printer(..), loadPrinter, pvcShaderPair, printCommands, PositionedTextCommand(..), textcommand) where
 
