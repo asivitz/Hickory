@@ -21,18 +21,18 @@ import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Drawing
 import Types.Color
 
-data DrawSpec = Square Color (Maybe TexID) Shader |
-                Text Color Shader (Printer Int) Text.Text |
-                VAO Color (Maybe TexID) VAOObj
+data DrawSpec = Square (Maybe TexID) Shader |
+                Text Shader (Printer Int) Text.Text |
+                VAO (Maybe TexID) VAOObj
               deriving (Show)
 
-drawSpec :: Mat44 -> RenderLayer -> DrawSpec -> IO ()
-drawSpec mat layer spec =
+drawSpec :: Mat44 -> Color -> RenderLayer -> DrawSpec -> IO ()
+drawSpec mat color layer spec =
         case spec of
-            Square color tex shader ->
+            Square tex shader ->
                 addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True >> return ()
-            Text color shader printer string -> error "Can't print text directly. Should transform into a VAO command."
-            VAO color tex (VAOObj (VAOConfig vao indexVBO vertices shader) numitems) -> do
+            Text shader printer string -> error "Can't print text directly. Should transform into a VAO command."
+            VAO tex (VAOObj (VAOConfig vao indexVBO vertices shader) numitems) -> do
                 dc <- addDrawCommand mat white white (fromMaybe nullTex tex) shader layer 0.0 True
                 vao_payload <- setVAOCommand dc vao numitems gl_TRIANGLE_STRIP
                 return ()
@@ -57,7 +57,7 @@ sizePosMat (Size w h) pos = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 sizePosRotMat :: Real a => Size Float -> V3 -> a -> Mat44
 sizePosRotMat (Size w h) pos rot = mat44Scale w h 1 $ mat44Rotate 0 0 1 (realToFrac rot) $ mat44TranslateV pos mat44Identity
 
-data RenderTree = Primative Mat44 DrawSpec
+data RenderTree = Primative Mat44 Color DrawSpec
                 | List [RenderTree]
                 | NoRender
                 deriving (Show)
@@ -71,12 +71,12 @@ data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
 
 collectPrintDescs :: RenderTree -> [PrintDesc]
 collectPrintDescs (List subs) = concatMap collectPrintDescs subs
-collectPrintDescs (Primative mat (Text color shader printer text) ) = [(printer, text, color, shader)]
+collectPrintDescs (Primative mat color (Text shader printer text) ) = [(printer, text, color, shader)]
 collectPrintDescs _ = []
 
 textToVAO :: [(Maybe PrintDesc, VAOObj)] -> RenderTree -> RenderTree
 textToVAO m (List subs) = List $ map (textToVAO m) subs
-textToVAO m (Primative mat (Text col sh pr@(Printer font tex) text)) = Primative mat (VAO col (Just tex) (fromJust $ lookup (Just (pr, text, col, sh)) m))
+textToVAO m (Primative mat col (Text sh pr@(Printer font tex) text)) = Primative mat col (VAO (Just tex) (fromJust $ lookup (Just (pr, text, col, sh)) m))
 textToVAO m a = a
 
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
@@ -142,6 +142,6 @@ updateRenderState tree (RenderState vaolst) = do
 
 drawTree :: RenderLayer -> RenderTree -> IO ()
 drawTree _ NoRender = return ()
-drawTree layer (Primative mat spec) = drawSpec mat layer spec
+drawTree layer (Primative mat col spec) = drawSpec mat col layer spec
 drawTree layer (List children) = mapM_ (drawTree layer) children -- (sortOn rtDepth children)
 
