@@ -116,8 +116,7 @@ data VertexGroup = VertexGroup [Attachment]
 data VAOConfig = VAOConfig {
                vao :: !VAO,
                indexVBO :: Maybe VBO,
-               vertices :: ![VBO],
-               shader :: Shader
+               vertices :: ![VBO]
                } deriving (Show)
 
 (sp_ATTR_POSITION:
@@ -165,16 +164,15 @@ createVAOConfig sh vertexgroups = do
 
         return $ VAOConfig { vao = vao', 
                            indexVBO = Nothing,
-                           vertices = buffers,
-                           shader = sh
+                           vertices = buffers
                            }
 
 halveInt :: Int -> Int
 halveInt a = floor fl
     where fl = (fromIntegral a) / 2 :: Float
 
-drawPoints :: Real a => VAOConfig -> [CFloat] -> a -> IO ()
-drawPoints (VAOConfig vao Nothing [vbo] shader) points@(x:_) size = do
+drawPoints :: Real a => Shader -> VAOConfig -> [CFloat] -> a -> IO ()
+drawPoints shader (VAOConfig vao Nothing [vbo]) points@(x:_) size = do
         glBindVertexArray vao
         bufferVertices vbo points
         unbindVAO
@@ -184,7 +182,7 @@ drawPoints (VAOConfig vao Nothing [vbo] shader) points@(x:_) size = do
         uniloc <- grabUniformLoc shader sp_UNIFORM_SIZE
         addFloatUniform dc uniloc [size]
 
-drawPoints a b c = print "invalid drawpoints command" >> print a >> print b >> return ()
+drawPoints _ a b c = print "invalid drawpoints command" >> print a >> print b >> return ()
 
 bufferVertices :: VBO -> [CFloat] -> IO ()
 bufferVertices vbo floats = do
