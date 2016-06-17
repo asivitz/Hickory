@@ -55,3 +55,15 @@ library
     cc-options:         -F/System/Library/Frameworks
   if flag(ios)
     cc-options: -DTARGET_OS_IPHONE
+
+Test-Suite hickory-test
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
+  hs-source-dirs:     test
+  build-depends:      base >=4.7 && <5,
+                      test-framework,
+                      test-framework-hunit,
+                      HUnit,
+                      HUnit-approx >= 1.0,
+                      Hickory,
+                      containers >= 0.5 && < 0.6

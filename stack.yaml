@@ -10,7 +10,7 @@ packages:
 - 'Example/HFreecell'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
-extra-deps: [OpenGLRaw-1.5.0.1, GLFW-b-1.4.8.0, bindings-GLFW-3.1.2.0]
+extra-deps: [OpenGLRaw-1.5.0.1, GLFW-b-1.4.8.0, bindings-GLFW-3.1.2.0, HUnit-approx-1.0]
 
 # Override default flag values for local packages and extra-deps
 flags: {}

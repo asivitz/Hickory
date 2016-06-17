@@ -67,7 +67,7 @@ loop (mdl, ui) env resources = do
         (ui', mdl') = uiLayer (delta, viewInfo) (ui, mdl) input
         rt = render resources viewInfo mdl' ui'
 
-    renderTree worldLayer rt
+    renderTree worldLayer rt (RenderState [])
 
     renderCommands mat worldLayer
 

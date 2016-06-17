@@ -40,9 +40,9 @@ render (Resources nillaSh blankTex cardTexHash)
                                                         then if cardDepth board c == Just 0 then cursorPos + v2tov3 offset 0 else v2tov3 (v3tov2 cardPos) (-5)
                                                         else cardPos
                                           Nothing -> cardPos
-                                in Primative (sizePosMat (Size 1 1) pos) (Square white tid nillaSh)
+                                in Primative nillaSh (sizePosMat (Size 1 1) pos) white (Square tid)
           cards = map renderCard allCards
-          piles = map (\pos -> Primative (sizePosMat (Size 1 1) (v2tov3 pos (-40))) (Square white (Just blankTex) nillaSh)) (drop 8 pilePositions)
+          piles = map (\pos -> Primative nillaSh (sizePosMat (Size 1 1) (v2tov3 pos (-40))) white (Square (Just blankTex))) (drop 8 pilePositions)
 
 rankSymbol :: Rank -> String
 rankSymbol rk = case rk of
