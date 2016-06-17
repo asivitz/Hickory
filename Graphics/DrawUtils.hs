@@ -22,7 +22,7 @@ import Graphics.Drawing
 import Types.Color
 
 data DrawSpec = Square (Maybe TexID) Shader |
-                Text Shader (Printer Int) Text.Text |
+                Text Shader (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj
               deriving (Show)
 
@@ -31,7 +31,7 @@ drawSpec mat color layer spec =
         case spec of
             Square tex shader ->
                 addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True >> return ()
-            Text shader printer string -> error "Can't print text directly. Should transform into a VAO command."
+            Text shader printer _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj (VAOConfig vao indexVBO vertices shader) numitems) -> do
                 dc <- addDrawCommand mat white white (fromMaybe nullTex tex) shader layer 0.0 True
                 vao_payload <- setVAOCommand dc vao numitems gl_TRIANGLE_STRIP
@@ -65,7 +65,7 @@ data RenderTree = Primative Mat44 Color DrawSpec
 data VAOObj = VAOObj VAOConfig Int
             deriving (Show)
 
-type PrintDesc = (Printer Int, Text.Text, Color, Shader)
+type PrintDesc = (Printer Int, TextCommand, Color, Shader)
 
 data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
 
@@ -80,9 +80,9 @@ textToVAO m (Primative mat col (Text sh pr@(Printer font tex) text)) = Primative
 textToVAO m a = a
 
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
-updateVAOObj (Printer font texid, text, color, shader)
+updateVAOObj (Printer font texid, textCommand, color, shader)
              (VAOObj vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } _ ) = do
-                 let command = PositionedTextCommand vZero (textcommand { text = text, color = color, align = AlignLeft })
+                 let command = PositionedTextCommand vZero (textCommand { color = color })
                      (numsquares, floats) = transformTextCommandsToVerts [command] font
 
                  if not $ null floats then do
@@ -93,7 +93,7 @@ updateVAOObj (Printer font texid, text, color, shader)
 
                         return (VAOObj vaoconfig numBlockIndices)
                      else
-                         error ("Null floats: " ++ Text.unpack text)
+                         error "Tried to print empty text command"
 
 
 

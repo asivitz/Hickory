@@ -64,8 +64,8 @@ data Glyph a = Glyph (GlyphSpec a) GlyphVerts
            | Control Int
            | Null deriving Show
 
-data XAlign = AlignRight | AlignCenter | AlignLeft deriving Show
-data YAlign = Middle | LowerMiddle | Bottom | Top deriving Show
+data XAlign = AlignRight | AlignCenter | AlignLeft deriving (Show, Eq)
+data YAlign = Middle | LowerMiddle | Bottom | Top deriving (Show, Eq)
 
 lineShiftX :: Fractional a => a -> XAlign -> a
 lineShiftX width AlignRight = negate width
@@ -84,7 +84,7 @@ data TextCommand = TextCommand {
                  align :: XAlign,
                  valign :: YAlign,
                  color :: Color,
-                 leftBump :: Scalar } deriving Show
+                 leftBump :: Scalar } deriving (Show, Eq)
 
 data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
 
