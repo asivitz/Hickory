@@ -56,6 +56,7 @@ loadTextureFromPath path = do
                         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
                         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR_MIPMAP_LINEAR)
                         return $ Just $ TexID (fromIntegral tex)
+                _ -> error "Error loading texture: Unknown image format"
 
 loadTexture :: String -> String -> IO (Maybe TexID)
 loadTexture resPath image = do
