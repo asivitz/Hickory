@@ -6,6 +6,14 @@ import Data.List
 
 type Layer s i = s -> [i] -> s
 
+type MonadicLayer m s i = s -> [i] -> m s
+
+constructMonadicLayer :: Monad m => (s' -> s -> m s) -> Layer s' i -> MonadicLayer m (s, s') i
+constructMonadicLayer stepf nextLayer (lay1, lay2) msg1s = do
+        let lay2' = nextLayer lay2 msg1s
+        lay1' <- stepf lay2' lay1
+        return (lay1', lay2')
+
 constructLayer :: (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
                   (lay2 -> lay1 -> lay1) ->
                   Layer lay2 msg2 ->
