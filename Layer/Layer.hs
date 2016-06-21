@@ -6,9 +6,6 @@ import Data.List
 
 type Layer s i = s -> [i] -> s
 
-transformInput :: (s -> j -> [i]) -> Layer s i -> Layer s j
-transformInput xformer layer s is = layer s $ concatMap (xformer s) is
-
 type MonadicLayer m s i = s -> [i] -> m s
 
 constructMonadicLayer :: Monad m => (s' -> s -> m s) -> Layer s' i -> MonadicLayer m (s, s') i
@@ -17,37 +14,23 @@ constructMonadicLayer stepf nextLayer (lay1, lay2) msg1s = do
         lay1' <- stepf lay2' lay1
         return (lay1', lay2')
 
-reactTopLayer :: (s' -> s -> i -> s) ->
-                 Layer (s, s') i ->
-                 Layer (s, s') i
-reactTopLayer inputf nextLayer (lay1, lay2) msgs =
-        let (lay1', lay2') = nextLayer (lay1, lay2) msgs
-            lay1'' = foldl' (inputf lay2') lay1' msgs in (lay1'', lay2')
+splitInput :: (s' -> s -> i -> s) -> (s, s') -> i -> (s, s')
+splitInput f (s, s') i = (f s' s i, s')
 
-react :: (s' -> s -> i -> s) ->
-         (s' -> s -> s) ->
-         Layer s' i ->
-         Layer (s, s') i
-react inputf stepf nextLayer (lay1, lay2) msgs =
-        let lay2' = nextLayer lay2 msgs
-            lay1' = foldl' (inputf lay2') lay1 msgs in
-                (stepf lay2' lay1', lay2')
+splitStep :: (s' -> s -> s) -> (s, s') -> (s, s')
+splitStep f (s, s') = (f s' s, s')
 
-transform :: (s -> s) -> Layer s i -> Layer s i
-transform f layer s i = f $ layer s i
+wrap :: Layer s' i -> Layer (s, s') i
+wrap nextLayer (s, s') i = (s, nextLayer s' i)
 
-constructLayer :: (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
-                  (lay2 -> lay1 -> lay1) ->
-                  Layer lay2 msg2 ->
-                  Layer (lay1, lay2) msg1
-constructLayer inputf stepf nextLayer (lay1, lay2) msg1s =
-        let (lay1', msgs) = mapAccumL (inputf lay2) lay1 msg1s
-            lay2' = nextLayer lay2 (concat msgs)
-            lay1'' = stepf lay2' lay1' in (lay1'', lay2')
+applyInput :: (s -> i -> s) -> Layer s i -> Layer s i
+applyInput inputf nextLayer s msgs = foldl' inputf (nextLayer s msgs) msgs
 
-constructStatelessLayer :: (lay2 -> msg1 -> [msg2]) -> Layer lay2 msg2 -> Layer lay2 msg1
-constructStatelessLayer inputf nextLayer lay2 msg1s =
-        nextLayer lay2 (concatMap (inputf lay2) msg1s)
+mapState :: (s -> s) -> Layer s i -> Layer s i
+mapState f layer s i = f $ layer s i
+
+mapInput :: (s -> j -> [i]) -> Layer s i -> Layer s j
+mapInput xformer layer s is = layer s $ concatMap (xformer s) is
 
 -- Debug Layer
 data DebugMsg = FlipDebug
@@ -77,11 +60,40 @@ debugInput model debugstate@DebugState { debug, stackIndex, modelStack } input =
                          JumpBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 10)) }
 
 debugLayer :: Layer b DebugMsg -> Layer (DebugState b, b) DebugMsg
-debugLayer = transform f . reactTopLayer debugInput . wrap
+debugLayer = mapState f . applyInput (splitInput debugInput) . wrap
     where f (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
             if debug
                 then (debugstate, modelStack !! stackIndex)
                 else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
 
-wrap :: Layer s' i -> Layer (s, s') i
-wrap nextLayer (s, s') i = (s, nextLayer s' i)
+{-
+
+reactTopLayer :: (s' -> s -> i -> s) ->
+                 Layer (s, s') i ->
+                 Layer (s, s') i
+reactTopLayer inputf nextLayer (lay1, lay2) msgs =
+        let (lay1', lay2') = nextLayer (lay1, lay2) msgs
+            lay1'' = foldl' (inputf lay2') lay1' msgs in (lay1'', lay2')
+
+react :: (s' -> s -> i -> s) ->
+         (s' -> s -> s) ->
+         Layer s' i ->
+         Layer (s, s') i
+react inputf stepf nextLayer (lay1, lay2) msgs =
+        let lay2' = nextLayer lay2 msgs
+            lay1' = foldl' (inputf lay2') lay1 msgs in
+                (stepf lay2' lay1', lay2')
+
+constructLayer :: (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
+                  (lay2 -> lay1 -> lay1) ->
+                  Layer lay2 msg2 ->
+                  Layer (lay1, lay2) msg1
+constructLayer inputf stepf nextLayer (lay1, lay2) msg1s =
+        let (lay1', msgs) = mapAccumL (inputf lay2) lay1 msg1s
+            lay2' = nextLayer lay2 (concat msgs)
+            lay1'' = stepf lay2' lay1' in (lay1'', lay2')
+
+constructStatelessLayer :: (lay2 -> msg1 -> [msg2]) -> Layer lay2 msg2 -> Layer lay2 msg1
+constructStatelessLayer inputf nextLayer lay2 msg1s =
+        nextLayer lay2 (concatMap (inputf lay2) msg1s)
+        -}
