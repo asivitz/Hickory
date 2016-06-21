@@ -59,12 +59,11 @@ debugInput model debugstate@DebugState { debug, stackIndex, modelStack } input =
                          StepBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 1)) }
                          JumpBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 10)) }
 
-debugLayer :: Layer b DebugMsg -> Layer (DebugState b, b) DebugMsg
-debugLayer = mapState f . applyInput (splitInput debugInput) . wrap
-    where f (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
-            if debug
-                then (debugstate, modelStack !! stackIndex)
-                else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
+debugStep :: (DebugState b, b) -> (DebugState b, b)
+debugStep (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
+        if debug
+            then (debugstate, modelStack !! stackIndex)
+            else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
 
 {-
 
