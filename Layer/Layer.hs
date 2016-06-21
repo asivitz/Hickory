@@ -6,6 +6,8 @@ import Data.List
 
 type Layer s i = s -> [i] -> s
 
+type LayerXForm s' s i = Layer s' i -> Layer s i
+
 type MonadicLayer m s i = s -> [i] -> m s
 
 constructMonadicLayer :: Monad m => (s' -> s -> m s) -> Layer s' i -> MonadicLayer m (s, s') i
@@ -67,6 +69,7 @@ debugStep (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
             then (debugstate, modelStack !! stackIndex)
             else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
 
+debugLayer :: (i -> [DebugMsg]) -> LayerXForm b (DebugState b, b) i
 debugLayer debugMsgF = mapState debugStep . applyInput (\s i -> debugMsgF i) (splitInput debugInput) . wrap
 
 {-
