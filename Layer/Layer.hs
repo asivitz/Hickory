@@ -6,6 +6,9 @@ import Data.List
 
 type Layer s i = s -> [i] -> s
 
+transformInput :: (s -> j -> [i]) -> Layer s i -> Layer s j
+transformInput xformer layer s is = layer s $ concatMap (xformer s) is
+
 type MonadicLayer m s i = s -> [i] -> m s
 
 constructMonadicLayer :: Monad m => (s' -> s -> m s) -> Layer s' i -> MonadicLayer m (s, s') i
@@ -13,6 +16,25 @@ constructMonadicLayer stepf nextLayer (lay1, lay2) msg1s = do
         let lay2' = nextLayer lay2 msg1s
         lay1' <- stepf lay2' lay1
         return (lay1', lay2')
+
+reactTopLayer :: (s' -> s -> i -> s) ->
+                 Layer (s, s') i ->
+                 Layer (s, s') i
+reactTopLayer inputf nextLayer (lay1, lay2) msgs =
+        let (lay1', lay2') = nextLayer (lay1, lay2) msgs
+            lay1'' = foldl' (inputf lay2') lay1' msgs in (lay1'', lay2')
+
+react :: (s' -> s -> i -> s) ->
+         (s' -> s -> s) ->
+         Layer s' i ->
+         Layer (s, s') i
+react inputf stepf nextLayer (lay1, lay2) msgs =
+        let lay2' = nextLayer lay2 msgs
+            lay1' = foldl' (inputf lay2') lay1 msgs in
+                (stepf lay2' lay1', lay2')
+
+transform :: (s -> s) -> Layer s i -> Layer s i
+transform f layer s i = f $ layer s i
 
 constructLayer :: (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
                   (lay2 -> lay1 -> lay1) ->
@@ -54,10 +76,12 @@ debugInput model debugstate@DebugState { debug, stackIndex, modelStack } input =
                          StepBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 1)) }
                          JumpBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 10)) }
 
-debugLayer :: Layer b msg -> Layer (DebugState b, b) DebugMsg
-debugLayer subLayer (debugstate@DebugState { debug, modelStack, stackIndex }, model) debugmsgs = ret
-        where uis' = foldl' (debugInput model) debugstate debugmsgs
-              mdl' = subLayer model []
-              ret = if debug
-                          then (uis', modelStack !! stackIndex)
-                          else (uis' { modelStack = mdl' : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, mdl')
+debugLayer :: Layer b DebugMsg -> Layer (DebugState b, b) DebugMsg
+debugLayer = transform f . reactTopLayer debugInput . wrap
+    where f (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
+            if debug
+                then (debugstate, modelStack !! stackIndex)
+                else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
+
+wrap :: Layer s' i -> Layer (s, s') i
+wrap nextLayer (s, s') i = (s, nextLayer s' i)
