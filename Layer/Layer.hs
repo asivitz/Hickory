@@ -23,8 +23,10 @@ splitStep f (s, s') = (f s' s, s')
 wrap :: Layer s' i -> Layer (s, s') i
 wrap nextLayer (s, s') i = (s, nextLayer s' i)
 
-applyInput :: (s -> i -> s) -> Layer s i -> Layer s i
-applyInput inputf nextLayer s msgs = foldl' inputf (nextLayer s msgs) msgs
+noXForm s i = [i]
+
+applyInput :: (s -> i -> [j]) -> (s -> j -> s) -> Layer s i -> Layer s i
+applyInput xformer inputf nextLayer s msgs = foldl' inputf (nextLayer s msgs) $ concatMap (xformer s) msgs
 
 mapState :: (s -> s) -> Layer s i -> Layer s i
 mapState f layer s i = f $ layer s i
@@ -64,6 +66,8 @@ debugStep (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
         if debug
             then (debugstate, modelStack !! stackIndex)
             else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
+
+debugLayer debugMsgF = mapState debugStep . applyInput (\s i -> debugMsgF i) (splitInput debugInput) . wrap
 
 {-
 
