@@ -30,8 +30,8 @@ noXForm s i = [i]
 applyInput :: (s -> i -> [j]) -> (s -> j -> s) -> Layer s i -> Layer s i
 applyInput xformer inputf nextLayer s msgs = foldl' inputf (nextLayer s msgs) $ concatMap (xformer s) msgs
 
-mapState :: (s -> s) -> Layer s i -> Layer s i
-mapState f layer s i = f $ layer s i
+mapState :: (s -> s -> s) -> Layer s i -> Layer s i
+mapState f layer s i = f s $ layer s i
 
 mapInput :: (s -> j -> [i]) -> Layer s i -> Layer s j
 mapInput xformer layer s is = layer s $ concatMap (xformer s) is
@@ -63,8 +63,8 @@ debugInput model debugstate@DebugState { debug, stackIndex, modelStack } input =
                          StepBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 1)) }
                          JumpBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 10)) }
 
-debugStep :: (DebugState b, b) -> (DebugState b, b)
-debugStep (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
+debugStep :: (DebugState b, b) -> (DebugState b, b) -> (DebugState b, b)
+debugStep oldstate (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
         if debug
             then (debugstate, modelStack !! stackIndex)
             else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
