@@ -21,7 +21,7 @@ import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Drawing
 import Types.Color
 
-data DrawSpec = Square (Maybe TexID) |
+data DrawSpec = Square (Maybe TexID) (Maybe (Scalar, Scalar)) |
                 Text (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj
               deriving (Show)
@@ -29,8 +29,11 @@ data DrawSpec = Square (Maybe TexID) |
 drawSpec :: Shader -> Mat44 -> Color -> RenderLayer -> DrawSpec -> IO ()
 drawSpec shader mat color layer spec =
         case spec of
-            Square tex ->
-                addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True >> return ()
+            Square tex texscale -> do
+                dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True
+                case texscale of
+                   Just (w,h) -> setTCCommand dc (v4 0 0 w h)
+                   _ -> return ()
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems) -> do
                 dc <- addDrawCommand mat white white (fromMaybe nullTex tex) shader layer 0.0 True

@@ -100,11 +100,11 @@ vabsangle :: Vector a => a -> a -> Scalar
 vabsangle a b = acos $ vdot a b / (vmag a * vmag b)
 
 v2angle :: Vector2 -> Vector2 -> Scalar
-v2angle a b = if v2clockwise a b then ang else -ang
+v2angle a b = if v2clockwise a b then -ang else ang
         where ang = vabsangle a b
 
 v2clockwise :: Vector2 -> Vector2 -> Bool
-v2clockwise a b = v2x a * v2y b - v2y a * v2x b >= 0
+v2clockwise a b = v2x a * v2y b - v2y a * v2x b <= 0
 
 v2SegmentsIntersect :: (V2, V2) -> (V2, V2) -> Bool
 v2SegmentsIntersect (a, a') (b, b') = v2clockwise (b - a) adiff /= v2clockwise (b' - a) adiff && v2clockwise (a - b) bdiff /= v2clockwise (a' - b) bdiff
