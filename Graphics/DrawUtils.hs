@@ -57,8 +57,8 @@ reserveParticleShader  draw = do
 sizePosMat :: Size Float -> V3 -> Mat44
 sizePosMat (Size w h) pos = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
 
-sizePosRotMat :: Real a => Size Float -> V3 -> a -> Mat44
-sizePosRotMat (Size w h) pos rot = mat44Scale w h 1 $ mat44Rotate 0 0 1 (realToFrac rot) $ mat44TranslateV pos mat44Identity
+sizePosRotMat :: Real a => Size Float -> V3 -> Float -> Mat44
+sizePosRotMat (Size w h) pos rot = mat44Scale w h 1 $ mat44Rotate 0 0 1 rot $ mat44TranslateV pos mat44Identity
 
 data RenderTree = Primative Shader Mat44 Color DrawSpec
                 | List [RenderTree]
