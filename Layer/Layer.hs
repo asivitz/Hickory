@@ -28,7 +28,8 @@ wrap nextLayer (s, s') i = (s, nextLayer s' i)
 noXForm s i = [i]
 
 applyInput :: (s -> i -> [j]) -> (s -> j -> s) -> Layer s i -> Layer s i
-applyInput xformer inputf nextLayer s msgs = foldl' inputf (nextLayer s msgs) $ concatMap (xformer s) msgs
+applyInput xformer inputf nextLayer s msgs = foldl' (\s m -> foldl' inputf s (xformer s m)) next msgs
+    where next = nextLayer s msgs
 
 mapState :: (s -> s -> s) -> Layer s i -> Layer s i
 mapState f layer s i = f s $ layer s i
