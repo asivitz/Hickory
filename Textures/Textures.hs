@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Textures.Textures (loadTexture, loadTexture') where
+module Textures.Textures (loadTexture, loadTexture', loadTextures) where
 
 import Graphics.GLUtils
 import Foreign.Marshal.Alloc
@@ -12,6 +12,8 @@ import Graphics.Rendering.OpenGL.Raw.Core31
 import Utils.Utils
 
 import Codec.Picture
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text as Text
 
 loadTextureFromPath :: String -> IO (Maybe TexID)
 loadTextureFromPath path = do
@@ -33,7 +35,7 @@ loadTextureFromPath path = do
                             (fromIntegral w) (fromIntegral h)
                             0 format gl_UNSIGNED_BYTE ptr
 
-                        glGenerateMipmap(gl_TEXTURE_2D)
+                        glGenerateMipmap gl_TEXTURE_2D
 
                         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
                         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR_MIPMAP_LINEAR)
@@ -51,7 +53,7 @@ loadTextureFromPath path = do
                             (fromIntegral w) (fromIntegral h)
                             0 format gl_UNSIGNED_BYTE ptr
 
-                        glGenerateMipmap(gl_TEXTURE_2D)
+                        glGenerateMipmap gl_TEXTURE_2D
 
                         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
                         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR_MIPMAP_LINEAR)
@@ -72,3 +74,8 @@ loadTexture' path image = do
         case tex of
             Just t -> return t
             Nothing -> error ("Can't load texture " ++ image)
+
+loadTextures :: String -> [String] -> IO (HashMap.HashMap Text.Text TexID)
+loadTextures path images = do
+        loaded <- mapM (loadTexture' path) images
+        return $ HashMap.fromList $ zip (map Text.pack images) loaded

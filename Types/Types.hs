@@ -1,8 +1,9 @@
-module Types.Types 
-   ( 
+module Types.Types
+   (
    Size(..),
    FSize,
    nullSize,
+   mkSize,
    aspectRatio,
    screenPos,
    RelativeScalar(..),
@@ -32,14 +33,17 @@ convertSize (Size a b) = Size (realToFrac a) (realToFrac b)
 type FSize = Size Float
 
 screenCenter :: Real a => Size a -> V2
-screenCenter (Size w h) = v2 ((realToFrac w)/2) ((realToFrac h)/2)
+screenCenter (Size w h) = v2 (realToFrac w / 2) (realToFrac h / 2)
 
 nullSize :: Num a => Size a
-nullSize = (Size 0 0)
+nullSize = Size 0 0
+
+mkSize :: Num a => a -> Size a
+mkSize a = Size a a
 
 aspectRatio :: (Real a, Fractional b) => Size a -> b
 aspectRatio (Size w h) = w' / h'
-    where (Size w' h') = (Size (realToFrac w) (realToFrac h))
+    where (Size w' h') = Size (realToFrac w) (realToFrac h)
 
 viewportFromSize :: Integral a => Size a -> V4
 viewportFromSize (Size w h) = v4 0 0 (fromIntegral w) (fromIntegral h)
