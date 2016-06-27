@@ -28,18 +28,18 @@ mapAll :: [a -> b] -> a -> [b]
 mapAll fs a = map (\f -> f a) fs
 
 glfwMain :: Show ie => String -> Size Int -> [SceneOperator ie] -> (RawInput -> IO ()) -> IO ()
-glfwMain name (Size w h) operators sendRawInput = do 
+glfwMain name (Size w h) operators sendRawInput =
           withWindow w h name $ \win -> do
               initRenderer
               glClearColor 0.125 0.125 0.125 1
               glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
               glActiveTexture gl_TEXTURE0
-                
+
               glEnable gl_PROGRAM_POINT_SIZE -- for OSX
 
               (width, height) <- GLFW.getFramebufferSize win
 
-              let scrSize = (Size width height)
+              let scrSize = Size width height
 
               sequence_ $ mapAll (map _initRenderer operators) scrSize
 
@@ -57,8 +57,8 @@ makeInputPoller win = do
         return $ do
             stepInp
             atomicModifyIORef is (\i -> ([], i))
-    where addRawInput stream event = do
-            atomicModifyIORef stream (\evs -> ((evs ++ [event]), ()))
+    where addRawInput stream event =
+            atomicModifyIORef stream (\evs -> (evs ++ [event], ()))
 
 makeTimePoller :: IO (IO Double)
 makeTimePoller = do
@@ -68,25 +68,10 @@ makeTimePoller = do
             new_time <- getCurrentTime
             atomicModifyIORef time (\prev_time -> (new_time, min 0.1 $ realToFrac (diffUTCTime new_time prev_time)))
 
-makeFPSTicker :: IO (IO ())
-makeFPSTicker = do
-        initial_time <- getCurrentTime
-        ref <- newIORef (0, initial_time)
-
-        return $ do
-            new_time <- getCurrentTime
-            (count, last_time) <- readIORef ref
-            let diff = diffUTCTime new_time last_time
-            if (diff > 5)
-                then do
-                    print $ "FPS: " ++ (show $ count / diff)
-                    writeIORef ref (0, new_time)
-                else writeIORef ref (count+1, last_time)
-
 glfwMain' :: String -> Size Int -> (GLFW.Window -> Size Int -> IO ()) -> IO ()
-glfwMain' name (Size w h) callback = do 
+glfwMain' name (Size w h) callback =
     withWindow w h name $ \win -> do
         (width, height) <- GLFW.getFramebufferSize win
-        let scrSize = (Size width height)
+        let scrSize = Size width height
 
         callback win scrSize

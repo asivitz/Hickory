@@ -3,6 +3,8 @@ module Utils.Utils where
 import Data.List
 import Data.Ord
 import Data.Maybe
+import Data.IORef
+import Data.Time
 
 lerp :: Num a => a -> a -> a -> a
 lerp fract a b = (a * (1 - fract)) + (b * fract)
@@ -63,3 +65,21 @@ deleteAt :: [a] -> Int -> [a]
 deleteAt [] _ = []
 deleteAt (x:xs) 0 = xs
 deleteAt (x:xs) n = x : (deleteAt xs (n - 1))
+
+makeFPSTicker :: IO (IO Double)
+makeFPSTicker = do
+        initial_time <- getCurrentTime
+        ref <- newIORef (0, initial_time, 0)
+
+        return $ do
+            new_time <- getCurrentTime
+            (count, last_time, last_report) <- readIORef ref
+            let diff = diffUTCTime new_time last_time
+            if diff > 1
+                then do
+                    let report = realToFrac $ count / diff
+                    writeIORef ref (0, new_time, report)
+                    return report
+                else do
+                    writeIORef ref (count+1, last_time, last_report)
+                    return last_report
