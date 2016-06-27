@@ -1,8 +1,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Layer.Layer where
 
 import Data.List
+import Lens.Micro
+import Lens.Micro.TH
 
 type Layer s i = s -> [i] -> s
 
@@ -16,19 +20,13 @@ constructMonadicLayer stepf nextLayer (lay1, lay2) msg1s = do
         lay1' <- stepf lay2' lay1
         return (lay1', lay2')
 
-splitInput :: (s' -> s -> i -> s) -> (s, s') -> i -> (s, s')
-splitInput f (s, s') i = (f s' s i, s')
-
-splitStep :: (s' -> s -> s) -> (s, s') -> (s, s')
-splitStep f (s, s') = (f s' s, s')
-
-wrap :: Layer s' i -> Layer (s, s') i
-wrap nextLayer (s, s') i = (s, nextLayer s' i)
+wrap :: Lens' s s' -> Layer s' i -> Layer s i
+wrap l nextLayer s i = s & l %~ (`nextLayer` i)
 
 noXForm s i = [i]
 
 applyInput :: (s -> i -> [j]) -> (s -> j -> s) -> Layer s i -> Layer s i
-applyInput xformer inputf nextLayer s msgs = foldl' (\s m -> foldl' inputf s (xformer s m)) next msgs
+applyInput xformer inputf nextLayer s msgs = foldl' (\t m -> foldl' inputf t (xformer t m)) next msgs
     where next = nextLayer s msgs
 
 mapState :: (s -> s -> s) -> Layer s i -> Layer s i
@@ -45,62 +43,33 @@ data DebugMsg = FlipDebug
               | JumpBackward
 
 data DebugState model = DebugState {
-             debug :: Bool,
-             modelStack :: [model],
-             stackIndex :: Int
+             _debug :: Bool,
+             _modelStack :: [model],
+             _stackIndex :: Int,
+             _current :: model
              }
              deriving (Show)
 
+makeLenses ''DebugState
+
 mkDebugState = DebugState False [] 0
 
-debugInput :: b -> DebugState b -> DebugMsg -> DebugState b
-debugInput model debugstate@DebugState { debug, stackIndex, modelStack } input = state'
+debugInput :: DebugState b -> DebugMsg -> DebugState b
+debugInput debugstate@DebugState { _debug, _stackIndex, _modelStack } input = state'
         where state' = case input of
-                         FlipDebug -> if debug
-                                          then debugstate { debug = not debug, stackIndex = 0, modelStack = drop stackIndex modelStack }
-                                          else debugstate { debug = not debug, stackIndex = 0 }
-                         StepForward -> debugstate { stackIndex = max 0 (stackIndex - 1) }
-                         JumpForward -> debugstate { stackIndex = max 0 (stackIndex - 10) }
-                         StepBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 1)) }
-                         JumpBackward -> debugstate { stackIndex = min (length modelStack - 1) (max 0 (stackIndex + 10)) }
+                         FlipDebug -> if _debug
+                                          then debugstate { _debug = not _debug, _stackIndex = 0, _modelStack = drop _stackIndex _modelStack }
+                                          else debugstate { _debug = not _debug, _stackIndex = 0 }
+                         StepForward -> debugstate { _stackIndex = max 0 (_stackIndex - 1) }
+                         JumpForward -> debugstate { _stackIndex = max 0 (_stackIndex - 10) }
+                         StepBackward -> debugstate { _stackIndex = min (length _modelStack - 1) (max 0 (_stackIndex + 1)) }
+                         JumpBackward -> debugstate { _stackIndex = min (length _modelStack - 1) (max 0 (_stackIndex + 10)) }
 
-debugStep :: (DebugState b, b) -> (DebugState b, b) -> (DebugState b, b)
-debugStep oldstate (debugstate@DebugState { debug, modelStack, stackIndex }, model) =
-        if debug
-            then (debugstate, modelStack !! stackIndex)
-            else (debugstate { modelStack = model : (if length modelStack > 10000 then take 10000 modelStack else modelStack) }, model)
+debugStep :: DebugState b -> DebugState b -> DebugState b
+debugStep oldstate debugstate@DebugState { _debug, _modelStack, _stackIndex, _current } =
+        if _debug
+            then debugstate & current .~ _modelStack !! _stackIndex
+            else debugstate & modelStack .~ _current : (if length _modelStack > 10000 then take 10000 _modelStack else _modelStack)
 
-debugLayer :: (i -> [DebugMsg]) -> LayerXForm b (DebugState b, b) i
-debugLayer debugMsgF = mapState debugStep . applyInput (\s i -> debugMsgF i) (splitInput debugInput) . wrap
-
-{-
-
-reactTopLayer :: (s' -> s -> i -> s) ->
-                 Layer (s, s') i ->
-                 Layer (s, s') i
-reactTopLayer inputf nextLayer (lay1, lay2) msgs =
-        let (lay1', lay2') = nextLayer (lay1, lay2) msgs
-            lay1'' = foldl' (inputf lay2') lay1' msgs in (lay1'', lay2')
-
-react :: (s' -> s -> i -> s) ->
-         (s' -> s -> s) ->
-         Layer s' i ->
-         Layer (s, s') i
-react inputf stepf nextLayer (lay1, lay2) msgs =
-        let lay2' = nextLayer lay2 msgs
-            lay1' = foldl' (inputf lay2') lay1 msgs in
-                (stepf lay2' lay1', lay2')
-
-constructLayer :: (lay2 -> lay1 -> msg1 -> (lay1, [msg2])) ->
-                  (lay2 -> lay1 -> lay1) ->
-                  Layer lay2 msg2 ->
-                  Layer (lay1, lay2) msg1
-constructLayer inputf stepf nextLayer (lay1, lay2) msg1s =
-        let (lay1', msgs) = mapAccumL (inputf lay2) lay1 msg1s
-            lay2' = nextLayer lay2 (concat msgs)
-            lay1'' = stepf lay2' lay1' in (lay1'', lay2')
-
-constructStatelessLayer :: (lay2 -> msg1 -> [msg2]) -> Layer lay2 msg2 -> Layer lay2 msg1
-constructStatelessLayer inputf nextLayer lay2 msg1s =
-        nextLayer lay2 (concatMap (inputf lay2) msg1s)
-        -}
+debugLayer :: (i -> [DebugMsg]) -> LayerXForm b (DebugState b) i
+debugLayer debugMsgF = mapState debugStep . applyInput (\s i -> debugMsgF i) debugInput . wrap current
