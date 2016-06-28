@@ -25,15 +25,15 @@ wrap l nextLayer s i = s & l %~ (`nextLayer` i)
 
 noXForm s i = [i]
 
-applyInput :: (s -> i -> [j]) -> (s -> j -> s) -> Layer s i -> Layer s i
-applyInput xformer inputf nextLayer s msgs = foldl' (\t m -> foldl' inputf t (xformer t m)) next msgs
+applyInput :: (s -> i -> s) -> Layer s i -> Layer s i
+applyInput inputf nextLayer s msgs = foldl' inputf next msgs
     where next = nextLayer s msgs
 
 mapState :: (s -> s -> s) -> Layer s i -> Layer s i
 mapState f layer s i = f s $ layer s i
 
-mapInput :: (s -> j -> [i]) -> Layer s i -> Layer s j
-mapInput xformer layer s is = layer s $ concatMap (xformer s) is
+transformInput :: (s -> i -> [j]) -> (s -> j -> s) -> (s -> i -> s)
+transformInput xformer inputf s i = foldl' inputf s (xformer s i)
 
 -- Debug Layer
 data DebugMsg = FlipDebug
@@ -72,4 +72,4 @@ debugStep oldstate debugstate@DebugState { _debug, _modelStack, _stackIndex, _cu
             else debugstate & modelStack .~ _current : (if length _modelStack > 10000 then take 10000 _modelStack else _modelStack)
 
 debugLayer :: (i -> [DebugMsg]) -> LayerXForm b (DebugState b) i
-debugLayer debugMsgF = mapState debugStep . applyInput (\s i -> debugMsgF i) debugInput . wrap current
+debugLayer debugMsgF = mapState debugStep . applyInput (transformInput (\s i -> debugMsgF i) debugInput) . wrap current
