@@ -500,6 +500,17 @@ void buffer_vertices_num(int vbo, float * data, int num)
     glUnmapBuffer(GL_ARRAY_BUFFER);
 }
 
+void buffer_indices_num(int vbo, unsigned short * data, int num)
+{
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo);
+
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, num * sizeof(GLushort), NULL, GL_STREAM_DRAW);
+    void * mapped_data = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+    memcpy(mapped_data, data, num * sizeof(GLushort));
+
+    glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+}
+
 int grab_uniform_loc(unsigned int shader, int uniformCode)
 {
     ShaderProgram * program = getShader(shader);

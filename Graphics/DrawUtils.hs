@@ -17,6 +17,7 @@ import Text.Text
 import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import Graphics.Rendering.OpenGL.Raw.Core31
+import Foreign.C.Types
 
 import Graphics.Drawing
 import Types.Color
@@ -102,7 +103,29 @@ updateVAOObj (Printer font texid, textCommand, color)
                      else
                          error "Tried to print empty text command"
 
+cubeFloats :: [CFloat]
+cubeFloats = concatMap vunpackFractional verts
+    where h = 0.5
+          l = -h
+          p1 = v3 l l l
+          p2 = v3 h l l
+          p3 = v3 h h l
+          p4 = v3 l h l
+          p5 = v3 l l h
+          p6 = v3 h l h
+          p7 = v3 h h h
+          p8 = v3 l h h
+          verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
+loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
+loadCubeIntoVAOConfig vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } = do
+        let floats = cubeFloats
+        bindVAO vao
+        bufferVertices vbo floats
+        bufferIndices ivbo [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
+        unbindVAO
+
+        return (VAOObj vaoconfig 12)
 
 renderTree :: RenderLayer -> RenderTree -> RenderState -> IO RenderState
 renderTree layer tree state = do

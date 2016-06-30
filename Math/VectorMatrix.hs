@@ -10,15 +10,19 @@ import Foreign.Marshal.Array
 import System.IO.Unsafe
 
 mat44TranslateV :: V3 -> Mat44 -> Mat44
-mat44TranslateV (Vector3 x y z) m = 
-    mat44Translate (realToFrac x) (realToFrac y) (realToFrac z) $ m
+mat44TranslateV (Vector3 x y z) =
+    mat44Translate (realToFrac x) (realToFrac y) (realToFrac z)
+
+mat44RotateV :: V3 -> Float -> Mat44 -> Mat44
+mat44RotateV (Vector3 x y z) =
+    mat44Rotate (realToFrac x) (realToFrac y) (realToFrac z)
 
 withVec4 :: Vector4 -> (Ptr CFloat -> IO b) -> IO b
 withVec4 v func = let lst = map realToFrac $ vunpack v in
     withArray lst func
 
 buildVec4 :: (Ptr CFloat -> IO ()) -> IO V4
-buildVec4 f = 
+buildVec4 f =
    do ptr <- mallocArray 4
       f ptr
       lst <- peekArray 4 ptr
@@ -30,7 +34,7 @@ buildVec4 f =
 
 mat44MulVec4 :: Mat44 -> V4 -> V4
 mat44MulVec4 mat v = unsafePerformIO $
-        withVec4 v $ \vp -> 
+        withVec4 v $ \vp ->
             withMat44 mat $ \mp ->
                 buildVec4 $ \rp ->
                     c'mat44MulVec4 rp mp vp

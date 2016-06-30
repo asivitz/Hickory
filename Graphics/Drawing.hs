@@ -24,6 +24,7 @@ module Graphics.Drawing ( module Graphics.GLUtils,
                           indexVAOConfig,
                           bindVAO,
                           bufferVertices,
+                          bufferIndices,
                           bufferSquareIndices,
                           unbindVAO,
                           sp_ATTR_POSITION,
@@ -62,7 +63,7 @@ foreign import ccall "reset_renderer" resetRenderer
    :: IO ()
 
 renderCommands :: Mat44 -> RenderLayer -> IO ()
-renderCommands mat layer = 
+renderCommands mat layer =
       withMat44 mat $ \ptr ->
          c'renderCommands ptr layer
 
@@ -96,7 +97,7 @@ addDrawCommand mat color1 color2 (TexID texid) (Shader shader) layer depth blend
          withVec4 color1 $ \color1ptr ->
             withVec4 color2 $ \color2ptr ->
                c'addDrawCommand matptr color1ptr color2ptr texid shader layer depth (boolToCInt blend)
-               
+
 foreign import ccall "add_draw_command" c'addDrawCommand
    :: Mat44Raw -> Ptr CFloat -> Ptr CFloat -> CInt -> CUInt -> CInt -> CFloat -> CInt -> IO (DrawCommandHandle)
 
@@ -129,7 +130,7 @@ buildVertexGroup :: Shader -> VertexGroup -> IO VBO
 buildVertexGroup (Shader shader) (VertexGroup attachments) = do
         vbo <- makeVBO
         glBindBuffer gl_ARRAY_BUFFER vbo
-        
+
         let stride = foldl (+) 0 $ map (\(Attachment a l) -> l) attachments
 
         Fold.foldlM (\offset (Attachment (Attribute a) l) -> do
@@ -162,7 +163,7 @@ createVAOConfig sh vertexgroups = do
 
         unbindVAO
 
-        return $ VAOConfig { vao = vao', 
+        return $ VAOConfig { vao = vao',
                            indexVBO = Nothing,
                            vertices = buffers
                            }
@@ -185,12 +186,20 @@ drawPoints shader (VAOConfig vao Nothing [vbo]) points@(x:_) size = do
 drawPoints _ a b c = print "invalid drawpoints command" >> print a >> print b >> return ()
 
 bufferVertices :: VBO -> [CFloat] -> IO ()
-bufferVertices vbo floats = do
+bufferVertices vbo floats =
         withArrayLen floats $ \len ptr ->
             c'bufferVertices vbo ptr (fromIntegral len)
 
 foreign import ccall "buffer_vertices_num" c'bufferVertices
     :: CUInt -> Ptr CFloat -> CInt -> IO ()
+
+bufferIndices :: VBO -> [CUShort] -> IO ()
+bufferIndices vbo ints =
+        withArrayLen ints $ \len ptr ->
+            c'bufferIndices vbo ptr (fromIntegral len)
+
+foreign import ccall "buffer_indices_num" c'bufferIndices
+    :: CUInt -> Ptr CUShort -> CInt -> IO ()
 
 bufferSquareIndices :: VBO -> Int -> IO Int
 bufferSquareIndices vbo num = do

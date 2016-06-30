@@ -14,9 +14,9 @@ data Projection = Perspective {
                      width :: Scalar,
                      near :: Scalar,
                      far :: Scalar,
-                     shouldCenter :: Bool } 
+                     shouldCenter :: Bool }
                      deriving Show
-data Camera = Camera Projection V3 deriving Show
+data Camera = Camera Projection V3 V3 deriving Show
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
@@ -29,18 +29,22 @@ shotMatrix Ortho { width, near, far, shouldCenter } screenRatio =
                 mat44Ortho 0 width 0 height near far
         where height = width / (realToFrac screenRatio)
 
-worldViewMatrix :: Projection -> Scalar -> V3 -> Mat44
-worldViewMatrix proj screenRatio pos =
+worldViewMatrix :: Projection -> Scalar -> V3 -> V3 -> Mat44
+worldViewMatrix proj screenRatio pos target =
         let worldMatrix = shotMatrix proj screenRatio
-            camera = cameraPosMatrix pos in
+            camera = cameraPosMatrix pos target in
                 mat44Mul worldMatrix camera
 
-cameraPosMatrix :: V3 -> Mat44
-cameraPosMatrix pos = 
-    mat44TranslateV (negate pos) mat44Identity
+cameraPosMatrix :: V3 -> V3 -> Mat44
+cameraPosMatrix pos target = mat44TranslateV (negate pos) rotated
+    where current = v3 0 0 (-1)
+          diff = target - pos
+          axis = vcross diff current
+          ang = vabsangle current diff
+          rotated = if vnull axis || ang == 0 then mat44Identity else mat44RotateV axis (realToFrac ang) mat44Identity
 
 cameraMatrix :: Camera -> Scalar -> Mat44
-cameraMatrix (Camera proj center) screenRatio = worldViewMatrix proj screenRatio center
+cameraMatrix (Camera proj center target) screenRatio = worldViewMatrix proj screenRatio center target
 
 -- Drivers
 
