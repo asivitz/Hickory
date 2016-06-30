@@ -3,7 +3,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Math.Vector 
+module Math.Vector
     (
     module Data.Vector.V2,
     module Data.Vector.V3,
@@ -31,7 +31,9 @@ module Math.Vector
     v2SegmentsIntersect,
     vunpackFractional,
     Interpolatable,
-    glerp
+    glerp,
+    timeToIntersection,
+    intersectionPoint
     )
     where
 
@@ -86,7 +88,7 @@ v3tov2 :: V3 -> V2
 v3tov2 (Vector3 x y z) = v2 x y
 
 v4tov3 :: V4 -> V3
-v4tov3 (Vector4 x y z w) = (Vector3 x y z)
+v4tov3 (Vector4 x y z w) = Vector3 x y z
 
 vmidpoint :: Vector a => a -> a -> a
 vmidpoint v t = vlinear 0.5 v t
@@ -95,7 +97,7 @@ vnull :: Vector a => a -> Bool
 vnull v = vmag v == 0
 
 vabsangle :: Vector a => a -> a -> Scalar
--- TODO: Performance test the difference 
+-- TODO: Performance test the difference
 -- vangle a b = acos $ vdot (vnormalise a) (vnormalise b)
 vabsangle a b = acos $ vdot a b / (vmag a * vmag b)
 
@@ -115,25 +117,25 @@ vunpackFractional :: (Fractional a, Vector v) => v -> [a]
 vunpackFractional v = map realToFrac (vunpack v)
 
 movePos :: Vector a => a -> a -> Scalar -> Scalar -> a
-movePos p1 p2 speed time = 
-        let diff = p2 - p1 
-            amt = speed * time 
+movePos p1 p2 speed time =
+        let diff = p2 - p1
+            amt = speed * time
             mag = vmag diff in
                 if mag > amt
                     then p1 + diff |* (amt / mag)
                     else p2
 
 movePosNoStop :: Vector a => a -> a -> Scalar -> Scalar -> a
-movePosNoStop p1 p2 speed time = 
-        let diff = p2 - p1 
-            amt = speed * time 
+movePosNoStop p1 p2 speed time =
+        let diff = p2 - p1
+            amt = speed * time
             mag = vmag diff in
                 p1 + diff |* (amt / mag)
 
 moveVal :: (Real a, Fractional a) => a -> a -> a -> a -> a
-moveVal p1 p2 speed time = 
-        let diff = p2 - p1 
-            amt = speed * time 
+moveVal p1 p2 speed time =
+        let diff = p2 - p1
+            amt = speed * time
             mag = abs diff in
                 if mag > amt
                     then p1 + diff * (amt / mag)
@@ -141,7 +143,7 @@ moveVal p1 p2 speed time =
 
 class Interpolatable i where
         glerp :: Scalar -> i -> i -> i
-        
+
 instance Interpolatable Double where
         glerp = lerp
 instance Interpolatable Vector2 where
@@ -150,3 +152,26 @@ instance Interpolatable Vector3 where
         glerp = vlinear
 instance Interpolatable Vector4 where
         glerp = vlinear
+
+-- Extra
+
+timeToIntersection :: Double -> V2 -> V2 -> Maybe Double
+timeToIntersection speed pos vel =
+        let a = vdot pos pos
+            b = 2 * vdot pos vel
+            c = vdot vel vel - speed * speed
+            desc = b * b - 4 * a * c
+            in if desc >= 0
+                      then let p1 = (-1) * b
+                               p2 = sqrt desc
+                               p3 = 2 * a
+                               u1 = (p1 + p2) / p3
+                               u2 = (p1 - p2) / p3
+                               t1 = 1 / u1
+                               t2 = 1 / u2
+                               vals = filter (\x -> x > 0 && (not . isInfinite) x) [t1, t2]
+                               in if null vals then Nothing else Just $ minimum vals
+                      else Nothing
+
+intersectionPoint :: V2 -> Double -> V2 -> V2 -> Maybe V2
+intersectionPoint p1 speed p2 vel = maybe Nothing (\t -> Just $ p2 + (vel |* t)) (timeToIntersection speed (p2 - p1) vel)
