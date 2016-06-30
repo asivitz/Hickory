@@ -79,7 +79,11 @@ collectPrintDescs _ = []
 
 textToVAO :: [(Maybe PrintDesc, VAOObj)] -> RenderTree -> RenderTree
 textToVAO m (List subs) = List $ map (textToVAO m) subs
-textToVAO m (Primative sh mat col (Text pr@(Printer font tex) text)) = Primative sh mat col (VAO (Just tex) (fromJust $ lookup (Just (pr, text, col)) m))
+textToVAO m (Primative sh mat col (Text pr@(Printer font tex) txt)) =
+        Primative sh mat col
+                    (VAO (Just tex)
+                         (fromMaybe (error $ "Can't find vao for text command: " ++ show txt)
+                                    (lookup (Just (pr, txt, col)) m)))
 textToVAO m a = a
 
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
