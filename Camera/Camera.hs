@@ -1,10 +1,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Camera.Camera where
 
 import Math.Vector
 import Math.Matrix
 import Math.VectorMatrix
+import Text.PrettyPrint.GenericPretty
 
 data Projection = Perspective {
                      fov :: Scalar,
@@ -15,8 +17,11 @@ data Projection = Perspective {
                      near :: Scalar,
                      far :: Scalar,
                      shouldCenter :: Bool }
-                     deriving Show
-data Camera = Camera Projection V3 V3 deriving Show
+                     deriving (Show, Generic)
+data Camera = Camera Projection V3 V3 deriving (Show, Generic)
+
+instance Out Projection where
+instance Out Camera where
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
