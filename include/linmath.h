@@ -49,6 +49,7 @@ void mat4x4_frustum(mat4x4 M, float l, float r, float b, float t, float n, float
 void mat4x4_ortho(mat4x4 M, float l, float r, float b, float t, float n, float f);
 void mat4x4_perspective(mat4x4 m, float y_fov, float aspect, float n, float f);
 void mat4x4_look_at(mat4x4 m, vec3 eye, vec3 center, vec3 up);
+void mat4x4_lerp(mat4x4 M, float fract, mat4x4 a, mat4x4 b);
 void quat_identity(quat q);
 void quat_add(quat r, quat a, quat b);
 void quat_sub(quat r, quat a, quat b);

@@ -34,12 +34,12 @@ mat44Mul a b = unsafePerformIO $ buildMat44 $ \m ->
          c'mat44Mul m ap bp
 
 mat44Ortho :: Real a => a -> a -> a -> a -> a -> a -> Mat44
-mat44Ortho l r b t n f = unsafePerformIO $ buildMat44 $ \m -> c'mat44Ortho m (realToFrac l) (realToFrac r) 
-    (realToFrac b) (realToFrac t) 
+mat44Ortho l r b t n f = unsafePerformIO $ buildMat44 $ \m -> c'mat44Ortho m (realToFrac l) (realToFrac r)
+    (realToFrac b) (realToFrac t)
     (realToFrac n) (realToFrac f)
 
 mat44Perspective :: Real a => a -> a -> a -> a -> Mat44
-mat44Perspective fov aspect near far = 
+mat44Perspective fov aspect near far =
         unsafePerformIO $
             buildMat44 $ \m ->
                 c'mat44Perspective m (realToFrac fov) (realToFrac aspect) (realToFrac near) (realToFrac far)
@@ -48,7 +48,7 @@ foreign import ccall "mat4x4_perspective" c'mat44Perspective
     :: Mat44Raw -> CFloat -> CFloat -> CFloat -> CFloat -> IO ()
 
 mat44ToList :: Mat44 -> [Float]
-mat44ToList m = unsafePerformIO $ 
+mat44ToList m = unsafePerformIO $
                   withMat44 m $ \ptr ->
                      do
                         lst <- peekArray 16 ptr
@@ -56,16 +56,16 @@ mat44ToList m = unsafePerformIO $
 
 mat44Scale :: Float -> Float -> Float -> Mat44 -> Mat44
 mat44Scale x y z a = unsafePerformIO $ buildMat44 $ \m ->
-   withMat44 a $ \ap -> 
+   withMat44 a $ \ap ->
       c'mat44Scale m ap (realToFrac x) (realToFrac y) (realToFrac z)
 
 mat44Rotate :: Float -> Float -> Float -> Float -> Mat44 -> Mat44
 mat44Rotate x y z ang a = unsafePerformIO $ buildMat44 $ \m ->
-   withMat44 a $ \ap -> 
+   withMat44 a $ \ap ->
       c'mat44Rotate m ap (realToFrac x) (realToFrac y) (realToFrac z) (realToFrac ang)
 
 mat44Translate :: Float -> Float -> Float -> Mat44 -> Mat44
-mat44Translate x y z a = mat44Mul a $ 
+mat44Translate x y z a = mat44Mul a $
    unsafePerformIO $ buildMat44 $ \m ->
       c'mat44Translate m (realToFrac x) (realToFrac y) (realToFrac z)
 
@@ -73,6 +73,16 @@ mat44Invert :: Mat44 -> Mat44
 mat44Invert m = unsafePerformIO $ buildMat44 $ \p ->
     withMat44 m $ \mp ->
         c'mat44Invert p mp
+
+mat44Lerp :: CFloat -> Mat44 -> Mat44 -> Mat44
+mat44Lerp x a b = unsafePerformIO $
+    buildMat44 $ \m ->
+        withMat44 a $ \ap ->
+            withMat44 b $ \bp ->
+                c'mat44Lerp m x ap bp
+
+foreign import ccall "mat4x4_lerp" c'mat44Lerp
+    :: Mat44Raw -> CFloat -> Mat44Raw -> Mat44Raw -> IO ()
 
 foreign import ccall "mat4x4_invert" c'mat44Invert
     :: Mat44Raw -> Mat44Raw -> IO ()

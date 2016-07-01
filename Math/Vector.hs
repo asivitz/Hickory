@@ -30,8 +30,6 @@ module Math.Vector
     v2clockwise,
     v2SegmentsIntersect,
     vunpackFractional,
-    Interpolatable,
-    glerp,
     timeToIntersection,
     intersectionPoint
     )
@@ -42,7 +40,6 @@ import Data.Vector.V2
 import Data.Vector.V3
 import Data.Vector.V4
 import Data.Vector.Class
-import Utils.Utils
 import GHC.Generics
 import Data.Serialize
 import Text.PrettyPrint
@@ -140,18 +137,6 @@ moveVal p1 p2 speed time =
                 if mag > amt
                     then p1 + diff * (amt / mag)
                     else p2
-
-class Interpolatable i where
-        glerp :: Scalar -> i -> i -> i
-
-instance Interpolatable Double where
-        glerp = lerp
-instance Interpolatable Vector2 where
-        glerp = vlinear
-instance Interpolatable Vector3 where
-        glerp = vlinear
-instance Interpolatable Vector4 where
-        glerp = vlinear
 
 -- Extra
 

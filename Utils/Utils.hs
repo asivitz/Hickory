@@ -6,9 +6,6 @@ import Data.Maybe
 import Data.IORef
 import Data.Time
 
-lerp :: Num a => a -> a -> a -> a
-lerp fract a b = (a * (1 - fract)) + (b * fract)
-
 clamp :: Ord a => a -> a -> a -> a
 clamp a low high = min (max a low) high
 

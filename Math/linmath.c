@@ -417,6 +417,16 @@ void mat4x4_look_at(mat4x4 m, vec3 eye, vec3 center, vec3 up)
 	mat4x4_translate_in_place(m, -eye[0], -eye[1], -eye[2]);
 }
 
+void mat4x4_lerp(mat4x4 M, float fract, mat4x4 a, mat4x4 b)
+{
+        int i, j;
+        for (i = 0; i < 4; i++) {
+            for (j = 0; j < 4; j++) {
+                M[i][j] = a[i][j] * (1 - fract) + (b[i][j] * fract);
+            }
+        }
+}
+
 void quat_identity(quat q)
 {
 	q[0] = q[1] = q[2] = 0.f;
