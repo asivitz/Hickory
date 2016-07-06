@@ -17,6 +17,9 @@ mat44RotateV :: V3 -> Float -> Mat44 -> Mat44
 mat44RotateV (Vector3 x y z) =
     mat44Rotate (realToFrac x) (realToFrac y) (realToFrac z)
 
+v3rotate :: V3 -> V3 -> Float -> V3
+v3rotate v axis angle = v4tov3 $ mat44MulVec4 (mat44RotateV axis angle mat44Identity) (v3tov4 v 1)
+
 withVec4 :: Vector4 -> (Ptr CFloat -> IO b) -> IO b
 withVec4 v func = let lst = map realToFrac $ vunpack v in
     withArray lst func

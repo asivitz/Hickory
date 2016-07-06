@@ -28,6 +28,7 @@ module Math.Vector
     vabsangle,
     v2angle,
     v2clockwise,
+    v2rotate,
     v2SegmentsIntersect,
     vunpackFractional,
     timeToIntersection,
@@ -160,3 +161,6 @@ timeToIntersection speed pos vel =
 
 intersectionPoint :: V2 -> Double -> V2 -> V2 -> Maybe V2
 intersectionPoint p1 speed p2 vel = maybe Nothing (\t -> Just $ p2 + (vel |* t)) (timeToIntersection speed (p2 - p1) vel)
+
+v2rotate :: V2 -> Double -> V2
+v2rotate v angle = v2 (cos angle) (sin angle) |* vmag v
