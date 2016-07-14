@@ -18,6 +18,9 @@ import qualified Data.Text as Text
 import qualified Data.HashMap.Strict as HashMap
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Foreign.C.Types
+import Data.Foldable (toList)
+import Lens.Micro
+import Linear.Matrix
 
 import Graphics.Drawing
 import Types.Color
@@ -37,10 +40,10 @@ drawSpec shader mat color layer spec =
                    _ -> return ()
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems) -> do
-                dc <- addDrawCommand mat white white (fromMaybe nullTex tex) shader layer 0.0 True
+                dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True
                 vao_payload <- setVAOCommand dc vao numitems gl_TRIANGLE_STRIP
                 return ()
-    where depth = v4z $ mat44MulVec4 mat (v4 0 0 0 1)
+    where depth = (mat !* v4 0 0 0 1) ^. _z
 
 data ParticleShader = ParticleShader Shader UniformLoc
 
@@ -55,11 +58,14 @@ reserveParticleShader  draw = do
                 return $ Just $ ParticleShader s (UniformLoc loc)
                 -}
 
-sizePosMat :: Size Float -> V3 -> Mat44
-sizePosMat (Size w h) pos = mat44Scale w h 1 $ mat44TranslateV pos mat44Identity
+sizePosMat :: Size Scalar -> V3 Scalar -> Mat44
+sizePosMat (Size w h) pos = mkTranslation pos !*! scaled (V4 w h 1 1)
 
-sizePosRotMat :: Real a => Size Float -> V3 -> Float -> Mat44
-sizePosRotMat (Size w h) pos rot = mat44Scale w h 1 $ mat44Rotate 0 0 1 rot $ mat44TranslateV pos mat44Identity
+size3PosMat :: V3 Scalar -> V3 Scalar -> Mat44
+size3PosMat (V3 w h d) pos = mkTranslation pos !*! scaled (V4 w h d 1)
+
+sizePosRotMat :: Size Scalar -> V3 Scalar -> Scalar -> Mat44
+sizePosRotMat (Size w h) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h 1 1)
 
 data RenderTree = Primative Shader Mat44 Color DrawSpec
                 | List [RenderTree]
@@ -90,7 +96,7 @@ textToVAO m a = a
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
 updateVAOObj (Printer font texid, textCommand, color)
              (VAOObj vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } _ ) = do
-                 let command = PositionedTextCommand vZero (textCommand { color = color })
+                 let command = PositionedTextCommand zero (textCommand { color = color })
                      (numsquares, floats) = transformTextCommandsToVerts [command] font
 
                  if not $ null floats then do
@@ -104,7 +110,7 @@ updateVAOObj (Printer font texid, textCommand, color)
                          error "Tried to print empty text command"
 
 cubeFloats :: [CFloat]
-cubeFloats = concatMap vunpackFractional verts
+cubeFloats = concatMap toList verts
     where h = 0.5
           l = -h
           p1 = v3 l l l

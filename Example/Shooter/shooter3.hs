@@ -21,7 +21,7 @@ import Control.Monad
 import qualified Data.HashMap.Strict as HashMap
 
 -- Our game data
-data Model = Model { 
+data Model = Model {
            playerPos :: V2,
            firingDirection :: V2,
            missiles :: [(V2, V2)]
@@ -29,7 +29,7 @@ data Model = Model {
 
 -- By default, or firingDirection is to the right
 newGame :: Model
-newGame = Model vZero (v2 1 0) []
+newGame = Model zero (v2 1 0) []
 
 -- Our event type
 type Event = RawInput
@@ -41,18 +41,18 @@ data GameInput = GameInput {
                }
 
 buildVecWithKeys :: V2 -> (Key, Double) -> V2
-buildVecWithKeys vec (key, heldTime) = 
+buildVecWithKeys vec (key, heldTime) =
     vec + (case key of
                 Key'Up -> v2 0 1
                 Key'Left -> v2 (-1) 0
                 Key'Down -> v2 0 (-1)
                 Key'Right -> v2 1 0
-                _ -> vZero)
+                _ -> zero)
 
 collectInput :: [Event] -> GameInput
 collectInput events = foldl process (GameInput Nothing False) events
-    where process gameInput (InputKeysHeld hash) = 
-            let moveVec = foldl buildVecWithKeys vZero (HashMap.toList hash)
+    where process gameInput (InputKeysHeld hash) =
+            let moveVec = foldl buildVecWithKeys zero (HashMap.toList hash)
                 in gameInput { movementVec = (Just moveVec) }
           process gameInput (InputKeyDown Key'Space) = gameInput { didFire = True }
           process gameInput _ = gameInput
@@ -65,7 +65,7 @@ missileInBounds (pos, _) = vmag pos < 500
 
 stepModel :: RenderInfo -> [Event] -> Double -> Model -> (Model, [Event])
 stepModel renderinfo events delta Model { playerPos, firingDirection, missiles } =
-        let GameInput { movementVec, didFire } = collectInput events 
+        let GameInput { movementVec, didFire } = collectInput events
             (fireDir', playerPos') = case movementVec of
                          Nothing -> (firingDirection, playerPos)
                          -- If we move, then the firingDirection should
@@ -75,7 +75,7 @@ stepModel renderinfo events delta Model { playerPos, firingDirection, missiles }
 
             -- Fire ze missiles!
             missiles' = if didFire
-                            then let newMissile = (playerPos', fireDir') 
+                            then let newMissile = (playerPos', fireDir')
                                      in (newMissile : missiles)
                             else missiles
 
@@ -105,9 +105,9 @@ loadResources path = do
 
 -- This function calculates a view matrix, used during rendering
 calcCameraMatrix :: Size Int -> Model -> Mat44
-calcCameraMatrix (Size w h) model = 
+calcCameraMatrix (Size w h) model =
         let proj = Ortho (realToFrac w) 1 100 True
-            camera = Camera proj vZero in
+            camera = Camera proj zero in
                 cameraMatrix camera (aspectRatio (Size w h))
 
 -- Our render function
@@ -130,7 +130,7 @@ makeScene resPath = makeSceneOperator newGame
 main :: IO ()
 main = do
         operator <- makeScene "resources"
-         
+
         glfwMain "Demo"
                  (Size 480 640)
                  [operator]

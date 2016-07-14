@@ -5,6 +5,7 @@ import Types.Types
 {-import UI.Stack-}
 import Data.Maybe
 import Math.Vector
+import Linear.Metric
 
 {-type TransitionAction t = TransitionStack t -> TransitionStack t-}
 
@@ -17,24 +18,24 @@ import Math.Vector
 {-makeLabel :: mi -> UIElement c t mi-}
 {-makeLabel s = UIElement Nothing [s]-}
 
-data UIElement re model = UIElement re V2 (Maybe (Button model))
+data UIElement re model = UIElement re (V2 Scalar) (Maybe (Button model))
                         | FullscreenElement re
 
 data Target = Circle Scalar
             | Box (Size Scalar)
 
 data Interaction model = Tap (model -> model)
-                 | Track (V2 -> model -> model)
+                 | Track (V2 Scalar -> model -> model)
 
 data Button model = Button Target (Interaction model)
 
 data TouchType = TouchUp Scalar | TouchMove | TouchDown
-data Touch = Touch TouchType V2
+data Touch = Touch TouchType (V2 Scalar)
 
-makeLabel :: re -> V2 -> UIElement re model
+makeLabel :: re -> V2 Scalar -> UIElement re model
 makeLabel re vec = UIElement re vec Nothing
 
-gridPositions :: V2 -> Int -> Scalar -> Scalar -> [V2]
+gridPositions :: V2 Scalar -> Int -> Scalar -> Scalar -> [V2 Scalar]
 gridPositions topLeft cols colSpacing rowSpacing =
         let row = map (\i -> topLeft + (v2 (colSpacing * (realToFrac i)) 0)) [0..(cols - 1)] in
             row ++ (gridPositions (topLeft + (v2 0 rowSpacing)) cols colSpacing rowSpacing)
@@ -42,13 +43,13 @@ gridPositions topLeft cols colSpacing rowSpacing =
 cartProd :: [a] -> [b] -> [(a,b)]
 cartProd xs ys = [(x,y) | y <- ys, x <- xs]
 
-hitTarget :: V2 -> V2 -> Target -> Bool
-hitTarget vec vec' (Circle scal) = vmag (vec' - vec) < scal
+hitTarget :: V2 Scalar -> V2 Scalar -> Target -> Bool
+hitTarget vec vec' (Circle scal) = norm (vec' - vec) < scal
 hitTarget vec vec' (Box (size)) =
         let rect = (Rect vec' size)
             in posInRect vec rect
 
-targetHitRelativeLocation :: V2 -> V2 -> Target -> Maybe V2
+targetHitRelativeLocation :: V2 Scalar -> V2 Scalar -> Target -> Maybe (V2 Scalar)
 targetHitRelativeLocation vec rvec (Circle rscal) = error "Not implemented"
 targetHitRelativeLocation vec vec' (Box (rsize)) =
         let rect = (Rect vec' rsize)
@@ -96,10 +97,10 @@ processMenuStack :: RenderInfo -> V2 -> TransitionStack (MenuScreen ie mdc) -> M
 processMenuStack renderinfo@(RenderInfo _ ss _) pos transitionStk =
         let unproj = unproject pos (-5) renderinfo in
             case incomingScreen transitionStk of
-                Just (MenuScreen elements _) -> 
-                    let acts = listToMaybe $ mapMaybe (\(UIElement mbutton _) -> 
+                Just (MenuScreen elements _) ->
+                    let acts = listToMaybe $ mapMaybe (\(UIElement mbutton _) ->
                             case mbutton of
-                                Just (Button rrect actions) -> if (posInRect (v3tov2 unproj) (transformRect rrect ss)) 
+                                Just (Button rrect actions) -> if (posInRect (v3tov2 unproj) (transformRect rrect ss))
                                                                 then Just actions
                                                                 else Nothing
                                 Nothing -> Nothing) elements

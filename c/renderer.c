@@ -170,6 +170,10 @@ void prune_label(int label)
 
 draw_command * add_draw_command(float * mat, float * color, float * color2, int texid, unsigned int shader, int label, float depth, int blend)
 {
+#if 0
+    dlog("mat: %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f %f", mat[0], mat[1], mat[2], mat[3], mat[4], mat[5], mat[6], mat[7], mat[8], mat[9], mat[10], mat[11], mat[12], mat[13], mat[14], mat[15]);
+    dlog("texid: %d", texid);
+#endif
    draw_command * newone = (commands + num_commands);
    memcpy(newone->mat, mat, 16 * sizeof(float));
    memcpy(newone->color, color, 4 * sizeof(float));

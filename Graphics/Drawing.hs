@@ -91,7 +91,7 @@ foreign import ccall "render_commands" c'renderCommands
 data DrawCommandStruct = DrawCommandStruct
 type DrawCommandHandle = Ptr DrawCommandStruct
 
-addDrawCommand :: Mat44 -> Color -> Color -> TexID -> Shader -> RenderLayer -> GLfloat -> Bool -> IO (DrawCommandHandle)
+addDrawCommand :: Mat44 -> Color -> Color -> TexID -> Shader -> RenderLayer -> GLfloat -> Bool -> IO DrawCommandHandle
 addDrawCommand mat color1 color2 (TexID texid) (Shader shader) layer depth blend =
       withMat44 mat $ \matptr ->
          withVec4 color1 $ \color1ptr ->
@@ -99,9 +99,9 @@ addDrawCommand mat color1 color2 (TexID texid) (Shader shader) layer depth blend
                c'addDrawCommand matptr color1ptr color2ptr texid shader layer depth (boolToCInt blend)
 
 foreign import ccall "add_draw_command" c'addDrawCommand
-   :: Mat44Raw -> Ptr CFloat -> Ptr CFloat -> CInt -> CUInt -> CInt -> CFloat -> CInt -> IO (DrawCommandHandle)
+   :: Mat44Raw -> Ptr CFloat -> Ptr CFloat -> CInt -> CUInt -> CInt -> CFloat -> CInt -> IO DrawCommandHandle
 
-setTCCommand :: DrawCommandHandle -> V4 -> IO ()
+setTCCommand :: DrawCommandHandle -> V4 Scalar -> IO ()
 setTCCommand dc vec =
       withVec4 vec $ \ptr ->
          c'setTCCommand dc ptr
@@ -163,10 +163,10 @@ createVAOConfig sh vertexgroups = do
 
         unbindVAO
 
-        return $ VAOConfig { vao = vao',
-                           indexVBO = Nothing,
-                           vertices = buffers
-                           }
+        return VAOConfig { vao = vao',
+                         indexVBO = Nothing,
+                         vertices = buffers
+                         }
 
 halveInt :: Int -> Int
 halveInt a = floor fl
@@ -178,7 +178,7 @@ drawPoints shader (VAOConfig vao Nothing [vbo]) points@(x:_) size = do
         bufferVertices vbo points
         unbindVAO
 
-        dc <- addDrawCommand mat44Identity white white nullTex shader worldLayer 0.0 False
+        dc <- addDrawCommand identity white white nullTex shader worldLayer 0.0 False
         vao_payload <- setVAOCommand dc vao (halveInt (length points)) gl_POINTS
         uniloc <- grabUniformLoc shader sp_UNIFORM_SIZE
         addFloatUniform dc uniloc [size]

@@ -18,52 +18,52 @@ data Projection = Perspective {
                      far :: Scalar,
                      shouldCenter :: Bool }
                      deriving (Show, Generic)
-data Camera = Camera Projection V3 V3 deriving (Show, Generic)
+data Camera = Camera Projection (V3 Scalar) (V3 Scalar) deriving (Show, Generic)
 
 instance Out Projection where
 instance Out Camera where
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
-        mat44Perspective fov (realToFrac screenRatio) nearPlane farPlane
+        perspective fov (realToFrac screenRatio) nearPlane farPlane
 shotMatrix Ortho { width, near, far, shouldCenter } screenRatio =
         if shouldCenter
             then
-                mat44Ortho (-(width/2)) (width/2) (-(height/2)) (height/2) near far
+                ortho (-(width/2)) (width/2) (-(height/2)) (height/2) near far
             else
-                mat44Ortho 0 width 0 height near far
+                ortho 0 width 0 height near far
         where height = width / (realToFrac screenRatio)
 
-worldViewMatrix :: Projection -> Scalar -> V3 -> V3 -> Mat44
+worldViewMatrix :: Projection -> Scalar -> V3 Scalar -> V3 Scalar -> Mat44
 worldViewMatrix proj screenRatio pos target =
         let worldMatrix = shotMatrix proj screenRatio
             camera = cameraPosMatrix pos target in
-                mat44Mul worldMatrix camera
+                worldMatrix !*! camera
 
-cameraPosMatrix :: V3 -> V3 -> Mat44
-cameraPosMatrix pos target = mat44TranslateV (negate pos) rotated
+cameraPosMatrix :: V3 Scalar -> V3 Scalar -> Mat44
+cameraPosMatrix pos target = rotated !*! mkTranslation (negate pos)
     where current = v3 0 0 (-1)
           diff = target - pos
-          axis = vcross diff current
+          axis = cross diff current
           ang = vabsangle current diff
-          rotated = if vnull axis || ang == 0 then mat44Identity else mat44RotateV axis (realToFrac ang) mat44Identity
+          rotated = if vnull axis || ang == 0 then identity else mkRotation axis ang
 
 cameraMatrix :: Camera -> Scalar -> Mat44
 cameraMatrix (Camera proj center target) screenRatio = worldViewMatrix proj screenRatio center target
 
 -- Drivers
 
-data Route = Route V3 (Maybe Target) deriving Show
+data Route = Route (V3 Scalar) (Maybe Target) deriving Show
 
 data Target = Target {
-            tpos :: V3,
+            tpos :: (V3 Scalar),
             moveTime :: Double,
             moveDuration :: Double
             } deriving Show
 
-cameraCenter :: Route -> V3
+cameraCenter :: Route -> (V3 Scalar)
 cameraCenter (Route pos Nothing ) = pos
-cameraCenter (Route pos (Just (Target tarpos time duration))) = vlinear (realToFrac (time / duration)) pos tarpos
+cameraCenter (Route pos (Just (Target tarpos time duration))) = lerp (realToFrac (time / duration)) tarpos pos
 
 checkTarget :: Route -> Double -> Route
 checkTarget r@(Route pos Nothing) _ = r

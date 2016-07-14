@@ -55,7 +55,7 @@ processInput renderinfo@(RenderInfo _ ss _) ev@(RawEvent rawinput) model@Model {
 processInput ri e model = (model, [e])
 
 stepModel :: Double -> MenuModel -> (MenuModel, [InputEvent])
-stepModel delta model@Model { _game = TransitionStack stk time leaving } = 
+stepModel delta model@Model { _game = TransitionStack stk time leaving } =
         (model { _game = TransitionStack stk (time + delta) leaving }, [])
 
 resolveElementDrawCommands :: Size Int -> Bool -> Double -> UIElement c t (Bool -> Double -> dc) -> [dc]
@@ -64,10 +64,10 @@ resolveElementDrawCommands screenSize incoming fract (UIElement _ menuItems) = m
 positionTextCommand ss (rvec, tc) = PositionedTextCommand (screenPos ss rvec) tc
 
 render :: Resources -> RenderInfo -> MenuModel -> IO ()
-render Resources { pvcShader, printer } (RenderInfo _ ss layer) Model { _game = transitionStack } = 
+render Resources { pvcShader, printer } (RenderInfo _ ss layer) Model { _game = transitionStack } =
         case incomingScreen transitionStack of
             Just (MenuScreen elements duration) -> let fract = min 1 $ (transitionTime transitionStack) / duration
-                                                       commands = concatMap (resolveElementDrawCommands ss True fract) elements 
+                                                       commands = concatMap (resolveElementDrawCommands ss True fract) elements
                                                        ptcs = map (positionTextCommand ss) commands
                                                        in
                 printCommands pvcShader layer printer ptcs
@@ -96,17 +96,17 @@ subMenu = MenuScreen [makeButton (RRect (RVec (center 0) (beg 40)) (RVec (end 40
 
 {-
 simpleMenuButton :: Int -> String -> ScreenAction Scalar (GameEvent IO) -> [GameEvent IO] -> UIElement Scalar (GameEvent IO)
-simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (events, Just action))) $ 
+simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (events, Just action))) $
     MenuRenderSpec ([], [font], []) $ \(MenuResources _ [pid] _) ->
         \fraction incoming ->
             let frac' = constrainInterval fraction idx in
-            [(beg (40 * (realToFrac (1 + idx))), center 0, 
+            [(beg (40 * (realToFrac (1 + idx))), center 0,
                 TextMenuDrawCommand pid DrawText.textcommand { text = txt, fontSize = 6, color = rgba 1 1 1 frac' })]
                 -}
 
 makeScene = do
         is <- newIORef (Input [])
-        let cam = \(Size w h) -> Camera (Ortho (realToFrac w) (-20) 1) (Route vZero Nothing)
+        let cam = \(Size w h) -> Camera (Ortho (realToFrac w) (-20) 1) (Route zero Nothing)
             scene = Scene {
                           _name = "Menu",
                           _model = newModel cam ComponentStore (pushScreen mainMenu emptyTransitionStack),

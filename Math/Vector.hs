@@ -1,25 +1,18 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Math.Vector
     (
-    module Data.Vector.V2,
-    module Data.Vector.V3,
-    module Data.Vector.V4,
-    module Data.Vector.Class,
-    V2,
-    V3,
-    V4,
+    module Linear.V2,
+    module Linear.V3,
+    module Linear.V4,
+    module Linear.Vector,
     v2,
     v3,
     v4,
-    vZero,
     v2tov3,
     v3tov4,
-    v4tov3,
-    v3tov2,
     movePos,
     movePosNoStop,
     moveVal,
@@ -32,103 +25,90 @@ module Math.Vector
     v2SegmentsIntersect,
     vunpackFractional,
     timeToIntersection,
-    intersectionPoint
+    intersectionPoint,
+    Scalar
     )
     where
 
 
-import Data.Vector.V2
-import Data.Vector.V3
-import Data.Vector.V4
-import Data.Vector.Class
-import GHC.Generics
-import Data.Serialize
+import Linear.V2
+import Linear.V3
+import Linear.V4
+import Linear.Vector
 import Text.PrettyPrint
 import Text.PrettyPrint.GenericPretty
 import Text.Printf
+import Linear.Epsilon
+import Linear.Metric
+import Data.Foldable (toList)
 
-type V2 = Vector2
-type V3 = Vector3
-type V4 = Vector4
+v2 = V2
+v3 = V3
+v4 = V4
 
-v2 = Vector2
-v3 = Vector3
-v4 = Vector4
+type Vector v a = (Metric v, Epsilon (v a), Additive v, Floating a, Real a, RealFloat a)
 
-deriving instance Generic Vector2
-instance Serialize Vector2
-instance Out Vector2 where
-  doc (Vector2 x y) =  parens $ text (printf "%.2f,%.2f" x y)
+instance (PrintfArg a, Out a) => Out (V2 a) where
+  doc (V2 x y) =  parens $ text (printf "%.2f,%.2f" x y)
   docPrec _ = doc
 
-deriving instance Generic Vector3
-instance Serialize Vector3
-instance Out Vector3 where
-  doc (Vector3 x y z) =  parens $ text (printf "%.2f,%.2f,%.2f" x y z)
+instance (PrintfArg a, Out a) => Out (V3 a) where
+  doc (V3 x y z) =  parens $ text (printf "%.2f,%.2f,%.2f" x y z)
   docPrec _ = doc
 
-deriving instance Generic Vector4
-instance Serialize Vector4
-instance Out Vector4 where
-  doc (Vector4 x y z w) =  parens $ text (printf "%.2f,%.2f,%.2f,%.2f" x y z w)
+instance (PrintfArg a, Out a) => Out (V4 a) where
+  doc (V4 x y z w) =  parens $ text (printf "%.2f,%.2f,%.2f,%.2f" x y z w)
   docPrec _ = doc
 
-vZero :: BasicVector a => a
-vZero = vpromote 0
+type Scalar = Double
 
-v2tov3 :: V2 -> Scalar -> V3
-v2tov3 (Vector2 x y) z = v3 x y z
+v2tov3 :: V2 a -> a -> V3 a
+v2tov3 (V2 x y) z = v3 x y z
 
-v3tov4 :: V3 -> Scalar -> V4
-v3tov4 (Vector3 x y z) w = v4 x y z w
+v3tov4 :: V3 a -> a -> V4 a
+v3tov4 (V3 x y z) w = v4 x y z w
 
-v3tov2 :: V3 -> V2
-v3tov2 (Vector3 x y z) = v2 x y
+vmidpoint :: Vector f a => f a -> f a -> f a
+vmidpoint = lerp 0.5
 
-v4tov3 :: V4 -> V3
-v4tov3 (Vector4 x y z w) = Vector3 x y z
+vnull :: Vector f a => f a -> Bool
+vnull = nearZero
 
-vmidpoint :: Vector a => a -> a -> a
-vmidpoint v t = vlinear 0.5 v t
-
-vnull :: Vector a => a -> Bool
-vnull v = vmag v == 0
-
-vabsangle :: Vector a => a -> a -> Scalar
+vabsangle :: Vector f a => f a -> f a -> a
 -- TODO: Performance test the difference
 -- vangle a b = acos $ vdot (vnormalise a) (vnormalise b)
-vabsangle a b = acos $ vdot a b / (vmag a * vmag b)
+vabsangle a b = acos $ dot a b / (norm a * norm b)
 
-v2angle :: Vector2 -> Vector2 -> Scalar
+v2angle :: (Epsilon a, Floating a, Ord a, RealFloat a) => V2 a -> V2 a -> a
 v2angle a b = if v2clockwise a b then -ang else ang
         where ang = vabsangle a b
 
-v2clockwise :: Vector2 -> Vector2 -> Bool
-v2clockwise a b = v2x a * v2y b - v2y a * v2x b <= 0
+v2clockwise :: (Num a, Ord a) => V2 a -> V2 a -> Bool
+v2clockwise (V2 xa ya) (V2 xb yb) = xa * yb - ya * xb <= 0
 
-v2SegmentsIntersect :: (V2, V2) -> (V2, V2) -> Bool
+v2SegmentsIntersect :: (Num a, Ord a) => (V2 a, V2 a) -> (V2 a, V2 a) -> Bool
 v2SegmentsIntersect (a, a') (b, b') = v2clockwise (b - a) adiff /= v2clockwise (b' - a) adiff && v2clockwise (a - b) bdiff /= v2clockwise (a' - b) bdiff
     where adiff = a' - a
           bdiff = b' - b
 
-vunpackFractional :: (Fractional a, Vector v) => v -> [a]
-vunpackFractional v = map realToFrac (vunpack v)
+vunpackFractional :: (Real a, Fractional b, Foldable f) => f a -> [b]
+vunpackFractional = map realToFrac . toList
 
-movePos :: Vector a => a -> a -> Scalar -> Scalar -> a
+movePos :: Vector f a => f a -> f a -> a -> a -> f a
 movePos p1 p2 speed time =
         let diff = p2 - p1
             amt = speed * time
-            mag = vmag diff in
+            mag = norm diff in
                 if mag > amt
-                    then p1 + diff |* (amt / mag)
+                    then p1 + diff ^* (amt / mag)
                     else p2
 
-movePosNoStop :: Vector a => a -> a -> Scalar -> Scalar -> a
+movePosNoStop :: Vector f a => f a -> f a -> a -> a -> f a
 movePosNoStop p1 p2 speed time =
         let diff = p2 - p1
             amt = speed * time
-            mag = vmag diff in
-                p1 + diff |* (amt / mag)
+            mag = norm diff in
+                p1 + diff ^* (amt / mag)
 
 moveVal :: (Real a, Fractional a) => a -> a -> a -> a -> a
 moveVal p1 p2 speed time =
@@ -141,11 +121,11 @@ moveVal p1 p2 speed time =
 
 -- Extra
 
-timeToIntersection :: Double -> V2 -> V2 -> Maybe Double
+timeToIntersection :: (Vector f a) => a -> f a -> f a -> Maybe a
 timeToIntersection speed pos vel =
-        let a = vdot pos pos
-            b = 2 * vdot pos vel
-            c = vdot vel vel - speed * speed
+        let a = dot pos pos
+            b = 2 * dot pos vel
+            c = dot vel vel - speed * speed
             desc = b * b - 4 * a * c
             in if desc >= 0
                       then let p1 = (-1) * b
@@ -159,8 +139,10 @@ timeToIntersection speed pos vel =
                                in if null vals then Nothing else Just $ minimum vals
                       else Nothing
 
-intersectionPoint :: V2 -> Double -> V2 -> V2 -> Maybe V2
-intersectionPoint p1 speed p2 vel = maybe Nothing (\t -> Just $ p2 + (vel |* t)) (timeToIntersection speed (p2 - p1) vel)
+intersectionPoint :: Vector f a => f a -> a -> f a -> f a -> Maybe (f a)
+intersectionPoint p1 speed p2 vel = maybe Nothing (\t -> Just $ p2 + (vel ^* t)) (timeToIntersection speed (p2 - p1) vel)
 
-v2rotate :: V2 -> Double -> V2
-v2rotate v angle = v2 (cos angle) (sin angle) |* vmag v
+v2rotate :: Floating a => V2 a -> a -> V2 a
+v2rotate (V2 x y) ang = v2 (x * co - y * si) (y * co + x * si)
+    where co = cos ang
+          si = sin ang

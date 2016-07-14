@@ -15,7 +15,7 @@ import Control.Monad
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
 
-data SysData = SysData { 
+data SysData = SysData {
              touches :: HashMap.HashMap Int UTCTime,
              keys :: HashMap.HashMap Key UTCTime,
              fbSize :: Size Int
@@ -109,7 +109,7 @@ touchIdent button = case button of
                         GLFW.MouseButton'7 -> 7
                         GLFW.MouseButton'8 -> 8
 
-touchPosToScreenPos :: Size Int -> (Double, Double) -> V2
+touchPosToScreenPos :: Size Int -> (Double, Double) -> V2 Scalar
 touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) (fromIntegral h - realToFrac y)
 
 {-

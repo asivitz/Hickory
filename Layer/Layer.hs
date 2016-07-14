@@ -69,7 +69,7 @@ debugStep :: DebugState b -> DebugState b -> DebugState b
 debugStep oldstate debugstate@DebugState { _debug, _modelStack, _stackIndex, _current } =
         if _debug
             then debugstate & current .~ _modelStack !! _stackIndex
-            else debugstate & modelStack .~ _current : (if length _modelStack > 10000 then take 10000 _modelStack else _modelStack)
+            else debugstate & modelStack .~ _current : (if length _modelStack > 1500 then take 1500 _modelStack else _modelStack)
 
 debugLayer :: (i -> [DebugMsg]) -> LayerXForm b (DebugState b) i
 debugLayer debugMsgF = mapState debugStep . applyInput (transformInput (\s i -> debugMsgF i) debugInput) . wrap current

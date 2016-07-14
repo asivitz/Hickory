@@ -28,7 +28,7 @@ update board (MoveCard card loc) = moveCard board card loc
 gameLayer :: Double -> Layer Model Msg
 gameLayer delta = foldl' update
 
--- UI Layer 
+-- UI Layer
 data UIState = UIState {
              sel :: Maybe Card,
              cursor :: V2,
@@ -40,8 +40,8 @@ data UIState = UIState {
 mkUI :: Model -> StdGen -> UIState
 mkUI model stdgen = UIState {
                             sel = Nothing,
-                            cursor = vZero,
-                            offset = vZero,
+                            cursor = zero,
+                            offset = zero,
                             cardPos = HashMap.empty,
                             randGen = stdgen
                             }
@@ -65,13 +65,13 @@ uiInput (_, (mat, ss))
             InputTouchesDown [(pos, _)] -> let cursorPos = unproject pos (-5) mat ss :: V3
                                                predicate :: Card -> Maybe (V3, Card)
                                                predicate c = let homePos = posForCard board c in
-                                                   if v3tov2 cursorPos `posInRect` Rect (v3tov2 homePos) (Size 0.66 1)
+                                                   if (cursorPos ^. _xy) `posInRect` Rect (homePos ^. _xy) (Size 0.66 1)
                                                        then Just (homePos, c)
                                                        else Nothing
                                                card = listToMaybe $ reverse $ sortOn (\(Vector3 _ _ z, _) -> z) $ mapMaybe predicate allCards
                                                offset' = case card of
                                                             Just (p, _) -> v3tov2 (p - cursorPos)
-                                                            Nothing -> vZero
+                                                            Nothing -> zero
                                                in (ui { sel = fmap snd card, cursor = pos, offset = offset' }, [])
             InputTouchesUp [(_, pos, _)] -> case sel of
                                                 Just c -> let cursorPos = unproject pos (-5) mat ss :: V3

@@ -25,8 +25,8 @@ instance Eq (Font a) where
 addItem :: (Data.Hashable.Hashable k, Eq k) => (v -> k) -> HashMap.HashMap k v -> v -> HashMap.HashMap k v
 addItem keyfunc table item = HashMap.insert (keyfunc item) item table
 
-makeVerts :: V2 -> Scalar -> Scalar -> [V2]
-makeVerts bottomleft@(Vector2 leftx bottomy) width height =
+makeVerts :: V2 Scalar -> Scalar -> Scalar -> [V2 Scalar]
+makeVerts bottomleft@(V2 leftx bottomy) width height =
         let final_height = (negate height)
             rightx = (leftx + width)
             topy = (bottomy + final_height) in
@@ -58,7 +58,7 @@ makeFont text name = case runParseFont text of
                         Right $ Font name info (makeCharTable info glyphspecs) (makeKerningTable kernings)
                     Left s -> Left s
 
-data GlyphVerts = GlyphVerts [V2] [V2] deriving Show
+data GlyphVerts = GlyphVerts [V2 Scalar] [V2 Scalar] deriving Show
 
 data Glyph a = Glyph (GlyphSpec a) GlyphVerts
            | Control Int
@@ -86,7 +86,7 @@ data TextCommand = TextCommand {
                  color :: Color,
                  leftBump :: Scalar } deriving (Show, Eq)
 
-data PositionedTextCommand = PositionedTextCommand V3 TextCommand deriving (Show)
+data PositionedTextCommand = PositionedTextCommand (V3 Scalar) TextCommand deriving (Show)
 
 fontGlyphs :: Real a => Text.Text -> Font a -> [Glyph a]
 fontGlyphs text (Font _ _ chartable _) = Text.foldr (\char lst -> let x = ord char
@@ -110,13 +110,13 @@ renderedTextSize font@(Font _ info chartable kerningtable) (TextCommand text fon
             in Size (width * fontSize) (10 * fontSize)
 
 transformTextCommandToVerts :: Real a => PositionedTextCommand -> Font a -> (Int, [CFloat])
-transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand text fontSize align valign color commandBump) )
+transformTextCommandToVerts (PositionedTextCommand (V3 x y z) (TextCommand text fontSize align valign color commandBump) )
                             font@(Font _ FontInfo { lineHeight } chartable kerningtable) =
         let fsize = fontSize / 12
             glyphs = fontGlyphs text font
             width = displayWidth kerningtable glyphs
             xoffset = commandBump + (lineShiftX (realToFrac width) align)
-            yoffset = lineShiftY fsize (realToFrac lineHeight) valign 
+            yoffset = lineShiftY fsize (realToFrac lineHeight) valign
             accum :: Real a => (Scalar, Int, Int, [CFloat], [CFloat]) -> Glyph a -> (Scalar, Int, Int, [CFloat], [CFloat])
             accum = \(leftBump, linenum, numsquares, vertlst, color_verts) glyph ->
                 case glyph of
@@ -134,8 +134,8 @@ transformTextCommandToVerts (PositionedTextCommand (Vector3 x y z) (TextCommand 
                                 (accum (cddr lst) left-bump new-color-verts res)
                                 )] -}
                     Glyph GlyphSpec { xadvance } (GlyphVerts gverts tc) ->
-                        let dotransform :: V2 -> V3
-                            dotransform = \(Vector2 vx vy) -> v3 (x + fsize * (vx + leftBump)) (realToFrac linenum * fsize * realToFrac lineHeight * (-1) + y + fsize * (vy + yoffset)) z
+                        let dotransform :: V2 Scalar -> V3 Scalar
+                            dotransform = \(V2 vx vy) -> v3 (x + fsize * (vx + leftBump)) (realToFrac linenum * fsize * realToFrac lineHeight * (-1) + y + fsize * (vy + yoffset)) z
                             new_verts = map dotransform gverts
                             vert_set = foldr (\(v, w) lst -> vunpackFractional v ++ vunpackFractional w ++ color_verts ++ lst) [] (zip new_verts tc) in
                                 (leftBump + realToFrac xadvance, linenum, numsquares + 1, vert_set ++ vertlst, color_verts)
@@ -148,7 +148,7 @@ transformTextCommandsToVerts commands font = foldl processCommand (0, []) comman
           processCommand (numsquares, verts) command = let (num', verts') = (transformTextCommandToVerts command font) in (num' + numsquares, verts' ++ verts)
 
                     {- Embedded textures
-                    (Control 96) -> 
+                    (Control 96) ->
                                            (let* ([next (cadr lst)])
                                              (draw-embedded-tex (if (integer? next) next (font-character-id next))
                                                                 left-bump

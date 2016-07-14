@@ -28,7 +28,7 @@ import Graphics.Rendering.OpenGL.Raw.Core31
 import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
 
 -- Our game data
-data Model = Model { 
+data Model = Model {
            playerPos :: V2,
            playerMoveDir :: V2,
            firingDirection :: V2,
@@ -37,7 +37,7 @@ data Model = Model {
 
 -- By default, our firingDirection is to the right
 newGame :: Model
-newGame = Model vZero vZero (v2 1 0) []
+newGame = Model zero zero (v2 1 0) []
 
 data Msg = Fire | AddMove V2 | SubMove V2
 
@@ -58,7 +58,7 @@ moveKeyVec Key'Up = v2 0 1
 moveKeyVec Key'Down = v2 0 (-1)
 moveKeyVec Key'Left = v2 (-1) 0
 moveKeyVec Key'Right = v2 1 0
-moveKeyVec _ = vZero
+moveKeyVec _ = zero
 
 makeMsg :: Event -> Maybe Msg
 makeMsg (InputKeyDown Key'Space) = Just Fire
@@ -109,9 +109,9 @@ loadResources path = do
 
 -- This function calculates a view matrix, used during rendering
 calcCameraMatrix :: Size Int -> Model -> Mat44
-calcCameraMatrix (Size w h) model = 
+calcCameraMatrix (Size w h) model =
         let proj = Ortho (realToFrac w) 1 100 True
-            camera = Camera proj vZero in
+            camera = Camera proj zero in
                 cameraMatrix camera (aspectRatio (Size w h))
 
 -- Our render function
@@ -125,7 +125,7 @@ render Resources { solidShader, texturedShader, missileTex } layer  Model { play
 
 
 gameMain :: GLFW.Window -> Size Int -> IO ()
-gameMain win scrSize = do 
+gameMain win scrSize = do
     initRenderer
     glClearColor 0.125 0.125 0.125 1
     glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
