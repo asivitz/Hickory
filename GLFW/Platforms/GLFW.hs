@@ -13,7 +13,6 @@ import Engine.Scene.Run
 import Engine.Scene.Input
 import Types.Types
 import Data.Time
-import Control.Monad
 
 glfwRender :: GLFW.Window -> [SceneOperator ie] -> IO ()
 glfwRender win operators = do

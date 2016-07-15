@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Utils.BVH where
 
@@ -7,6 +8,9 @@ import Control.Applicative (empty)
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
+import qualified Text.Megaparsec.Char as C
+import Text.Megaparsec.Prim
+import Data.Maybe
 
 sc :: Parser ()
 sc = L.space (void spaceChar) empty empty
@@ -27,19 +31,46 @@ bracket :: Parser a -> Parser a
 bracket = between (symbol "{") (symbol "}")
 
 anyNumber = do
-        n <- lexeme L.number
+        n <- L.number
         return $ case n of
                       Left i -> realToFrac i
                       Right d -> d
 
+fraction :: MonadParsec s m Char => m String
+fraction = do
+  void (C.char '.')
+  d <- some C.digitChar
+  return ('.' : d)
+
+floating :: MonadParsec s m Char => m Double
+floating = label "floating" (read <$> f)
+        where front = do
+                chars <- many C.digitChar
+                return $ if null chars then "0" else chars
+              f = (++) <$> front <*> option " " fraction
+
 number :: Parser Double
-number = L.signed sc anyNumber
+number = lexeme (signed anyNumber)
 
 integer :: Parser Integer
 integer = lexeme L.integer
 
-parseAnimation :: Parser Animation
-parseAnimation = Animation <$> (reserved "HIERARCHY" *> parseRoot)
+parseBVH :: Parser BVH
+parseBVH = do
+        tree <- reserved "HIERARCHY" *> parseRoot
+        motion <- parseMotion
+        eof
+        return $ BVH tree motion
+
+signed p = do
+        n <- optional (symbol "-")
+        num <- p
+        return $ if isJust n then negate num else num
+
+parseFrame = do
+            fs <- sepBy1 (signed anyNumber) (satisfy (== ' '))
+            eol
+            return fs
 
 parseOffset = reserved "OFFSET" *>
     ((,,) <$> number <*> number <*> number)
@@ -47,50 +78,57 @@ parseOffset = reserved "OFFSET" *>
 parseEndSite = reserved "End Site" *>
         (JointEnd <$> bracket parseOffset)
 
-parse6Channels = do
+parseChannels n = do
         reserved "CHANNELS"
-        symbol "6"
-        identifier *> identifier *> identifier *> identifier *> identifier *> identifier
-        return ()
-
-parse3Channels = do
-        reserved "CHANNELS"
-        symbol "3"
-        identifier *> identifier *> identifier
+        symbol (show n)
+        count n identifier
         return ()
 
 parseRoot = do
         reserved "ROOT"
-        name <- identifier
-        (off, jnts) <- bracket $ do
-            offset <- parseOffset
-            parse6Channels
-            joints <- many (parseJoint <|> parseEndSite)
-            return (offset, joints)
-        return $ Joint name off jnts
+        parseJointBody 6
 
 parseJoint = do
         reserved "JOINT"
+        parseJointBody 3
+
+parseJointBody n = do
         name <- identifier
         (off, jnts) <- bracket $ do
             offset <- parseOffset
-            parse3Channels
+            parseChannels n
             joints <- many (parseJoint <|> parseEndSite)
             return (offset, joints)
-        return $ Joint name off jnts
+        return $ Joint n name off jnts
 
-data Animation = Animation Joint
+parseMotion = do
+        reserved "MOTION"
+        reserved "Frames:"
+        nFrames <- integer
+        reserved "Frame Time:"
+        fTime <- lexeme floating
+        allFrames <- some (parseFrame)
+        return $ Motion nFrames fTime allFrames
+
+data BVH = BVH Joint Motion
                deriving (Show)
+
+data Motion = Motion {
+            numFrames :: Integer,
+            frameTime :: Double,
+            frames :: [[Double]]
+            }
+            deriving (Show)
 
 type Offset = (Double, Double, Double)
 
-data Joint = Joint String Offset [Joint]
+data Joint = Joint Int String Offset [Joint]
            | JointEnd Offset
            deriving (Show)
 
-loadBVH :: String -> IO Animation
+loadBVH :: String -> IO BVH
 loadBVH filePath = do
-        res <- parseFromFile parseAnimation filePath
+        res <- parseFromFile parseBVH filePath
         case res of
             Left err -> error (show err)
             Right anim -> return anim
