@@ -21,12 +21,11 @@ degToRad = (*(pi/180))
 
 bvhToAnimation :: BVH.BVH -> Animation Double
 bvhToAnimation (BVH.BVH joint (BVH.Motion nFrames fTime fs)) =
-        Animation nFrames fTime (map (\f -> let ([], frame) = animateJoint (mkTransformation rot zero) f joint in frame) fs)
+        Animation nFrames fTime (map (\f -> let ([], frame) = animateJoint (mkRotation axis angle) f joint in frame) fs)
     where modelUp = unit _y
           worldUp = unit _z
           axis = cross modelUp worldUp
           angle = vabsangle worldUp modelUp
-          rot = axisAngle axis angle
 
 animateJoint :: M44 Double -> [Double] -> BVH.Joint -> ([Double], Frame Double)
 animateJoint parentMat (zr:yr:xr:rest) (BVH.Joint 3 name (x,y,z) children) = (leftOverChannels, Joint name mat childJoints)

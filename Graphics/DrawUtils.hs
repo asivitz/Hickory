@@ -69,6 +69,7 @@ sizePosRotMat (Size w h) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) r
 
 data RenderTree = Primative Shader Mat44 Color DrawSpec
                 | List [RenderTree]
+                | XForm (Maybe Mat44) RenderTree
                 | NoRender
                 deriving (Show)
 
@@ -82,10 +83,12 @@ data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
 collectPrintDescs :: RenderTree -> [PrintDesc]
 collectPrintDescs (List subs) = concatMap collectPrintDescs subs
 collectPrintDescs (Primative shader mat color (Text printer text) ) = [(printer, text, color)]
+collectPrintDescs (XForm _ child) = collectPrintDescs child
 collectPrintDescs _ = []
 
 textToVAO :: [(Maybe PrintDesc, VAOObj)] -> RenderTree -> RenderTree
 textToVAO m (List subs) = List $ map (textToVAO m) subs
+textToVAO m (XForm mat child) = XForm mat $ textToVAO m child
 textToVAO m (Primative sh mat col (Text pr@(Printer font tex) txt)) =
         Primative sh mat col
                     (VAO (Just tex)
@@ -138,7 +141,7 @@ renderTree layer tree state = do
         state'@(RenderState vaolst) <- updateRenderState tree state
         let tree' = textToVAO vaolst tree
 
-        drawTree layer tree'
+        drawTree Nothing layer tree'
 
         return state'
 
@@ -176,8 +179,17 @@ updateRenderState tree (RenderState vaolst) = do
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
 {-rtDepth _ = 0-}
 
-drawTree :: RenderLayer -> RenderTree -> IO ()
-drawTree _ NoRender = return ()
-drawTree layer (Primative sh mat col spec) = drawSpec sh mat col layer spec
-drawTree layer (List children) = mapM_ (drawTree layer) children -- (sortOn rtDepth children)
+drawTree :: Maybe (M44 Scalar) -> RenderLayer -> RenderTree -> IO ()
+drawTree _ _ NoRender = return ()
+drawTree parentMat layer (XForm mat child) = drawTree mat' layer child
+    where mat' = case (parentMat, mat) of
+                     (Just m, Just n) -> Just $ m !*! n
+                     (Nothing, n) -> n
+                     (m, Nothing) -> m
+
+drawTree parentMat layer (Primative sh mat col spec) = drawSpec sh mat' col layer spec
+    where mat' = case parentMat of
+                     Just m -> m !*! mat
+                     Nothing -> mat
+drawTree parentMat layer (List children) = mapM_ (drawTree parentMat layer) children -- (sortOn rtDepth children)
 
