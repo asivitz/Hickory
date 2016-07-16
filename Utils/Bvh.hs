@@ -25,7 +25,7 @@ reserved :: String -> Parser ()
 reserved w = string w *> notFollowedBy alphaNumChar *> sc
 
 identifier :: Parser String
-identifier = lexeme $ (:) <$> letterChar <*> many alphaNumChar
+identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.')
 
 bracket :: Parser a -> Parser a
 bracket = between (symbol "{") (symbol "}")
@@ -57,7 +57,7 @@ integer = lexeme L.integer
 
 parseBVH :: Parser BVH
 parseBVH = do
-        tree <- reserved "HIERARCHY" *> parseRoot
+        tree <- reserved "HIERARCHY" *> reserved "ROOT" *> parseJointBody
         motion <- parseMotion
         eof
         return $ BVH tree motion
@@ -68,9 +68,13 @@ signed p = do
         return $ if isJust n then negate num else num
 
 parseFrame = do
-            fs <- sepBy1 (signed anyNumber) (satisfy (== ' '))
-            eol
-            return fs
+        let f = (do
+                    n <- signed anyNumber
+                    optional (satisfy (== ' '))
+                    return n)
+        fs <- some f
+        eol
+        return fs
 
 parseOffset = reserved "OFFSET" *>
     ((,,) <$> number <*> number <*> number)
@@ -78,28 +82,19 @@ parseOffset = reserved "OFFSET" *>
 parseEndSite = reserved "End Site" *>
         (JointEnd <$> bracket parseOffset)
 
-parseChannels n = do
+parseChannels = do
         reserved "CHANNELS"
-        symbol (show n)
+        n <- fromIntegral <$> integer
         count n identifier
-        return ()
 
-parseRoot = do
-        reserved "ROOT"
-        parseJointBody 6
-
-parseJoint = do
-        reserved "JOINT"
-        parseJointBody 3
-
-parseJointBody n = do
+parseJointBody = do
         name <- identifier
-        (off, jnts) <- bracket $ do
+        (off, chans, jnts) <- bracket $ do
             offset <- parseOffset
-            parseChannels n
-            joints <- many (parseJoint <|> parseEndSite)
-            return (offset, joints)
-        return $ Joint n name off jnts
+            chans <- parseChannels
+            joints <- many ((reserved "JOINT" *> parseJointBody) <|> parseEndSite)
+            return (offset, chans, joints)
+        return $ Joint chans name off jnts
 
 parseMotion = do
         reserved "MOTION"
@@ -122,7 +117,12 @@ data Motion = Motion {
 
 type Offset = (Double, Double, Double)
 
-data Joint = Joint Int String Offset [Joint]
+data Joint = Joint {
+           channels :: [String],
+           name :: String,
+           offset :: Offset,
+           children :: [Joint]
+           }
            | JointEnd Offset
            deriving (Show)
 
