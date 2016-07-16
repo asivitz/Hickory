@@ -16,14 +16,16 @@ data Animation a = Animation {
         }
         deriving (Show)
 
+degToRad = (*(pi/180))
+
 bvhToAnimation :: BVH.BVH -> Animation Double
 bvhToAnimation (BVH.BVH joint (BVH.Motion nFrames fTime fs)) =
         Animation nFrames fTime (map (\f -> let ([], frame) = animateJoint f joint in frame) fs)
 
 animateJoint :: [Double] -> BVH.Joint -> ([Double], Frame Double)
-animateJoint (zr:yr:xr:rest) (BVH.Joint 3 name (x,y,z) children) = (leftOverChannels, Joint name (V3 x y z) (axisAngle (unit _z) zr * axisAngle (unit _y) yr * axisAngle (unit _x) xr) childJoints)
+animateJoint (zr:yr:xr:rest) (BVH.Joint 3 name (x,y,z) children) = (leftOverChannels, Joint name (V3 x y z) (axisAngle (unit _z) (degToRad zr) * axisAngle (unit _y) (degToRad yr) * axisAngle (unit _x) (degToRad xr)) childJoints)
     where (leftOverChannels, childJoints) = mapAccumL animateJoint rest children
-animateJoint (xp:yp:zp:zr:yr:xr:rest) (BVH.Joint 6 name (x,y,z) children) = (leftOverChannels, Joint name (V3 (x + xp) (y + yp) (z + zp)) (axisAngle (unit _z) zr * axisAngle (unit _y) yr * axisAngle (unit _x) xr) childJoints)
+animateJoint (xp:yp:zp:zr:yr:xr:rest) (BVH.Joint 6 name (x,y,z) children) = (leftOverChannels, Joint name (zero) (axisAngle (unit _z) (degToRad zr) * axisAngle (unit _y) (degToRad yr) * axisAngle (unit _x) (degToRad xr)) childJoints)
     where (leftOverChannels, childJoints) = mapAccumL animateJoint rest children
 animateJoint rest (BVH.JointEnd (x,y,z)) = (rest, End (V3 x y z))
 animateJoint _ _ = error "Couldn't convert BVH to animation"
