@@ -2,8 +2,11 @@ module Graphics.Animation where
 
 import Math.Vector
 import Math.Matrix
+import Linear.Metric
 import Linear.Quaternion
 import Data.List
+import Lens.Micro
+import Data.Ord
 import qualified Utils.BVH as BVH
 
 data Frame a = Joint String (M44 a) [Frame a]
@@ -13,22 +16,40 @@ data Frame a = Joint String (M44 a) [Frame a]
 data Animation a = Animation {
         numFrames :: Integer,
         frameTime :: Double,
-        frames :: [Frame a]
+        boundingBox :: (V3 Double, V3 Double),
+        frames :: [(Frame a, (V3 Double, V3 Double))]
         }
         deriving (Show)
 
 degToRad :: Double -> Double
 degToRad = (*(pi/180))
 
+vmax = liftI2 max
+vmin = liftI2 min
+
+vminimum = foldl' vmin 10000
+vmaximum = foldl' vmax (-10000)
+
+findJointLimits :: Frame Double -> (V3 Double, V3 Double)
+findJointLimits j = case j of
+                        (Joint _ mat children) -> f mat children
+                        (End mat) -> f mat []
+    where f mat chdn = (vmin local mn, vmax local mx)
+            where local = (mat !* point zero) ^. _xyz
+                  limits = map findJointLimits chdn
+                  (mn, mx) = (vminimum (map fst limits), vmaximum (map snd limits))
+
 bvhToAnimation :: BVH.BVH -> Animation Double
 bvhToAnimation (BVH.BVH joint (BVH.Motion nFrames fTime fs)) =
-        Animation nFrames fTime (map (\f -> let ([], frame) = animateJoint rot f joint in frame) fs)
+        Animation nFrames fTime bbox frames
     where modelUp = unit _y
           worldUp = unit _z
           axis = cross modelUp worldUp
           angle = vabsangle worldUp modelUp
           upVectorRot = mkRotation axis angle :: M44 Double
           rot = identity
+          frames = (map (\f -> let ([], frame) = animateJoint rot f joint in (frame, findJointLimits frame)) fs)
+          bbox = (vminimum (map (fst . snd) frames), vmaximum (map (snd . snd) frames))
 
 consumeChanData :: [String] -> [Double] -> (Double, Double, Double) -> (M44 Double, [Double])
 consumeChanData chanNames chanData (x, y, z) = (mkTransformation quat (v + V3 x y z), drop (length chanNames) chanData)
