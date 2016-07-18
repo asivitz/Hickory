@@ -1,12 +1,14 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Layer.Layer where
 
 import Data.List
 import Lens.Micro
 import Lens.Micro.TH
+import Text.PrettyPrint.GenericPretty
 
 type Layer s i = s -> [i] -> s
 
@@ -32,6 +34,9 @@ applyInput inputf nextLayer s msgs = foldl' inputf next msgs
 mapState :: (s -> s -> s) -> Layer s i -> Layer s i
 mapState f layer s i = f s $ layer s i
 
+mapStateMonadic :: Monad m => (s -> s -> m s) -> Layer s i -> MonadicLayer m s i
+mapStateMonadic f layer s i = f s $ layer s i
+
 transformInput :: (s -> i -> [j]) -> (s -> j -> s) -> (s -> i -> s)
 transformInput xformer inputf s i = foldl' inputf s (xformer s i)
 
@@ -48,7 +53,9 @@ data DebugState model = DebugState {
              _stackIndex :: Int,
              _current :: model
              }
-             deriving (Show)
+             deriving (Show, Generic)
+
+instance Out model => Out (DebugState model)
 
 makeLenses ''DebugState
 
