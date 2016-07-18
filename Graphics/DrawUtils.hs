@@ -21,6 +21,8 @@ import Foreign.C.Types
 import Data.Foldable (toList)
 import Lens.Micro
 import Linear.Matrix
+import qualified Utils.OBJ as OBJ
+import Data.List.Utils
 
 import Graphics.Drawing
 import Types.Color
@@ -39,9 +41,9 @@ drawSpec shader mat color layer spec =
                    Just (w,h) -> setTCCommand dc (v4 0 0 w h)
                    _ -> return ()
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
-            VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems) -> do
+            VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems drawType) -> do
                 dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True
-                vao_payload <- setVAOCommand dc vao numitems gl_TRIANGLE_STRIP
+                vao_payload <- setVAOCommand dc vao numitems drawType
                 return ()
     where depth = (mat !* v4 0 0 0 1) ^. _z
 
@@ -73,7 +75,7 @@ data RenderTree = Primative Shader Mat44 Color DrawSpec
                 | NoRender
                 deriving (Show)
 
-data VAOObj = VAOObj VAOConfig Int
+data VAOObj = VAOObj VAOConfig Int CUInt
             deriving (Show)
 
 type PrintDesc = (Printer Int, TextCommand, Color)
@@ -98,7 +100,7 @@ textToVAO m a = a
 
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
 updateVAOObj (Printer font texid, textCommand, color)
-             (VAOObj vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } _ ) = do
+             (VAOObj vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } _ _) = do
                  let command = PositionedTextCommand zero (textCommand { color = color })
                      (numsquares, floats) = transformTextCommandsToVerts [command] font
 
@@ -108,7 +110,7 @@ updateVAOObj (Printer font texid, textCommand, color)
                         numBlockIndices <- bufferSquareIndices ivbo numsquares
                         unbindVAO
 
-                        return (VAOObj vaoconfig numBlockIndices)
+                        return (VAOObj vaoconfig numBlockIndices gl_TRIANGLE_STRIP)
                      else
                          error "Tried to print empty text command"
 
@@ -126,15 +128,35 @@ cubeFloats = concatMap toList verts
           p8 = v3 l h h
           verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
+buildData :: OBJ.OBJ Double -> ([CFloat], [CUShort])
+buildData (OBJ.OBJ vertices texCoords normals faces) = (concat $ valuesAL pool, indices)
+    where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
+          pool = foldl' (\alst e -> addToAL alst e (construct e)) [] $ concatMap toList faces
+          indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap toList faces
+
+loadObjIntoVAOConfig :: VAOConfig -> OBJ.OBJ Double -> IO VAOObj
+loadObjIntoVAOConfig
+    vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) }
+    obj
+    = do
+        let (vertexData, indices) = buildData obj
+        bindVAO vao
+        bufferVertices vbo vertexData
+        bufferIndices ivbo indices
+        unbindVAO
+
+        return (VAOObj vaoconfig (length indices) gl_TRIANGLES)
+
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } = do
         let floats = cubeFloats
+            indices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
         bindVAO vao
         bufferVertices vbo floats
-        bufferIndices ivbo [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
+        bufferIndices ivbo indices
         unbindVAO
 
-        return (VAOObj vaoconfig 12)
+        return (VAOObj vaoconfig (length indices) gl_TRIANGLE_STRIP)
 
 renderTree :: RenderLayer -> RenderTree -> RenderState -> IO RenderState
 renderTree layer tree state = do

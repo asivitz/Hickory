@@ -26,6 +26,7 @@ typedef enum
    SP_ATTR_TEX_COORDS,
    SP_ATTR_COLOR,
    SP_ATTR_COLOR2,
+   SP_ATTR_NORMALS,
    SP_ATTR_MAXNUM
 } ShaderAttributeCode;
 

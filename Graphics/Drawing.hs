@@ -31,6 +31,7 @@ module Graphics.Drawing ( module Graphics.GLUtils,
                           sp_ATTR_TEX_COORDS,
                           sp_ATTR_COLOR,
                           sp_ATTR_COLOR2,
+                          sp_ATTR_NORMALS,
                           sp_UNIFORM_TEXID,
                           sp_UNIFORM_COLOR,
                           sp_UNIFORM_COLOR2,
@@ -124,6 +125,7 @@ data VAOConfig = VAOConfig {
  sp_ATTR_TEX_COORDS:
  sp_ATTR_COLOR:
  sp_ATTR_COLOR2:
+ sp_ATTR_NORMALS:
  sp_ATTR_MAXNUM) = map Attribute [0..]
 
 buildVertexGroup :: Shader -> VertexGroup -> IO VBO

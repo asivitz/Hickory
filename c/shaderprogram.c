@@ -197,6 +197,7 @@ ShaderProgram * buildShaderProgram(const char * vertShaderPath, const char * fra
    program->attributeLocations[SP_ATTR_TEX_COORDS] = glGetAttribLocation(programId, "texCoords");
    program->attributeLocations[SP_ATTR_COLOR] = glGetAttribLocation(programId, "color");
    program->attributeLocations[SP_ATTR_COLOR2] = glGetAttribLocation(programId, "color2");
+   program->attributeLocations[SP_ATTR_NORMALS] = glGetAttribLocation(programId, "normals");
    
    program->uniformLocations[SP_UNIFORM_TEXID] = glGetUniformLocation(programId, "tex");
    program->uniformLocations[SP_UNIFORM_COLOR] = glGetUniformLocation(programId, "color");
