@@ -29,7 +29,7 @@ viewProject pos modelView (V4 vpx vpy vpw vph) =
 
 viewUnproject :: V3 Scalar -> Mat44 -> V4 Scalar -> V3 Scalar
 viewUnproject (V3 wx wy wz) modelView (V4 vpx vpy vpw vph) =
-        let inverted = fromJust $ inv44 modelView
+        let inverted = inv44 modelView
             inviewport = v3 ((wx - vpx) / vpw) ((wy - vpy) / vph) wz
             adjusted = fmap (\x -> x * 2 - 1) inviewport
             from = v3tov4 adjusted 1

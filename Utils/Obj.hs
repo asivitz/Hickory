@@ -12,6 +12,7 @@ import qualified Text.Megaparsec.Char as C
 import Text.Megaparsec.Prim
 import Data.Maybe
 import Math.Vector
+import Utils.Parsing
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -25,29 +26,10 @@ reserved w = string w *> notFollowedBy alphaNumChar *> sc
 identifier :: Parser String
 identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_')
 
-anyNumber = do
-        n <- L.number
-        return $ case n of
-                      Left i -> realToFrac i
-                      Right d -> d
-
 anySignedNumber = do
         n <- signed anyNumber
         optional (satisfy (== ' '))
         return n
-
-fraction :: MonadParsec s m Char => m String
-fraction = do
-  void (C.char '.')
-  d <- some C.digitChar
-  return ('.' : d)
-
-floating :: MonadParsec s m Char => m Double
-floating = label "floating" (read <$> f)
-        where front = do
-                chars <- many C.digitChar
-                return $ if null chars then "0" else chars
-              f = (++) <$> front <*> option " " fraction
 
 number :: Parser Double
 number = lexeme (signed anyNumber)

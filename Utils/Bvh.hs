@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 
 module Utils.BVH where
 
@@ -11,6 +12,7 @@ import qualified Text.Megaparsec.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Text.Megaparsec.Prim
 import Data.Maybe
+import Utils.Parsing
 
 sc :: Parser ()
 sc = L.space (void spaceChar) empty empty
@@ -29,25 +31,6 @@ identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.')
 
 bracket :: Parser a -> Parser a
 bracket = between (symbol "{") (symbol "}")
-
-anyNumber = do
-        n <- L.number
-        return $ case n of
-                      Left i -> realToFrac i
-                      Right d -> d
-
-fraction :: MonadParsec s m Char => m String
-fraction = do
-  void (C.char '.')
-  d <- some C.digitChar
-  return ('.' : d)
-
-floating :: MonadParsec s m Char => m Double
-floating = label "floating" (read <$> f)
-        where front = do
-                chars <- many C.digitChar
-                return $ if null chars then "0" else chars
-              f = (++) <$> front <*> option " " fraction
 
 number :: Parser Double
 number = lexeme (signed anyNumber)
