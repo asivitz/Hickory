@@ -11,7 +11,7 @@ import System.IO.Unsafe
 import Linear.Matrix
 import Data.Maybe
 import Foreign.Marshal.Utils
-import Lens.Micro
+import Control.Lens
 
 v3rotate :: V3 Scalar -> V3 Scalar -> Scalar -> V3 Scalar
 v3rotate v axis angle = (mkRotation axis angle !* v3tov4 v 1) ^. _xyz

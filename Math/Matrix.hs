@@ -21,7 +21,7 @@ import Linear.V3
 import Linear.Matrix
 import Linear.Projection
 import Linear.Quaternion
-import Lens.Micro
+import Control.Lens
 import Math.Vector
 import Foreign.Marshal.Utils
 

@@ -19,7 +19,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Foreign.C.Types
 import Data.Foldable (toList)
-import Lens.Micro
+import Control.Lens hiding (List)
 import Linear.Matrix
 import qualified Utils.OBJ as OBJ
 import Data.List.Utils

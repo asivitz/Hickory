@@ -5,7 +5,7 @@ import Math.Matrix
 import Linear.Metric
 import Linear.Quaternion
 import Data.List
-import Lens.Micro
+import Control.Lens
 import Data.Ord
 import qualified Utils.BVH as BVH
 

@@ -1,13 +1,11 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE DeriveGeneric #-}
 
 module Layer.Layer where
 
 import Data.List
-import Lens.Micro
-import Lens.Micro.TH
+import Control.Lens
 import Text.PrettyPrint.GenericPretty
 
 type Layer s i = s -> [i] -> s
@@ -55,9 +53,36 @@ data DebugState model = DebugState {
              }
              deriving (Show, Generic)
 
-instance Out model => Out (DebugState model)
+-- GENERATED #################
+-- makeLenses ''DebugState
+current :: forall model_aI9. Lens' (DebugState model_aI9) model_aI9
+current f_a6OS (DebugState x_a6OT x_a6OU x_a6OV x_a6OW)
+    = fmap
+        (\ y_a6OX -> DebugState x_a6OT x_a6OU x_a6OV y_a6OX)
+        (f_a6OS x_a6OW)
+{-# INLINE current #-}
+debug :: forall model_aI9. Lens' (DebugState model_aI9) Bool
+debug f_a6OY (DebugState x_a6OZ x_a6P0 x_a6P1 x_a6P2)
+    = fmap
+        (\ y_a6P3 -> DebugState y_a6P3 x_a6P0 x_a6P1 x_a6P2)
+        (f_a6OY x_a6OZ)
+{-# INLINE debug #-}
+modelStack ::
+    forall model_aI9. Lens' (DebugState model_aI9) [model_aI9]
+modelStack f_a6P4 (DebugState x_a6P5 x_a6P6 x_a6P7 x_a6P8)
+    = fmap
+        (\ y_a6P9 -> DebugState x_a6P5 y_a6P9 x_a6P7 x_a6P8)
+        (f_a6P4 x_a6P6)
+{-# INLINE modelStack #-}
+stackIndex :: forall model_aI9. Lens' (DebugState model_aI9) Int
+stackIndex f_a6Pa (DebugState x_a6Pb x_a6Pc x_a6Pd x_a6Pe)
+    = fmap
+        (\ y_a6Pf -> DebugState x_a6Pb x_a6Pc y_a6Pf x_a6Pe)
+        (f_a6Pa x_a6Pd)
+{-# INLINE stackIndex #-}
+-- ##########################
 
-makeLenses ''DebugState
+instance Out model => Out (DebugState model)
 
 mkDebugState = DebugState False [] 0
 
