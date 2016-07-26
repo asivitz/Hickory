@@ -1,5 +1,4 @@
 import Engine.Scene.Scene
-import Platform.IPhone
 import Platforms.IOS
 
 {- To use the iosMain entry function, your iPhone project must implement the following callbacks:

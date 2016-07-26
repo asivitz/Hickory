@@ -12,7 +12,7 @@ import Engine.Scene.Scene
 import Engine.Scene.Run
 import Engine.Scene.Input
 import Types.Types
-import Data.Time
+import Platform.Common
 
 glfwRender :: GLFW.Window -> [SceneOperator ie] -> IO ()
 glfwRender win operators = do
@@ -49,23 +49,8 @@ glfwMain name (Size w h) operators sendRawInput =
 
 -- NEW
 
-makeInputPoller :: GLFW.Window -> IO (IO [RawInput])
-makeInputPoller win = do
-        is <- newIORef []
-        stepInp <- Bridge.setupInput win (addRawInput is)
-        return $ do
-            stepInp
-            atomicModifyIORef is (\i -> ([], i))
-    where addRawInput stream event =
-            atomicModifyIORef stream (\evs -> (evs ++ [event], ()))
-
-makeTimePoller :: IO (IO Double)
-makeTimePoller = do
-        initial_time <- getCurrentTime
-        time <- newIORef initial_time
-        return $ do
-            new_time <- getCurrentTime
-            atomicModifyIORef time (\prev_time -> (new_time, min 0.1 $ realToFrac (diffUTCTime new_time prev_time)))
+makeGLFWInputPoller :: GLFW.Window -> IO (IO [RawInput])
+makeGLFWInputPoller win = makeInputPoller (Bridge.setupInput win)
 
 glfwMain' :: String -> Size Int -> (GLFW.Window -> Size Int -> IO ()) -> IO ()
 glfwMain' name (Size w h) callback =
