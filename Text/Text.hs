@@ -19,8 +19,8 @@ type KerningTable a = HashMap.HashMap KerningPair (KerningSpec a)
 
 data Font a = Font String (FontInfo a) (CharTable a) (KerningTable a) deriving Show
 
-instance Eq (Font a) where
-        (Font namea _ _ _) == (Font nameb _ _ _) = namea == nameb
+fontName :: Font a -> String
+fontName (Font n _ _ _) = n
 
 addItem :: (Data.Hashable.Hashable k, Eq k) => (v -> k) -> HashMap.HashMap k v -> v -> HashMap.HashMap k v
 addItem keyfunc table item = HashMap.insert (keyfunc item) item table

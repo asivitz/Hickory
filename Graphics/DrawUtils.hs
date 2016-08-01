@@ -15,14 +15,13 @@ import Data.Maybe
 import Graphics.DrawText
 import Text.Text
 import qualified Data.Text as Text
-import qualified Data.HashMap.Strict as HashMap
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Foreign.C.Types
 import Data.Foldable (toList)
 import Control.Lens hiding (List)
 import Linear.Matrix
 import qualified Utils.OBJ as OBJ
-import Data.List.Utils
+import qualified Data.List.Utils as LUtils
 
 import Graphics.Drawing
 import Types.Color
@@ -78,13 +77,18 @@ data RenderTree = Primative Shader Mat44 Color DrawSpec
 data VAOObj = VAOObj VAOConfig Int CUInt
             deriving (Show)
 
-type PrintDesc = (Printer Int, TextCommand, Color)
+data PrintDesc = PrintDesc (Printer Int) TextCommand Color
+               deriving (Show)
+
+-- Vector equality using (==) doesn't always work on ARM
+instance Eq PrintDesc where
+        PrintDesc pra tca cola == PrintDesc prb tcb colb = pra == prb && tca == tcb && vnull (cola - colb)
 
 data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
 
 collectPrintDescs :: RenderTree -> [PrintDesc]
 collectPrintDescs (List subs) = concatMap collectPrintDescs subs
-collectPrintDescs (Primative shader mat color (Text printer text) ) = [(printer, text, color)]
+collectPrintDescs (Primative shader mat color (Text printer text) ) = [PrintDesc printer text color]
 collectPrintDescs (XForm _ child) = collectPrintDescs child
 collectPrintDescs _ = []
 
@@ -94,12 +98,12 @@ textToVAO m (XForm mat child) = XForm mat $ textToVAO m child
 textToVAO m (Primative sh mat col (Text pr@(Printer font tex) txt)) =
         Primative sh mat col
                     (VAO (Just tex)
-                         (fromMaybe (error $ "Can't find vao for text command: " ++ show txt)
-                                    (lookup (Just (pr, txt, col)) m)))
+                         (fromMaybe (error $ "Can't find vao for text command: " ++ show (pr, txt, col) ++ " in: " ++ show m)
+                                    (lookup (Just (PrintDesc pr txt col)) m)))
 textToVAO m a = a
 
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
-updateVAOObj (Printer font texid, textCommand, color)
+updateVAOObj (PrintDesc (Printer font texid) textCommand color)
              (VAOObj vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } _ _) = do
                  let command = PositionedTextCommand zero (textCommand { color = color })
                      (numsquares, floats) = transformTextCommandsToVerts [command] font
@@ -129,9 +133,9 @@ cubeFloats = concatMap toList verts
           verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
 buildData :: OBJ.OBJ Double -> ([CFloat], [CUShort])
-buildData (OBJ.OBJ vertices texCoords normals faces) = (concat $ valuesAL pool, indices)
+buildData (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
     where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
-          pool = foldl' (\alst e -> addToAL alst e (construct e)) [] $ concatMap toList faces
+          pool = foldl' (\alst e -> LUtils.addToAL alst e (construct e)) [] $ concatMap toList faces
           indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap toList faces
 
 loadObjIntoVAOConfig :: VAOConfig -> OBJ.OBJ Double -> IO VAOObj

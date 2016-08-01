@@ -15,11 +15,16 @@ import Textures.Textures
 import Control.Monad
 
 data Printer a = Printer (Font a) TexID
-               deriving (Show, Eq)
+
+instance Eq (Printer a) where
+        Printer fa tid == Printer fb tidb = tid == tidb && fontName fa == fontName fb
+
+instance Show (Printer a) where
+        show (Printer font tid) = "Printer:" ++ fontName font ++ "/" ++ show tid
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = do
-        vaoConfig <- createVAOConfig shader 
+        vaoConfig <- createVAOConfig shader
             [VertexGroup [Attachment sp_ATTR_POSITION 3,
                           Attachment sp_ATTR_TEX_COORDS 2,
                           Attachment sp_ATTR_COLOR 4]]
@@ -40,7 +45,7 @@ loadPrinter resPath shader name = do
                     Right font -> return $ Just (Printer font tid)
 
 textcommand :: TextCommand
-textcommand = TextCommand { 
+textcommand = TextCommand {
                           text = "",
                           fontSize = 4,
                           align = AlignCenter,
