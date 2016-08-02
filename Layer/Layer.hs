@@ -32,6 +32,9 @@ applyInput inputf nextLayer s msgs = foldl' inputf next msgs
 mapState :: (s -> s -> s) -> Layer s i -> Layer s i
 mapState f layer s i = f s $ layer s i
 
+conditional :: (s -> Bool) -> LayerXForm s s i -> Layer s i -> Layer s i
+conditional pred xform nextLayer s i = if pred s then (xform nextLayer) s i else nextLayer s i
+
 mapStateMonadic :: Monad m => (s -> s -> m s) -> Layer s i -> MonadicLayer m s i
 mapStateMonadic f layer s i = f s $ layer s i
 
