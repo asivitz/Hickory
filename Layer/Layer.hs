@@ -10,6 +10,30 @@ import Text.PrettyPrint.GenericPretty
 
 type Layer s i = s -> [i] -> s
 
+(*.*) :: Layer s i -> Layer s i -> Layer s i
+l1 *.* l2 = \s is -> let s' = l2 s is
+                         in l1 s' is
+
+-- applyInput is foldl'
+mapState :: (s -> s) -> Layer s i
+mapState f = \s is -> f s
+
+resolveDiff :: (s -> s -> s) -> Layer s i -> Layer s i
+resolveDiff f layer = \s is -> f s (layer s is)
+
+pause :: (s -> Bool) -> Layer s i -> Layer s i
+pause pred = resolveDiff (\old new -> if pred new then old else new)
+
+conditional :: (s -> Bool) -> Layer s i -> Layer s i
+conditional pred layer s is = if pred s then layer s is else s
+
+tunnel = wrap
+
+changeInput :: (i -> [j]) -> Layer s j -> Layer s i
+changeInput inputmap layer = \s is -> layer s (concatMap inputmap is)
+
+-- **********
+
 type LayerXForm s' s i = Layer s' i -> Layer s i
 
 type MonadicLayer m s i = s -> [i] -> m s
@@ -25,15 +49,10 @@ wrap l nextLayer s i = s & l %~ (`nextLayer` i)
 
 noXForm s i = [i]
 
-applyInput :: (s -> i -> s) -> Layer s i -> Layer s i
-applyInput inputf nextLayer s msgs = foldl' inputf next msgs
-    where next = nextLayer s msgs
-
-mapState :: (s -> s -> s) -> Layer s i -> Layer s i
-mapState f layer s i = f s $ layer s i
-
-conditional :: (s -> Bool) -> LayerXForm s s i -> Layer s i -> Layer s i
-conditional pred xform nextLayer s i = if pred s then (xform nextLayer) s i else nextLayer s i
+{-mapInput :: (i -> [j]) -> ((s -> [j] -> s) -> Layer s j) -> Layer s i -> Layer s i-}
+{-mapInput inputXform xform nextLayer s is =-}
+    {-where js = concatMap inputXform is-}
+          {-xform' s' is' = xform s js-}
 
 mapStateMonadic :: Monad m => (s -> s -> m s) -> Layer s i -> MonadicLayer m s i
 mapStateMonadic f layer s i = f s $ layer s i
@@ -106,5 +125,5 @@ debugStep oldstate debugstate@DebugState { _debug, _modelStack, _stackIndex, _cu
             then debugstate & current .~ _modelStack !! _stackIndex
             else debugstate & modelStack .~ _current : (if length _modelStack > 1500 then take 1500 _modelStack else _modelStack)
 
-debugLayer :: (i -> [DebugMsg]) -> LayerXForm b (DebugState b) i
-debugLayer debugMsgF = mapState debugStep . applyInput (transformInput (\s i -> debugMsgF i) debugInput) . wrap current
+debugLayer :: (i -> [DebugMsg]) -> Layer b i -> Layer (DebugState b) i
+debugLayer debugMsgF layer = resolveDiff debugStep (foldl' (transformInput (\s i -> debugMsgF i) debugInput) *.* tunnel current layer)
