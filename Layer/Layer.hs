@@ -15,7 +15,9 @@ type Layer s i = s -> [i] -> s
 l1 *.* l2 = \s is -> let s' = l2 s is
                          in l1 s' is
 
--- applyInput is foldl'
+dynamic :: (s -> Layer s i) -> Layer s i
+dynamic layerf = \s is -> layerf s s is
+
 mapState :: (s -> s) -> Layer s i
 mapState f = \s is -> f s
 
@@ -30,7 +32,6 @@ conditional pred layer s is = if pred s then layer s is else s
 
 liftState :: Lens' s s' -> Layer s' i -> Layer s i
 liftState l nextLayer s i = s & l %~ (`nextLayer` i)
-
 
 liftInput :: (i -> [j]) -> Layer s j -> Layer s i
 liftInput inputmap layer = \s is -> layer s (concatMap inputmap is)
