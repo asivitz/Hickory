@@ -27,10 +27,12 @@ pause pred = resolveDiff (\old new -> if pred new then old else new)
 conditional :: (s -> Bool) -> Layer s i -> Layer s i
 conditional pred layer s is = if pred s then layer s is else s
 
-tunnel = wrap
+liftState :: Lens' s s' -> Layer s' i -> Layer s i
+liftState l nextLayer s i = s & l %~ (`nextLayer` i)
 
-changeInput :: (i -> [j]) -> Layer s j -> Layer s i
-changeInput inputmap layer = \s is -> layer s (concatMap inputmap is)
+
+liftInput :: (i -> [j]) -> Layer s j -> Layer s i
+liftInput inputmap layer = \s is -> layer s (concatMap inputmap is)
 
 -- **********
 
@@ -44,9 +46,6 @@ constructMonadicLayer stepf nextLayer (lay1, lay2) msg1s = do
         lay1' <- stepf lay2' lay1
         return (lay1', lay2')
 
-wrap :: Lens' s s' -> Layer s' i -> Layer s i
-wrap l nextLayer s i = s & l %~ (`nextLayer` i)
-
 noXForm s i = [i]
 
 {-mapInput :: (i -> [j]) -> ((s -> [j] -> s) -> Layer s j) -> Layer s i -> Layer s i-}
@@ -56,9 +55,6 @@ noXForm s i = [i]
 
 mapStateMonadic :: Monad m => (s -> s -> m s) -> Layer s i -> MonadicLayer m s i
 mapStateMonadic f layer s i = f s $ layer s i
-
-transformInput :: (s -> i -> [j]) -> (s -> j -> s) -> (s -> i -> s)
-transformInput xformer inputf s i = foldl' inputf s (xformer s i)
 
 -- Debug Layer
 data DebugMsg = FlipDebug
@@ -126,4 +122,4 @@ debugStep oldstate debugstate@DebugState { _debug, _modelStack, _stackIndex, _cu
             else debugstate & modelStack .~ _current : (if length _modelStack > 1500 then take 1500 _modelStack else _modelStack)
 
 debugLayer :: (i -> [DebugMsg]) -> Layer b i -> Layer (DebugState b) i
-debugLayer debugMsgF layer = resolveDiff debugStep (foldl' (transformInput (\s i -> debugMsgF i) debugInput) *.* tunnel current layer)
+debugLayer debugMsgF layer = resolveDiff debugStep (liftInput debugMsgF (foldl' debugInput) *.* liftState current layer)
