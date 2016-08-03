@@ -7,6 +7,7 @@ module Layer.Layer where
 import Data.List
 import Control.Lens
 import Text.PrettyPrint.GenericPretty
+import Data.Maybe
 
 type Layer s i = s -> [i] -> s
 
@@ -33,6 +34,15 @@ liftState l nextLayer s i = s & l %~ (`nextLayer` i)
 
 liftInput :: (i -> [j]) -> Layer s j -> Layer s i
 liftInput inputmap layer = \s is -> layer s (concatMap inputmap is)
+
+liftAndConsumeInput :: (i -> [j]) -> Layer s j -> Layer s i -> Layer s i
+liftAndConsumeInput inputmap layer nextLayer s is = nextLayer res unused
+    where is' = map inputmap is
+          res = layer s (concat is')
+          unused = mapMaybe xx (zip is is')
+          xx (orig,[]) = Just orig
+          xx (orig,_) = Nothing
+
 
 -- **********
 
