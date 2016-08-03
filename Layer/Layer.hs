@@ -121,5 +121,5 @@ debugStep oldstate debugstate@DebugState { _debug, _modelStack, _stackIndex, _cu
             then debugstate & current .~ _modelStack !! _stackIndex
             else debugstate & modelStack .~ _current : (if length _modelStack > 1500 then take 1500 _modelStack else _modelStack)
 
-debugLayer :: (i -> [DebugMsg]) -> Layer b i -> Layer (DebugState b) i
-debugLayer debugMsgF layer = resolveDiff debugStep (liftInput debugMsgF (foldl' debugInput) *.* liftState current layer)
+liftDebug :: Layer b i -> Layer (DebugState b) i
+liftDebug layer = resolveDiff debugStep (liftState current layer)
