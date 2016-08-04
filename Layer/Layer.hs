@@ -9,47 +9,40 @@ import Control.Lens
 import Text.PrettyPrint.GenericPretty
 import Data.Maybe
 
-type Layer s i = s -> [i] -> s
+type Layer s i = s -> i -> s
 
 (*.*) :: Layer s i -> Layer s i -> Layer s i
-l1 *.* l2 = \s is -> let s' = l2 s is
-                         in l1 s' is
+l1 *.* l2 = \s i -> l1 (l2 s i) i
 
 dynamic :: (s -> Layer s i) -> Layer s i
-dynamic layerf = \s is -> layerf s s is
-
-mapState :: (s -> s) -> Layer s i
-mapState f = \s is -> f s
+dynamic layerf = \s i -> (layerf s) s i
 
 resolveDiff :: (s -> s -> s) -> Layer s i -> Layer s i
-resolveDiff f layer = \s is -> f s (layer s is)
+resolveDiff f layer = \s i -> f s (layer s i)
 
 pause :: (s -> Bool) -> Layer s i -> Layer s i
 pause pred = resolveDiff (\old new -> if pred new then old else new)
 
 conditional :: (s -> Bool) -> Layer s i -> Layer s i
-conditional pred layer s is = if pred s then layer s is else s
+conditional pred layer s i = if pred s then layer s i else s
 
 liftState :: Lens' s s' -> Layer s' i -> Layer s i
 liftState l nextLayer s i = s & l %~ (`nextLayer` i)
 
 liftInput :: (i -> [j]) -> Layer s j -> Layer s i
-liftInput inputmap layer = \s is -> layer s (concatMap inputmap is)
+liftInput inputmap layer = \s i -> foldl' layer s (inputmap i)
 
 liftAndConsumeInput :: (i -> [j]) -> Layer s j -> Layer s i -> Layer s i
-liftAndConsumeInput inputmap layer nextLayer s is = nextLayer res unused
-    where is' = map inputmap is
-          res = layer s (concat is')
-          unused = mapMaybe xx (zip is is')
-          xx (orig,[]) = Just orig
-          xx (orig,_) = Nothing
-
+liftAndConsumeInput inputmap layer nextLayer s i =
+        case inputmap i of
+            [] -> nextLayer s i
+            js -> foldl' layer s js
 
 -- **********
 
 type LayerXForm s' s i = Layer s' i -> Layer s i
 
-type MonadicLayer m s i = s -> [i] -> m s
+type MonadicLayer m s i = s -> i -> m s
 
 constructMonadicLayer :: Monad m => (s' -> s -> m s) -> Layer s' i -> MonadicLayer m (s, s') i
 constructMonadicLayer stepf nextLayer (lay1, lay2) msg1s = do
