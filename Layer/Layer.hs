@@ -68,7 +68,7 @@ data DebugMsg = FlipDebug
               | JumpBackward
 
 data DebugState model = DebugState {
-             _debug :: Bool,
+             _isDebugging :: Bool,
              _modelStack :: [model],
              _stackIndex :: Int,
              _current :: model
@@ -83,12 +83,12 @@ current f_a6OS (DebugState x_a6OT x_a6OU x_a6OV x_a6OW)
         (\ y_a6OX -> DebugState x_a6OT x_a6OU x_a6OV y_a6OX)
         (f_a6OS x_a6OW)
 {-# INLINE current #-}
-debug :: forall model_aI9. Lens' (DebugState model_aI9) Bool
-debug f_a6OY (DebugState x_a6OZ x_a6P0 x_a6P1 x_a6P2)
+isDebugging :: forall model_aI9. Lens' (DebugState model_aI9) Bool
+isDebugging f_a6OY (DebugState x_a6OZ x_a6P0 x_a6P1 x_a6P2)
     = fmap
         (\ y_a6P3 -> DebugState y_a6P3 x_a6P0 x_a6P1 x_a6P2)
         (f_a6OY x_a6OZ)
-{-# INLINE debug #-}
+{-# INLINE isDebugging #-}
 modelStack ::
     forall model_aI9. Lens' (DebugState model_aI9) [model_aI9]
 modelStack f_a6P4 (DebugState x_a6P5 x_a6P6 x_a6P7 x_a6P8)
@@ -109,19 +109,19 @@ instance Out model => Out (DebugState model)
 mkDebugState = DebugState False [] 0
 
 debugInput :: DebugState b -> DebugMsg -> DebugState b
-debugInput debugstate@DebugState { _debug, _stackIndex, _modelStack } input = state'
+debugInput debugstate@DebugState { _isDebugging, _stackIndex, _modelStack } input = state'
         where state' = case input of
-                         FlipDebug -> if _debug
-                                          then debugstate { _debug = not _debug, _stackIndex = 0, _modelStack = drop _stackIndex _modelStack }
-                                          else debugstate { _debug = not _debug, _stackIndex = 0 }
+                         FlipDebug -> if _isDebugging
+                                          then debugstate { _isDebugging = not _isDebugging, _stackIndex = 0, _modelStack = drop _stackIndex _modelStack }
+                                          else debugstate { _isDebugging = not _isDebugging, _stackIndex = 0 }
                          StepForward -> debugstate { _stackIndex = max 0 (_stackIndex - 1) }
                          JumpForward -> debugstate { _stackIndex = max 0 (_stackIndex - 10) }
                          StepBackward -> debugstate { _stackIndex = min (length _modelStack - 1) (max 0 (_stackIndex + 1)) }
                          JumpBackward -> debugstate { _stackIndex = min (length _modelStack - 1) (max 0 (_stackIndex + 10)) }
 
 debugStep :: DebugState b -> DebugState b -> DebugState b
-debugStep oldstate debugstate@DebugState { _debug, _modelStack, _stackIndex, _current } =
-        if _debug
+debugStep oldstate debugstate@DebugState { _isDebugging, _modelStack, _stackIndex, _current } =
+        if _isDebugging
             then debugstate & current .~ _modelStack !! _stackIndex
             else debugstate & modelStack .~ _current : (if length _modelStack > 1500 then take 1500 _modelStack else _modelStack)
 
