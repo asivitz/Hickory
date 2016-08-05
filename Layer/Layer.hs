@@ -20,11 +20,8 @@ dynamic layerf = \s i -> (layerf s) s i
 resolveDiff :: (s -> s -> s) -> Layer s i -> Layer s i
 resolveDiff f layer = \s i -> f s (layer s i)
 
-pause :: (s -> Bool) -> Layer s i -> Layer s i
-pause pred = resolveDiff (\old new -> if pred new then old else new)
-
-conditional :: (s -> Bool) -> Layer s i -> Layer s i
-conditional pred layer s i = if pred s then layer s i else s
+when :: (s -> Bool) -> Layer s i -> Layer s i
+when pred layer s i = if pred s then layer s i else s
 
 liftState :: Lens' s s' -> Layer s' i -> Layer s i
 liftState l nextLayer s i = s & l %~ (`nextLayer` i)
