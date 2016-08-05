@@ -6,6 +6,7 @@ resolver: nightly-2016-07-19
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
+- '../../layer'
 - 'GLFW'
 #- 'Example/HFreecell'
 
