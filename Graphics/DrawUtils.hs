@@ -111,10 +111,11 @@ updateVAOObj (PrintDesc (Printer font texid) textCommand color)
                  if not $ null floats then do
                         bindVAO vao
                         bufferVertices vbo floats
-                        numBlockIndices <- bufferSquareIndices ivbo numsquares
+                        let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
+                        bufferIndices ivbo indices
                         unbindVAO
 
-                        return (VAOObj vaoconfig numBlockIndices gl_TRIANGLE_STRIP)
+                        return (VAOObj vaoconfig (fromIntegral numBlockIndices) gl_TRIANGLE_STRIP)
                      else
                          error "Tried to print empty text command"
 

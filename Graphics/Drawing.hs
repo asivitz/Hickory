@@ -23,9 +23,9 @@ module Graphics.Drawing ( module Graphics.GLUtils,
                           createVAOConfig,
                           indexVAOConfig,
                           bindVAO,
+                          squareIndices,
                           bufferVertices,
                           bufferIndices,
-                          bufferSquareIndices,
                           unbindVAO,
                           sp_ATTR_POSITION,
                           sp_ATTR_TEX_COORDS,
@@ -213,14 +213,6 @@ bufferIndices vbo ints = do
         _ <- glUnmapBuffer gl_ELEMENT_ARRAY_BUFFER
         return ()
 
-bufferSquareIndices :: VBO -> Int -> IO Int
-bufferSquareIndices vbo num = do
-        numindices <- c'bufferSquareIndices vbo (fromIntegral num)
-        return $ fromIntegral numindices
-
-foreign import ccall "buffer_square_indices" c'bufferSquareIndices
-    :: CUInt -> CInt -> IO CUInt
-
 data VAOPayloadStruct = VAOPayloadStruct
 type VAOPayloadHandle = Ptr VAOPayloadStruct
 
@@ -273,3 +265,15 @@ foreign import ccall "attach_vertex_array" attachVertexArray
 
 foreign import ccall "getMainVAO" getMainVAO
     :: IO CUInt
+
+squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
+squareIndices numSquares = (indices, 4 * numSquares + 2 * (numSquares - 1))
+        where indices = concat $ (flip map) [0..(numSquares - 1)]
+                                 (\i -> let items = [i * 4,
+                                                     i * 4 + 1,
+                                                     i * 4 + 2,
+                                                     i * 4 + 3]
+                                            -- We need to start and end degenerate squares if
+                                            -- we're not at the beginning/end
+                                            withStartOfDegenerateSquare = if i < numSquares - 1 then items ++ [i * 4 + 3] else items
+                                            in  if i > 0 then (i * 4) : withStartOfDegenerateSquare else withStartOfDegenerateSquare)
