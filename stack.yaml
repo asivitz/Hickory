@@ -6,8 +6,8 @@ resolver: nightly-2016-07-19
 # Local packages, usually specified by relative directory name
 packages:
 - '.'
-- '../../layer'
 - 'GLFW'
+- '../../layer'
 #- 'Example/HFreecell'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)

@@ -468,22 +468,6 @@ ShaderProgram * getShader(unsigned int num)
     return info->shader;
 }
 
-GLuint make_vao()
-{
-    GLuint vao;
-    glGenVertexArrays(1, &vao);
-
-    return vao;
-}
-
-GLuint make_vbo()
-{
-    GLuint vbo;
-    glGenBuffers(1, &vbo);
-
-    return vbo;
-}
-
 void attach_vertex_array(unsigned int shader, int attrId, int len, int stride, int offset)
 {
     ShaderProgram * program = getShader(shader);
@@ -491,28 +475,6 @@ void attach_vertex_array(unsigned int shader, int attrId, int len, int stride, i
 
     glEnableVertexAttribArray(attrLoc);
     glVertexAttribPointer(attrLoc, len, GL_FLOAT, 0, stride * sizeof(GL_FLOAT), (const GLvoid *)(offset * sizeof(GL_FLOAT)));
-}
-
-void buffer_vertices_num(int vbo, float * data, int num)
-{
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-    glBufferData(GL_ARRAY_BUFFER, num * sizeof(float), NULL, GL_STREAM_DRAW);
-    void * mapped_data = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-    memcpy(mapped_data, data, num * sizeof(float));
-           
-    glUnmapBuffer(GL_ARRAY_BUFFER);
-}
-
-void buffer_indices_num(int vbo, unsigned short * data, int num)
-{
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vbo);
-
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, num * sizeof(GLushort), NULL, GL_STREAM_DRAW);
-    void * mapped_data = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
-    memcpy(mapped_data, data, num * sizeof(GLushort));
-
-    glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
 }
 
 int grab_uniform_loc(unsigned int shader, int uniformCode)

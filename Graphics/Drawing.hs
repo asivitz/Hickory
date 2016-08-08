@@ -45,9 +45,11 @@ import Types.Color
 import Math.Matrix
 import Math.Vector
 import Math.VectorMatrix
+import Foreign.Storable
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Marshal.Array
+import Foreign.Marshal.Alloc
 import Graphics.GLUtils
 import Graphics.Shader
 import Foreign.Ptr
@@ -188,20 +190,28 @@ drawPoints shader (VAOConfig vao Nothing [vbo]) points@(x:_) size = do
 drawPoints _ a b c = print "invalid drawpoints command" >> print a >> print b >> return ()
 
 bufferVertices :: VBO -> [CFloat] -> IO ()
-bufferVertices vbo floats =
+bufferVertices vbo floats = do
+        glBindBuffer gl_ARRAY_BUFFER vbo
         withArrayLen floats $ \len ptr ->
-            c'bufferVertices vbo ptr (fromIntegral len)
-
-foreign import ccall "buffer_vertices_num" c'bufferVertices
-    :: CUInt -> Ptr CFloat -> CInt -> IO ()
+            glBufferData gl_ARRAY_BUFFER
+                         (fromIntegral (len * sizeOf (0::GLfloat)))
+                         ptr
+                         gl_STREAM_DRAW
+        _ <- glUnmapBuffer gl_ARRAY_BUFFER
+        return ()
 
 bufferIndices :: VBO -> [CUShort] -> IO ()
-bufferIndices vbo ints =
-        withArrayLen ints $ \len ptr ->
-            c'bufferIndices vbo ptr (fromIntegral len)
+bufferIndices vbo ints = do
+        glBindBuffer gl_ELEMENT_ARRAY_BUFFER vbo
 
-foreign import ccall "buffer_indices_num" c'bufferIndices
-    :: CUInt -> Ptr CUShort -> CInt -> IO ()
+        withArrayLen ints $ \len ptr ->
+            glBufferData gl_ELEMENT_ARRAY_BUFFER
+                        (fromIntegral (len * sizeOf (0::GLushort)))
+                        ptr
+                        gl_STREAM_DRAW
+
+        _ <- glUnmapBuffer gl_ELEMENT_ARRAY_BUFFER
+        return ()
 
 bufferSquareIndices :: VBO -> Int -> IO Int
 bufferSquareIndices vbo num = do
@@ -248,11 +258,15 @@ addFloatUniform dc (UniformLoc u) floats =
 foreign import ccall "add_float_uniform" c'addFloatUniform
     :: DrawCommandHandle -> GLint -> CUInt -> (Ptr CFloat) -> IO ()
 
-foreign import ccall "make_vao" makeVAO
-    :: IO VAO
+withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
+withNewPtr f = alloca (\p -> f p >> peek p)
 
-foreign import ccall "make_vbo" makeVBO
-    :: IO VBO
+makeVAO :: IO VAO
+makeVAO = withNewPtr (glGenVertexArrays 1)
+
+makeVBO :: IO VAO
+makeVBO = withNewPtr (glGenBuffers 1)
+
 
 foreign import ccall "attach_vertex_array" attachVertexArray
     :: CUInt -> CInt -> CInt -> CInt -> CInt -> IO ()
