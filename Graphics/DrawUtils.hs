@@ -133,6 +133,13 @@ cubeFloats = concatMap toList verts
           p8 = v3 l h h
           verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
+loadVerticesIntoVAOConfig :: VAOConfig -> [CFloat] -> [CUShort] -> IO ()
+loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } vs indices = do
+        bindVAO vao
+        bufferVertices vbo vs
+        bufferIndices ivbo indices
+        unbindVAO
+
 buildData :: OBJ.OBJ Double -> ([CFloat], [CUShort])
 buildData (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
     where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
@@ -145,23 +152,54 @@ loadObjIntoVAOConfig
     obj
     = do
         let (vertexData, indices) = buildData obj
-        bindVAO vao
-        bufferVertices vbo vertexData
-        bufferIndices ivbo indices
-        unbindVAO
+        loadVerticesIntoVAOConfig vaoconfig vertexData indices
 
         return (VAOObj vaoconfig (length indices) gl_TRIANGLES)
 
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
-loadCubeIntoVAOConfig vaoconfig@VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } = do
+loadCubeIntoVAOConfig vaoconfig = do
         let floats = cubeFloats
             indices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
-        bindVAO vao
-        bufferVertices vbo floats
-        bufferIndices ivbo indices
-        unbindVAO
+        loadVerticesIntoVAOConfig vaoconfig floats indices
 
         return (VAOObj vaoconfig (length indices) gl_TRIANGLE_STRIP)
+
+mkCubeVAOObj :: Shader -> IO VAOObj
+mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= indexVAOConfig >>= loadCubeIntoVAOConfig
+
+loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
+loadSquareIntoVAOConfig vaoconfig = do
+        let h = 0.5
+            l = -h
+            floats = [l, h, 0, 0,
+                      l, l, 0, 1,
+                      h, l, 1, 1,
+                      h, h, 1, 0]
+            indices = [0,1,2,3]
+
+        loadVerticesIntoVAOConfig vaoconfig floats indices
+
+        return (VAOObj vaoconfig (length indices) gl_TRIANGLE_FAN)
+
+mkSquareVAOObj :: Shader -> IO VAOObj
+mkSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2, Attachment sp_ATTR_TEX_COORDS 2]] >>= indexVAOConfig >>= loadSquareIntoVAOConfig
+
+loadUntexturedSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
+loadUntexturedSquareIntoVAOConfig vaoconfig = do
+        let h = 0.5
+            l = -h
+            floats = [l, h,
+                      l, l,
+                      h, l,
+                      h, h]
+            indices = [0,1,2,3]
+
+        loadVerticesIntoVAOConfig vaoconfig floats indices
+
+        return (VAOObj vaoconfig (length indices) gl_TRIANGLE_FAN)
+
+mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
+mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2]] >>= indexVAOConfig >>= loadUntexturedSquareIntoVAOConfig
 
 renderTree :: RenderLayer -> RenderTree -> RenderState -> IO RenderState
 renderTree layer tree state = do
