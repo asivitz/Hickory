@@ -236,34 +236,6 @@ void set_tc_command(draw_command * cmd, float * tc)
    cmd->payload = payload;
 }
 
-void set_points_command(draw_command * cmd, int num_points, float * points, float size, int psize)
-{
-   cmd->type = C_POINTS;
-   
-   points_payload * payload = pool_malloc(sizeof(points_payload));
-   payload->num_points = num_points;
-   payload->size = size;
-   payload->psize = psize;
-   
-   float * payload_points = pool_malloc(sizeof(float) * num_points * 2);
-   memcpy(payload_points, points, num_points * 2 * sizeof(float));
-   payload->points = payload_points;
-   
-   cmd->payload = payload;
-}
-
-void set_line_rect_command(draw_command * cmd, float width, float height, float thickness)
-{
-   cmd->type = C_LINE_RECT;
-   
-   line_rect_payload * payload = pool_malloc(sizeof(line_rect_payload));
-   payload->width = width;
-   payload->height = height;
-   payload->thickness = thickness;
-   
-   cmd->payload = payload;
-}
-
 vao_payload * set_vao_command(draw_command * cmd, int vao, unsigned int num_indices, GLuint type)
 {
    cmd->type = C_VAO;
@@ -351,23 +323,9 @@ void exec_dc(ShaderProgram * program, draw_command * cmd)
       
       glUnmapBuffer(GL_ARRAY_BUFFER);
 
-
-//      changeTexCoords(tCoords, program);
       glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_SHORT, 0);
       
       rebindTC(program);
-   }
-   else if (cmd->type == C_POINTS)
-   {
-      points_payload * payload = (points_payload *)cmd->payload;
-      glUniform1f(shaderProgramUniformLoc(program, SP_UNIFORM_SIZE), payload->size);
-      
-      drawPoints(payload->points, payload->num_points, program, payload->psize);
-   }
-   else if (cmd->type == C_LINE_RECT)
-   {
-      line_rect_payload * payload = (line_rect_payload *)cmd->payload;
-      drawLineRect(program, payload->width, payload->height, payload->thickness);
    }
    else if (cmd->type == C_VAO)
    {
@@ -375,14 +333,7 @@ void exec_dc(ShaderProgram * program, draw_command * cmd)
 
       glBindVertexArray(payload->vao);
       
-      if (payload->type == GL_POINTS)
-      {
-         glDrawArrays(GL_POINTS, 0, payload->num_indices);
-      }
-      else
-      {
-         glDrawElements(payload->type, payload->num_indices, GL_UNSIGNED_SHORT, 0);
-      }
+      glDrawElements(payload->type, payload->num_indices, GL_UNSIGNED_SHORT, 0);
       
       glBindVertexArray(getMainVAO());
    }
