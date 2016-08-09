@@ -26,6 +26,8 @@ import qualified Data.List.Utils as LUtils
 import Graphics.Drawing
 import Types.Color
 
+data Command = Command Shader Mat44 Color DrawSpec
+
 data DrawSpec = Square (Maybe TexID) (Maybe (Scalar, Scalar)) |
                 Text (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj |
@@ -253,19 +255,24 @@ updateRenderState tree (RenderState vaolst) = do
         vaolst' <- xx vaolst new unused
         return $ RenderState vaolst'
 
+runDrawCommand (Command sh mat col spec) = drawSpec sh mat col worldLayer spec
 
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
 {-rtDepth _ = 0-}
-
 drawTree :: M44 Scalar -> RenderLayer -> RenderTree -> IO ()
-drawTree _ _ NoRender = return ()
-drawTree parentMat layer (XForm mat child) = drawTree mat' layer child
+drawTree mat layer tree = mapM_ runDrawCommand (reverse commands)
+        where commands = collectTreeSpecs mat layer tree
+              {-sorted = sortOn (\(Command _ m _ _) -> - (m !* V4 0 0 0 1) ^. _z) commands-}
+
+collectTreeSpecs :: M44 Scalar -> RenderLayer -> RenderTree -> [Command]
+collectTreeSpecs _ _ NoRender = []
+collectTreeSpecs parentMat layer (XForm mat child) = collectTreeSpecs mat' layer child
     where mat' = case mat of
                      Just n -> parentMat !*! n
                      Nothing -> parentMat
 
-drawTree parentMat layer (Primative sh mat col spec) = drawSpec sh mat' col layer spec
+collectTreeSpecs parentMat layer (Primative sh mat col spec) = [Command sh mat' col spec]
     where mat' = parentMat !*! mat
-drawTree parentMat layer (List children) = mapM_ (drawTree parentMat layer) children -- (sortOn rtDepth children)
+collectTreeSpecs parentMat layer (List children) = concatMap (collectTreeSpecs parentMat layer) children -- (sortOn rtDepth children)
 
