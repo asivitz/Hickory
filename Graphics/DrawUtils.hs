@@ -42,14 +42,16 @@ drawSpec shader mat color layer spec =
                    _ -> return ()
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems drawType) -> do
-                dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True
-                vao_payload <- setVAOCommand dc vao numitems drawType
-                return ()
+                {-dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True-}
+                {-vao_payload <- setVAOCommand dc vao numitems drawType-}
+                drawCommand shader mat color color tex vao (fromIntegral numitems) drawType
+                {-return ()-}
             DynVAO tex vaoconfig@(VAOConfig vao indexVBO vertices) (verts,indices,drawType) -> do
                 loadVerticesIntoVAOConfig vaoconfig verts indices
-                dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True
-                vao_payload <- setVAOCommand dc vao (length indices) drawType
-                return ()
+                drawCommand shader mat color color tex vao (fromIntegral $ length indices) drawType
+                {-dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True-}
+                {-vao_payload <- setVAOCommand dc vao (length indices) drawType-}
+                {-return ()-}
     where depth = (mat !* v4 0 0 0 1) ^. _z
 
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -213,12 +215,12 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
 mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2]] >>= indexVAOConfig >>= loadUntexturedSquareIntoVAOConfig
 
-renderTree :: RenderLayer -> RenderTree -> RenderState -> IO RenderState
-renderTree layer tree state = do
+renderTree :: Mat44 -> RenderLayer -> RenderTree -> RenderState -> IO RenderState
+renderTree viewmat layer tree state = do
         state'@(RenderState vaolst) <- updateRenderState tree state
         let tree' = textToVAO vaolst tree
 
-        drawTree Nothing layer tree'
+        drawTree viewmat layer tree'
 
         return state'
 
@@ -256,17 +258,14 @@ updateRenderState tree (RenderState vaolst) = do
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
 {-rtDepth _ = 0-}
 
-drawTree :: Maybe (M44 Scalar) -> RenderLayer -> RenderTree -> IO ()
+drawTree :: M44 Scalar -> RenderLayer -> RenderTree -> IO ()
 drawTree _ _ NoRender = return ()
 drawTree parentMat layer (XForm mat child) = drawTree mat' layer child
-    where mat' = case (parentMat, mat) of
-                     (Just m, Just n) -> Just $ m !*! n
-                     (Nothing, n) -> n
-                     (m, Nothing) -> m
+    where mat' = case mat of
+                     Just n -> parentMat !*! n
+                     Nothing -> parentMat
 
 drawTree parentMat layer (Primative sh mat col spec) = drawSpec sh mat' col layer spec
-    where mat' = case parentMat of
-                     Just m -> m !*! mat
-                     Nothing -> mat
+    where mat' = parentMat !*! mat
 drawTree parentMat layer (List children) = mapM_ (drawTree parentMat layer) children -- (sortOn rtDepth children)
 

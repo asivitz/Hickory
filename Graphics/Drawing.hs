@@ -7,6 +7,7 @@ module Graphics.Drawing ( module Graphics.GLUtils,
                           uiRenderLayer,
                           backgroundLayer,
                           addDrawCommand,
+                          drawCommand,
                           setTCCommand,
                           setVAOCommand,
                           getUniformLoc,
@@ -93,6 +94,33 @@ foreign import ccall "render_commands" c'renderCommands
 
 data DrawCommandStruct = DrawCommandStruct
 type DrawCommandHandle = Ptr DrawCommandStruct
+
+foreign import ccall "use_shader" useShader :: CInt -> IO ()
+
+drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAO -> CInt -> GLenum -> IO ()
+drawCommand shader mat color color2 texid vao numitems drawType = do
+        useShader (fromIntegral $ getShader shader)
+        case texid of
+            Just t -> glBindTexture gl_TEXTURE_2D (fromIntegral $ getTexID t)
+            _ -> return ()
+
+        colLoc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_COLOR
+        col2Loc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_COLOR2
+
+        withVec4 color $ \ptr ->
+            glUniform4fv colLoc 1 ptr
+        withVec4 color2 $ \ptr ->
+            glUniform4fv col2Loc 1 ptr
+
+        modelMatLoc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_MODEL_MAT
+        viewMatLoc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_VIEW_MAT
+        withMat44 mat $ \ptr ->
+            glUniformMatrix4fv modelMatLoc 1 (fromIntegral gl_FALSE) ptr
+        withMat44 identity $ \ptr ->
+            glUniformMatrix4fv viewMatLoc 1 (fromIntegral gl_FALSE) ptr
+        glBindVertexArray vao
+
+        glDrawElements drawType numitems gl_UNSIGNED_SHORT nullPtr
 
 addDrawCommand :: Mat44 -> Color -> Color -> TexID -> Shader -> RenderLayer -> GLfloat -> Bool -> IO DrawCommandHandle
 addDrawCommand mat color1 color2 (TexID texid) (Shader shader) layer depth blend =
@@ -224,6 +252,8 @@ foreign import ccall "set_vao_command" c'setVAOCommand
 
 newtype Uniform = Uniform CInt deriving (Eq, Ord, Show)
 newtype UniformLoc = UniformLoc CInt deriving (Eq, Ord, Show)
+
+getUniform (UniformLoc loc) = loc
 
 (sp_UNIFORM_TEXID:
  sp_UNIFORM_COLOR:

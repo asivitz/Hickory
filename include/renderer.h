@@ -82,4 +82,6 @@ void add_uniform_to_vao_payload(vao_payload * vaopayload, int uniform_loc, float
 
 void add_float_uniform(draw_command * cmd, GLint loc, unsigned int num, float * data);
 
+void use_shader(unsigned int shader);
+
 #endif

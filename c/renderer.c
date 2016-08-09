@@ -429,3 +429,9 @@ int grab_uniform_loc(unsigned int shader, int uniformCode)
     int loc = shaderProgramUniformLoc(program, uniformCode);
     return loc;
 }
+
+void use_shader(unsigned int shader)
+{
+    ShaderProgram * program = getShader(shader);
+    setShaderProgramActive(program);
+}
