@@ -315,14 +315,9 @@ void exec_dc(ShaderProgram * program, draw_command * cmd)
          x + width, y};
       
       glBindBuffer(GL_ARRAY_BUFFER, alt_tcbuf);
-      glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(float), NULL, GL_STREAM_DRAW);
+      glBufferData(GL_ARRAY_BUFFER, 8 * sizeof(float), tCoords, GL_STREAM_DRAW);
       glVertexAttribPointer(shaderProgramAttrLoc(program, SP_ATTR_TEX_COORDS), 2, GL_FLOAT, 0, 0, 0);
       
-      void * mapped_data = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-      memcpy(mapped_data, tCoords, 8 * sizeof(float));
-      
-      glUnmapBuffer(GL_ARRAY_BUFFER);
-
       glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_SHORT, 0);
       
       rebindTC(program);
@@ -332,7 +327,7 @@ void exec_dc(ShaderProgram * program, draw_command * cmd)
       vao_payload * payload = (vao_payload *)cmd->payload;
 
       glBindVertexArray(payload->vao);
-      
+
       glDrawElements(payload->type, payload->num_indices, GL_UNSIGNED_SHORT, 0);
       
       glBindVertexArray(getMainVAO());

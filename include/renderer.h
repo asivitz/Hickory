@@ -25,19 +25,6 @@ typedef struct tc_payload
    float tc[4];
 } tc_payload;
 
-typedef struct points_payload
-{
-   unsigned int num_points;
-   float * points;
-   float size;
-   int psize; // x,y,z = 3 x,y = 2
-} points_payload;
-
-typedef struct line_rect_payload
-{
-   float width, height, thickness;
-} line_rect_payload;
-
 typedef struct vao_payload
 {
    int vao;

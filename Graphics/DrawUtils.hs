@@ -28,7 +28,8 @@ import Types.Color
 
 data DrawSpec = Square (Maybe TexID) (Maybe (Scalar, Scalar)) |
                 Text (Printer Int) TextCommand |
-                VAO (Maybe TexID) VAOObj
+                VAO (Maybe TexID) VAOObj |
+                DynVAO (Maybe TexID) VAOConfig ([CFloat],[CUShort],CUInt)
               deriving (Show)
 
 drawSpec :: Shader -> Mat44 -> Color -> RenderLayer -> DrawSpec -> IO ()
@@ -43,6 +44,11 @@ drawSpec shader mat color layer spec =
             VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems drawType) -> do
                 dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True
                 vao_payload <- setVAOCommand dc vao numitems drawType
+                return ()
+            DynVAO tex vaoconfig@(VAOConfig vao indexVBO vertices) (verts,indices,drawType) -> do
+                loadVerticesIntoVAOConfig vaoconfig verts indices
+                dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True
+                vao_payload <- setVAOCommand dc vao (length indices) drawType
                 return ()
     where depth = (mat !* v4 0 0 0 1) ^. _z
 
@@ -140,6 +146,11 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo
         bufferIndices ivbo indices
         unbindVAO
 
+packVAOObj :: VAOConfig -> [CFloat] -> [CUShort] -> CUInt -> IO VAOObj
+packVAOObj vaoconfig verts indices drawType = do
+        loadVerticesIntoVAOConfig vaoconfig verts indices
+        return $ VAOObj vaoconfig (length indices) drawType
+
 buildData :: OBJ.OBJ Double -> ([CFloat], [CUShort])
 buildData (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
     where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
@@ -152,34 +163,35 @@ loadObjIntoVAOConfig
     obj
     = do
         let (vertexData, indices) = buildData obj
-        loadVerticesIntoVAOConfig vaoconfig vertexData indices
-
-        return (VAOObj vaoconfig (length indices) gl_TRIANGLES)
+        packVAOObj vaoconfig vertexData indices gl_TRIANGLES
 
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
         let floats = cubeFloats
             indices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
-        loadVerticesIntoVAOConfig vaoconfig floats indices
-
-        return (VAOObj vaoconfig (length indices) gl_TRIANGLE_STRIP)
+        packVAOObj vaoconfig floats indices gl_TRIANGLE_STRIP
 
 mkCubeVAOObj :: Shader -> IO VAOObj
 mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= indexVAOConfig >>= loadCubeIntoVAOConfig
 
+mkSquareVerts texW texH = (floats, indices, gl_TRIANGLE_FAN)
+    where h = 0.5
+          l = -h
+          floats = [l, h, 0, 0,
+                    l, l, 0, texH,
+                    h, l, texW, texH,
+                    h, h, texW, 0]
+          indices = [0,1,2,3]
+
 loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
-loadSquareIntoVAOConfig vaoconfig = do
-        let h = 0.5
-            l = -h
-            floats = [l, h, 0, 0,
-                      l, l, 0, 1,
-                      h, l, 1, 1,
-                      h, h, 1, 0]
-            indices = [0,1,2,3]
-
-        loadVerticesIntoVAOConfig vaoconfig floats indices
-
-        return (VAOObj vaoconfig (length indices) gl_TRIANGLE_FAN)
+loadSquareIntoVAOConfig vaoconfig = packVAOObj vaoconfig floats indices gl_TRIANGLE_FAN
+    where h = 0.5
+          l = -h
+          floats = [l, h, 0, 0,
+                    l, l, 0, 1,
+                    h, l, 1, 1,
+                    h, h, 1, 0]
+          indices = [0,1,2,3]
 
 mkSquareVAOObj :: Shader -> IO VAOObj
 mkSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2, Attachment sp_ATTR_TEX_COORDS 2]] >>= indexVAOConfig >>= loadSquareIntoVAOConfig

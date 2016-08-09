@@ -217,8 +217,7 @@ data VAOPayloadStruct = VAOPayloadStruct
 type VAOPayloadHandle = Ptr VAOPayloadStruct
 
 setVAOCommand :: Integral a => DrawCommandHandle -> VAO -> a -> GLenum -> IO VAOPayloadHandle
-setVAOCommand dc vao numIndices drawType =
-        c'setVAOCommand dc vao (fromIntegral numIndices) drawType
+setVAOCommand dc vao numIndices drawType = c'setVAOCommand dc vao (fromIntegral numIndices) drawType
 
 foreign import ccall "set_vao_command" c'setVAOCommand
     :: DrawCommandHandle -> CUInt -> CUInt -> GLenum -> IO VAOPayloadHandle
