@@ -15,7 +15,7 @@ import Data.Maybe
 import Graphics.DrawText
 import Text.Text
 import qualified Data.Text as Text
-import Graphics.Rendering.OpenGL.Raw.Core31
+import Graphics.GLSupport
 import Foreign.C.Types
 import Data.Foldable (toList)
 import Control.Lens hiding (List)
@@ -30,7 +30,7 @@ data Command = Command Shader Mat44 Color DrawSpec
 
 data DrawSpec = Text (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj |
-                DynVAO (Maybe TexID) VAOConfig ([CFloat],[CUShort],CUInt)
+                DynVAO (Maybe TexID) VAOConfig ([CFloat],[CUShort],GLenum)
               deriving (Show)
 
 drawSpec :: Shader -> Mat44 -> Color -> RenderLayer -> DrawSpec -> IO ()
@@ -50,9 +50,9 @@ drawSpec shader mat color layer spec =
                 {-return ()-}
     where depth = (mat !* v4 0 0 0 1) ^. _z
 
-data ParticleShader = ParticleShader Shader UniformLoc
 
 {-
+data ParticleShader = ParticleShader Shader UniformLoc
 reserveParticleShader :: IORef SysData -> SysMonad c IO (Maybe ParticleShader)
 reserveParticleShader  draw = do
         shader <- reserveShader' draw ("ParticleShader.vsh", "ParticleShader.fsh")
@@ -78,7 +78,7 @@ data RenderTree = Primative Shader Mat44 Color DrawSpec
                 | NoRender
                 deriving (Show)
 
-data VAOObj = VAOObj VAOConfig Int CUInt
+data VAOObj = VAOObj VAOConfig Int GLenum
             deriving (Show)
 
 data PrintDesc = PrintDesc (Printer Int) TextCommand Color
@@ -118,7 +118,7 @@ updateVAOObj (PrintDesc (Printer font texid) textCommand color)
                         let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
                         bufferIndices ivbo indices
 
-                        return (VAOObj vaoconfig (fromIntegral numBlockIndices) gl_TRIANGLE_STRIP)
+                        return (VAOObj vaoconfig (fromIntegral numBlockIndices) GL_TRIANGLE_STRIP)
                      else
                          error "Tried to print empty text command"
 
@@ -142,7 +142,7 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo
         bufferVertices vbo vs
         bufferIndices ivbo indices
 
-packVAOObj :: VAOConfig -> [CFloat] -> [CUShort] -> CUInt -> IO VAOObj
+packVAOObj :: VAOConfig -> [CFloat] -> [CUShort] -> GLenum -> IO VAOObj
 packVAOObj vaoconfig verts indices drawType = do
         loadVerticesIntoVAOConfig vaoconfig verts indices
         return $ VAOObj vaoconfig (length indices) drawType
@@ -159,18 +159,18 @@ loadObjIntoVAOConfig
     obj
     = do
         let (vertexData, indices) = buildData obj
-        packVAOObj vaoconfig vertexData indices gl_TRIANGLES
+        packVAOObj vaoconfig vertexData indices GL_TRIANGLES
 
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
         let floats = cubeFloats
             indices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
-        packVAOObj vaoconfig floats indices gl_TRIANGLE_STRIP
+        packVAOObj vaoconfig floats indices GL_TRIANGLE_STRIP
 
 mkCubeVAOObj :: Shader -> IO VAOObj
 mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= indexVAOConfig >>= loadCubeIntoVAOConfig
 
-mkSquareVerts texW texH = (floats, indices, gl_TRIANGLE_FAN)
+mkSquareVerts texW texH = (floats, indices, GL_TRIANGLE_FAN)
     where h = 0.5
           l = -h
           floats = [l, h, 0, 0,
@@ -180,7 +180,7 @@ mkSquareVerts texW texH = (floats, indices, gl_TRIANGLE_FAN)
           indices = [0,1,2,3]
 
 loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
-loadSquareIntoVAOConfig vaoconfig = packVAOObj vaoconfig floats indices gl_TRIANGLE_FAN
+loadSquareIntoVAOConfig vaoconfig = packVAOObj vaoconfig floats indices GL_TRIANGLE_FAN
     where h = 0.5
           l = -h
           floats = [l, h, 0, 0,
@@ -204,7 +204,7 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
 
         loadVerticesIntoVAOConfig vaoconfig floats indices
 
-        return (VAOObj vaoconfig (length indices) gl_TRIANGLE_FAN)
+        return (VAOObj vaoconfig (length indices) GL_TRIANGLE_FAN)
 
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
 mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2]] >>= indexVAOConfig >>= loadUntexturedSquareIntoVAOConfig

@@ -6,30 +6,15 @@ module Graphics.Drawing ( module Graphics.GLUtils,
                           uiRenderLayer,
                           backgroundLayer,
                           drawCommand,
-                          getUniformLoc,
-                          grabUniformLoc,
-                          Uniform,
-                          UniformLoc,
                           Attachment(..),
                           VertexGroup(..),
                           VAOConfig(..),
                           createVAOConfig,
                           indexVAOConfig,
-                          bindVAO,
                           squareIndices,
                           bufferVertices,
                           bufferIndices,
-                          sp_ATTR_POSITION,
-                          sp_ATTR_TEX_COORDS,
-                          sp_ATTR_COLOR,
-                          sp_ATTR_COLOR2,
-                          sp_ATTR_NORMALS,
-                          sp_UNIFORM_TEXID,
-                          sp_UNIFORM_COLOR,
-                          sp_UNIFORM_COLOR2,
-                          sp_UNIFORM_MODEL_MAT,
-                          sp_UNIFORM_VIEW_MAT,
-                          sp_UNIFORM_SIZE
+                          bindVAO
                         )
                         where
 
@@ -45,15 +30,11 @@ import Foreign.Marshal.Alloc
 import Graphics.GLUtils
 import Graphics.Shader
 import Foreign.Ptr
-import Graphics.Rendering.OpenGL.Raw.Core31
+import Graphics.GLSupport
 import qualified Data.Foldable as Fold
 
-type VAO = CUInt
-type VBO = CUInt
-
-getUniformLoc (Shader s) name =
-        withCString name $ \ptrname ->
-            glGetUniformLocation s ptrname
+type VAO = GLuint
+type VBO = GLuint
 
 type RenderLayer = CInt
 
@@ -69,42 +50,29 @@ backgroundLayer = 3
 boolToCInt :: Bool -> CInt
 boolToCInt b = if b then 1 else 0
 
-foreign import ccall "render_commands" c'renderCommands
-   :: Mat44Raw -> CInt -> IO ()
-
-data DrawCommandStruct = DrawCommandStruct
-type DrawCommandHandle = Ptr DrawCommandStruct
-
-foreign import ccall "use_shader" useShader :: CInt -> IO ()
-
-drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAO -> CInt -> GLenum -> IO ()
+drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAO -> GLint -> GLenum -> IO ()
 drawCommand shader mat color color2 texid vao numitems drawType = do
-        useShader (fromIntegral $ getShader shader)
+        useShader shader
         case texid of
-            Just t -> glBindTexture gl_TEXTURE_2D (fromIntegral $ getTexID t)
+            Just t -> glBindTexture GL_TEXTURE_2D (fromIntegral $ getTexID t)
             _ -> return ()
 
-        colLoc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_COLOR
-        col2Loc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_COLOR2
-
         withVec4 color $ \ptr ->
-            glUniform4fv colLoc 1 ptr
+            glUniform4fv (sp_UNIFORM_COLOR shader) 1 (castPtr ptr)
         withVec4 color2 $ \ptr ->
-            glUniform4fv col2Loc 1 ptr
+            glUniform4fv (sp_UNIFORM_COLOR2 shader) 1 (castPtr ptr)
 
-        modelMatLoc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_MODEL_MAT
-        viewMatLoc <- getUniform <$> grabUniformLoc shader sp_UNIFORM_VIEW_MAT
         withMat44 mat $ \ptr ->
-            glUniformMatrix4fv modelMatLoc 1 (fromIntegral gl_FALSE) ptr
+            glUniformMatrix4fv (sp_UNIFORM_MODEL_MAT shader) 1 GL_FALSE (castPtr ptr)
         withMat44 identity $ \ptr ->
-            glUniformMatrix4fv viewMatLoc 1 (fromIntegral gl_FALSE) ptr
+            glUniformMatrix4fv (sp_UNIFORM_VIEW_MAT shader) 1 GL_FALSE (castPtr ptr)
         glBindVertexArray vao
 
-        glDrawElements drawType numitems gl_UNSIGNED_SHORT nullPtr
+        glDrawElements drawType numitems GL_UNSIGNED_SHORT nullPtr
 
-newtype Attribute = Attribute CInt deriving (Eq, Ord, Show)
+type Attribute = Shader -> GLuint
 
-data Attachment = Attachment Attribute CInt
+data Attachment = Attachment Attribute GLint
 data VertexGroup = VertexGroup [Attachment]
 
 data VAOConfig = VAOConfig {
@@ -113,22 +81,15 @@ data VAOConfig = VAOConfig {
                vertices :: ![VBO]
                } deriving (Show)
 
-(sp_ATTR_POSITION:
- sp_ATTR_TEX_COORDS:
- sp_ATTR_COLOR:
- sp_ATTR_COLOR2:
- sp_ATTR_NORMALS:
- sp_ATTR_MAXNUM) = map Attribute [0..]
-
 buildVertexGroup :: Shader -> VertexGroup -> IO VBO
-buildVertexGroup (Shader shader) (VertexGroup attachments) = do
+buildVertexGroup shader (VertexGroup attachments) = do
         vbo <- makeVBO
-        glBindBuffer gl_ARRAY_BUFFER vbo
+        glBindBuffer GL_ARRAY_BUFFER vbo
 
-        let stride = foldl (+) 0 $ map (\(Attachment a l) -> l) attachments
+        let stride = sum $ map (\(Attachment a l) -> l) attachments
 
-        Fold.foldlM (\offset (Attachment (Attribute a) l) -> do
-                attachVertexArray shader a l stride offset
+        Fold.foldlM (\offset (Attachment a l) -> do
+                attachVertexArray (a shader) l stride offset
                 return (offset + l))
             0
             attachments
@@ -139,10 +100,11 @@ indexVAOConfig :: VAOConfig -> IO VAOConfig
 indexVAOConfig config@VAOConfig { vao } = do
         glBindVertexArray vao
         index_vbo <- makeVBO
-        glBindBuffer gl_ELEMENT_ARRAY_BUFFER index_vbo
+        glBindBuffer GL_ELEMENT_ARRAY_BUFFER index_vbo
 
         return $ config { indexVBO = Just index_vbo }
 
+bindVAO :: GLuint -> IO ()
 bindVAO = glBindVertexArray
 
 createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
@@ -169,7 +131,7 @@ drawPoints shader (VAOConfig vao Nothing [vbo]) points@(x:_) size = do
         unbindVAO
 
         dc <- addDrawCommand identity white white nullTex shader worldLayer 0.0 False
-        vao_payload <- setVAOCommand dc vao (halveInt (length points)) gl_POINTS
+        vao_payload <- setVAOCommand dc vao (halveInt (length points)) GL_POINTS
         uniloc <- grabUniformLoc shader sp_UNIFORM_SIZE
         addFloatUniform dc uniloc [size]
 
@@ -178,51 +140,30 @@ drawPoints _ a b c = print "invalid drawpoints command" >> print a >> print b >>
 
 bufferVertices :: VBO -> [CFloat] -> IO ()
 bufferVertices vbo floats = do
-        glBindBuffer gl_ARRAY_BUFFER vbo
+        glBindBuffer GL_ARRAY_BUFFER vbo
         withArrayLen floats $ \len ptr ->
-            glBufferData gl_ARRAY_BUFFER
+            glBufferData GL_ARRAY_BUFFER
                          (fromIntegral (len * sizeOf (0::GLfloat)))
                          ptr
-                         gl_STREAM_DRAW
-        _ <- glUnmapBuffer gl_ARRAY_BUFFER
+                         GL_STREAM_DRAW
+        _ <- glUnmapBuffer GL_ARRAY_BUFFER
         return ()
 
 bufferIndices :: VBO -> [CUShort] -> IO ()
 bufferIndices vbo ints = do
-        glBindBuffer gl_ELEMENT_ARRAY_BUFFER vbo
+        glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
 
         withArrayLen ints $ \len ptr ->
-            glBufferData gl_ELEMENT_ARRAY_BUFFER
+            glBufferData GL_ELEMENT_ARRAY_BUFFER
                         (fromIntegral (len * sizeOf (0::GLushort)))
                         ptr
-                        gl_STREAM_DRAW
+                        GL_STREAM_DRAW
 
-        _ <- glUnmapBuffer gl_ELEMENT_ARRAY_BUFFER
+        _ <- glUnmapBuffer GL_ELEMENT_ARRAY_BUFFER
         return ()
 
 data VAOPayloadStruct = VAOPayloadStruct
 type VAOPayloadHandle = Ptr VAOPayloadStruct
-
-newtype Uniform = Uniform CInt deriving (Eq, Ord, Show)
-newtype UniformLoc = UniformLoc CInt deriving (Eq, Ord, Show)
-
-getUniform (UniformLoc loc) = loc
-
-(sp_UNIFORM_TEXID:
- sp_UNIFORM_COLOR:
- sp_UNIFORM_COLOR2:
- sp_UNIFORM_MODEL_MAT:
- sp_UNIFORM_VIEW_MAT:
- sp_UNIFORM_SIZE:
- sp_UNIFORM_MAXNUM) = map Uniform [0..]
-
-foreign import ccall "grab_uniform_loc" c'grabUniformLoc
-    :: CUInt -> CInt -> IO CInt
-
-grabUniformLoc :: Shader -> Uniform -> IO UniformLoc
-grabUniformLoc (Shader shader) (Uniform uniform) = do
-        loc <- c'grabUniformLoc shader uniform
-        return $ UniformLoc loc
 
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
@@ -233,9 +174,6 @@ makeVAO = withNewPtr (glGenVertexArrays 1)
 makeVBO :: IO VAO
 makeVBO = withNewPtr (glGenBuffers 1)
 
-
-foreign import ccall "attach_vertex_array" attachVertexArray
-    :: CUInt -> CInt -> CInt -> CInt -> CInt -> IO ()
 
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
 squareIndices numSquares = (indices, 4 * numSquares + 2 * (numSquares - 1))

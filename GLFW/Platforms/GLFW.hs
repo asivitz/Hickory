@@ -3,8 +3,7 @@ module Platforms.GLFW where
 import qualified Graphics.UI.GLFW as GLFW
 import Platforms.GLFW.Utils
 import qualified Platforms.GLFW.Bridge as Bridge
-import Graphics.Rendering.OpenGL.Raw.Core31
-import Graphics.Rendering.OpenGL.Raw.ARB.GeometryShader4
+import Graphics.GLSupport
 import Data.Bits
 import Data.IORef
 import Graphics.Drawing

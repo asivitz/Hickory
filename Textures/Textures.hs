@@ -7,7 +7,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Data.Vector.Storable(unsafeWith)
 
-import Graphics.Rendering.OpenGL.Raw.Core31
+import Graphics.GLSupport
 
 import Utils.Utils
 
@@ -27,36 +27,36 @@ loadTextureFromPath path = do
                         tex <- alloca $ \p -> do
                                     glGenTextures 1 p
                                     peek p
-                        let format = gl_RGBA
+                        let format = GL_RGBA
                         -- create linear filtered texture
-                        glBindTexture gl_TEXTURE_2D tex
+                        glBindTexture GL_TEXTURE_2D tex
 
-                        glTexImage2D gl_TEXTURE_2D 0 (fromIntegral format)
+                        glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
                             (fromIntegral w) (fromIntegral h)
-                            0 format gl_UNSIGNED_BYTE ptr
+                            0 format GL_UNSIGNED_BYTE ptr
 
-                        glGenerateMipmap gl_TEXTURE_2D
+                        glGenerateMipmap GL_TEXTURE_2D
 
-                        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
-                        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR_MIPMAP_LINEAR)
+                        glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
+                        glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
                         return $ Just $ TexID (fromIntegral tex)
                 ImageRGB8 (Image w h dat) ->
                     unsafeWith dat $ \ptr -> do
                         tex <- alloca $ \p -> do
                                     glGenTextures 1 p
                                     peek p
-                        let format = gl_RGB
+                        let format = GL_RGB
                         -- create linear filtered texture
-                        glBindTexture gl_TEXTURE_2D tex
+                        glBindTexture GL_TEXTURE_2D tex
 
-                        glTexImage2D gl_TEXTURE_2D 0 (fromIntegral format)
+                        glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
                             (fromIntegral w) (fromIntegral h)
-                            0 format gl_UNSIGNED_BYTE ptr
+                            0 format GL_UNSIGNED_BYTE ptr
 
-                        glGenerateMipmap gl_TEXTURE_2D
+                        glGenerateMipmap GL_TEXTURE_2D
 
-                        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
-                        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR_MIPMAP_LINEAR)
+                        glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
+                        glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
                         return $ Just $ TexID (fromIntegral tex)
                 _ -> error "Error loading texture: Unknown image format"
 
