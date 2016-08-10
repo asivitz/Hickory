@@ -6,7 +6,6 @@ import Math.Matrix
 import Math.VectorMatrix
 import Types.Types
 import Math.Vector
-import Engine.Scene.Scene
 
 unproject :: V2 Scalar -> Scalar -> Mat44 -> Size Int -> V3 Scalar
 unproject pos z mat ss = lerpUnproject pos z mat (fmap realToFrac $ viewportFromSize ss)

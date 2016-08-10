@@ -28,8 +28,7 @@ import Types.Color
 
 data Command = Command Shader Mat44 Color DrawSpec
 
-data DrawSpec = Square (Maybe TexID) (Maybe (Scalar, Scalar)) |
-                Text (Printer Int) TextCommand |
+data DrawSpec = Text (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj |
                 DynVAO (Maybe TexID) VAOConfig ([CFloat],[CUShort],CUInt)
               deriving (Show)
@@ -37,11 +36,6 @@ data DrawSpec = Square (Maybe TexID) (Maybe (Scalar, Scalar)) |
 drawSpec :: Shader -> Mat44 -> Color -> RenderLayer -> DrawSpec -> IO ()
 drawSpec shader mat color layer spec =
         case spec of
-            Square tex texscale -> do
-                dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer (realToFrac depth) True
-                case texscale of
-                   Just (w,h) -> setTCCommand dc (v4 0 0 w h)
-                   _ -> return ()
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems drawType) -> do
                 {-dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True-}
@@ -123,7 +117,6 @@ updateVAOObj (PrintDesc (Printer font texid) textCommand color)
                         bufferVertices vbo floats
                         let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
                         bufferIndices ivbo indices
-                        unbindVAO
 
                         return (VAOObj vaoconfig (fromIntegral numBlockIndices) gl_TRIANGLE_STRIP)
                      else
@@ -148,7 +141,6 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo
         bindVAO vao
         bufferVertices vbo vs
         bufferIndices ivbo indices
-        unbindVAO
 
 packVAOObj :: VAOConfig -> [CFloat] -> [CUShort] -> CUInt -> IO VAOObj
 packVAOObj vaoconfig verts indices drawType = do
