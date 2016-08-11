@@ -44,7 +44,7 @@ Flag Ios
 library
   exposed-modules:     Camera.Camera, Graphics.Drawing, Graphics.DrawText, Graphics.GLUtils, Math.Matrix, Math.Vector, Math.VectorMatrix, UI.Stack, UI.Elements, Textures.Textures, Graphics.DrawUtils, Text.Text, Text.Font, Types.Color, Types.Types, Utils.Resources, Utils.Utils, Utils.HashMap, Engine.Scene.Input, Utils.Projection, Graphics.Shader, React.React, Math.Interpolate, Utils.BVH, Utils.OBJ, Graphics.Animation, Graphics.GLSupport, Utils.Parsing, Platform.Common, Layer.Utils
   other-extensions:    NamedFieldPuns, Rank2Types, BangPatterns, OverloadedStrings
-  build-depends:       base >= 4.7 && < 5, parsec, unordered-containers >=0.2 && <0.3, containers >=0.5 && <0.6, hashable >=1.2 && <1.3, time, mtl >=2.2 && <2.3, OpenGLRaw == 3.2.1.0, text >=1.2 && <1.3, array >=0.5 && <0.6, attoparsec, JuicyPixels >= 3.1.7.1, vector, cereal, GenericPretty, pretty, lens, megaparsec, scientific, linear, MissingH, layer
+  build-depends:       base >= 4.7 && < 5, parsec, unordered-containers >=0.2 && <0.3, containers >=0.5 && <0.6, hashable >=1.2 && <1.3, time, mtl >=2.2 && <2.3, OpenGLRaw == 3.2.1.0, text >=1.2 && <1.3, array >=0.5 && <0.6, attoparsec, JuicyPixels >= 3.1.7.1, vector, cereal, GenericPretty, pretty, lens, megaparsec >= 5.0.1, scientific, linear, MissingH, layer
   default-language:    Haskell2010
   ghc-prof-options:   -fprof-auto
   ghc-options: -Wall -fno-warn-unused-matches -fno-warn-missing-signatures -fno-warn-unused-do-bind

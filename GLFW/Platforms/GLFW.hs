@@ -3,9 +3,6 @@ module Platforms.GLFW where
 import qualified Graphics.UI.GLFW as GLFW
 import Platforms.GLFW.Utils
 import qualified Platforms.GLFW.Bridge as Bridge
-import Graphics.GLSupport
-import Data.Bits
-import Data.IORef
 import Graphics.Drawing
 import Engine.Scene.Input
 import Types.Types

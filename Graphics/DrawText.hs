@@ -9,7 +9,6 @@ import Graphics.Shader
 import Text.Text
 import Math.Matrix
 
-import Graphics.GLSupport
 import Data.Text.IO as TextIO
 import Textures.Textures
 import Control.Monad
