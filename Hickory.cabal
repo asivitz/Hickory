@@ -46,14 +46,13 @@ library
   other-extensions:    NamedFieldPuns, Rank2Types, BangPatterns, OverloadedStrings
   build-depends:       base >= 4.7 && < 5, parsec, unordered-containers >=0.2 && <0.3, containers >=0.5 && <0.6, hashable >=1.2 && <1.3, time, mtl >=2.2 && <2.3, OpenGLRaw == 3.2.1.0, text >=1.2 && <1.3, array >=0.5 && <0.6, attoparsec, JuicyPixels >= 3.1.7.1, vector, cereal, GenericPretty, pretty, lens, megaparsec, scientific, linear, MissingH, layer
   default-language:    Haskell2010
-  c-sources: c/platform.c
-  include-dirs: include/
   ghc-prof-options:   -fprof-auto
   ghc-options: -Wall -fno-warn-unused-matches -fno-warn-missing-signatures -fno-warn-unused-do-bind
 -- Needed for cross compilation
   if os(osx)
     cc-options:         -F/System/Library/Frameworks
   if flag(ios)
+    include-dirs: include/
     cc-options: -DTARGET_OS_IPHONE
 
 Test-Suite hickory-test
