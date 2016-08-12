@@ -10,13 +10,12 @@ module Graphics.Shader (
               where
 
 import Foreign.Storable
-import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
-import Graphics.GLSupport
+import GLInterface.GLSupport
 import Control.Monad
 
 data Shader = Shader {

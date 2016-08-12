@@ -5,7 +5,6 @@ module Graphics.DrawUtils where
 import Types.Types
 
 import Control.Monad
-import Graphics.GLUtils
 import Graphics.Shader
 import Math.Matrix
 import Math.Vector
@@ -15,7 +14,7 @@ import Data.Maybe
 import Graphics.DrawText
 import Text.Text
 import qualified Data.Text as Text
-import Graphics.GLSupport
+import GLInterface.GLSupport
 import Foreign.C.Types
 import Data.Foldable (toList)
 import Control.Lens hiding (List)
@@ -33,21 +32,15 @@ data DrawSpec = Text (Printer Int) TextCommand |
                 DynVAO (Maybe TexID) VAOConfig ([CFloat],[CUShort],GLenum)
               deriving (Show)
 
-drawSpec :: Shader -> Mat44 -> Color -> RenderLayer -> DrawSpec -> IO ()
-drawSpec shader mat color layer spec =
+drawSpec :: Shader -> Mat44 -> Color -> DrawSpec -> IO ()
+drawSpec shader mat color spec =
         case spec of
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj (VAOConfig vao indexVBO vertices) numitems drawType) -> do
-                {-dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True-}
-                {-vao_payload <- setVAOCommand dc vao numitems drawType-}
                 drawCommand shader mat color color tex vao (fromIntegral numitems) drawType
-                {-return ()-}
             DynVAO tex vaoconfig@(VAOConfig vao indexVBO vertices) (verts,indices,drawType) -> do
                 loadVerticesIntoVAOConfig vaoconfig verts indices
                 drawCommand shader mat color color tex vao (fromIntegral $ length indices) drawType
-                {-dc <- addDrawCommand mat color color (fromMaybe nullTex tex) shader layer 0.0 True-}
-                {-vao_payload <- setVAOCommand dc vao (length indices) drawType-}
-                {-return ()-}
     where depth = (mat !* v4 0 0 0 1) ^. _z
 
 
@@ -209,12 +202,12 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
 mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2]] >>= indexVAOConfig >>= loadUntexturedSquareIntoVAOConfig
 
-renderTree :: Mat44 -> RenderLayer -> RenderTree -> RenderState -> IO RenderState
-renderTree viewmat layer tree state = do
+renderTree :: Mat44 -> RenderTree -> RenderState -> IO RenderState
+renderTree viewmat tree state = do
         state'@(RenderState vaolst) <- updateRenderState tree state
         let tree' = textToVAO vaolst tree
 
-        drawTree viewmat layer tree'
+        drawTree viewmat tree'
 
         return state'
 
@@ -247,24 +240,24 @@ updateRenderState tree (RenderState vaolst) = do
         vaolst' <- xx vaolst new unused
         return $ RenderState vaolst'
 
-runDrawCommand (Command sh mat col spec) = drawSpec sh mat col worldLayer spec
+runDrawCommand (Command sh mat col spec) = drawSpec sh mat col spec
 
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
 {-rtDepth _ = 0-}
-drawTree :: M44 Scalar -> RenderLayer -> RenderTree -> IO ()
-drawTree mat layer tree = mapM_ runDrawCommand (reverse commands)
-        where commands = collectTreeSpecs mat layer tree
+drawTree :: M44 Scalar -> RenderTree -> IO ()
+drawTree mat tree = mapM_ runDrawCommand (reverse commands)
+        where commands = collectTreeSpecs mat tree
               {-sorted = sortOn (\(Command _ m _ _) -> - (m !* V4 0 0 0 1) ^. _z) commands-}
 
-collectTreeSpecs :: M44 Scalar -> RenderLayer -> RenderTree -> [Command]
-collectTreeSpecs _ _ NoRender = []
-collectTreeSpecs parentMat layer (XForm mat child) = collectTreeSpecs mat' layer child
+collectTreeSpecs :: M44 Scalar -> RenderTree -> [Command]
+collectTreeSpecs _ NoRender = []
+collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs mat' child
     where mat' = case mat of
                      Just n -> parentMat !*! n
                      Nothing -> parentMat
 
-collectTreeSpecs parentMat layer (Primative sh mat col spec) = [Command sh mat' col spec]
+collectTreeSpecs parentMat (Primative sh mat col spec) = [Command sh mat' col spec]
     where mat' = parentMat !*! mat
-collectTreeSpecs parentMat layer (List children) = concatMap (collectTreeSpecs parentMat layer) children -- (sortOn rtDepth children)
+collectTreeSpecs parentMat (List children) = concatMap (collectTreeSpecs parentMat) children -- (sortOn rtDepth children)
 

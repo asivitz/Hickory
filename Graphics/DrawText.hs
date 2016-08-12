@@ -4,10 +4,10 @@
 module Graphics.DrawText (Printer(..), loadPrinter, pvcShaderPair, createPrinterVAOConfig, PositionedTextCommand(..), textcommand) where
 
 import Types.Color
+import GLInterface.GLSupport
 import Graphics.Drawing
 import Graphics.Shader
 import Text.Text
-import Math.Matrix
 
 import Data.Text.IO as TextIO
 import Textures.Textures

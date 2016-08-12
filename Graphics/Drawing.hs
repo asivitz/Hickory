@@ -1,11 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Graphics.Drawing ( module Graphics.GLUtils,
-                          RenderLayer,
-                          worldLayer,
-                          uiRenderLayer,
-                          backgroundLayer,
-                          drawCommand,
+module Graphics.Drawing ( drawCommand,
                           Attachment(..),
                           VertexGroup(..),
                           VAOConfig(..),
@@ -13,42 +8,24 @@ module Graphics.Drawing ( module Graphics.GLUtils,
                           indexVAOConfig,
                           squareIndices,
                           bufferVertices,
-                          bufferIndices,
-                          bindVAO
+                          bufferIndices
                         )
                         where
 
 import Types.Color
 import Math.Matrix
-import Math.Vector
 import Math.VectorMatrix
 import Foreign.Storable
 import Foreign.C.Types
-import Foreign.C.String
 import Foreign.Marshal.Array
 import Foreign.Marshal.Alloc
-import Graphics.GLUtils
 import Graphics.Shader
 import Foreign.Ptr
-import Graphics.GLSupport
+import GLInterface.GLSupport
 import qualified Data.Foldable as Fold
 
 type VAO = GLuint
 type VBO = GLuint
-
-type RenderLayer = CInt
-
-worldLayer :: RenderLayer
-worldLayer = 0
-
-uiRenderLayer :: RenderLayer
-uiRenderLayer = 1
-
-backgroundLayer :: RenderLayer
-backgroundLayer = 3
-
-boolToCInt :: Bool -> CInt
-boolToCInt b = if b then 1 else 0
 
 drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAO -> GLint -> GLenum -> IO ()
 drawCommand shader mat color color2 texid vao numitems drawType = do
@@ -104,9 +81,6 @@ indexVAOConfig config@VAOConfig { vao } = do
 
         return $ config { indexVBO = Just index_vbo }
 
-bindVAO :: GLuint -> IO ()
-bindVAO = glBindVertexArray
-
 createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
 createVAOConfig sh vertexgroups = do
         vao' <- makeVAO
@@ -119,11 +93,11 @@ createVAOConfig sh vertexgroups = do
                          vertices = buffers
                          }
 
+{-
 halveInt :: Int -> Int
 halveInt a = floor fl
     where fl = (fromIntegral a) / 2 :: Float
 
-{-
 drawPoints :: Real a => Shader -> VAOConfig -> [CFloat] -> a -> IO ()
 drawPoints shader (VAOConfig vao Nothing [vbo]) points@(x:_) size = do
         glBindVertexArray vao
@@ -161,9 +135,6 @@ bufferIndices vbo ints = do
 
         _ <- glUnmapBuffer GL_ELEMENT_ARRAY_BUFFER
         return ()
-
-data VAOPayloadStruct = VAOPayloadStruct
-type VAOPayloadHandle = Ptr VAOPayloadStruct
 
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
