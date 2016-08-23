@@ -1,55 +1,60 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Graphics.Drawing ( drawCommand,
-                          Attachment(..),
-                          VertexGroup(..),
-                          VAOConfig(..),
-                          createVAOConfig,
-                          indexVAOConfig,
-                          squareIndices,
-                          bufferVertices,
-                          bufferIndices
+module Graphics.Drawing (
+                        DrawType(..),
+                        Shader(..),
+                        Attribute,
+                        Attachment(..),
+                        VertexGroup(..),
+                        squareIndices,
+                        VAO,
+                        VBO,
+                        VAOConfig(..),
+                        getShader,
+                        TexID(..),
+                        getTexID
                         )
                         where
 
-import Types.Color
-import Math.Matrix
-import Math.VectorMatrix
-import Foreign.Storable
-import Foreign.C.Types
-import Foreign.Marshal.Array
-import Foreign.Marshal.Alloc
-import Graphics.Shader
-import Foreign.Ptr
-import GLInterface.GLSupport
-import qualified Data.Foldable as Fold
+import Data.Word
+import Data.Int
 
-type VAO = GLuint
-type VBO = GLuint
+type VAO = Word32
+type VBO = Word32
 
-drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAO -> GLint -> GLenum -> IO ()
-drawCommand shader mat color color2 texid vao numitems drawType = do
-        useShader shader
-        case texid of
-            Just t -> glBindTexture GL_TEXTURE_2D (fromIntegral $ getTexID t)
-            _ -> return ()
+newtype TexID = TexID Int32 deriving (Eq, Ord, Show)
 
-        withVec4 color $ \ptr ->
-            glUniform4fv (sp_UNIFORM_COLOR shader) 1 (castPtr ptr)
-        withVec4 color2 $ \ptr ->
-            glUniform4fv (sp_UNIFORM_COLOR2 shader) 1 (castPtr ptr)
+getTexID (TexID num) = num
 
-        withMat44 mat $ \ptr ->
-            glUniformMatrix4fv (sp_UNIFORM_MODEL_MAT shader) 1 GL_FALSE (castPtr ptr)
-        withMat44 identity $ \ptr ->
-            glUniformMatrix4fv (sp_UNIFORM_VIEW_MAT shader) 1 GL_FALSE (castPtr ptr)
-        glBindVertexArray vao
 
-        glDrawElements drawType numitems GL_UNSIGNED_SHORT nullPtr
+data DrawType = TriangleFan | TriangleStrip | Triangles
+              deriving (Show, Eq)
 
-type Attribute = Shader -> GLuint
 
-data Attachment = Attachment Attribute GLint
+data Shader = Shader {
+            program :: Word32,
+            vertShader :: Word32,
+            fragShader :: Word32,
+
+            sp_ATTR_POSITION :: Word32,
+            sp_ATTR_TEX_COORDS :: Word32,
+            sp_ATTR_COLOR :: Word32,
+            sp_ATTR_COLOR2 :: Word32,
+            sp_ATTR_NORMALS :: Word32,
+
+            sp_UNIFORM_TEXID :: Int32,
+            sp_UNIFORM_COLOR :: Int32,
+            sp_UNIFORM_COLOR2 :: Int32,
+            sp_UNIFORM_MODEL_MAT :: Int32,
+            sp_UNIFORM_VIEW_MAT :: Int32,
+            sp_UNIFORM_SIZE :: Int32
+            } deriving (Eq, Ord, Show)
+
+getShader Shader { program } = program
+
+type Attribute = Shader -> Word32
+
+data Attachment = Attachment Attribute Int32
 data VertexGroup = VertexGroup [Attachment]
 
 data VAOConfig = VAOConfig {
@@ -57,41 +62,6 @@ data VAOConfig = VAOConfig {
                indexVBO :: Maybe VBO,
                vertices :: ![VBO]
                } deriving (Show)
-
-buildVertexGroup :: Shader -> VertexGroup -> IO VBO
-buildVertexGroup shader (VertexGroup attachments) = do
-        vbo <- makeVBO
-        glBindBuffer GL_ARRAY_BUFFER vbo
-
-        let stride = sum $ map (\(Attachment a l) -> l) attachments
-
-        Fold.foldlM (\offset (Attachment a l) -> do
-                attachVertexArray (a shader) l stride offset
-                return (offset + l))
-            0
-            attachments
-
-        return vbo
-
-indexVAOConfig :: VAOConfig -> IO VAOConfig
-indexVAOConfig config@VAOConfig { vao } = do
-        glBindVertexArray vao
-        index_vbo <- makeVBO
-        glBindBuffer GL_ELEMENT_ARRAY_BUFFER index_vbo
-
-        return $ config { indexVBO = Just index_vbo }
-
-createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
-createVAOConfig sh vertexgroups = do
-        vao' <- makeVAO
-        glBindVertexArray vao'
-
-        buffers <- mapM (buildVertexGroup sh) vertexgroups
-
-        return VAOConfig { vao = vao',
-                         indexVBO = Nothing,
-                         vertices = buffers
-                         }
 
 {-
 halveInt :: Int -> Int
@@ -111,40 +81,6 @@ drawPoints shader (VAOConfig vao Nothing [vbo]) points@(x:_) size = do
 
 drawPoints _ a b c = print "invalid drawpoints command" >> print a >> print b >> return ()
         -}
-
-bufferVertices :: VBO -> [CFloat] -> IO ()
-bufferVertices vbo floats = do
-        glBindBuffer GL_ARRAY_BUFFER vbo
-        withArrayLen floats $ \len ptr ->
-            glBufferData GL_ARRAY_BUFFER
-                         (fromIntegral (len * sizeOf (0::GLfloat)))
-                         ptr
-                         GL_STREAM_DRAW
-        _ <- glUnmapBuffer GL_ARRAY_BUFFER
-        return ()
-
-bufferIndices :: VBO -> [CUShort] -> IO ()
-bufferIndices vbo ints = do
-        glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
-
-        withArrayLen ints $ \len ptr ->
-            glBufferData GL_ELEMENT_ARRAY_BUFFER
-                        (fromIntegral (len * sizeOf (0::GLushort)))
-                        ptr
-                        GL_STREAM_DRAW
-
-        _ <- glUnmapBuffer GL_ELEMENT_ARRAY_BUFFER
-        return ()
-
-withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
-withNewPtr f = alloca (\p -> f p >> peek p)
-
-makeVAO :: IO VAO
-makeVAO = withNewPtr (glGenVertexArrays 1)
-
-makeVBO :: IO VAO
-makeVBO = withNewPtr (glGenBuffers 1)
-
 
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
 squareIndices numSquares = (indices, 4 * numSquares + 2 * (numSquares - 1))

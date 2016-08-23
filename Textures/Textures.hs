@@ -5,7 +5,7 @@ module Textures.Textures (loadTexture, loadTexture', loadTextures) where
 import Data.Vector.Storable(unsafeWith)
 
 import GLInterface.GLSupport
-import Textures.GLLoad
+import Graphics.Drawing
 
 import Utils.Utils
 
