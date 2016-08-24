@@ -16,7 +16,7 @@ import Control.Monad
 data Printer a = Printer (Font a) TexID
 
 instance Eq (Printer a) where
-        Printer fa tid == Printer fb tidb = tid == tidb && fontName fa == fontName fb
+        Printer fa tid == Printer fb tidb = fontName fa == fontName fb
 
 instance Show (Printer a) where
         show (Printer font tid) = "Printer:" ++ fontName font ++ "/" ++ show tid

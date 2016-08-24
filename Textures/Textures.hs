@@ -13,6 +13,20 @@ import Codec.Picture
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 
+#if defined(ghcjs_HOST_OS)
+foreign import javascript safe "
+    var tex = gl.createTexture(); \
+    tex.image = new Image(); \
+    tex.image.onload = function() { \
+        gl.bindTexture(gl.TEXTURE_2D, tex); \
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex.image); \
+        gl.generateMipmap(GL_TEXTURE_2D); \
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); \
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); \
+    }; \
+    tex.image.src = $1 + "/images/" + $2; \
+    $r = tex;" loadTexture' :: String -> String -> IO TexID
+#else
 loadTextureFromPath :: String -> IO (Maybe TexID)
 loadTextureFromPath path = do
         res <- readPng path
@@ -40,6 +54,7 @@ loadTexture' path image = do
         case tex of
             Just t -> return t
             Nothing -> error ("Can't load texture " ++ image)
+#endif
 
 loadTextures :: String -> [String] -> IO (HashMap.HashMap Text.Text TexID)
 loadTextures path images = do

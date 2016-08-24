@@ -19,10 +19,24 @@ module Graphics.Drawing (
 import Data.Word
 import Data.Int
 
+#if defined(ghcjs_HOST_OS)
+import GHCJS.Types
+#endif
+
+#if defined(ghcjs_HOST_OS)
+instance Show JSVal
+        where show x = "Some JSVal"
+
+type VAO = JSVal
+type VBO = JSVal
+
+newtype TexID = TexID JSVal deriving (Show)
+#else
 type VAO = Word32
 type VBO = Word32
 
-newtype TexID = TexID Int32 deriving (Eq, Ord, Show)
+newtype TexID = TexID Int32 deriving (Show)
+#endif
 
 getTexID (TexID num) = num
 

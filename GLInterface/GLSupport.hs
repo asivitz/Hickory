@@ -31,7 +31,47 @@ module GLInterface.GLSupport --( module Graphics.GL.Compatibility41)
      )
     where
 
+#if defined(ghcjs_HOST_OS)
+import Data.Word
+import GHCJS.Types
+import GHCJS.Marshal
+import GHCJS.Foreign
+import Data.JSString (pack, JSString)
+import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort,
+                                         pattern GL_SRC_ALPHA,
+                                         pattern GL_ONE_MINUS_SRC_ALPHA,
+                                         pattern GL_TEXTURE0,
+                                         pattern GL_DITHER,
+                                         pattern GL_STENCIL_TEST,
+                                         pattern GL_PROGRAM_POINT_SIZE,
+                                         pattern GL_BLEND,
+                                         pattern GL_COLOR_BUFFER_BIT,
+                                         pattern GL_DEPTH_BUFFER_BIT,
+                                         pattern GL_FRAGMENT_SHADER,
+                                         pattern GL_VERTEX_SHADER,
+                                         pattern GL_LINK_STATUS,
+                                         pattern GL_COMPILE_STATUS,
+                                         pattern GL_SHADER_COMPILER,
+                                         pattern GL_INFO_LOG_LENGTH,
+                                         pattern GL_LINEAR_MIPMAP_LINEAR,
+                                         pattern GL_TRUE,
+                                         pattern GL_TEXTURE_MIN_FILTER,
+                                         pattern GL_TEXTURE_2D,
+                                         pattern GL_LINEAR,
+                                         pattern GL_TEXTURE_MAG_FILTER,
+                                         pattern GL_UNSIGNED_BYTE,
+                                         pattern GL_ELEMENT_ARRAY_BUFFER,
+                                         pattern GL_ARRAY_BUFFER,
+                                         pattern GL_FALSE,
+                                         pattern GL_FLOAT,
+                                         pattern GL_UNSIGNED_SHORT,
+                                         pattern GL_TRIANGLES,
+                                         pattern GL_TRIANGLE_FAN,
+                                         pattern GL_TRIANGLE_STRIP,
+                                         pattern GL_STREAM_DRAW)
+#else
 import Graphics.GL.Compatibility41 as GL
+#endif
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Foreign.Ptr
@@ -51,45 +91,21 @@ import Graphics.Drawing
 type GLMonad c o = ReaderT c IO o
 runGL context mon = runReaderT mon context
 
-genTexture = alloca $ \p ->
-    do
-        GL.glGenTextures 1 p
-        peek p
-
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
 
-makeVAO :: IO VAO
-makeVAO = withNewPtr (GL.glGenVertexArrays 1)
-
-makeVBO :: IO VAO
-makeVBO = withNewPtr (GL.glGenBuffers 1)
-
-bindVAO :: VAO -> IO ()
-bindVAO = GL.glBindVertexArray
-
 bufferVertices :: VBO -> [CFloat] -> IO ()
 bufferVertices vbo floats = do
-        GL.glBindBuffer GL.GL_ARRAY_BUFFER vbo
-        withArrayLen floats $ \len ptr ->
-            GL.glBufferData GL.GL_ARRAY_BUFFER
-                         (fromIntegral (len * sizeOf (0::GL.GLfloat)))
-                         ptr
-                         GL.GL_STREAM_DRAW
-        _ <- GL.glUnmapBuffer GL.GL_ARRAY_BUFFER
+        glBindBuffer GL_ARRAY_BUFFER vbo
+        bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW
+        _ <- glUnmapBuffer GL_ARRAY_BUFFER
         return ()
 
 bufferIndices :: VBO -> [CUShort] -> IO ()
 bufferIndices vbo ints = do
-        GL.glBindBuffer GL.GL_ELEMENT_ARRAY_BUFFER vbo
-
-        withArrayLen ints $ \len ptr ->
-            GL.glBufferData GL.GL_ELEMENT_ARRAY_BUFFER
-                        (fromIntegral (len * sizeOf (0::GL.GLushort)))
-                        ptr
-                        GL.GL_STREAM_DRAW
-
-        _ <- GL.glUnmapBuffer GL.GL_ELEMENT_ARRAY_BUFFER
+        glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
+        bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW
+        _ <- glUnmapBuffer GL_ELEMENT_ARRAY_BUFFER
         return ()
 
 -- Shaders
@@ -98,9 +114,9 @@ useShader (Shader { program }) = glUseProgram program
 -- VAO / VBO
 
 glenumForDrawType dt = case dt of
-                           TriangleStrip -> GL.GL_TRIANGLE_STRIP
-                           TriangleFan -> GL.GL_TRIANGLE_FAN
-                           Triangles -> GL.GL_TRIANGLES
+                           TriangleStrip -> GL_TRIANGLE_STRIP
+                           TriangleFan -> GL_TRIANGLE_FAN
+                           Triangles -> GL_TRIANGLES
 
 drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAO -> GLint -> DrawType -> IO ()
 drawCommand shader mat color color2 texid vao numitems drawType = do
@@ -162,23 +178,6 @@ createVAOConfig sh vertexgroups = do
                          indexVBO = Nothing,
                          vertices = buffers
                          }
-
--- Textures
-
--- create linear filtered texture
-loadGLTex format w h ptr = do
-    tex <- genTexture
-    GL.glBindTexture GL.GL_TEXTURE_2D tex
-
-    GL.glTexImage2D GL.GL_TEXTURE_2D 0 (fromIntegral format)
-        (fromIntegral w) (fromIntegral h)
-        0 format GL.GL_UNSIGNED_BYTE ptr
-
-    GL.glGenerateMipmap GL.GL_TEXTURE_2D
-
-    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_MAG_FILTER (fromIntegral GL.GL_LINEAR)
-    GL.glTexParameteri GL.GL_TEXTURE_2D GL.GL_TEXTURE_MIN_FILTER (fromIntegral GL.GL_LINEAR_MIPMAP_LINEAR)
-    return $ Just $ TexID (fromIntegral tex)
 
 -- Shaders
 
@@ -262,21 +261,124 @@ buildShaderProgram vertShader fragShader = do
             else do
                 let sh = Shader programId vertShader fragShader
                 res <- sh <$>
-                    (fromIntegral <$> withCString "position" (glGetAttribLocation programId)) <*>
-                    (fromIntegral <$> withCString "texCoords" (glGetAttribLocation programId)) <*>
-                    (fromIntegral <$> withCString "color" (glGetAttribLocation programId)) <*>
-                    (fromIntegral <$> withCString "color2" (glGetAttribLocation programId)) <*>
-                    (fromIntegral <$> withCString "normals" (glGetAttribLocation programId)) <*>
+                    (fromIntegral <$> getAttribLocation programId "position") <*>
+                    (fromIntegral <$> getAttribLocation programId "texCoords") <*>
+                    (fromIntegral <$> getAttribLocation programId "color") <*>
+                    (fromIntegral <$> getAttribLocation programId "color2") <*>
+                    (fromIntegral <$> getAttribLocation programId "normals") <*>
 
-                    (withCString "tex" (glGetUniformLocation programId)) <*>
-                    (withCString "color" (glGetUniformLocation programId)) <*>
-                    (withCString "color2" (glGetUniformLocation programId)) <*>
-                    (withCString "modelMat" (glGetUniformLocation programId)) <*>
-                    (withCString "viewMat" (glGetUniformLocation programId)) <*>
-                    (withCString "size" (glGetUniformLocation programId))
+                    getUniformLocation programId "tex" <*>
+                    getUniformLocation programId "color" <*>
+                    getUniformLocation programId "color2" <*>
+                    getUniformLocation programId "modelMat" <*>
+                    getUniformLocation programId "viewMat" <*>
+                    getUniformLocation programId "size"
                 return $ Just res
 
-configGLState :: MonadIO m => GLfloat -> GLfloat -> GLfloat -> m ()
+
+#if defined(ghcjs_HOST_OS)
+foreign import javascript safe "gl.clearColor($1,$2,$3,$4)" glClearColor :: Float -> Float -> Float -> Float -> IO ()
+foreign import javascript safe "gl.blendFunc($1,$2)" glBlendFunc :: GLenum -> GLenum -> IO ()
+foreign import javascript safe "gl.clear($1)" glClear :: GLuint -> IO ()
+foreign import javascript safe "gl.activeTexture($1)" glActiveTexture :: GLenum -> IO ()
+foreign import javascript safe "gl.disable($1)" glDisable :: GLenum -> IO ()
+foreign import javascript safe "gl.enable($1)" glEnable :: GLenum -> IO ()
+foreign import javascript safe "gl.bindVertexArray($1)" glBindVertexArray :: VAO -> IO ()
+foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
+foreign import javascript safe "gl.useProgram($1)" glUseProgram :: GLuint -> IO ()
+foreign import javascript safe "$r = gl.createProgram();" glCreateProgram :: IO GLuint
+foreign import javascript safe "$r = gl.getUniformLocation($1,$2);" glGetUniformLocation :: GLuint -> JSString -> IO GLint
+getUniformLocation :: GLuint -> String -> IO GLint
+getUniformLocation a b = glGetUniformLocation a (pack b)
+foreign import javascript safe "$r = gl.getAttribLocation($1,$2);" glGetAttribLocation :: GLuint -> JSString -> IO GLuint
+getAttribLocation :: GLuint -> String -> IO GLuint
+getAttribLocation a b = glGetAttribLocation a (pack b)
+foreign import javascript safe "gl.attachShader($1,$2)" glAttachShader :: GLuint -> GLuint -> IO ()
+foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> GLint -> IO ()
+foreign import javascript safe "gl.compileShader($1)" glCompileShader :: GLuint -> IO ()
+foreign import javascript safe "$r = gl.createShader($1)" glCreateShader :: GLenum -> IO GLuint
+foreign import javascript safe "gl.deleteShader($1)" glDeleteShader :: GLuint -> IO ()
+foreign import javascript safe "gl.enableVertexAttribArray($1)" glEnableVertexAttribArray :: GLuint -> IO ()
+foreign import javascript safe "gl.generateMipmap($1)" glGenerateMipmap :: GLenum -> IO ()
+foreign import javascript safe "gl.unmapBuffer($1)" glUnmapBuffer :: GLenum -> IO ()
+foreign import javascript safe "gl.linkProgram($1)" glLinkProgram :: GLuint -> IO ()
+foreign import javascript safe "g.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLuint -> GLenum -> IO ()
+
+
+foreign import javascript safe "" glGetBooleanv :: IO ()
+foreign import javascript safe "" glGetProgramInfoLog :: IO ()
+foreign import javascript safe "" glGetProgramiv :: IO ()
+foreign import javascript safe "" glGetShaderInfoLog :: IO ()
+foreign import javascript safe "" glGetShaderiv :: IO ()
+foreign import javascript safe "" glShaderSource :: IO ()
+foreign import javascript safe "" glUniform4fv :: IO ()
+foreign import javascript safe "" glUniformMatrix4fv :: IO ()
+foreign import javascript safe "" glVertexAttribPointer :: IO ()
+
+foreign import javascript safe " \
+    var ext = gl.getExtension('OES_vertex_array_object'); \
+    $r = ext.createVertexArrayOES(); \
+    " makeVAO :: IO VAO
+
+foreign import javascript safe " \
+    var ext = gl.getExtension('OES_vertex_array_object'); \
+    ext.bindVertexArrayOES($1); \
+    " bindVAO :: VAO -> IO ()
+
+foreign import javascript safe "$r = gl.createBuffer();" makeVBO :: IO VBO
+
+foreign import javascript safe "gl.bufferData($1, new Float32Array($2), $3);" glBufferData :: GLenum -> JSVal -> GLenum -> IO ()
+
+bufferData bufType lst usageType = do
+        arr <- toJSVal lst
+        glBufferData bufType arr usageType
+
+#else
+
+bufferData bufType lst usageType =
+        withArrayLen lst $ \len ptr ->
+            glBufferData bufType
+                         (fromIntegral (len * sizeOf (head lst)))
+                         ptr
+                         usageType
+
+getAttribLocation progId name = withCString name (glGetAttribLocation progId)
+getUniformLocation progId name = withCString name (glGetUniformLocation progId)
+
+-- VAO
+
+makeVAO :: IO VAO
+makeVAO = withNewPtr (glGenVertexArrays 1)
+
+makeVBO :: IO VAO
+makeVBO = withNewPtr (glGenBuffers 1)
+
+bindVAO :: VAO -> IO ()
+bindVAO = glBindVertexArray
+
+-- Textures
+genTexture = alloca $ \p ->
+    do
+        glGenTextures 1 p
+        peek p
+
+-- create linear filtered texture
+loadGLTex format w h ptr = do
+    tex <- genTexture
+    glBindTexture GL_TEXTURE_2D tex
+
+    glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
+        (fromIntegral w) (fromIntegral h)
+        0 format GL_UNSIGNED_BYTE ptr
+
+    glGenerateMipmap GL_TEXTURE_2D
+
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
+    return $ Just $ TexID (fromIntegral tex)
+#endif
+
+configGLState :: GLfloat -> GLfloat -> GLfloat -> IO ()
 configGLState r g b = do
         glClearColor r g b 1
         glBlendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
@@ -289,6 +391,6 @@ configGLState r g b = do
 
         glEnable GL_BLEND
 
-clearScreen :: MonadIO m => m ()
+clearScreen :: IO ()
 clearScreen = do
         glClear (GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT)
