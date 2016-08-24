@@ -12,7 +12,9 @@ module Graphics.Drawing (
                         VAOConfig(..),
                         getShader,
                         TexID(..),
-                        getTexID
+                        getTexID,
+                        ShaderID,
+                        ProgramID
                         )
                         where
 
@@ -29,11 +31,15 @@ instance Show JSVal
 
 type VAO = JSVal
 type VBO = JSVal
+type ShaderID = JSVal
+type ProgramID = JSVal
 
 newtype TexID = TexID JSVal deriving (Show)
 #else
 type VAO = Word32
 type VBO = Word32
+type ShaderID = Word32
+type ProgramID = Word32
 
 newtype TexID = TexID Int32 deriving (Show)
 #endif
@@ -46,9 +52,9 @@ data DrawType = TriangleFan | TriangleStrip | Triangles
 
 
 data Shader = Shader {
-            program :: Word32,
-            vertShader :: Word32,
-            fragShader :: Word32,
+            program :: ProgramID,
+            vertShader :: ShaderID,
+            fragShader :: ShaderID,
 
             sp_ATTR_POSITION :: Word32,
             sp_ATTR_TEX_COORDS :: Word32,
@@ -62,7 +68,7 @@ data Shader = Shader {
             sp_UNIFORM_MODEL_MAT :: Int32,
             sp_UNIFORM_VIEW_MAT :: Int32,
             sp_UNIFORM_SIZE :: Int32
-            } deriving (Eq, Ord, Show)
+            } deriving (Show)
 
 getShader Shader { program } = program
 

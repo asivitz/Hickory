@@ -187,6 +187,161 @@ glGetShaderi shaderId x = alloca (\ptr -> glGetShaderiv shaderId x ptr >> peek p
 
 glGetProgrami programId x = alloca (\ptr -> glGetProgramiv programId x ptr >> peek ptr)
 
+
+
+compileVertShader :: String -> IO (Maybe ShaderID)
+compileVertShader source = compileShader source GL_VERTEX_SHADER
+
+compileFragShader :: String -> IO (Maybe ShaderID)
+compileFragShader source = compileShader source GL_FRAGMENT_SHADER
+
+buildShaderProgram :: ShaderID -> ShaderID -> IO (Maybe Shader)
+buildShaderProgram vertShader fragShader = do
+        programId <- glCreateProgram
+
+        linked <- linkProgram programId vertShader fragShader
+        if not linked
+            then return Nothing
+            else do
+                let sh = Shader programId vertShader fragShader
+                res <- sh <$>
+                    (fromIntegral <$> getAttribLocation programId "position") <*>
+                    (fromIntegral <$> getAttribLocation programId "texCoords") <*>
+                    (fromIntegral <$> getAttribLocation programId "color") <*>
+                    (fromIntegral <$> getAttribLocation programId "color2") <*>
+                    (fromIntegral <$> getAttribLocation programId "normals") <*>
+
+                    getUniformLocation programId "tex" <*>
+                    getUniformLocation programId "color" <*>
+                    getUniformLocation programId "color2" <*>
+                    getUniformLocation programId "modelMat" <*>
+                    getUniformLocation programId "viewMat" <*>
+                    getUniformLocation programId "size"
+                return $ Just res
+
+
+#if defined(ghcjs_HOST_OS)
+foreign import javascript safe "gl.clearColor($1,$2,$3,$4)" glClearColor :: Float -> Float -> Float -> Float -> IO ()
+foreign import javascript safe "gl.blendFunc($1,$2)" glBlendFunc :: GLenum -> GLenum -> IO ()
+foreign import javascript safe "gl.clear($1)" glClear :: GLuint -> IO ()
+foreign import javascript safe "gl.activeTexture($1)" glActiveTexture :: GLenum -> IO ()
+foreign import javascript safe "gl.disable($1)" glDisable :: GLenum -> IO ()
+foreign import javascript safe "gl.enable($1)" glEnable :: GLenum -> IO ()
+foreign import javascript safe "gl.bindVertexArray($1)" glBindVertexArray :: VAO -> IO ()
+foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
+foreign import javascript safe "gl.useProgram($1)" glUseProgram :: ProgramID -> IO ()
+foreign import javascript safe "$r = gl.createProgram();" glCreateProgram :: IO ProgramID
+foreign import javascript safe "$r = gl.getUniformLocation($1,$2);" glGetUniformLocation :: ProgramID -> JSString -> IO GLint
+getUniformLocation :: ProgramID -> String -> IO GLint
+getUniformLocation a b = glGetUniformLocation a (pack b)
+foreign import javascript safe "$r = gl.getAttribLocation($1,$2);" glGetAttribLocation :: ProgramID -> JSString -> IO GLuint
+getAttribLocation :: ProgramID -> String -> IO GLuint
+getAttribLocation a b = glGetAttribLocation a (pack b)
+{-foreign import javascript safe "gl.attachShader($1,$2)" glAttachShader :: GLuint -> GLuint -> IO ()-}
+foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> GLint -> IO ()
+{-foreign import javascript safe "gl.compileShader($1)" glCompileShader :: GLuint -> IO ()-}
+{-foreign import javascript safe "$r = gl.createShader($1)" glCreateShader :: GLenum -> IO GLuint-}
+foreign import javascript safe "gl.deleteShader($1)" glDeleteShader :: ShaderID -> IO ()
+foreign import javascript safe "gl.enableVertexAttribArray($1)" glEnableVertexAttribArray :: GLuint -> IO ()
+foreign import javascript safe "gl.generateMipmap($1)" glGenerateMipmap :: GLenum -> IO ()
+foreign import javascript safe "gl.unmapBuffer($1)" glUnmapBuffer :: GLenum -> IO ()
+{-foreign import javascript safe "gl.linkProgram($1)" glLinkProgram :: GLuint -> IO ()-}
+foreign import javascript safe "g.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLuint -> GLenum -> IO ()
+
+
+foreign import javascript safe "" glGetBooleanv :: IO ()
+foreign import javascript safe "" glGetProgramInfoLog :: IO ()
+foreign import javascript safe "" glGetProgramiv :: IO ()
+foreign import javascript safe "" glGetShaderInfoLog :: IO ()
+foreign import javascript safe "" glGetShaderiv :: IO ()
+foreign import javascript safe "" glShaderSource :: IO ()
+foreign import javascript safe "" glUniform4fv :: IO ()
+foreign import javascript safe "" glUniformMatrix4fv :: IO ()
+foreign import javascript safe "" glVertexAttribPointer :: IO ()
+
+foreign import javascript safe " \
+    var ext = gl.getExtension('OES_vertex_array_object'); \
+    $r = ext.createVertexArrayOES(); \
+    " makeVAO :: IO VAO
+
+foreign import javascript safe " \
+    var ext = gl.getExtension('OES_vertex_array_object'); \
+    ext.bindVertexArrayOES($1); \
+    " bindVAO :: VAO -> IO ()
+
+foreign import javascript safe "$r = gl.createBuffer();" makeVBO :: IO VBO
+
+foreign import javascript safe "gl.bufferData($1, new Float32Array($2), $3);" glBufferData :: GLenum -> JSVal -> GLenum -> IO ()
+
+bufferData bufType lst usageType = do
+        arr <- toJSVal lst
+        glBufferData bufType arr usageType
+
+foreign import javascript safe " \
+    var shader = gl.createShader($2); \
+    gl.shaderSource(shader, $1); \
+    gl.compileShader(shader); \
+    \
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { \
+        alert(gl.getShaderInfoLog(shader)); \
+    } \
+    $r = shader; \
+    " compileShader' :: JSString -> GLenum -> IO ShaderID
+
+compileShader :: String -> GLenum -> IO (Maybe ShaderID)
+compileShader a b = compileShader' (pack a) b >>= return . Just
+
+foreign import javascript safe " \
+    gl.attachShader($1, $2); \
+    gl.attachShader($1, $3); \
+    gl.linkProgram($1); \
+    $r = true; \
+    " linkProgram :: ProgramID -> ShaderID -> ShaderID -> IO Bool
+
+#else
+
+bufferData bufType lst usageType =
+        withArrayLen lst $ \len ptr ->
+            glBufferData bufType
+                         (fromIntegral (len * sizeOf (head lst)))
+                         ptr
+                         usageType
+
+getAttribLocation progId name = withCString name (glGetAttribLocation progId)
+getUniformLocation progId name = withCString name (glGetUniformLocation progId)
+
+-- VAO
+
+makeVAO :: IO VAO
+makeVAO = withNewPtr (glGenVertexArrays 1)
+
+makeVBO :: IO VAO
+makeVBO = withNewPtr (glGenBuffers 1)
+
+bindVAO :: VAO -> IO ()
+bindVAO = glBindVertexArray
+
+-- Textures
+genTexture = alloca $ \p ->
+    do
+        glGenTextures 1 p
+        peek p
+
+-- create linear filtered texture
+loadGLTex format w h ptr = do
+    tex <- genTexture
+    glBindTexture GL_TEXTURE_2D tex
+
+    glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
+        (fromIntegral w) (fromIntegral h)
+        0 format GL_UNSIGNED_BYTE ptr
+
+    glGenerateMipmap GL_TEXTURE_2D
+
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
+    return $ Just $ TexID (fromIntegral tex)
+
 retrieveLog lenFun infoFun = do
         infoLen <- lenFun GL_INFO_LOG_LENGTH
         let infoLen' = fromIntegral infoLen
@@ -197,7 +352,6 @@ retrieveLog lenFun infoFun = do
                     peekCStringLen (buf, infoLen' - 1)
                 return $ Just info
             else return Nothing
-
 
 compileShader :: String -> GLenum -> IO (Maybe GLuint)
 compileShader source shaderType = do
@@ -245,137 +399,6 @@ linkProgram programId vertShader fragShader = do
 
         return didLink
 
-compileVertShader :: String -> IO (Maybe GLuint)
-compileVertShader source = compileShader source GL_VERTEX_SHADER
-
-compileFragShader :: String -> IO (Maybe GLuint)
-compileFragShader source = compileShader source GL_FRAGMENT_SHADER
-
-buildShaderProgram :: GLuint -> GLuint -> IO (Maybe Shader)
-buildShaderProgram vertShader fragShader = do
-        programId <- glCreateProgram
-
-        linked <- linkProgram programId vertShader fragShader
-        if not linked
-            then return Nothing
-            else do
-                let sh = Shader programId vertShader fragShader
-                res <- sh <$>
-                    (fromIntegral <$> getAttribLocation programId "position") <*>
-                    (fromIntegral <$> getAttribLocation programId "texCoords") <*>
-                    (fromIntegral <$> getAttribLocation programId "color") <*>
-                    (fromIntegral <$> getAttribLocation programId "color2") <*>
-                    (fromIntegral <$> getAttribLocation programId "normals") <*>
-
-                    getUniformLocation programId "tex" <*>
-                    getUniformLocation programId "color" <*>
-                    getUniformLocation programId "color2" <*>
-                    getUniformLocation programId "modelMat" <*>
-                    getUniformLocation programId "viewMat" <*>
-                    getUniformLocation programId "size"
-                return $ Just res
-
-
-#if defined(ghcjs_HOST_OS)
-foreign import javascript safe "gl.clearColor($1,$2,$3,$4)" glClearColor :: Float -> Float -> Float -> Float -> IO ()
-foreign import javascript safe "gl.blendFunc($1,$2)" glBlendFunc :: GLenum -> GLenum -> IO ()
-foreign import javascript safe "gl.clear($1)" glClear :: GLuint -> IO ()
-foreign import javascript safe "gl.activeTexture($1)" glActiveTexture :: GLenum -> IO ()
-foreign import javascript safe "gl.disable($1)" glDisable :: GLenum -> IO ()
-foreign import javascript safe "gl.enable($1)" glEnable :: GLenum -> IO ()
-foreign import javascript safe "gl.bindVertexArray($1)" glBindVertexArray :: VAO -> IO ()
-foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
-foreign import javascript safe "gl.useProgram($1)" glUseProgram :: GLuint -> IO ()
-foreign import javascript safe "$r = gl.createProgram();" glCreateProgram :: IO GLuint
-foreign import javascript safe "$r = gl.getUniformLocation($1,$2);" glGetUniformLocation :: GLuint -> JSString -> IO GLint
-getUniformLocation :: GLuint -> String -> IO GLint
-getUniformLocation a b = glGetUniformLocation a (pack b)
-foreign import javascript safe "$r = gl.getAttribLocation($1,$2);" glGetAttribLocation :: GLuint -> JSString -> IO GLuint
-getAttribLocation :: GLuint -> String -> IO GLuint
-getAttribLocation a b = glGetAttribLocation a (pack b)
-foreign import javascript safe "gl.attachShader($1,$2)" glAttachShader :: GLuint -> GLuint -> IO ()
-foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> GLint -> IO ()
-foreign import javascript safe "gl.compileShader($1)" glCompileShader :: GLuint -> IO ()
-foreign import javascript safe "$r = gl.createShader($1)" glCreateShader :: GLenum -> IO GLuint
-foreign import javascript safe "gl.deleteShader($1)" glDeleteShader :: GLuint -> IO ()
-foreign import javascript safe "gl.enableVertexAttribArray($1)" glEnableVertexAttribArray :: GLuint -> IO ()
-foreign import javascript safe "gl.generateMipmap($1)" glGenerateMipmap :: GLenum -> IO ()
-foreign import javascript safe "gl.unmapBuffer($1)" glUnmapBuffer :: GLenum -> IO ()
-foreign import javascript safe "gl.linkProgram($1)" glLinkProgram :: GLuint -> IO ()
-foreign import javascript safe "g.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLuint -> GLenum -> IO ()
-
-
-foreign import javascript safe "" glGetBooleanv :: IO ()
-foreign import javascript safe "" glGetProgramInfoLog :: IO ()
-foreign import javascript safe "" glGetProgramiv :: IO ()
-foreign import javascript safe "" glGetShaderInfoLog :: IO ()
-foreign import javascript safe "" glGetShaderiv :: IO ()
-foreign import javascript safe "" glShaderSource :: IO ()
-foreign import javascript safe "" glUniform4fv :: IO ()
-foreign import javascript safe "" glUniformMatrix4fv :: IO ()
-foreign import javascript safe "" glVertexAttribPointer :: IO ()
-
-foreign import javascript safe " \
-    var ext = gl.getExtension('OES_vertex_array_object'); \
-    $r = ext.createVertexArrayOES(); \
-    " makeVAO :: IO VAO
-
-foreign import javascript safe " \
-    var ext = gl.getExtension('OES_vertex_array_object'); \
-    ext.bindVertexArrayOES($1); \
-    " bindVAO :: VAO -> IO ()
-
-foreign import javascript safe "$r = gl.createBuffer();" makeVBO :: IO VBO
-
-foreign import javascript safe "gl.bufferData($1, new Float32Array($2), $3);" glBufferData :: GLenum -> JSVal -> GLenum -> IO ()
-
-bufferData bufType lst usageType = do
-        arr <- toJSVal lst
-        glBufferData bufType arr usageType
-
-#else
-
-bufferData bufType lst usageType =
-        withArrayLen lst $ \len ptr ->
-            glBufferData bufType
-                         (fromIntegral (len * sizeOf (head lst)))
-                         ptr
-                         usageType
-
-getAttribLocation progId name = withCString name (glGetAttribLocation progId)
-getUniformLocation progId name = withCString name (glGetUniformLocation progId)
-
--- VAO
-
-makeVAO :: IO VAO
-makeVAO = withNewPtr (glGenVertexArrays 1)
-
-makeVBO :: IO VAO
-makeVBO = withNewPtr (glGenBuffers 1)
-
-bindVAO :: VAO -> IO ()
-bindVAO = glBindVertexArray
-
--- Textures
-genTexture = alloca $ \p ->
-    do
-        glGenTextures 1 p
-        peek p
-
--- create linear filtered texture
-loadGLTex format w h ptr = do
-    tex <- genTexture
-    glBindTexture GL_TEXTURE_2D tex
-
-    glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
-        (fromIntegral w) (fromIntegral h)
-        0 format GL_UNSIGNED_BYTE ptr
-
-    glGenerateMipmap GL_TEXTURE_2D
-
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
-    return $ Just $ TexID (fromIntegral tex)
 #endif
 
 configGLState :: GLfloat -> GLfloat -> GLfloat -> IO ()
