@@ -41,7 +41,7 @@ type VBO = Word32
 type ShaderID = Word32
 type ProgramID = Word32
 
-newtype TexID = TexID Int32 deriving (Show)
+newtype TexID = TexID Word32 deriving (Show)
 #endif
 
 getTexID (TexID num) = num

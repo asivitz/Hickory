@@ -24,12 +24,13 @@ import qualified Data.List.Utils as LUtils
 
 import Graphics.Drawing
 import Types.Color
+import Graphics.GL.Compatibility41 as GL
 
 data Command = Command Shader Mat44 Color DrawSpec
 
 data DrawSpec = Text (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj |
-                DynVAO (Maybe TexID) VAOConfig ([CFloat],[CUShort],DrawType)
+                DynVAO (Maybe TexID) VAOConfig ([GLfloat],[GLushort],DrawType)
               deriving (Show)
 
 drawSpec :: Shader -> Mat44 -> Color -> DrawSpec -> IO ()
@@ -115,7 +116,7 @@ updateVAOObj (PrintDesc (Printer font texid) textCommand color)
                      else
                          error "Tried to print empty text command"
 
-cubeFloats :: [CFloat]
+cubeFloats :: [GLfloat]
 cubeFloats = concatMap toList verts
     where h = 0.5
           l = -h
@@ -129,18 +130,18 @@ cubeFloats = concatMap toList verts
           p8 = v3 l h h
           verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
-loadVerticesIntoVAOConfig :: VAOConfig -> [CFloat] -> [CUShort] -> IO ()
+loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
 loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } vs indices = do
         bindVAO vao
         bufferVertices vbo vs
         bufferIndices ivbo indices
 
-packVAOObj :: VAOConfig -> [CFloat] -> [CUShort] -> DrawType -> IO VAOObj
+packVAOObj :: VAOConfig -> [GLfloat] -> [GLushort] -> DrawType -> IO VAOObj
 packVAOObj vaoconfig verts indices drawType = do
         loadVerticesIntoVAOConfig vaoconfig verts indices
         return $ VAOObj vaoconfig (length indices) drawType
 
-buildData :: OBJ.OBJ Double -> ([CFloat], [CUShort])
+buildData :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
 buildData (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
     where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
           pool = foldl' (\alst e -> LUtils.addToAL alst e (construct e)) [] $ concatMap toList faces

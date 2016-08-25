@@ -12,6 +12,8 @@ import Utils.Utils
 import Codec.Picture
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
+import Foreign.Marshal.Alloc
+import Foreign.Storable
 
 #if defined(ghcjs_HOST_OS)
 foreign import javascript safe "
@@ -27,6 +29,28 @@ foreign import javascript safe "
     tex.image.src = $1 + "/images/" + $2; \
     $r = tex;" loadTexture' :: String -> String -> IO TexID
 #else
+import Graphics.GL.Compatibility41 as GL
+-- Textures
+genTexture = alloca $ \p ->
+    do
+        glGenTextures 1 p
+        peek p
+
+-- create linear filtered texture
+loadGLTex format w h ptr = do
+    tex <- genTexture
+    glBindTexture GL_TEXTURE_2D tex
+
+    glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
+        (fromIntegral w) (fromIntegral h)
+        0 format GL_UNSIGNED_BYTE ptr
+
+    glGenerateMipmap GL_TEXTURE_2D
+
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
+    return $ Just $ TexID (fromIntegral tex)
+
 loadTextureFromPath :: String -> IO (Maybe TexID)
 loadTextureFromPath path = do
         res <- readPng path

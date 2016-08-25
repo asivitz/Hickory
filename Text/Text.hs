@@ -109,7 +109,7 @@ renderedTextSize font@(Font _ info chartable kerningtable) (TextCommand text fon
             width = displayWidth kerningtable glyphs
             in Size (width * fontSize) (10 * fontSize)
 
-transformTextCommandToVerts :: Real a => PositionedTextCommand -> Font a -> (Int, [CFloat])
+transformTextCommandToVerts :: (Real a, Fractional b) => PositionedTextCommand -> Font a -> (Int, [b])
 transformTextCommandToVerts (PositionedTextCommand (V3 x y z) (TextCommand text fontSize align valign color commandBump) )
                             font@(Font _ FontInfo { lineHeight } chartable kerningtable) =
         let fsize = fontSize / 12
@@ -117,7 +117,7 @@ transformTextCommandToVerts (PositionedTextCommand (V3 x y z) (TextCommand text 
             width = displayWidth kerningtable glyphs
             xoffset = commandBump + (lineShiftX (realToFrac width) align)
             yoffset = lineShiftY fsize (realToFrac lineHeight) valign
-            accum :: Real a => (Scalar, Int, Int, [CFloat], [CFloat]) -> Glyph a -> (Scalar, Int, Int, [CFloat], [CFloat])
+            accum :: (Real a, Fractional b) => (Scalar, Int, Int, [b], [b]) -> Glyph a -> (Scalar, Int, Int, [b], [b])
             accum = \(leftBump, linenum, numsquares, vertlst, color_verts) glyph ->
                 case glyph of
                     Null -> (leftBump, linenum, numsquares, vertlst, color_verts)
@@ -142,9 +142,9 @@ transformTextCommandToVerts (PositionedTextCommand (V3 x y z) (TextCommand text 
             (_, _, numsquares, vert_result, _) = foldl' accum (xoffset, 0, 0, [], vunpackFractional color) glyphs
             in (numsquares, vert_result)
 
-transformTextCommandsToVerts :: Real a => [PositionedTextCommand] -> Font a -> (Int, [CFloat])
+transformTextCommandsToVerts :: (Real a, Fractional b) => [PositionedTextCommand] -> Font a -> (Int, [b])
 transformTextCommandsToVerts commands font = foldl processCommand (0, []) commands
-    where processCommand :: (Int, [CFloat]) -> PositionedTextCommand -> (Int, [CFloat])
+    where processCommand :: Fractional b => (Int, [b]) -> PositionedTextCommand -> (Int, [b])
           processCommand (numsquares, verts) command = let (num', verts') = (transformTextCommandToVerts command font) in (num' + numsquares, verts' ++ verts)
 
                     {- Embedded textures
