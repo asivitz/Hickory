@@ -87,16 +87,18 @@ runGL context mon = runReaderT mon context
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
 
+data BufDataType = BufFloat | BufUShort
+
 bufferVertices :: VBO -> [GLfloat] -> IO ()
 bufferVertices vbo floats = do
         glBindBuffer GL_ARRAY_BUFFER vbo
-        bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW
+        bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW BufFloat
         return ()
 
 bufferIndices :: VBO -> [GLushort] -> IO ()
 bufferIndices vbo ints = do
         glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
-        bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW
+        bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW BufUShort
         return ()
 
 -- VAO / VBO
@@ -197,11 +199,14 @@ foreign import javascript safe " \
 
 foreign import javascript safe "$r = gl.createBuffer();" makeVBO :: IO VBO
 
-foreign import javascript safe "gl.bufferData($1, new Float32Array($2), $3);" glBufferData :: GLenum -> JSVal -> GLenum -> IO ()
+foreign import javascript safe "gl.bufferData($1, new Float32Array($2), $3);" glBufferFloatData :: GLenum -> JSVal -> GLenum -> IO ()
+foreign import javascript safe "gl.bufferData($1, new Int16Array($2), $3);" glBufferUShortData :: GLenum -> JSVal -> GLenum -> IO ()
 
-bufferData bufType lst usageType = do
+bufferData bufType lst usageType bufDataType = do
         arr <- toJSVal lst
-        glBufferData bufType arr usageType
+        case bufDataType of
+            BufFloat -> glBufferFloatData bufType arr usageType
+            BufUShort -> glBufferUShortData bufType arr usageType
 
 foreign import javascript safe "if ($1) { gl.uniform4fv($1, new Float32Array($2)); }" glUniform4fv :: UniformLoc -> JSVal -> IO ()
 
@@ -240,7 +245,7 @@ uniformMatrix4fv loc mat =
 vertexAttribPointer :: GLuint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
 vertexAttribPointer a b c d e f = glVertexAttribPointer a b c d e (plusPtr nullPtr (fromIntegral f))
 
-bufferData bufType lst usageType =
+bufferData bufType lst usageType _ =
         withArrayLen lst $ \len ptr ->
             glBufferData bufType
                          (fromIntegral (len * sizeOf (head lst)))
