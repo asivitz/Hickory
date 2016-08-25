@@ -203,7 +203,7 @@ bufferData bufType lst usageType = do
         arr <- toJSVal lst
         glBufferData bufType arr usageType
 
-foreign import javascript safe "gl.uniform4fv($1, new Float32Array($2));" glUniform4fv :: UniformLoc -> JSVal -> IO ()
+foreign import javascript safe "if ($1) { gl.uniform4fv($1, new Float32Array($2)); }" glUniform4fv :: UniformLoc -> JSVal -> IO ()
 
 uniform4fv :: UniformLoc -> V4 Double -> IO ()
 uniform4fv loc vec = do
@@ -211,13 +211,13 @@ uniform4fv loc vec = do
         arr <- toJSVal lst
         glUniform4fv loc arr
 
-foreign import javascript safe "gl.uniformMatrix4fv($1, gl.FALSE, new Float32Array($2));" glUniformMatrix4fv :: UniformLoc -> JSVal -> IO ()
+foreign import javascript safe "if ($1) { gl.uniformMatrix4fv($1, gl.FALSE, new Float32Array($2)); }" glUniformMatrix4fv :: UniformLoc -> JSVal -> IO ()
 
 uniformMatrix4fv :: UniformLoc -> Mat44 -> IO ()
 uniformMatrix4fv loc mat = do
         let lst = (concatMap toList . toList) mat
         arr <- toJSVal lst
-        glUniform4fv loc arr
+        glUniformMatrix4fv loc arr
 
 #else
 
