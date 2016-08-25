@@ -16,8 +16,10 @@ import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 import Graphics.Drawing
 import Control.Monad
+import Data.Maybe
 
 #if defined(ghcjs_HOST_OS)
+import JavaScript.Web.XMLHttpRequest
 import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort, GLboolean, GLsizei, GLintptr,
                                          pattern GL_SRC_ALPHA,
                                          pattern GL_ONE_MINUS_SRC_ALPHA,
@@ -51,7 +53,7 @@ import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLusho
                                          pattern GL_TRIANGLE_STRIP,
                                          pattern GL_STREAM_DRAW)
 
-import Data.JSString (pack, JSString)
+import Data.JSString (unpack, pack, JSString)
 
 foreign import javascript safe "gl.deleteShader($1)" deleteShader :: ShaderID -> IO ()
 
@@ -89,6 +91,12 @@ getAttribLocation a b = glGetAttribLocation a (pack b)
 
 foreign import javascript safe "gl.useProgram($1)" glUseProgram :: ProgramID -> IO ()
 foreign import javascript safe "$r = gl.createProgram();" glCreateProgram :: IO ProgramID
+
+readFile' path = do
+        resp <- xhr Request { reqMethod = GET, reqURI = pack path, reqLogin = Nothing, reqHeaders = [], reqWithCredentials = False, reqData = NoData }
+        return . unpack . fromJust $ contents resp
+
+shaderSourceForPath path = readFile' path
 
 #else
 import Graphics.GL.Compatibility41 as GL
@@ -160,6 +168,11 @@ linkProgram programId vertShader fragShader = do
 getAttribLocation progId name = withCString name (glGetAttribLocation progId)
 getUniformLocation progId name = withCString name (glGetUniformLocation progId)
 
+shaderSourceForPath path = do
+        source <- readFile path
+        -- TODO: iOS shouldn't have this header
+        return $ "#version 150\n" ++ source
+
 #endif
 
 loadShader resPath vert frag = do
@@ -184,11 +197,6 @@ loadShader resPath vert frag = do
                                    error $ "Failed to link shader program: " ++ vpath ++ "-" ++ fpath
                        Nothing -> error $ "Couldn't load frag shader: " ++ fpath
        Nothing -> error $ "Couldn't load vertex shader: " ++ vpath
-
-shaderSourceForPath path = do
-        source <- readFile path
-        -- TODO: iOS shouldn't have this header
-        return $ "#version 150\n" ++ source
 
 compileVertShader :: String -> IO (Maybe ShaderID)
 compileVertShader source = compileShader source GL_VERTEX_SHADER
