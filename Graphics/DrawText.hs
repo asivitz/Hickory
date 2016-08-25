@@ -9,7 +9,7 @@ import Graphics.Drawing
 import Graphics.Shader
 import Text.Text
 
-import Data.Text.IO as TextIO
+import Utils.Utils
 import Textures.Textures
 import Control.Monad
 
@@ -36,7 +36,7 @@ loadPrinter resPath shader name = do
         case texid of
             Nothing -> return Nothing
             Just tid -> do
-                text <- TextIO.readFile $ resPath ++ "/fonts/" ++ name ++ ".fnt"
+                text <- readFileAsText $ resPath ++ "/fonts/" ++ name ++ ".fnt"
                 case makeFont text name of
                     Left s -> do
                         print $ "Error: Can't parse font file for " ++ name ++ ".fnt Msg: " ++ s

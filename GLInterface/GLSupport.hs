@@ -91,14 +91,12 @@ bufferVertices :: VBO -> [GLfloat] -> IO ()
 bufferVertices vbo floats = do
         glBindBuffer GL_ARRAY_BUFFER vbo
         bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW
-        _ <- glUnmapBuffer GL_ARRAY_BUFFER
         return ()
 
 bufferIndices :: VBO -> [GLushort] -> IO ()
 bufferIndices vbo ints = do
         glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
         bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW
-        _ <- glUnmapBuffer GL_ELEMENT_ARRAY_BUFFER
         return ()
 
 -- VAO / VBO
@@ -174,20 +172,17 @@ foreign import javascript safe "gl.clear($1)" glClear :: GLuint -> IO ()
 foreign import javascript safe "gl.activeTexture($1)" glActiveTexture :: GLenum -> IO ()
 foreign import javascript safe "gl.disable($1)" glDisable :: GLenum -> IO ()
 foreign import javascript safe "gl.enable($1)" glEnable :: GLenum -> IO ()
-foreign import javascript safe "gl.bindVertexArray($1)" glBindVertexArray :: VAO -> IO ()
+foreign import javascript safe "\
+    var ext = gl.getExtension('OES_vertex_array_object'); \
+    ext.bindVertexArrayOES($1); \
+    " glBindVertexArray :: VAO -> IO ()
 foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
-{-foreign import javascript safe "gl.attachShader($1,$2)" glAttachShader :: GLuint -> GLuint -> IO ()-}
 foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> JSVal -> IO ()
-{-foreign import javascript safe "gl.compileShader($1)" glCompileShader :: GLuint -> IO ()-}
-{-foreign import javascript safe "$r = gl.createShader($1)" glCreateShader :: GLenum -> IO GLuint-}
 foreign import javascript safe "gl.enableVertexAttribArray($1)" glEnableVertexAttribArray :: GLuint -> IO ()
-foreign import javascript safe "gl.unmapBuffer($1)" glUnmapBuffer :: GLenum -> IO ()
-{-foreign import javascript safe "gl.linkProgram($1)" glLinkProgram :: GLuint -> IO ()-}
 foreign import javascript safe "g.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLsizei -> GLenum -> IO ()
 drawElements = glDrawElements
 
 foreign import javascript safe "gl.vertexAttribPointer($1, $2, $3, $4, $5, $6);" glVertexAttribPointer :: GLuint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLintptr -> IO ()
-{-vertexAttribPointer :: GLuint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLintptr -> IO ()-}
 vertexAttribPointer a b c d e f = glVertexAttribPointer a b c d e (fromIntegral f)
 
 foreign import javascript safe " \

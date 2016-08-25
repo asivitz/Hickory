@@ -5,6 +5,13 @@ import Data.Ord
 import Data.Maybe
 import Data.IORef
 import Data.Time
+import qualified Data.Text.IO as TextIO
+import qualified Data.Text as Text
+
+#if defined(ghcjs_HOST_OS)
+import JavaScript.Web.XMLHttpRequest
+import Data.JSString (unpack, pack, JSString)
+#endif
 
 clamp :: Ord a => a -> a -> a -> a
 clamp a low high = min (max a low) high
@@ -80,3 +87,11 @@ makeFPSTicker = do
                 else do
                     writeIORef ref (count+1, last_time, last_report)
                     return last_report
+
+#if defined(ghcjs_HOST_OS)
+readFileAsText path = do
+        resp <- xhr Request { reqMethod = GET, reqURI = pack path, reqLogin = Nothing, reqHeaders = [], reqWithCredentials = False, reqData = NoData }
+        return . Text.pack . unpack . fromJust $ contents resp
+#else
+readFileAsText = TextIO.readFile
+#endif

@@ -10,8 +10,9 @@ import qualified Text.Megaparsec.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Data.Scientific
 import Control.Monad (void)
+import Utils.Utils
 
-parseFromFile p file = runParser p file <$> TIO.readFile file
+parseFromFile p file = runParser p file <$> readFileAsText file
 
 anyNumber :: (MonadParsec e s m, Token s ~ Char) => m Double
 anyNumber = toRealFloat <$> L.number

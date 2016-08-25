@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Graphics.Shader (
               loadShader,
@@ -17,9 +18,11 @@ import Foreign.Marshal.Utils
 import Graphics.Drawing
 import Control.Monad
 import Data.Maybe
+import Utils.Utils
+import qualified Data.Text as Text
+import qualified Data.Text.Foreign as FText
 
 #if defined(ghcjs_HOST_OS)
-import JavaScript.Web.XMLHttpRequest
 import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort, GLboolean, GLsizei, GLintptr,
                                          pattern GL_SRC_ALPHA,
                                          pattern GL_ONE_MINUS_SRC_ALPHA,
@@ -54,6 +57,7 @@ import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLusho
                                          pattern GL_STREAM_DRAW)
 
 import Data.JSString (unpack, pack, JSString)
+import Utils.Utils
 
 foreign import javascript safe "gl.deleteShader($1)" deleteShader :: ShaderID -> IO ()
 
@@ -68,8 +72,8 @@ foreign import javascript safe " \
     $r = shader; \
     " compileShader' :: JSString -> GLenum -> IO ShaderID
 
-compileShader :: String -> GLenum -> IO (Maybe ShaderID)
-compileShader a b = compileShader' (pack a) b >>= return . Just
+compileShader :: Text.Text -> GLenum -> IO (Maybe ShaderID)
+compileShader a b = compileShader' (pack . Text.unpack $ a) b >>= return . Just
 
 foreign import javascript safe " \
     gl.attachShader($1, $2); \
@@ -92,11 +96,7 @@ getAttribLocation a b = glGetAttribLocation a (pack b)
 foreign import javascript safe "gl.useProgram($1)" glUseProgram :: ProgramID -> IO ()
 foreign import javascript safe "$r = gl.createProgram();" glCreateProgram :: IO ProgramID
 
-readFile' path = do
-        resp <- xhr Request { reqMethod = GET, reqURI = pack path, reqLogin = Nothing, reqHeaders = [], reqWithCredentials = False, reqData = NoData }
-        return . unpack . fromJust $ contents resp
-
-shaderSourceForPath path = readFile' path
+shaderSourceForPath path = readFileAsText path
 
 #else
 import Graphics.GL.Compatibility41 as GL
@@ -119,15 +119,15 @@ retrieveLog lenFun infoFun = do
                 return $ Just info
             else return Nothing
 
-compileShader :: String -> GLenum -> IO (Maybe GLuint)
+compileShader :: Text.Text -> GLenum -> IO (Maybe GLuint)
 compileShader source shaderType = do
         compileSupported <- glGetBoolean GL_SHADER_COMPILER
         unless compileSupported (error "ERROR: Shader compilation not supported.")
 
         shaderId <- glCreateShader shaderType
 
-        withMany withCString [source] $ \strs ->
-            withArray strs $ \ptr ->
+        withMany FText.withCStringLen [source] $ \strs ->
+            withArray (map fst strs) $ \ptr ->
                 glShaderSource shaderId 1 (castPtr ptr) nullPtr
         glCompileShader shaderId
         compiled <- glGetShaderi shaderId GL_COMPILE_STATUS
@@ -168,10 +168,11 @@ linkProgram programId vertShader fragShader = do
 getAttribLocation progId name = withCString name (glGetAttribLocation progId)
 getUniformLocation progId name = withCString name (glGetUniformLocation progId)
 
+shaderSourceForPath :: String -> IO Text.Text
 shaderSourceForPath path = do
-        source <- readFile path
+        source <- readFileAsText path
         -- TODO: iOS shouldn't have this header
-        return $ "#version 150\n" ++ source
+        return $ Text.append "#version 150\n" source
 
 #endif
 
@@ -198,10 +199,10 @@ loadShader resPath vert frag = do
                        Nothing -> error $ "Couldn't load frag shader: " ++ fpath
        Nothing -> error $ "Couldn't load vertex shader: " ++ vpath
 
-compileVertShader :: String -> IO (Maybe ShaderID)
+compileVertShader :: Text.Text -> IO (Maybe ShaderID)
 compileVertShader source = compileShader source GL_VERTEX_SHADER
 
-compileFragShader :: String -> IO (Maybe ShaderID)
+compileFragShader :: Text.Text -> IO (Maybe ShaderID)
 compileFragShader source = compileShader source GL_FRAGMENT_SHADER
 
 buildShaderProgram :: ShaderID -> ShaderID -> IO (Maybe Shader)
