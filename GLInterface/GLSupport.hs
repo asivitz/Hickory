@@ -8,8 +8,6 @@ import Graphics.GL.ARB.ES2Compatibility
 
 module GLInterface.GLSupport --( module Graphics.GL.Compatibility41)
     (
-     pattern GL.GL_RGB,
-     pattern GL.GL_RGBA,
      bindVAO,
      Shader(..),
      runGL,

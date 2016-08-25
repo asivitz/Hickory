@@ -16,7 +16,9 @@ import Foreign.Marshal.Alloc
 import Foreign.Storable
 
 #if defined(ghcjs_HOST_OS)
-foreign import javascript safe "
+import Data.JSString (pack, JSString)
+
+foreign import javascript safe " \
     var tex = gl.createTexture(); \
     tex.image = new Image(); \
     tex.image.onload = function() { \
@@ -26,8 +28,11 @@ foreign import javascript safe "
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); \
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); \
     }; \
-    tex.image.src = $1 + "/images/" + $2; \
-    $r = tex;" loadTexture' :: String -> String -> IO TexID
+    tex.image.src = $1 + '/images/' + $2; \
+    $r = tex;" loadTexture'' :: JSString -> JSString -> IO TexID
+
+loadTexture' a b = loadTexture'' (pack a) (pack b)
+loadTexture a b = loadTexture' a b >>= return . Just
 #else
 import Graphics.GL.Compatibility41 as GL
 -- Textures
