@@ -14,7 +14,8 @@ module Graphics.Drawing (
                         TexID(..),
                         getTexID,
                         ShaderID,
-                        ProgramID
+                        ProgramID,
+                        UniformLoc
                         )
                         where
 
@@ -33,6 +34,7 @@ type VAO = JSVal
 type VBO = JSVal
 type ShaderID = JSVal
 type ProgramID = JSVal
+type UniformLoc = JSVal
 
 newtype TexID = TexID JSVal deriving (Show)
 #else
@@ -40,6 +42,7 @@ type VAO = Word32
 type VBO = Word32
 type ShaderID = Word32
 type ProgramID = Word32
+type UniformLoc = Int32
 
 newtype TexID = TexID Word32 deriving (Show)
 #endif
@@ -62,12 +65,12 @@ data Shader = Shader {
             sp_ATTR_COLOR2 :: Word32,
             sp_ATTR_NORMALS :: Word32,
 
-            sp_UNIFORM_TEXID :: Int32,
-            sp_UNIFORM_COLOR :: Int32,
-            sp_UNIFORM_COLOR2 :: Int32,
-            sp_UNIFORM_MODEL_MAT :: Int32,
-            sp_UNIFORM_VIEW_MAT :: Int32,
-            sp_UNIFORM_SIZE :: Int32
+            sp_UNIFORM_TEXID :: UniformLoc,
+            sp_UNIFORM_COLOR :: UniformLoc,
+            sp_UNIFORM_COLOR2 :: UniformLoc,
+            sp_UNIFORM_MODEL_MAT :: UniformLoc,
+            sp_UNIFORM_VIEW_MAT :: UniformLoc,
+            sp_UNIFORM_SIZE :: UniformLoc
             } deriving (Show)
 
 getShader Shader { program } = program

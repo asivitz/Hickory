@@ -179,7 +179,7 @@ foreign import javascript safe "\
 foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
 foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> JSVal -> IO ()
 foreign import javascript safe "gl.enableVertexAttribArray($1)" glEnableVertexAttribArray :: GLuint -> IO ()
-foreign import javascript safe "g.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLsizei -> GLenum -> IO ()
+foreign import javascript safe "gl.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLsizei -> GLenum -> IO ()
 drawElements = glDrawElements
 
 foreign import javascript safe "gl.vertexAttribPointer($1, $2, $3, $4, $5, $6);" glVertexAttribPointer :: GLuint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLintptr -> IO ()
@@ -203,17 +203,17 @@ bufferData bufType lst usageType = do
         arr <- toJSVal lst
         glBufferData bufType arr usageType
 
-foreign import javascript safe "gl.uniform4fv($1, new Float32Array($2));" glUniform4fv :: GLint -> JSVal -> IO ()
+foreign import javascript safe "gl.uniform4fv($1, new Float32Array($2));" glUniform4fv :: UniformLoc -> JSVal -> IO ()
 
-uniform4fv :: GLint -> V4 Double -> IO ()
+uniform4fv :: UniformLoc -> V4 Double -> IO ()
 uniform4fv loc vec = do
         let lst = toList vec
         arr <- toJSVal lst
         glUniform4fv loc arr
 
-foreign import javascript safe "gl.uniformMatrix4fv($1, gl.FALSE, new Float32Array($2));" glUniformMatrix4fv :: GLint -> JSVal -> IO ()
+foreign import javascript safe "gl.uniformMatrix4fv($1, gl.FALSE, new Float32Array($2));" glUniformMatrix4fv :: UniformLoc -> JSVal -> IO ()
 
-uniformMatrix4fv :: GLint -> Mat44 -> IO ()
+uniformMatrix4fv :: UniformLoc -> Mat44 -> IO ()
 uniformMatrix4fv loc mat = do
         let lst = (concatMap toList . toList) mat
         arr <- toJSVal lst
