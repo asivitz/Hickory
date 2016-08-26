@@ -26,6 +26,8 @@ import Data.Int
 import GHCJS.Types
 #endif
 
+type AttrLoc = Int32
+
 #if defined(ghcjs_HOST_OS)
 instance Show JSVal
         where show x = "Some JSVal"
@@ -59,11 +61,11 @@ data Shader = Shader {
             vertShader :: ShaderID,
             fragShader :: ShaderID,
 
-            sp_ATTR_POSITION :: Word32,
-            sp_ATTR_TEX_COORDS :: Word32,
-            sp_ATTR_COLOR :: Word32,
-            sp_ATTR_COLOR2 :: Word32,
-            sp_ATTR_NORMALS :: Word32,
+            sp_ATTR_POSITION :: AttrLoc,
+            sp_ATTR_TEX_COORDS :: AttrLoc,
+            sp_ATTR_COLOR :: AttrLoc,
+            sp_ATTR_COLOR2 :: AttrLoc,
+            sp_ATTR_NORMALS :: AttrLoc,
 
             sp_UNIFORM_TEXID :: UniformLoc,
             sp_UNIFORM_COLOR :: UniformLoc,
@@ -75,7 +77,7 @@ data Shader = Shader {
 
 getShader Shader { program } = program
 
-type Attribute = Shader -> Word32
+type Attribute = Shader -> AttrLoc
 
 data Attachment = Attachment Attribute Int32
 data VertexGroup = VertexGroup [Attachment]

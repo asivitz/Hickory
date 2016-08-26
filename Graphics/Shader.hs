@@ -89,8 +89,8 @@ foreign import javascript safe "$r = gl.getUniformLocation($1,$2);" glGetUniform
 getUniformLocation :: ProgramID -> String -> IO UniformLoc
 getUniformLocation a b = glGetUniformLocation a (pack b)
 
-foreign import javascript safe "$r = gl.getAttribLocation($1,$2);" glGetAttribLocation :: ProgramID -> JSString -> IO GLuint
-getAttribLocation :: ProgramID -> String -> IO GLuint
+foreign import javascript safe "$r = gl.getAttribLocation($1,$2);" glGetAttribLocation :: ProgramID -> JSString -> IO GLint
+getAttribLocation :: ProgramID -> String -> IO GLint
 getAttribLocation a b = glGetAttribLocation a (pack b)
 
 foreign import javascript safe "gl.useProgram($1)" glUseProgram :: ProgramID -> IO ()

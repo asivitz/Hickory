@@ -125,10 +125,13 @@ drawCommand shader mat color color2 texid vao numitems drawType = do
 
         drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
 
-attachVertexArray :: GLuint -> GLint -> GLint -> GLint -> IO ()
+attachVertexArray :: GLint -> GLint -> GLint -> GLint -> IO ()
 attachVertexArray attrLoc len stride offset = do
-        glEnableVertexAttribArray attrLoc
-        vertexAttribPointer attrLoc len GL_FLOAT GL_FALSE (stride * fsize) (fromIntegral $ offset * fsize)
+        if (attrLoc < 0)
+            then (print "Can't attach vertex array: Bad attribute location")
+            else do
+                enableVertexAttribArray attrLoc
+                vertexAttribPointer attrLoc len GL_FLOAT GL_FALSE (stride * fsize) (fromIntegral $ offset * fsize)
     where fsize :: GLint
           fsize = fromIntegral $ sizeOf (0 :: GLfloat)
 
@@ -180,11 +183,11 @@ foreign import javascript safe "\
     " glBindVertexArray :: VAO -> IO ()
 foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
 foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> JSVal -> IO ()
-foreign import javascript safe "gl.enableVertexAttribArray($1)" glEnableVertexAttribArray :: GLuint -> IO ()
+foreign import javascript safe "gl.enableVertexAttribArray($1)" enableVertexAttribArray :: GLint -> IO ()
 foreign import javascript safe "gl.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLsizei -> GLenum -> IO ()
 drawElements = glDrawElements
 
-foreign import javascript safe "gl.vertexAttribPointer($1, $2, $3, $4, $5, $6);" glVertexAttribPointer :: GLuint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLintptr -> IO ()
+foreign import javascript safe "gl.vertexAttribPointer($1, $2, $3, $4, $5, $6);" glVertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLintptr -> IO ()
 vertexAttribPointer a b c d e f = glVertexAttribPointer a b c d e (fromIntegral f)
 
 foreign import javascript safe " \
@@ -226,6 +229,8 @@ uniformMatrix4fv loc mat = do
 
 #else
 
+enableVertexAttribArray = glEnableVertexAttribArray . fromIntegral
+
 drawElements :: GLenum -> GLsizei -> GLenum -> IO ()
 drawElements a b c = glDrawElements a b c nullPtr
 
@@ -242,8 +247,8 @@ uniformMatrix4fv loc mat =
         withMat44 mat $ \ptr ->
             glUniformMatrix4fv loc 1 GL_FALSE (castPtr ptr)
 
-vertexAttribPointer :: GLuint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
-vertexAttribPointer a b c d e f = glVertexAttribPointer a b c d e (plusPtr nullPtr (fromIntegral f))
+vertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
+vertexAttribPointer a b c d e f = glVertexAttribPointer (fromIntegral a) b c d e (plusPtr nullPtr (fromIntegral f))
 
 bufferData bufType lst usageType _ =
         withArrayLen lst $ \len ptr ->
