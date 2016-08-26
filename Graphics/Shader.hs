@@ -126,11 +126,15 @@ compileShader source shaderType = do
 
         shaderId <- glCreateShader shaderType
 
-        withMany FText.withCStringLen [source] $ \strs ->
-            withArray (map fst strs) $ \ptr ->
-                glShaderSource shaderId 1 (castPtr ptr) nullPtr
+        withMany FText.withCStringLen [source] $ \strLens -> do
+            let (strs, lengths) = unzip strLens
+            withArray strs $ \strsArr ->
+                withArray (map fromIntegral lengths) $ \lenArr ->
+                    glShaderSource shaderId 1 strsArr lenArr
+
         glCompileShader shaderId
         compiled <- glGetShaderi shaderId GL_COMPILE_STATUS
+
         let didCompile = compiled /= 0
 
         if didCompile
