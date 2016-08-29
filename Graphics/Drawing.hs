@@ -82,7 +82,6 @@ data Shader = Shader {
             sp_UNIFORM_COLOR :: UniformLoc,
             sp_UNIFORM_COLOR2 :: UniformLoc,
             sp_UNIFORM_MODEL_MAT :: UniformLoc,
-            sp_UNIFORM_VIEW_MAT :: UniformLoc,
             sp_UNIFORM_SIZE :: UniformLoc
             } deriving (Show)
 

@@ -119,7 +119,6 @@ drawCommand shader mat color color2 texid vaoconfig numitems drawType = do
         uniform4fv (sp_UNIFORM_COLOR2 shader) color2
 
         uniformMatrix4fv (sp_UNIFORM_MODEL_MAT shader) mat
-        uniformMatrix4fv (sp_UNIFORM_VIEW_MAT shader) identity
 
         withVAOConfig shader vaoconfig $
             drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT

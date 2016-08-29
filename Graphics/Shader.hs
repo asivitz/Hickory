@@ -229,7 +229,6 @@ buildShaderProgram vertShader fragShader = do
                     getUniformLocation programId "color" <*>
                     getUniformLocation programId "color2" <*>
                     getUniformLocation programId "modelMat" <*>
-                    getUniformLocation programId "viewMat" <*>
                     getUniformLocation programId "size"
                 return $ Just res
 
