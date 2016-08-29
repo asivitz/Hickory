@@ -14,10 +14,10 @@ module GLInterface.GLSupport --( module Graphics.GL.Compatibility41)
      bufferVertices,
      bufferIndices,
      createVAOConfig,
-     indexVAOConfig,
      drawCommand,
      configGLState,
-     clearScreen
+     clearScreen,
+     loadVerticesIntoVAOConfig
      )
     where
 
@@ -108,8 +108,8 @@ glenumForDrawType dt = case dt of
                            TriangleFan -> GL_TRIANGLE_FAN
                            Triangles -> GL_TRIANGLES
 
-drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAO -> GLint -> DrawType -> IO ()
-drawCommand shader mat color color2 texid vao numitems drawType = do
+drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
+drawCommand shader mat color color2 texid vaoconfig numitems drawType = do
         useShader shader
         case texid of
             Just t -> glBindTexture GL_TEXTURE_2D (getTexID t)
@@ -121,9 +121,8 @@ drawCommand shader mat color color2 texid vao numitems drawType = do
         uniformMatrix4fv (sp_UNIFORM_MODEL_MAT shader) mat
         uniformMatrix4fv (sp_UNIFORM_VIEW_MAT shader) identity
 
-        glBindVertexArray vao
-
-        drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
+        withVAOConfig shader vaoconfig $
+            drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
 
 attachVertexArray :: GLint -> GLint -> GLint -> GLint -> IO ()
 attachVertexArray attrLoc len stride offset = do
@@ -136,39 +135,23 @@ attachVertexArray attrLoc len stride offset = do
           fsize = fromIntegral $ sizeOf (0 :: GLfloat)
 
 buildVertexGroup :: Shader -> VertexGroup -> IO VBO
-buildVertexGroup shader (VertexGroup attachments) = do
+buildVertexGroup shader group = do
         vbo <- makeVBO
+        attachVertexGroup shader vbo group
+        return vbo
+
+attachVertexGroup :: Shader -> VBO -> VertexGroup -> IO ()
+attachVertexGroup shader vbo (VertexGroup attachments) = do
         glBindBuffer GL_ARRAY_BUFFER vbo
 
         let stride = sum $ map (\(Attachment a l) -> l) attachments
 
-        Fold.foldlM (\offset (Attachment a l) -> do
+        _ <- Fold.foldlM (\offset (Attachment a l) -> do
                 attachVertexArray (a shader) l stride offset
                 return (offset + l))
             0
             attachments
-
-        return vbo
-
-indexVAOConfig :: VAOConfig -> IO VAOConfig
-indexVAOConfig config@VAOConfig { vao } = do
-        glBindVertexArray vao
-        index_vbo <- makeVBO
-        glBindBuffer GL_ELEMENT_ARRAY_BUFFER index_vbo
-
-        return $ config { indexVBO = Just index_vbo }
-
-createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
-createVAOConfig sh vertexgroups = do
-        vao' <- makeVAO
-        glBindVertexArray vao'
-
-        buffers <- mapM (buildVertexGroup sh) vertexgroups
-
-        return VAOConfig { vao = vao',
-                         indexVBO = Nothing,
-                         vertices = buffers
-                         }
+        return ()
 
 #if defined(ghcjs_HOST_OS)
 foreign import javascript safe "gl.clearColor($1,$2,$3,$4)" glClearColor :: Float -> Float -> Float -> Float -> IO ()
@@ -184,6 +167,7 @@ foreign import javascript safe "\
 foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
 foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> JSVal -> IO ()
 foreign import javascript safe "gl.enableVertexAttribArray($1)" enableVertexAttribArray :: GLint -> IO ()
+foreign import javascript safe "gl.disableVertexAttribArray($1)" disableVertexAttribArray :: GLint -> IO ()
 foreign import javascript safe "gl.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLsizei -> GLenum -> IO ()
 drawElements = glDrawElements
 
@@ -219,14 +203,37 @@ uniform4fv loc vec = do
         arr <- toJSVal lst
         glUniform4fv loc arr
 
-foreign import javascript safe "if ($1) { gl.uniformMatrix4fv($1, gl.FALSE, new Float32Array($2)); }" glUniformMatrix4fv :: UniformLoc -> JSVal -> IO ()
+foreign import javascript safe "if ($1) { gl.uniformMatrix4fv($1, false, new Float32Array($2)); }" glUniformMatrix4fv :: UniformLoc -> JSVal -> IO ()
 
 uniformMatrix4fv :: UniformLoc -> Mat44 -> IO ()
 uniformMatrix4fv loc mat = do
-        let lst = (concatMap toList . toList) mat
+        let lst = (concatMap toList . toList . transpose) mat
         arr <- toJSVal lst
         glUniformMatrix4fv loc arr
 
+createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
+createVAOConfig sh vertexgroups = do
+        index_vbo <- makeVBO
+
+        buffers <- mapM (const makeVBO) vertexgroups
+
+        return VAOConfig {
+                         indexVBO = index_vbo,
+                         vertices = buffers,
+                         vertexGroups = vertexgroups
+                         }
+
+withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
+withVAOConfig shader VAOConfig { indexVBO, vertices, vertexGroups } action = do
+        glBindBuffer GL_ELEMENT_ARRAY_BUFFER indexVBO
+        mapM_ (\(buf,group) -> attachVertexGroup shader buf group) (zip vertices vertexGroups)
+        action
+        mapM_ (\(VertexGroup attachments) -> mapM_ (\(Attachment attr _) -> disableVertexAttribArray (attr shader)) attachments) vertexGroups
+
+loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
+loadVerticesIntoVAOConfig VAOConfig { indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
+        bufferVertices vbo vs
+        bufferIndices ivbo indices
 #else
 
 enableVertexAttribArray = glEnableVertexAttribArray . fromIntegral
@@ -267,6 +274,30 @@ makeVBO = withNewPtr (glGenBuffers 1)
 
 bindVAO :: VAO -> IO ()
 bindVAO = glBindVertexArray
+
+createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
+createVAOConfig sh vertexgroups = do
+        vao' <- makeVAO
+        glBindVertexArray vao'
+
+        index_vbo <- makeVBO
+        glBindBuffer GL_ELEMENT_ARRAY_BUFFER index_vbo
+
+        buffers <- mapM (buildVertexGroup sh) vertexgroups
+
+        return VAOConfig { vao = vao',
+                         indexVBO = index_vbo,
+                         vertices = buffers
+                         }
+
+withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
+withVAOConfig _ VAOConfig { vao } action = glBindVertexArray vao >> action
+
+loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
+loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
+        bindVAO vao
+        bufferVertices vbo vs
+        bufferIndices ivbo indices
 
 #endif
 

@@ -22,13 +22,10 @@ instance Show (Printer a) where
         show (Printer font tid) = "Printer:" ++ fontName font ++ "/" ++ show tid
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
-createPrinterVAOConfig shader = do
-        vaoConfig <- createVAOConfig shader
+createPrinterVAOConfig shader = createVAOConfig shader
             [VertexGroup [Attachment sp_ATTR_POSITION 3,
                           Attachment sp_ATTR_TEX_COORDS 2,
                           Attachment sp_ATTR_COLOR 4]]
-        config' <- indexVAOConfig vaoConfig
-        return config'
 
 loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
 loadPrinter resPath shader name = do

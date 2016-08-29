@@ -39,6 +39,12 @@ type ProgramID = JSVal
 type UniformLoc = JSVal
 
 newtype TexID = TexID JSVal deriving (Show)
+
+data VAOConfig = VAOConfig {
+               indexVBO :: !VBO,
+               vertices :: ![VBO],
+               vertexGroups :: [VertexGroup]
+               } deriving (Show)
 #else
 type VAO = Word32
 type VBO = Word32
@@ -47,6 +53,12 @@ type ProgramID = Word32
 type UniformLoc = Int32
 
 newtype TexID = TexID Word32 deriving (Show)
+
+data VAOConfig = VAOConfig {
+               vao :: !VAO,
+               indexVBO :: !VBO,
+               vertices :: ![VBO]
+               } deriving (Show)
 #endif
 
 getTexID (TexID num) = num
@@ -54,7 +66,6 @@ getTexID (TexID num) = num
 
 data DrawType = TriangleFan | TriangleStrip | Triangles
               deriving (Show, Eq)
-
 
 data Shader = Shader {
             program :: ProgramID,
@@ -81,12 +92,8 @@ type Attribute = Shader -> AttrLoc
 
 data Attachment = Attachment Attribute Int32
 data VertexGroup = VertexGroup [Attachment]
-
-data VAOConfig = VAOConfig {
-               vao :: !VAO,
-               indexVBO :: Maybe VBO,
-               vertices :: ![VBO]
-               } deriving (Show)
+instance Show VertexGroup where
+        show x = "Vertex Group"
 
 {-
 halveInt :: Int -> Int
