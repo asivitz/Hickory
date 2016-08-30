@@ -211,29 +211,6 @@ uniformMatrix4fv loc mat = do
         arr <- toJSVal lst
         glUniformMatrix4fv loc arr
 
-createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
-createVAOConfig sh vertexgroups = do
-        index_vbo <- makeVBO
-
-        buffers <- mapM (const makeVBO) vertexgroups
-
-        return VAOConfig {
-                         indexVBO = index_vbo,
-                         vertices = buffers,
-                         vertexGroups = vertexgroups
-                         }
-
-withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
-withVAOConfig shader VAOConfig { indexVBO, vertices, vertexGroups } action = do
-        glBindBuffer GL_ELEMENT_ARRAY_BUFFER indexVBO
-        mapM_ (\(buf,group) -> attachVertexGroup shader buf group) (zip vertices vertexGroups)
-        action
-        mapM_ (\(VertexGroup attachments) -> mapM_ (\(Attachment attr _) -> disableVertexAttribArray (attr shader)) attachments) vertexGroups
-
-loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
-loadVerticesIntoVAOConfig VAOConfig { indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
-        bufferVertices vbo vs
-        bufferIndices ivbo indices
 #else
 
 enableVertexAttribArray = glEnableVertexAttribArray . fromIntegral
@@ -275,6 +252,9 @@ makeVBO = withNewPtr (glGenBuffers 1)
 bindVAO :: VAO -> IO ()
 bindVAO = glBindVertexArray
 
+#endif
+
+#if defined(uses_VAO)
 createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
 createVAOConfig sh vertexgroups = do
         vao' <- makeVAO
@@ -299,7 +279,34 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) }
         bufferVertices vbo vs
         bufferIndices ivbo indices
 
+#else
+
+createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
+createVAOConfig sh vertexgroups = do
+        index_vbo <- makeVBO
+
+        buffers <- mapM (const makeVBO) vertexgroups
+
+        return VAOConfig {
+                         indexVBO = index_vbo,
+                         vertices = buffers,
+                         vertexGroups = vertexgroups
+                         }
+
+withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
+withVAOConfig shader VAOConfig { indexVBO, vertices, vertexGroups } action = do
+        glBindBuffer GL_ELEMENT_ARRAY_BUFFER indexVBO
+        mapM_ (\(buf,group) -> attachVertexGroup shader buf group) (zip vertices vertexGroups)
+        action
+        mapM_ (\(VertexGroup attachments) -> mapM_ (\(Attachment attr _) -> disableVertexAttribArray (attr shader)) attachments) vertexGroups
+
+loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
+loadVerticesIntoVAOConfig VAOConfig { indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
+        bufferVertices vbo vs
+        bufferIndices ivbo indices
+
 #endif
+
 
 configGLState :: GLfloat -> GLfloat -> GLfloat -> IO ()
 configGLState r g b = do
