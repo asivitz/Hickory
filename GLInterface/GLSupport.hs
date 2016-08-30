@@ -30,6 +30,7 @@ import Data.JSString (pack, JSString)
 import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort, GLboolean, GLsizei, GLintptr,
                                          pattern GL_SRC_ALPHA,
                                          pattern GL_ONE_MINUS_SRC_ALPHA,
+                                         pattern GL_ONE,
                                          pattern GL_TEXTURE0,
                                          pattern GL_DITHER,
                                          pattern GL_STENCIL_TEST,
@@ -303,7 +304,11 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) }
 configGLState :: GLfloat -> GLfloat -> GLfloat -> IO ()
 configGLState r g b = do
         glClearColor r g b 1
+#if defined(ghcjs_HOST_OS)
+        glBlendFunc GL_ONE GL_ONE_MINUS_SRC_ALPHA
+#else
         glBlendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
+#endif
         glActiveTexture GL_TEXTURE0
 
         glDisable GL_DITHER
