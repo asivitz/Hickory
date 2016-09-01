@@ -5,7 +5,7 @@ import Test.Framework
 import Test.Framework.Providers.HUnit
 import Data.Monoid
 import Control.Monad
-import Math.Vector
+import Hickory.Math.Vector
 
 testv2angle = TestCase $ do
     let ?epsilon = 0.00001

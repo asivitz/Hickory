@@ -1,12 +1,12 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
- 
-import Types.Types
-import Math.Vector
-import Math.Matrix
-import Camera.Camera
-import Graphics.Drawing
-import Graphics.DrawUtils
+
+import Hickory.Types
+import Hickory.Math.Vector
+import Hickory.Math.Matrix
+import Hickory.Camera
+import Hickory.Graphics.Drawing
+import Hickory.Graphics.DrawUtils
 import qualified Graphics.UI.GLFW as GLFW
 import Data.Bits
 import Graphics.Rendering.OpenGL.Raw.Core31
@@ -15,7 +15,7 @@ import System.Random
 import Platforms.GLFW
 import Platforms.GLFW.Utils
 import FreeCell
-import Engine.Scene.Input
+import Hickory.Input
 import Freecell.Game
 import Freecell.Render
 

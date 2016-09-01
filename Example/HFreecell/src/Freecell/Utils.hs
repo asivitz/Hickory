@@ -6,7 +6,7 @@ module Freecell.Utils where
 import Data.Maybe
 import Data.List
 import FreeCell
-import Math.Vector
+import Hickory.Math.Vector
 import Debug.Trace
 
 class CardStack a => VisibleCardStack a where

@@ -4,15 +4,15 @@ module Platforms.IOS where
 
 import Graphics.Rendering.OpenGL.Raw.Core31
 import Data.Bits
-import Graphics.Drawing
+import Hickory.Graphics.Drawing
 import Engine.Scene.Scene
 import Engine.Scene.Run
-import Types.Types
+import Hickory.Types
 import Data.Time
 import Data.IORef
-import Engine.Scene.Input
-import Math.Vector
-import Platform.Common
+import Hickory.Input
+import Hickory.Math.Vector
+import Hickory.Platform
 import qualified Data.HashMap.Strict as HashMap
 
 import Foreign

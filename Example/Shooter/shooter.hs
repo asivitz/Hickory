@@ -5,26 +5,26 @@
 
 {-# LANGUAGE NamedFieldPuns #-}
 
-import Engine.Scene.Input
-import Math.Vector
+import Hickory.Input
+import Hickory.Math.Vector
 import Linear.Metric
-import Math.Matrix
-import Graphics.Drawing
-import Graphics.DrawUtils
-import Graphics.Shader
-import Camera.Camera
-import Textures.Textures
-import Types.Types
-import Types.Color
+import Hickory.Math.Matrix
+import Hickory.Graphics.Drawing
+import Hickory.Graphics.DrawUtils
+import Hickory.Graphics.Shader
+import Hickory.Camera
+import Hickory.Graphics.Textures
+import Hickory.Types
+import Hickory.Color
 import qualified Graphics.UI.GLFW as GLFW
 import Platforms.GLFW
 import Platforms.GLFW.Utils
-import Platform.Common
+import Hickory.Platform
 
-import GLInterface.GLSupport
+import Hickory.Graphics.GLSupport
 
 import Control.Layer
-import Layer.Utils
+import Hickory.Utils.Layer
 import Data.Foldable
 
 type Vec = V2 Double

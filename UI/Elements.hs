@@ -1,10 +1,10 @@
 module UI.Elements where
 
-import Utils.Utils
-import Types.Types
+import Hickory.Utils.Utils
+import Hickory.Types
 {-import UI.Stack-}
 import Data.Maybe
-import Math.Vector
+import Hickory.Math.Vector
 import Linear.Metric
 
 {-type TransitionAction t = TransitionStack t -> TransitionStack t-}

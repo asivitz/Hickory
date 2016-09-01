@@ -4,13 +4,13 @@ module Freecell.Systems.Menu (make) where
 
 import Engine.System
 import Engine.World
-import Types.Types
-import Types.Color
-import Math.Vector
+import Hickory.Types
+import Hickory.Color
+import Hickory.Math.Vector
 
 import Freecell.Context.GameContext
 
-import Graphics.DrawText
+import Hickory.Graphics.DrawText
 import Menus.Menus
 import Menus.Construction
 import qualified Systems.DrawText as DrawText
@@ -35,9 +35,9 @@ mainMenu GameRSC { _newGame } = MenuScreen [simpleMenuButton 0 "New Game" PopScr
 type GameEvent m = Menus.MenuEvent GameContext m
 
 simpleMenuButton :: Int -> String -> ScreenAction Scalar (GameEvent IO) -> [GameEvent IO] -> UIElement Scalar (GameEvent IO)
-simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (events, Just action))) $ 
+simpleMenuButton idx txt action events = UIElement (Just (Button (RRect (center 0, beg 40) (end 40, beg 30)) (events, Just action))) $
     MenuRenderSpec ([], [font], []) $ \(MenuResources _ [pid] _) ->
         \fraction incoming ->
             let frac' = constrainInterval fraction idx in
-            [(beg (40 * (realToFrac (1 + idx))), center 0, 
+            [(beg (40 * (realToFrac (1 + idx))), center 0,
                 TextMenuDrawCommand pid DrawText.textcommand { text = txt, fontSize = 6, color = rgba 1 1 1 frac' })]

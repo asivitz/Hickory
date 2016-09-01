@@ -3,16 +3,16 @@
 module Freecell.Game where
 
 import qualified Data.HashMap.Strict as HashMap
-import Math.Vector
+import Hickory.Math.Vector
 import System.Random
-import Math.Matrix
-import Types.Types
+import Hickory.Math.Matrix
+import Hickory.Types
 import FreeCell
 import Freecell.Utils
-import Engine.Scene.Input
+import Hickory.Input
 import Data.Maybe
 import Data.List
-import Utils.Projection
+import Hickory.Utils.Projection
 import Layer.Layer
 
 type ViewInfo = (Mat44, Size Int)

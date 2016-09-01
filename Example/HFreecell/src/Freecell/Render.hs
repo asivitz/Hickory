@@ -6,17 +6,17 @@ import Data.List
 import Data.Maybe
 import FreeCell
 import Freecell.Utils
-import Graphics.Drawing
-import Graphics.Shader
-import Graphics.DrawUtils
-import Types.Color
-import Types.Types
+import Hickory.Graphics.Drawing
+import Hickory.Graphics.Shader
+import Hickory.Graphics.DrawUtils
+import Hickory.Color
+import Hickory.Types
 import qualified Data.HashMap.Strict as HashMap
 import Data.Foldable (foldlM)
-import Math.Vector
+import Hickory.Math.Vector
 import Graphics.Rendering.OpenGL.Raw.Core31
-import Textures.Textures
-import Utils.Projection
+import Hickory.Graphics.Textures
+import Hickory.Utils.Projection
 import Freecell.Game
 
 data Resources = Resources {
@@ -75,7 +75,7 @@ cardTexPath (Card rk st) = let r = rankSymbol rk
 loadResources :: String -> IO Resources
 loadResources path = do
         glClearColor 0.3 0.5 0.1 1
-        
+
         texes <- foldlM (\hash card -> do
                tid <- loadTexture' path (cardTexPath card)
                return $ HashMap.insert card tid hash)

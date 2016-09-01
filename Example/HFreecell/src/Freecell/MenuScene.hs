@@ -3,21 +3,21 @@
 module Freecell.MenuScene where
 
 import Engine.Scene.Scene
-import Engine.Scene.Input
+import Hickory.Input
 import Engine.Component.Model
 import Engine.Component.Component
 import Freecell.Events
 import Data.IORef
-import Camera.Camera
-import Types.Types
-import Math.Matrix
-import Graphics.Drawing
-import Math.Vector
+import Hickory.Camera
+import Hickory.Types
+import Hickory.Math.Matrix
+import Hickory.Graphics.Drawing
+import Hickory.Math.Vector
 import Menus.Menus
 import Systems.DrawText
 import Systems.Draw
-import Types.Color
-import Graphics.DrawText
+import Hickory.Color
+import Hickory.Graphics.DrawText
 import Menus.Construction
 
 type Screen = MenuScreen InputEvent MenuDrawCommand

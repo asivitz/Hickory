@@ -3,10 +3,10 @@ module Platforms.GLFW where
 import qualified Graphics.UI.GLFW as GLFW
 import Platforms.GLFW.Utils
 import qualified Platforms.GLFW.Bridge as Bridge
-import Graphics.Drawing
-import Engine.Scene.Input
-import Types.Types
-import Platform.Common
+import Hickory.Graphics.Drawing
+import Hickory.Input
+import Hickory.Types
+import Hickory.Platform
 
 -- NEW
 

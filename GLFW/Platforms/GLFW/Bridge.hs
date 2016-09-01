@@ -5,9 +5,9 @@ module Platforms.GLFW.Bridge where
 import Data.IORef
 import qualified Data.HashMap.Strict as HashMap
 import qualified Graphics.UI.GLFW as GLFW
-import Types.Types
-import Math.Vector
-import Engine.Scene.Input
+import Hickory.Types
+import Hickory.Math.Vector
+import Hickory.Input
 import Data.Time
 import Data.Maybe
 import Control.Monad
