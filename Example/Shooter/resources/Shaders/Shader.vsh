@@ -12,10 +12,9 @@ varying mediump vec2 texCoordsVarying;
 #endif
 
 uniform mat4 modelMat;
-uniform mat4 viewMat;
 
 void main()
 {
-    gl_Position = viewMat * modelMat * position;
+    gl_Position = modelMat * position;
     texCoordsVarying = texCoords;
 }

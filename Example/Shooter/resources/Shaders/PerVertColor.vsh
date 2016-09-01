@@ -16,11 +16,10 @@ varying lowp vec4 colorVarying;
 #endif
 
 uniform mat4 modelMat;
-uniform mat4 viewMat;
 
 void main()
 {
-    gl_Position = viewMat * modelMat * vec4(position, 1.0);
+    gl_Position = modelMat * vec4(position, 1.0);
     texCoordsVarying = texCoords;
     colorVarying = color;
 }
