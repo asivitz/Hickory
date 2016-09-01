@@ -1,6 +1,8 @@
 # Hickory
 
-Hickory is not really a Haskell game engine. It's more of a collection of tools and abstractions that can be used to make games. It doesn't have opinions and doesn't force you into a particular paradigm.
+Hickory is a collection of haskell tools and abstractions for making interactive programs. It could be considered a game engine, but it is largely opinionless. You can use whatever library you want for actually organizing your game logic (e.g. any FRP library, my Layer library, etc...)
+
+It renders using OpenGL and has support for both GLFW (for desktop) and WebGL through GHCJS.
 
 ## Engine.Scene
 These modules provide an Input/Model/View abstraction. Useful for providing high-level structure to your game.
