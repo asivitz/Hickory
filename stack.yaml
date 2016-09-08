@@ -7,8 +7,7 @@ resolver: nightly-2016-07-19
 packages:
 - '.'
 - 'GLFW'
-- '../../layer'
-#- 'Example/HFreecell'
+- '../layer'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: [GLFW-b-1.4.8.0, bindings-GLFW-3.1.2.1
