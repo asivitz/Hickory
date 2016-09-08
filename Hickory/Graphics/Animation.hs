@@ -2,11 +2,9 @@ module Hickory.Graphics.Animation where
 
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
-import Linear.Metric
 import Linear.Quaternion
 import Data.List
-import Control.Lens
-import Data.Ord
+import Control.Lens ((^.))
 import qualified Hickory.Utils.BVH as BVH
 
 data Frame a = Joint String (M44 a) [Frame a]
@@ -41,15 +39,15 @@ findJointLimits j = case j of
 
 bvhToAnimation :: BVH.BVH -> Animation Double
 bvhToAnimation (BVH.BVH joint (BVH.Motion nFrames fTime fs)) =
-        Animation nFrames fTime bbox frames
-    where modelUp = unit _y
-          worldUp = unit _z
-          axis = cross modelUp worldUp
-          angle = vabsangle worldUp modelUp
-          upVectorRot = mkRotation axis angle :: M44 Double
+        Animation nFrames fTime bbox framelist
+    where {-modelUp = unit _y-}
+          {-worldUp = unit _z-}
+          {-axis = cross modelUp worldUp-}
+          {-angle = vabsangle worldUp modelUp-}
+          {-upVectorRot = mkRotation axis angle :: M44 Double-}
           rot = identity
-          frames = (map (\f -> let ([], frame) = animateJoint rot f joint in (frame, findJointLimits frame)) fs)
-          bbox = (vminimum (map (fst . snd) frames), vmaximum (map (snd . snd) frames))
+          framelist = (map (\f -> let ([], frame) = animateJoint rot f joint in (frame, findJointLimits frame)) fs)
+          bbox = (vminimum (map (fst . snd) framelist), vmaximum (map (snd . snd) framelist))
 
 consumeChanData :: [String] -> [Double] -> (Double, Double, Double) -> (M44 Double, [Double])
 consumeChanData chanNames chanData (x, y, z) = (mkTransformation quat (v + V3 x y z), drop (length chanNames) chanData)
@@ -62,6 +60,7 @@ consumeChanData chanNames chanData (x, y, z) = (mkTransformation quat (v + V3 x 
                                           "Xrotation" -> (v', quat' * axisAngle (unit _x) (degToRad val))
                                           "Yrotation" -> (v', quat' * axisAngle (unit _y) (degToRad val))
                                           "Zrotation" -> (v', quat' * axisAngle (unit _z) (degToRad val))
+                                          _ -> error "Unrecognized rotation axis"
 
 animateJoint :: M44 Double -> [Double] -> BVH.Joint -> ([Double], Frame Double)
 animateJoint parentMat chanData (BVH.Joint chanNames name offset children) = (leftOverChannels, Joint name mat childJoints)
@@ -69,4 +68,3 @@ animateJoint parentMat chanData (BVH.Joint chanNames name offset children) = (le
           mat = parentMat !*! jointMat
           (jointMat, rest) = consumeChanData chanNames chanData offset
 animateJoint parentMat rest (BVH.JointEnd (x,y,z)) = (rest, End $ parentMat !*! mkTranslation (V3 x y z))
-animateJoint _ _ _ = error "Couldn't convert BVH to animation"

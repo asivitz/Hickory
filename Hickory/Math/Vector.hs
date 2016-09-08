@@ -79,7 +79,7 @@ vabsangle :: Vector f a => f a -> f a -> a
 -- vangle a b = acos $ vdot (vnormalise a) (vnormalise b)
 vabsangle a b = acos $ dot a b / (norm a * norm b)
 
-v2angle :: (Epsilon a, Floating a, Ord a, RealFloat a) => V2 a -> V2 a -> a
+v2angle :: (Epsilon a, RealFloat a) => V2 a -> V2 a -> a
 v2angle a b = if v2clockwise a b then -ang else ang
         where ang = vabsangle a b
 

@@ -10,7 +10,6 @@ module Hickory.Graphics.GLSupport --( module Graphics.GL.Compatibility41)
     (
      bindVAO,
      Shader(..),
-     runGL,
      bufferVertices,
      bufferIndices,
      createVAOConfig,
@@ -66,24 +65,16 @@ import Graphics.GL.Compatibility41 as GL
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Foreign.Ptr
-import Foreign.C.Types
-import Foreign.C.String
 import Foreign.Marshal.Utils
 import Foreign.Marshal.Array
-import Control.Monad.Reader
 import Hickory.Color
 import Hickory.Math.Matrix
-import qualified Data.Foldable as Fold
 import Hickory.Math.VectorMatrix
 import Data.Bits
 import Hickory.Graphics.Drawing
 import Hickory.Graphics.Shader
-import Data.Foldable
+import qualified Data.Foldable as Fold
 import Linear.V4
-
--- Unused?
-type GLMonad c o = ReaderT c IO o
-runGL context mon = runReaderT mon context
 
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
@@ -278,6 +269,7 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) }
         bindVAO vao
         bufferVertices vbo vs
         bufferIndices ivbo indices
+loadVerticesIntoVAOConfig _ _ _ = error "VAOConfig missing buffers"
 
 #else
 
@@ -304,6 +296,7 @@ loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
 loadVerticesIntoVAOConfig VAOConfig { indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
         bufferVertices vbo vs
         bufferIndices ivbo indices
+loadVerticesIntoVAOConfig _ _ _ = error "VAOConfig missing buffers"
 
 #endif
 

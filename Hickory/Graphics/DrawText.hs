@@ -6,12 +6,10 @@ module Hickory.Graphics.DrawText (Printer(..), loadPrinter, pvcShaderPair, creat
 import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Drawing
-import Hickory.Graphics.Shader
 import Hickory.Text.Text
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
-import Control.Monad
 
 data Printer a = Printer (Font a) TexID
 
@@ -49,21 +47,5 @@ textcommand = TextCommand {
                           color = black,
                           leftBump = 0 }
 
+pvcShaderPair :: (String, String)
 pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")
-
-deleteIndex :: [a] -> Int -> [a]
-deleteIndex [] _ = []
-deleteIndex (x:xs) 0 = xs
-deleteIndex (x:xs) i = (x:deleteIndex xs (i - 1))
-
-modIndex :: [a] -> Int -> (a -> a) -> [a]
-modIndex [] _ _ = []
-modIndex (x:xs) 0 f = f x : xs
-modIndex (x:xs) i f = x : modIndex xs (i - 1) f
-
-appendToAL :: Eq key => [(key, [a])] -> key -> a -> [(key, [a])]
-appendToAL [] key val = [(key, [val])]
-appendToAL (x@(k, vals):xs) key val
-        | k == key = ((k, val:vals):xs)
-        | otherwise = (x:(appendToAL xs key val))
-

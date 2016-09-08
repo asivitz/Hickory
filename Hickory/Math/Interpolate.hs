@@ -1,7 +1,6 @@
 module Hickory.Math.Interpolate where
 
 import Hickory.Math.Vector
-import Hickory.Math.Matrix
 
 nlerp :: Num a => a -> a -> a -> a
 nlerp fract a b = (a * (1 - fract)) + (b * fract)

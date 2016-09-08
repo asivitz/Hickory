@@ -17,7 +17,6 @@ import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 import Hickory.Graphics.Drawing
 import Control.Monad
-import Data.Maybe
 import Hickory.Utils.Utils
 import qualified Data.Text as Text
 import qualified Data.Text.Foreign as FText
@@ -108,16 +107,17 @@ glGetProgrami programId x = alloca (\ptr -> glGetProgramiv programId x ptr >> pe
 
 glGetBoolean boolean = (== GL_TRUE) <$> alloca (\ptr -> glGetBooleanv boolean ptr >> peek ptr)
 
+retrieveLog :: (GLenum -> IO GLint) -> (GLsizei -> Ptr GLsizei -> Ptr GLchar -> IO ()) -> IO (Maybe String)
 retrieveLog lenFun infoFun = do
         infoLen <- lenFun GL_INFO_LOG_LENGTH
         let infoLen' = fromIntegral infoLen
-        if (infoLen > 1)
-            then do
-                info <- allocaArray infoLen' $ \buf -> do
-                    infoFun infoLen nullPtr buf
-                    peekCStringLen (buf, infoLen' - 1)
-                return $ Just info
-            else return Nothing
+        if infoLen > 1
+           then do
+               info <- allocaArray infoLen' $ \buf -> do
+                   infoFun infoLen nullPtr buf
+                   peekCStringLen (buf, infoLen' - 1)
+               return $ Just info
+           else return Nothing
 
 compileShader :: Text.Text -> GLenum -> IO (Maybe GLuint)
 compileShader source shaderType = do
@@ -143,7 +143,7 @@ compileShader source shaderType = do
                 infoLog <- retrieveLog (glGetShaderi shaderId) (glGetShaderInfoLog shaderId)
                 case infoLog of
                     Just i -> do
-                        print "*** ERROR: Couldn't compile shader"
+                        print ("*** ERROR: Couldn't compile shader" :: String)
                         print i
                     _ -> return ()
 
@@ -163,7 +163,7 @@ linkProgram programId vertShader fragShader = do
             infoLog <- retrieveLog (glGetProgrami programId) (glGetProgramInfoLog programId)
             case infoLog of
                 Just i -> do
-                    print "*** ERROR: Can't link shader program"
+                    print ("*** ERROR: Can't link shader program" :: String)
                     print i
                 _ -> return ()
 

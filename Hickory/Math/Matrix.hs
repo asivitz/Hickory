@@ -9,19 +9,11 @@ module Hickory.Math.Matrix
     )
     where
 
-import Foreign.C.Types
-import Foreign.Ptr
-import Foreign.Marshal.Array
-import Foreign.ForeignPtr
-import System.IO.Unsafe
 import Linear.Vector
-import Linear.V3
 import Linear.Matrix
 import Linear.Projection
 import Linear.Quaternion
 import Control.Lens
-import Hickory.Math.Vector
-import Foreign.Marshal.Utils
 
 type Mat44 = M44 Double
 

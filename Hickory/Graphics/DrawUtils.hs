@@ -4,21 +4,14 @@ module Hickory.Graphics.DrawUtils where
 
 import Hickory.Types
 
-import Control.Monad
-import Hickory.Graphics.Shader
 import Hickory.Math.Matrix
 import Hickory.Math.Vector
-import Hickory.Math.VectorMatrix
 import Data.List
 import Data.Maybe
 import Hickory.Graphics.DrawText
 import Hickory.Text.Text
-import qualified Data.Text as Text
 import Hickory.Graphics.GLSupport
-import Foreign.C.Types
 import Data.Foldable (toList)
-import Control.Lens hiding (List)
-import Linear.Matrix
 import qualified Hickory.Utils.OBJ as OBJ
 import qualified Data.List.Utils as LUtils
 
@@ -42,7 +35,7 @@ drawSpec shader mat color spec =
             DynVAO tex vaoConfig (verts,indices,drawType) -> do
                 loadVerticesIntoVAOConfig vaoConfig verts indices
                 drawCommand shader mat color color tex vaoConfig (fromIntegral $ length indices) drawType
-    where depth = (mat !* v4 0 0 0 1) ^. _z
+    {-where depth = (mat !* v4 0 0 0 1) ^. _z-}
 
 
 {-

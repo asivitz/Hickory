@@ -19,7 +19,6 @@ import Hickory.Color
 import qualified Graphics.UI.GLFW as GLFW
 import Platforms.GLFW
 import Platforms.GLFW.Utils
-import Hickory.Platform
 
 import Hickory.Graphics.GLSupport
 
@@ -137,27 +136,22 @@ newAppState path = do
         res <- loadResources path
         return (res, newGame)
 
-gameMain :: GLFW.Window -> IO ()
-gameMain win = do
+main :: IO ()
+main = withWindow 480 640 "Demo" $ \win -> do
     configGLState 0.125 0.125 0.125
 
     initState <- newAppState "resources"
 
     inputPoller <- makeGLFWInputPoller win
-    timePoller <- makeTimePoller
 
     let loop appstate = do
-            delta <- timePoller
             input <- inputPoller
             scrSize <- uncurry Size <$> GLFW.getFramebufferSize win
 
-            appstate' <- foldlM (renderLayer scrSize) appstate (Step delta : input)
+            appstate' <- foldlM (renderLayer scrSize) appstate input
 
             GLFW.swapBuffers win
 
             loop appstate'
 
     loop initState
-
-main :: IO ()
-main = withWindow 480 640 "Demo" gameMain

@@ -16,8 +16,11 @@ makeInputPoller :: ((RawInput -> IO ()) -> IO (IO ())) -> IO (IO [RawInput])
 makeInputPoller inputSetup = do
         is <- newIORef []
         stepInp <- inputSetup (addRawInput is)
+        timePoller <- makeTimePoller
+
         return $ do
             stepInp
-            atomicModifyIORef is (\i -> ([], i))
+            delta <- timePoller
+            atomicModifyIORef is (\i -> ([], Step delta : i))
     where addRawInput stream event =
             atomicModifyIORef stream (\evs -> (evs ++ [event], ()))

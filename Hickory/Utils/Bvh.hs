@@ -9,8 +9,6 @@ import Control.Applicative (empty)
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
-import qualified Text.Megaparsec.Char as C
-import Text.Megaparsec.Prim
 import Data.Maybe
 import Hickory.Utils.Parsing
 
@@ -71,13 +69,13 @@ parseChannels = do
         count n identifier
 
 parseJointBody = do
-        name <- identifier
+        jname <- identifier
         (off, chans, jnts) <- bracket $ do
-            offset <- parseOffset
+            off <- parseOffset
             chans <- parseChannels
             joints <- many ((reserved "JOINT" *> parseJointBody) <|> parseEndSite)
-            return (offset, chans, joints)
-        return $ Joint chans name off jnts
+            return (off, chans, joints)
+        return $ Joint chans jname off jnts
 
 parseMotion = do
         reserved "MOTION"

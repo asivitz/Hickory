@@ -5,16 +5,11 @@ import Hickory.Math.Vector
 
 import Foreign.Ptr
 import Foreign.C.Types
-import Foreign.Marshal.Alloc
-import Foreign.Marshal.Array
-import System.IO.Unsafe
-import Linear.Matrix
-import Data.Maybe
 import Foreign.Marshal.Utils
 import Control.Lens
 
 v3rotate :: V3 Scalar -> V3 Scalar -> Scalar -> V3 Scalar
-v3rotate v axis angle = (mkRotation axis angle !* v3tov4 v 1) ^. _xyz
+v3rotate v axis ang = (mkRotation axis ang !* v3tov4 v 1) ^. _xyz
 
 m44overV3 m v = (m !* (v3tov4 v 1)) ^. _xyz
 
@@ -32,8 +27,8 @@ viewUnproject (V3 wx wy wz) modelView (V4 vpx vpy vpw vph) =
         let inverted = inv44 modelView
             inviewport = v3 ((wx - vpx) / vpw) ((wy - vpy) / vph) wz
             adjusted = fmap (\x -> x * 2 - 1) inviewport
-            from = v3tov4 adjusted 1
-            (V4 rx ry rz rw) = inverted !* from
+            fromv = v3tov4 adjusted 1
+            (V4 rx ry rz rw) = inverted !* fromv
             in v3 (rx / rw) (ry / rw) (rz / rw)
 
 -- This performs an unprojection on the near plane and another on the far

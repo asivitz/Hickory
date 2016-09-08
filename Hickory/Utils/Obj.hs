@@ -8,8 +8,6 @@ import Control.Applicative (empty)
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
-import qualified Text.Megaparsec.Char as C
-import Text.Megaparsec.Prim
 import Data.Maybe
 import Hickory.Math.Vector
 import Hickory.Utils.Parsing
@@ -53,7 +51,9 @@ data OBJ a = OBJ {
          deriving (Show)
 
 lstToV3 [x,y,z] = V3 x y z
+lstToV3 _ = error "Wrong size list for V3"
 lstToV2 [x,y] = V2 x y
+lstToV2 _ = error "Wrong size list for V2"
 
 sc :: Parser ()
 sc = L.space (void spaceChar) (L.skipLineComment "#") empty

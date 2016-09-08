@@ -7,12 +7,10 @@ import Hickory.Color
 import Hickory.Types
 import qualified Data.HashMap.Strict as HashMap
 import Data.Char (ord)
-import Data.Maybe
 import Hickory.Math.Vector
 import qualified Data.Text as Text
 import Data.Hashable
 import Data.List
-import Foreign.C.Types
 
 type CharTable a = HashMap.HashMap CharIdent (Glyph a)
 type KerningTable a = HashMap.HashMap KerningPair (KerningSpec a)
@@ -88,7 +86,7 @@ data TextCommand = TextCommand {
 
 data PositionedTextCommand = PositionedTextCommand (V3 Scalar) TextCommand deriving (Show)
 
-fontGlyphs :: Real a => Text.Text -> Font a -> [Glyph a]
+fontGlyphs :: Text.Text -> Font a -> [Glyph a]
 fontGlyphs text (Font _ _ chartable _) = Text.foldr (\char lst -> let x = ord char
                                                                       glyph = if x < 32 then Just $ Control x else HashMap.lookup (CharIdent x) chartable
                                                                                       in maybe lst (:lst) glyph) [] text
@@ -125,22 +123,14 @@ transformTextCommandToVerts (PositionedTextCommand (V3 x y z) (TextCommand text 
                     (Control 10) -> (0, linenum + 1, numsquares, vertlst, color_verts)
                     (Control 94) -> (leftBump, linenum, numsquares, vertlst, color_verts)
                     (Control _) -> (leftBump, linenum, numsquares, vertlst, color_verts)
-                    {-
-                    (let* ([next (cadr lst)]
-                        [num (if (integer? next) next (font-character-id next))]
-                                [newcolor (color-for-code num)]
-                                [new-color-verts (append newcolor alpha-list)]
-                                )
-                                (accum (cddr lst) left-bump new-color-verts res)
-                                )] -}
                     Glyph GlyphSpec { xadvance } (GlyphVerts gverts tc) ->
                         let dotransform :: V2 Scalar -> V3 Scalar
                             dotransform = \(V2 vx vy) -> v3 (x + fsize * (vx + leftBump)) (realToFrac linenum * fsize * realToFrac lineHeight * (-1) + y + fsize * (vy + yoffset)) z
                             new_verts = map dotransform gverts
                             vert_set = foldr (\(v, w) lst -> vunpackFractional v ++ vunpackFractional w ++ color_verts ++ lst) [] (zip new_verts tc) in
                                 (leftBump + realToFrac xadvance, linenum, numsquares + 1, vert_set ++ vertlst, color_verts)
-            (_, _, numsquares, vert_result, _) = foldl' accum (xoffset, 0, 0, [], vunpackFractional color) glyphs
-            in (numsquares, vert_result)
+            (_, _, num_squares, vert_result, _) = foldl' accum (xoffset, 0, 0, [], vunpackFractional color) glyphs
+            in (num_squares, vert_result)
 
 transformTextCommandsToVerts :: (Real a, Fractional b) => [PositionedTextCommand] -> Font a -> (Int, [b])
 transformTextCommandsToVerts commands font = foldl processCommand (0, []) commands

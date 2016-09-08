@@ -5,7 +5,6 @@ module Hickory.Camera where
 
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
-import Hickory.Math.VectorMatrix
 import Text.PrettyPrint.GenericPretty
 
 data Projection = Perspective {

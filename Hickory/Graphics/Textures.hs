@@ -4,7 +4,6 @@ module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures) where
 
 import Data.Vector.Storable(unsafeWith)
 
-import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Drawing
 
 import Hickory.Utils.Utils
