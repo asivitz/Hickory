@@ -4,14 +4,17 @@
 module Hickory.Utils.DirectX where
 
 import Control.Monad (void, when)
-import Control.Applicative (empty)
 import Text.Megaparsec
 import Text.Megaparsec.Text
 import qualified Text.Megaparsec.Lexer as L
 import Data.Maybe
 import Hickory.Math.Vector
+import Hickory.Math.Matrix
 import Hickory.Utils.Parsing
 import qualified Data.Vector.Unboxed as Vector
+import Control.Applicative
+import Data.List
+import Hickory.Color
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -45,6 +48,7 @@ signed p = do
 
 type Face = V3 (Int, Int, Int) -- Faces are triples of indices into the other lists
 
+{-
 data OBJ a = OBJ {
          vertices :: [V3 a],
          textureCoords :: [V2 a],
@@ -52,6 +56,7 @@ data OBJ a = OBJ {
          faces :: [Face]
          }
          deriving (Show)
+         -}
 
 lstToV3 [x,y,z] = V3 x y z
 lstToV3 _ = error "Wrong size list for V3"
@@ -61,18 +66,6 @@ lstToV2 _ = error "Wrong size list for V2"
 sc :: Parser ()
 sc = L.space (void spaceChar) (L.skipLineComment "//") empty
 
-parseVertex = lstToV3 <$> try (reserved "v" *> count 3 (lexeme anySignedNumber))
-parseTextureCoord = lstToV2 <$> try (reserved "vt" *> count 2 (lexeme anyNumber))
-parseNormal = lstToV3 <$> try (reserved "vn" *> count 3 (lexeme anySignedNumber))
-parseFace = lstToV3 <$> try (reserved "f" *> count 3 (lexeme parseTriple))
-    where parseTriple = do
-                            v <- fromIntegral <$> L.integer
-                            char '/'
-                            t <- fromIntegral <$> L.integer
-                            char '/'
-                            n <- fromIntegral <$> L.integer
-                            return (v,t,n)
-
 braces = between (symbol "{") (symbol "}")
 
 angleBrackets = between (symbol "<") (symbol ">")
@@ -80,177 +73,172 @@ squareBrackets = between (symbol "[") (symbol "]")
 doubleQuoted = between (symbol "\"") (symbol "\"")
 doubleQuotedString = doubleQuoted (many $ noneOf ['"'])
 
-parseUUID = angleBrackets (many (alphaNumChar <|> char '-'))
-
-data MemberItem = SimpleItem String String
-                | ArrayMemberItem String String ArraySize
-                deriving (Show)
-
-data ObjectItem = ObjectItem String Repeatable
-                deriving (Show)
-
-data Section = Section String Bool [MemberItem] [ObjectItem]
-              deriving (Show)
-
-data MemberTemplate = MemberTemplate String [MemberItem]
-              deriving (Show)
-
-data Repeatable = One | OneOrNone | ZeroOrMore
-              deriving (Show)
-
-parseTemplateItemType = identifier
-
-parseArrayNum = do
-        var <- optional identifier
-        case var of
-            Just v -> return $ Ref v
-            Nothing -> Num <$> integer
-
-parseTemplateSingleItem =
-        SimpleItem <$> parseTemplateItemType <*> identifier
-
-parseTemplateArrayMemberItem =
-        ArrayMemberItem <$> (reserved "array" >> parseTemplateItemType)
-                  <*> identifier
-                  <*> squareBrackets parseArrayNum
-
-parseTemplateItem = terminate (parseTemplateArrayMemberItem <|> parseTemplateSingleItem)
-
-parseTemplate = lexeme $ do
-        reserved "template"
-        templateName <- identifier
-        items <- braces $ do
-            parseUUID
-            many parseTemplateItem
-        return $ MemberTemplate templateName items
-
-data Item = IntegerItem Integer
-          | FloatItem Double
-          | StringItem String
-          | MatrixItem [Double]
-          | ArrayItem [Item]
-          | FloatArrayItem (Vector.Vector Double)
-          | IntegerArrayItem (Vector.Vector Int)
-          | Instance String [Item]
-          deriving (Show)
-
-data SectionInstance = SectionInstance String [Item] [[SectionInstance]]
-                     deriving (Show)
-
-parseSection :: Section -> Parser SectionInstance
-parseSection (Section name arg memberItems objectItems) = do
-        lexeme (string name)
-        when arg $ do
-            _ <- identifier
-            return ()
-
-        braces $ do
-            mitems <- mapM (terminate . parseTemplateMemberItemInstance) memberItems
-            {-when (not $ null memberItems) (lexeme (char ';') >> return ())-}
-            oitems <- mapM parseTemplateObjectItemInstance objectItems
-            return $ SectionInstance name mitems oitems
-
-parseInstance (MemberTemplate name memberItems) = Instance name <$> mapM (terminate . parseTemplateMemberItemInstance) memberItems
-
-parseTemplateObjectItemInstance :: ObjectItem -> Parser [SectionInstance]
-parseTemplateObjectItemInstance (ObjectItem itemType repeatable) =
-        case repeatable of
-            One -> (\x -> [x]) <$> parseSection tem
-            OneOrNone -> maybeToList <$> optional (parseSection tem)
-            ZeroOrMore -> many (parseSection tem)
-    where tem = sectionNamed itemType
-
 terminate x = x <* lexeme (char ';')
 
 lSepBy x y = x `sepBy` lexeme (char y)
 
+parseArray p = terminate (p `lSepBy` ',')
+parseVector x = (Vector.fromList . concat) <$> parseArray x
+
+parseVectorArray = parseVector (count 3 $ terminate anySignedNumber)
+parseMeshFaceArray = parseVector meshFace
+parseCoord2dArray = parseVector (count 2 $ terminate anySignedNumber)
+
 meshFace = do
         nfs <- terminate int
-        ns <- terminate (int `lSepBy` ',')
+        ns <- terminate (sepByCount int ',' 3)
         return $ nfs : ns
 
-parseArrayToVector parser = Vector.fromList <$> parser `lSepBy` ','
-parseConcatArrayToVector parser = Vector.fromList . concat <$> parser `lSepBy` ','
+parseColorRGBA = terminate $ rgba <$> terminate anySignedNumber
+                                  <*> terminate anySignedNumber
+                                  <*> terminate anySignedNumber
+                                  <*> terminate anySignedNumber
 
-parseTemplateMemberItemInstance :: MemberItem -> Parser Item
-parseTemplateMemberItemInstance (SimpleItem itemType ident) =
-        case itemType of
-            "DWORD" -> IntegerItem <$> integer
-            "FLOAT" -> FloatItem <$> anySignedNumber
-            "STRING" -> StringItem <$> doubleQuotedString
-            x -> parseInstance (templateNamed x)
-parseTemplateMemberItemInstance (ArrayMemberItem itemType ident size) =
-        case itemType of
-            "FLOAT" -> FloatArrayItem <$> parseArrayToVector anySignedNumber
-            "DWORD" -> IntegerArrayItem <$> parseArrayToVector int
-            "Coords2d" -> FloatArrayItem <$> parseConcatArrayToVector (count 2 (terminate anySignedNumber))
-            "MeshFace" -> IntegerArrayItem <$> parseConcatArrayToVector meshFace
-            "Vector" -> FloatArrayItem <$> parseConcatArrayToVector (count 3 (terminate anySignedNumber))
-            x -> ArrayItem <$> parseTemplateMemberItemInstance (SimpleItem x "") `lSepBy` ','
+parseColorRGB = terminate $ rgb <$> terminate anySignedNumber
+                                <*> terminate anySignedNumber
+                                <*> terminate anySignedNumber
 
-data ArraySize = Num Integer | Ref String
-               deriving (Show)
+data Frame = Frame Mat44 [Frame] (Maybe Mesh)
+           deriving (Show)
 
-sectionNamed :: String -> Section
-sectionNamed x = case x of
-    "Frame" -> Section "Frame" True [] [ObjectItem "FrameTransformMatrix" One, ObjectItem "Frame" ZeroOrMore, ObjectItem "Mesh" OneOrNone]
-    "FrameTransformMatrix" -> Section "FrameTransformMatrix" False [SimpleItem "Matrix4x4" "frameMatrix"] []
-    "Mesh" -> Section "Mesh" False [SimpleItem "DWORD" "nVertices",
-                                    ArrayMemberItem "Vector" "vertices" (Ref "nVertices"),
-                                    SimpleItem "DWORD" "nFaces",
-                                    ArrayMemberItem "MeshFace" "faces" (Ref "nFaces")]
-                                   [ObjectItem "MeshNormals" OneOrNone,
-                                    ObjectItem "MeshTextureCoords" OneOrNone,
-                                    ObjectItem "MeshMaterialList" OneOrNone,
-                                    ObjectItem "XSkinMeshHeader" OneOrNone,
-                                    ObjectItem "SkinWeights" ZeroOrMore
-                                    ]
-    "MeshNormals" -> Section "MeshNormals" False [SimpleItem "DWORD" "nNormals",
-                                                  ArrayMemberItem "Vector" "normals" (Ref "nNormals"),
-                                                  SimpleItem "DWORD" "nFaceNormals",
-                                                  ArrayMemberItem "MeshFace" "faceNormals" (Ref "nFaceNormals")] []
-    "MeshTextureCoords" -> Section "MeshTextureCoords" False [SimpleItem "DWORD" "nTextureCoords",
-                                                              ArrayMemberItem "Coords2d" "textureCoords" (Ref "nTextureCoords")] []
-    "MeshMaterialList" -> Section "MeshMaterialList" False [SimpleItem "DWORD" "nMaterials",
-                                                            SimpleItem "DWORD" "nFaceIndexes",
-                                                            ArrayMemberItem "DWORD" "FaceIndexes" (Ref "nFaceIndexes")] [ObjectItem "Material" ZeroOrMore]
-    "Material" -> Section "Material" True [SimpleItem "ColorRGBA" "faceColor",
-                                           SimpleItem "FLOAT" "power",
-                                           SimpleItem "ColorRGB" "specularColor",
-                                           SimpleItem "ColorRGB" "emissiveColor"] []
-    "XSkinMeshHeader" -> Section "XSkinMeshHeader" False [SimpleItem "DWORD" "nMaxSkinWeightsPerVertex",
-                                                          SimpleItem "DWORD" "nMaxSkinWeightsPerFace",
-                                                          SimpleItem "DWORD" "nBones"] []
-    "SkinWeights" -> Section "SkinWeights" False [SimpleItem "STRING" "transformNodeName",
-                                                  SimpleItem "DWORD" "nWeights",
-                                                  ArrayMemberItem "DWORD" "vertexIndices" (Ref "nWeights"),
-                                                  ArrayMemberItem "FLOAT" "weights" (Ref "nWeights"),
-                                                  SimpleItem "Matrix4x4" "matrixOffset"] []
+data Mesh = Mesh {
+          nVertices :: Int,
+          vertices :: Vector.Vector Double,
+          nFaces :: Int,
+          faces :: Vector.Vector Int,
+          meshNormals :: MeshNormals,
+          meshTextureCoords :: MeshTextureCoords,
+          meshMaterialList :: MeshMaterialList,
+          xSkinMeshHeader :: XSkinMeshHeader,
+          skinWeights :: [SkinWeights]
+          }
+          deriving (Show)
 
-templateNamed :: String -> MemberTemplate
-templateNamed x = case x of
-    "Vector" -> MemberTemplate "Vector" [SimpleItem "FLOAT" "x", SimpleItem "FLOAT" "y", SimpleItem "FLOAT" "z"]
-    "Matrix4x4" -> MemberTemplate "Matrix4x4" [ArrayMemberItem "FLOAT" "matrix" (Num 16)]
-    "MeshFace" -> MemberTemplate "MeshFace" [SimpleItem "DWORD" "nFaceVertexIndices", ArrayMemberItem "DWORD" "faceVertexIndices" (Ref "nFaceVertexIndices")]
-    "Coords2d" -> MemberTemplate "Coords2d" [SimpleItem "FLOAT" "u", SimpleItem "FLOAT" "v"]
-    "ColorRGBA" -> MemberTemplate "ColorRGBA" [SimpleItem "FLOAT" "red", SimpleItem "FLOAT" "green", SimpleItem "FLOAT" "blue", SimpleItem "FLOAT" "alpha"]
-    "ColorRGB" -> MemberTemplate "ColorRGBA" [SimpleItem "FLOAT" "red", SimpleItem "FLOAT" "green", SimpleItem "FLOAT" "blue"]
-    z -> error $ "No template named: " ++ z
+data MeshNormals = MeshNormals {
+                 nNormals :: Int,
+                 normals :: Vector.Vector Double,
+                 nFaceNormals :: Int,
+                 faceNormals :: Vector.Vector Int
+                 }
+                 deriving (Show)
 
-{-parseItem :: Template -> Parser Item-}
-{-parseItem (Template name templateItems) = do-}
-        {-lexeme (string name)-}
-        {-return $ Instance name <$> (braces $ many parseItem)-}
+data MeshTextureCoords = MeshTextureCoords {
+                       nTextureCoords :: Int,
+                       textureCoords :: Vector.Vector Double
+                       }
+                       deriving (Show)
 
-parseX :: Parser ([MemberTemplate], SectionInstance)
+data MeshMaterialList = MeshMaterialList {
+                      nMaterials :: Int,
+                      nFaceIndexes :: Int,
+                      faceIndexes :: Vector.Vector Int,
+                      materials :: [Material]
+                      }
+                      deriving (Show)
+
+data Material = Material {
+              faceColor :: Color,
+              power :: Double,
+              specularColor :: Color,
+              emissiveColor :: Color
+              }
+              deriving (Show)
+
+data XSkinMeshHeader = XSkinMeshHeader {
+                     nMaxSkinWeightsPerVertex :: Int,
+                     nMaxSkinWeightsPerFace :: Int,
+                     nBones :: Int
+                     }
+                     deriving (Show)
+
+data SkinWeights = SkinWeights {
+                 transformNodeName :: String,
+                 nWeights :: Int,
+                 vertexIndices :: Vector.Vector Int,
+                 weights :: Vector.Vector Double,
+                 matrixOffset :: Mat44
+                 }
+                 deriving (Show)
+
+parseSkinWeights = parseSection "SkinWeights" $
+    SkinWeights <$> terminate doubleQuotedString
+                <*> terminate int
+                <*> (Vector.fromList <$> parseArray int)
+                <*> (Vector.fromList <$> parseArray anySignedNumber)
+                <*> terminate parseMatrix4x4
+
+parseXSkinMeshHeader = parseSection "XSkinMeshHeader" $
+    XSkinMeshHeader <$> terminate int
+                    <*> terminate int
+                    <*> terminate int
+
+parseMaterial = parseNamedSection "Material" $
+    Material <$> parseColorRGBA
+             <*> terminate anySignedNumber
+             <*> parseColorRGB
+             <*> parseColorRGB
+
+parseMeshTextureCoords = parseSection "MeshTextureCoords" $
+    MeshTextureCoords <$> terminate int
+                      <*> parseCoord2dArray
+
+parseMeshNormals = parseSection "MeshNormals" $
+    MeshNormals <$> terminate int
+                <*> parseVectorArray
+                <*> terminate int
+                <*> parseMeshFaceArray
+
+parseMeshMaterialList = parseSection "MeshMaterialList" $
+    MeshMaterialList <$> terminate int
+                     <*> terminate int
+                     <*> (Vector.fromList <$> parseArray int)
+                     <*> many parseMaterial
+
+parseMesh = parseSection "Mesh" $
+    Mesh <$> terminate int
+         <*> parseVectorArray
+         <*> terminate int
+         <*> parseMeshFaceArray
+         <*> parseMeshNormals
+         <*> parseMeshTextureCoords
+         <*> parseMeshMaterialList
+         <*> parseXSkinMeshHeader
+         <*> many parseSkinWeights
+
+parseSection name p = lexeme (string name) >> braces p
+parseNamedSection name p = lexeme (string name) >> identifier >> braces p
+
+sepByCount_ :: Alternative m => m a -> m sep -> Int -> m [a]
+sepByCount_ p sep c = (:) <$> p <*> count (c - 1) (sep *> p)
+
+sepByCount p sepChar = sepByCount_ p (lexeme (char sepChar))
+
+mat44FromList :: [a] -> M44 a
+mat44FromList [a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,d1,d2,d3,d4] =
+        V4 (V4 a1 a2 a3 a4) (V4 b1 b2 b3 b4) (V4 c1 c2 c3 c4) (V4 d1 d2 d3 d4)
+
+parseMatrix4x4 :: Parser Mat44
+parseMatrix4x4 = mat44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
+
+memberItems = mapM terminate
+
+parseFrame = parseNamedSection "Frame" $
+    Frame <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
+          <*> many parseFrame
+          <*> optional parseMesh
+
+parseHeader = lexeme (manyTill anyChar eol)
+parseTemplate = string "template" >> manyTill anyChar (char '}')
+
+parseX :: Parser Frame
 parseX = do
-        lexeme (manyTill anyChar eol)
-        templates <- many parseTemplate
-        f <- parseSection (sectionNamed "Frame")
+        parseHeader
+        many (lexeme parseTemplate)
+        f <- parseFrame
         manyTill anyChar eof
-        return (templates, f)
+        return f
 
-loadX :: String -> IO ([MemberTemplate], SectionInstance)
+loadX :: String -> IO Frame
 loadX filePath = do
         res <- parseFromFile parseX filePath
         case res of
