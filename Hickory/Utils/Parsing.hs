@@ -3,9 +3,7 @@
 module Hickory.Utils.Parsing where
 
 import Text.Megaparsec
-import Text.Megaparsec.Text
 import Text.Megaparsec.Prim
-import qualified Data.Text.IO as TIO
 import qualified Text.Megaparsec.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Data.Scientific

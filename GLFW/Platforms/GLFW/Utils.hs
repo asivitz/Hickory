@@ -19,7 +19,7 @@ buildWindow width height title = do
               GLFW.setErrorCallback $ Just simpleErrorCallback
               return $ Just win
           Nothing -> do
-              print "ERROR: Couldn't create window"
+              print ("ERROR: Couldn't create window" :: String)
               return Nothing
         else return Nothing
   where
@@ -44,7 +44,7 @@ withWindow width height title f = do
               GLFW.destroyWindow win
               GLFW.terminate
           Nothing -> do
-              print "ERROR: Couldn't create window"
+              print ("ERROR: Couldn't create window" :: String)
   where
     simpleErrorCallback e s =
         putStrLn $ unwords [show e, show s]

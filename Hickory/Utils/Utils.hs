@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Hickory.Utils.Utils where
 
 import Data.List
@@ -6,9 +8,9 @@ import Data.Maybe
 import Data.IORef
 import Data.Time
 import qualified Data.Text.IO as TextIO
-import qualified Data.Text as Text
 
 #if defined(ghcjs_HOST_OS)
+import qualified Data.Text as Text
 import JavaScript.Web.XMLHttpRequest
 import Data.JSString (unpack, pack, JSString)
 #endif

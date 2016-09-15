@@ -118,7 +118,7 @@ drawCommand shader mat color color2 texid vaoconfig numitems drawType = do
 attachVertexArray :: GLint -> GLint -> GLint -> GLint -> IO ()
 attachVertexArray attrLoc len stride offset = do
         if (attrLoc < 0)
-            then (print "Can't attach vertex array: Bad attribute location")
+            then (print ("Can't attach vertex array: Bad attribute location" :: String))
             else do
                 enableVertexAttribArray attrLoc
                 vertexAttribPointer attrLoc len GL_FLOAT GL_FALSE (stride * fsize) (fromIntegral $ offset * fsize)
