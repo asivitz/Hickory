@@ -86,8 +86,8 @@ parseCoord2dArray = parseVector (count 2 $ terminate anySignedNumber)
 
 meshFace = do
         nfs <- terminate int
-        ns <- terminate (sepByCount int ',' 3)
-        return $ nfs : ns
+        when (nfs /= 3) (error "Mesh has non-triangle face")
+        terminate (sepByCount int ',' 3)
 
 parseColorRGBA = terminate $ rgba <$> terminate anySignedNumber
                                   <*> terminate anySignedNumber
@@ -98,7 +98,7 @@ parseColorRGB = terminate $ rgb <$> terminate anySignedNumber
                                 <*> terminate anySignedNumber
                                 <*> terminate anySignedNumber
 
-data Frame = Frame Mat44 [Frame] (Maybe Mesh)
+data DirectXFrame = DirectXFrame Mat44 [DirectXFrame] (Maybe Mesh)
            deriving (Show)
 
 data Mesh = Mesh {
@@ -230,7 +230,7 @@ parseFrame = parseNamedSection "Frame" $
 parseHeader = lexeme (manyTill anyChar eol)
 parseTemplate = string "template" >> manyTill anyChar (char '}')
 
-parseX :: Parser Frame
+parseX :: Parser DirectXFrame
 parseX = do
         parseHeader
         many (lexeme parseTemplate)
@@ -238,7 +238,7 @@ parseX = do
         manyTill anyChar eof
         return f
 
-loadX :: String -> IO Frame
+loadX :: String -> IO DirectXFrame
 loadX filePath = do
         res <- parseFromFile parseX filePath
         case res of

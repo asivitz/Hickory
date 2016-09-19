@@ -121,27 +121,30 @@ cubeFloats = concatMap toList verts
           p8 = v3 l h h
           verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
-packVAOObj :: VAOConfig -> [GLfloat] -> [GLushort] -> DrawType -> IO VAOObj
-packVAOObj vaoconfig verts indices drawType = do
+loadVAOObj :: VAOConfig -> DrawType -> ([GLfloat], [GLushort]) -> IO VAOObj
+loadVAOObj vaoconfig drawType (verts, indices) = do
         loadVerticesIntoVAOConfig vaoconfig verts indices
         return $ VAOObj vaoconfig (length indices) drawType
 
-buildData :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
-buildData (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
+-- Packs an OBJ's data into an array of vertices and indices
+-- The vertices are position, tex coords, and normals packed together
+packOBJ :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
+packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
     where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
           pool = foldl' (\alst e -> LUtils.addToAL alst e (construct e)) [] $ concatMap toList faces
           indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap toList faces
 
-loadObjIntoVAOConfig :: VAOConfig -> OBJ.OBJ Double -> IO VAOObj
-loadObjIntoVAOConfig vaoconfig obj = do
-        let (vertexData, indices) = buildData obj
-        packVAOObj vaoconfig vertexData indices Triangles
+createVAOConfigFromOBJ :: Shader -> String -> IO VAOObj
+createVAOConfigFromOBJ shader path = do
+        obj <- OBJ.loadOBJ path
+        createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_TEX_COORDS 2, Attachment sp_ATTR_NORMALS 3]]
+            >>= \config -> loadVAOObj config Triangles (packOBJ obj)
 
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
         let floats = cubeFloats
             indices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
-        packVAOObj vaoconfig floats indices TriangleStrip
+        loadVAOObj vaoconfig TriangleStrip (floats, indices)
 
 mkCubeVAOObj :: Shader -> IO VAOObj
 mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
@@ -156,7 +159,7 @@ mkSquareVerts texW texH = (floats, indices, TriangleFan)
           indices = [0,1,2,3]
 
 loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
-loadSquareIntoVAOConfig vaoconfig = packVAOObj vaoconfig floats indices TriangleFan
+loadSquareIntoVAOConfig vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, indices)
     where h = 0.5
           l = -h
           floats = [l, h, 0, 0,
