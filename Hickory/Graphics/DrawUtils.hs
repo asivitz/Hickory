@@ -13,11 +13,13 @@ import Hickory.Text.Text
 import Hickory.Graphics.GLSupport
 import Data.Foldable (toList)
 import qualified Hickory.Utils.OBJ as OBJ
+import qualified Hickory.Utils.DirectX as DX
 import qualified Data.List.Utils as LUtils
 
 import Hickory.Graphics.Drawing
 import Hickory.Color
 import Graphics.GL.Compatibility41 as GL
+import qualified Data.Vector.Unboxed as Vector
 
 data Command = Command Shader Mat44 Color DrawSpec
 
@@ -126,20 +128,6 @@ loadVAOObj vaoconfig drawType (verts, indices) = do
         loadVerticesIntoVAOConfig vaoconfig verts indices
         return $ VAOObj vaoconfig (length indices) drawType
 
--- Packs an OBJ's data into an array of vertices and indices
--- The vertices are position, tex coords, and normals packed together
-packOBJ :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
-packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
-    where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
-          pool = foldl' (\alst e -> LUtils.addToAL alst e (construct e)) [] $ concatMap toList faces
-          indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap toList faces
-
-createVAOConfigFromOBJ :: Shader -> String -> IO VAOObj
-createVAOConfigFromOBJ shader path = do
-        obj <- OBJ.loadOBJ path
-        createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_TEX_COORDS 2, Attachment sp_ATTR_NORMALS 3]]
-            >>= \config -> loadVAOObj config Triangles (packOBJ obj)
-
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
         let floats = cubeFloats
@@ -187,6 +175,42 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
 
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
 mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2]] >>= loadUntexturedSquareIntoVAOConfig
+
+-- Model Loading
+
+-- .OBJ
+
+-- Packs an OBJ's data into an array of vertices and indices
+-- The vertices are position, tex coords, and normals packed together
+packOBJ :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
+packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
+    where construct (vidx, tcidx, nidx) = map realToFrac $ toList (vertices !! (vidx - 1)) ++ toList (texCoords !! (tcidx - 1)) ++ toList (normals !! (nidx - 1))
+          pool = foldl' (\alst e -> LUtils.addToAL alst e (construct e)) [] $ concatMap toList faces
+          indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap toList faces
+
+createVAOConfigFromOBJ :: Shader -> String -> IO VAOObj
+createVAOConfigFromOBJ shader path = do
+        obj <- OBJ.loadOBJ path
+        createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_TEX_COORDS 2, Attachment sp_ATTR_NORMALS 3]]
+            >>= \config -> loadVAOObj config Triangles (packOBJ obj)
+
+-- .X
+packX :: DX.DirectXFrame -> ([GLfloat], [GLushort])
+packX x = case go x of
+              Just y -> y
+              Nothing -> error "Could not grab mesh from X structure"
+    where go (DX.DirectXFrame mat children Nothing) = listToMaybe $ mapMaybe go children
+          go (DX.DirectXFrame mat _ (Just mesh)) = Just $ packMesh mesh
+          packMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords } =
+              (Vector.toList (Vector.map realToFrac vertices), Vector.toList (Vector.map fromIntegral faces))
+
+createVAOConfigFromX :: Shader -> String -> IO VAOObj
+createVAOConfigFromX shader path = do
+        x <- DX.loadX path
+        createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]]
+            >>= \config -> loadVAOObj config Triangles (packX x)
+
+--
 
 renderTree :: Mat44 -> RenderTree -> RenderState -> IO RenderState
 renderTree viewmat tree state = do

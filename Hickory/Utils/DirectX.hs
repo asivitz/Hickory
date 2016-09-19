@@ -223,7 +223,7 @@ parseMatrix4x4 = mat44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
 memberItems = mapM terminate
 
 parseFrame = parseNamedSection "Frame" $
-    Frame <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
+    DirectXFrame <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
           <*> many parseFrame
           <*> optional parseMesh
 
