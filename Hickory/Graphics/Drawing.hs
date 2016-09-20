@@ -102,7 +102,7 @@ data VertexGroup = VertexGroup [Attachment]
 instance Show VertexGroup where
         show x = "Vertex Group"
 
-data UniformValue = MatrixUniform Mat44
+data UniformValue = MatrixUniform [Mat44]
                   | QuadFUniform (V4 Scalar)
 data UniformBinding = UniformBinding (Shader -> UniformLoc) UniformValue
 

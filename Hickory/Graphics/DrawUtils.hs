@@ -34,14 +34,14 @@ drawSpec shader mat color spec =
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj vaoConfig numitems drawType) -> do
                 drawCommand shader
-                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform mat),
+                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]),
                              UniformBinding sp_UNIFORM_COLOR (QuadFUniform color)
                              ]
                             tex vaoConfig (fromIntegral numitems) drawType
             DynVAO tex vaoConfig (verts,indices,drawType) -> do
                 loadVerticesIntoVAOConfig vaoConfig verts indices
                 drawCommand shader
-                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform mat), UniformBinding sp_UNIFORM_COLOR (QuadFUniform color)]
+                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]), UniformBinding sp_UNIFORM_COLOR (QuadFUniform color)]
                             tex vaoConfig (fromIntegral $ length indices) drawType
     {-where depth = (mat !* v4 0 0 0 1) ^. _z-}
 

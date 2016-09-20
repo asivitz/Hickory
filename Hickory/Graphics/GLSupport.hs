@@ -72,6 +72,7 @@ import Hickory.Color
 import Hickory.Math.Matrix
 import Hickory.Math.VectorMatrix
 import Data.Bits
+import Data.List (genericLength)
 import Hickory.Graphics.Drawing
 import Hickory.Graphics.Shader
 import qualified Data.Foldable as Fold
@@ -221,13 +222,13 @@ uniform4fv loc v =
         withVec4 v $ \ptr ->
             glUniform4fv loc 1 (castPtr ptr)
 
-withMat44 :: Mat44 -> (Ptr GLfloat -> IO b) -> IO b
-withMat44 mat f = with (fmap (fmap realToFrac) $ transpose mat :: M44 GLfloat) (f . castPtr)
+withMat44s :: [Mat44] -> (Ptr GLfloat -> IO b) -> IO b
+withMat44s mats f = withArray (map (\mat -> (fmap (fmap realToFrac) $ transpose mat :: M44 GLfloat)) mats) (f . castPtr)
 
-uniformMatrix4fv :: GLint -> Mat44 -> IO ()
-uniformMatrix4fv loc mat =
-        withMat44 mat $ \ptr ->
-            glUniformMatrix4fv loc 1 GL_FALSE (castPtr ptr)
+uniformMatrix4fv :: GLint -> [Mat44] -> IO ()
+uniformMatrix4fv loc mats =
+        withMat44s mats $ \ptr ->
+            glUniformMatrix4fv loc (genericLength mats) GL_FALSE (castPtr ptr)
 
 vertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
 vertexAttribPointer a b c d e f = glVertexAttribPointer (fromIntegral a) b c d e (plusPtr nullPtr (fromIntegral f))
