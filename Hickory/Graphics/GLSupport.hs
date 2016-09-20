@@ -1,5 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE CPP #-}
 
 {-
 module Graphics.GLSupport ( module Graphics.GL.ARB.ES2Compatibility ) where
@@ -100,17 +101,20 @@ glenumForDrawType dt = case dt of
                            TriangleFan -> GL_TRIANGLE_FAN
                            Triangles -> GL_TRIANGLES
 
-drawCommand :: Shader -> Mat44 -> Color -> Color -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
-drawCommand shader mat color color2 texid vaoconfig numitems drawType = do
+bindUniform :: Shader -> UniformBinding -> IO ()
+bindUniform shader (UniformBinding loc uniVal) =
+        case uniVal of
+            MatrixUniform mat -> uniformMatrix4fv (loc shader) mat
+            QuadFUniform vec -> uniform4fv (loc shader) vec
+
+drawCommand :: Shader -> [UniformBinding] -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
+drawCommand shader uniformBindings texid vaoconfig numitems drawType = do
         useShader shader
         case texid of
             Just t -> glBindTexture GL_TEXTURE_2D (getTexID t)
             _ -> return ()
 
-        uniform4fv (sp_UNIFORM_COLOR shader) color
-        uniform4fv (sp_UNIFORM_COLOR2 shader) color2
-
-        uniformMatrix4fv (sp_UNIFORM_MODEL_MAT shader) mat
+        mapM (bindUniform shader) uniformBindings
 
         withVAOConfig shader vaoconfig $
             drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
@@ -205,6 +209,9 @@ uniformMatrix4fv loc mat = do
 #else
 
 enableVertexAttribArray = glEnableVertexAttribArray . fromIntegral
+
+disableVertexAttribArray :: GLint -> IO ()
+disableVertexAttribArray = glDisableVertexAttribArray . fromIntegral
 
 drawElements :: GLenum -> GLsizei -> GLenum -> IO ()
 drawElements a b c = glDrawElements a b c nullPtr

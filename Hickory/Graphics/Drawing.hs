@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE CPP #-}
 
 module Hickory.Graphics.Drawing (
                         DrawType(..),
@@ -15,12 +16,16 @@ module Hickory.Graphics.Drawing (
                         getTexID,
                         ShaderID,
                         ProgramID,
-                        UniformLoc
+                        UniformLoc,
+                        UniformBinding(..),
+                        UniformValue(..)
                         )
                         where
 
 import Data.Word
 import Data.Int
+import Hickory.Math.Vector
+import Hickory.Math.Matrix
 
 #if defined(ghcjs_HOST_OS)
 import GHCJS.Types
@@ -96,6 +101,10 @@ data Attachment = Attachment Attribute Int32
 data VertexGroup = VertexGroup [Attachment]
 instance Show VertexGroup where
         show x = "Vertex Group"
+
+data UniformValue = MatrixUniform Mat44
+                  | QuadFUniform (V4 Scalar)
+data UniformBinding = UniformBinding (Shader -> UniformLoc) UniformValue
 
 {-
 halveInt :: Int -> Int

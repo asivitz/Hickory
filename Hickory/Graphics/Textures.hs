@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE CPP #-}
 
 module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures) where
 
