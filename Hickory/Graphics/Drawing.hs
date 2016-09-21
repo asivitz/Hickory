@@ -85,12 +85,14 @@ data Shader = Shader {
             sp_ATTR_COLOR :: AttrLoc,
             sp_ATTR_COLOR2 :: AttrLoc,
             sp_ATTR_NORMALS :: AttrLoc,
+            sp_ATTR_BONE_INDEX :: AttrLoc,
 
             sp_UNIFORM_TEXID :: UniformLoc,
             sp_UNIFORM_COLOR :: UniformLoc,
             sp_UNIFORM_COLOR2 :: UniformLoc,
             sp_UNIFORM_MODEL_MAT :: UniformLoc,
-            sp_UNIFORM_SIZE :: UniformLoc
+            sp_UNIFORM_SIZE :: UniformLoc,
+            sp_UNIFORM_BONE_MAT :: UniformLoc
             } deriving (Show)
 
 getShader Shader { program } = program

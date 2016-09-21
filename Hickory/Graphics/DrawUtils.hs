@@ -35,7 +35,8 @@ drawSpec shader mat color spec =
             VAO tex (VAOObj vaoConfig numitems drawType) -> do
                 drawCommand shader
                             [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]),
-                             UniformBinding sp_UNIFORM_COLOR (QuadFUniform color)
+                             UniformBinding sp_UNIFORM_COLOR (QuadFUniform color),
+                             UniformBinding sp_UNIFORM_BONE_MAT (MatrixUniform [mkRotation (V3 1 0 0) (pi/2), mkRotation (V3 1 0 0) (-pi/12)])
                              ]
                             tex vaoConfig (fromIntegral numitems) drawType
             DynVAO tex vaoConfig (verts,indices,drawType) -> do
@@ -200,20 +201,28 @@ createVAOConfigFromOBJ shader path = do
         createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_TEX_COORDS 2, Attachment sp_ATTR_NORMALS 3]]
             >>= \config -> loadVAOObj config Triangles (packOBJ obj)
 
+-- interleaves arrays based on an array of counts
+-- interleave [[1,2,3,4,5,6],[40,50,60]] [2,1] ~> [1,2,40,3,4,50,5,6,60]
+interleave :: [[a]] -> [Int] -> [a]
+interleave vals counts | any null vals = []
+interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
+    where pull ns vs = concatMap (\(n,v) -> take n v) (zip ns vs)
+          sub ns vs = map (\(n,v) -> drop n v) (zip ns vs)
+
 -- .X
 packX :: DX.DirectXFrame -> ([GLfloat], [GLushort])
-packX x = case go x of
-              Just y -> y
-              Nothing -> error "Could not grab mesh from X structure"
+packX x = fromMaybe (error "Could not grab mesh from X structure") (go x)
     where go (DX.DirectXFrame mat children Nothing) = listToMaybe $ mapMaybe go children
           go (DX.DirectXFrame mat _ (Just mesh)) = Just $ packMesh mesh
-          packMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords } =
-              (Vector.toList (Vector.map realToFrac vertices), Vector.toList (Vector.map fromIntegral faces))
+          packMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights } = (dat, indices)
+              where verts = Vector.toList (Vector.map realToFrac vertices)
+                    dat = interleave [verts, [1,1,1,1,1,1] ++ repeat 0] [3,1]
+                    indices = Vector.toList (Vector.map fromIntegral faces)
 
 createVAOConfigFromX :: Shader -> String -> IO VAOObj
 createVAOConfigFromX shader path = do
-        x <- DX.loadX path
-        createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]]
+        (x,_) <- DX.loadX path
+        createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_BONE_INDEX 1]]
             >>= \config -> loadVAOObj config Triangles (packX x)
 
 --

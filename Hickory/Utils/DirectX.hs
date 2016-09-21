@@ -13,7 +13,6 @@ import Hickory.Math.Matrix
 import Hickory.Utils.Parsing
 import qualified Data.Vector.Unboxed as Vector
 import Control.Applicative
-import Data.List
 import Hickory.Color
 
 lexeme :: Parser a -> Parser a
@@ -79,6 +78,11 @@ lSepBy x y = x `sepBy` lexeme (char y)
 
 parseArray p = terminate (p `lSepBy` ',')
 parseVector x = (Vector.fromList . concat) <$> parseArray x
+
+parseArraySize 0 p = return []
+parseArraySize size p = terminate (sepByCount p ',' size)
+
+parseVectorSize size x = (Vector.fromList . concat) <$> parseArraySize size x
 
 parseVectorArray = parseVector (count 3 $ terminate anySignedNumber)
 parseMeshFaceArray = parseVector meshFace
@@ -153,26 +157,26 @@ data XSkinMeshHeader = XSkinMeshHeader {
 
 data SkinWeights = SkinWeights {
                  transformNodeName :: String,
-                 nWeights :: Int,
                  vertexIndices :: Vector.Vector Int,
                  weights :: Vector.Vector Double,
                  matrixOffset :: Mat44
                  }
                  deriving (Show)
 
-parseSkinWeights = parseSection "SkinWeights" $
-    SkinWeights <$> terminate doubleQuotedString
-                <*> terminate int
-                <*> (Vector.fromList <$> parseArray int)
-                <*> (Vector.fromList <$> parseArray anySignedNumber)
-                <*> terminate parseMatrix4x4
+parseSkinWeights = parseSection "SkinWeights" $ do
+    name <- terminate doubleQuotedString
+    num <- terminate int
+    SkinWeights name <$>
+                (Vector.fromList <$> parseArraySize num int) <*>
+                (Vector.fromList <$> parseArraySize num anySignedNumber) <*>
+                terminate parseMatrix4x4
 
 parseXSkinMeshHeader = parseSection "XSkinMeshHeader" $
     XSkinMeshHeader <$> terminate int
                     <*> terminate int
                     <*> terminate int
 
-parseMaterial = parseNamedSection "Material" $
+parseMaterial = parseNamedSection "Material" $ \name ->
     Material <$> parseColorRGBA
              <*> terminate anySignedNumber
              <*> parseColorRGB
@@ -206,7 +210,7 @@ parseMesh = parseSection "Mesh" $
          <*> many parseSkinWeights
 
 parseSection name p = lexeme (string name) >> braces p
-parseNamedSection name p = lexeme (string name) >> identifier >> braces p
+parseNamedSection name p = lexeme (string name) >> identifier >>= \x -> braces (p x)
 
 sepByCount_ :: Alternative m => m a -> m sep -> Int -> m [a]
 sepByCount_ p sep c = (:) <$> p <*> count (c - 1) (sep *> p)
@@ -216,29 +220,71 @@ sepByCount p sepChar = sepByCount_ p (lexeme (char sepChar))
 mat44FromList :: [a] -> M44 a
 mat44FromList [a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,d1,d2,d3,d4] =
         V4 (V4 a1 a2 a3 a4) (V4 b1 b2 b3 b4) (V4 c1 c2 c3 c4) (V4 d1 d2 d3 d4)
+mat44FromList _ = error "Can't build matrix. Wrong size list."
+
+v4FromList :: [a] -> V4 a
+v4FromList [a,b,c,d] = V4 a b c d
+v4FromList _ = error "Can't build vector. Wrong size list."
 
 parseMatrix4x4 :: Parser Mat44
 parseMatrix4x4 = mat44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
 
 memberItems = mapM terminate
 
-parseFrame = parseNamedSection "Frame" $
+parseFrame = parseNamedSection "Frame" $ \name ->
     DirectXFrame <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
           <*> many parseFrame
           <*> optional parseMesh
 
 parseHeader = lexeme (manyTill anyChar eol)
-parseTemplate = string "template" >> manyTill anyChar (char '}')
 
-parseX :: Parser DirectXFrame
+skipSection :: String -> Parser ()
+skipSection name = lexeme $ string name >> manyTill anyChar (char '}') >> return ()
+
+parseAnimationKey = parseSection "AnimationKey" $ do
+    terminate int
+    nkeys <- terminate int
+    parseArraySize nkeys $ terminate $ do
+        _ <- terminate int
+        _ <- terminate int
+        v4FromList <$> parseArraySize 4 anySignedNumber
+
+parseBoneAnimation :: Parser BoneAnimation
+parseBoneAnimation = parseSection "Animation" $ do
+    name <- braces identifier
+    rotationKeys <- parseAnimationKey
+    skipSection "AnimationKey"
+    skipSection "AnimationKey"
+    return $ BoneAnimation name rotationKeys
+
+parseAnimationSet :: Int -> Parser Animation
+parseAnimationSet tps = parseNamedSection "AnimationSet" $ \name ->
+    Animation name tps <$> (many parseBoneAnimation)
+
+parseX :: Parser (DirectXFrame, [Animation])
 parseX = do
         parseHeader
-        many (lexeme parseTemplate)
+        many (lexeme $ skipSection "template")
         f <- parseFrame
-        manyTill anyChar eof
-        return f
 
-loadX :: String -> IO DirectXFrame
+        tps <- parseSection "AnimTicksPerSecond" (terminate int)
+        sets <- many (parseAnimationSet tps)
+
+        manyTill anyChar eof
+        return (f, sets)
+
+data Animation = Animation {
+               actionName :: String,
+               ticksPerSecond :: Int,
+               bones :: [BoneAnimation]
+               }
+
+data BoneAnimation = BoneAnimation {
+                   boneName :: String,
+                   rotations :: [V4 Double]
+                   }
+
+loadX :: String -> IO (DirectXFrame, [Animation])
 loadX filePath = do
         res <- parseFromFile parseX filePath
         case res of

@@ -225,12 +225,14 @@ buildShaderProgram vertShader fragShader = do
                     (fromIntegral <$> getAttribLocation programId "color") <*>
                     (fromIntegral <$> getAttribLocation programId "color2") <*>
                     (fromIntegral <$> getAttribLocation programId "normals") <*>
+                    (fromIntegral <$> getAttribLocation programId "boneIndex") <*>
 
                     getUniformLocation programId "tex" <*>
                     getUniformLocation programId "color" <*>
                     getUniformLocation programId "color2" <*>
                     getUniformLocation programId "modelMat" <*>
-                    getUniformLocation programId "size"
+                    getUniformLocation programId "size" <*>
+                    getUniformLocation programId "boneMat"
                 return $ Just res
 
 useShader (Shader { program }) = glUseProgram program
