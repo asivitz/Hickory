@@ -14,6 +14,7 @@ import Hickory.Utils.Parsing
 import qualified Data.Vector.Unboxed as Vector
 import Control.Applicative
 import Hickory.Color
+import Linear.Quaternion
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -102,7 +103,12 @@ parseColorRGB = terminate $ rgb <$> terminate anySignedNumber
                                 <*> terminate anySignedNumber
                                 <*> terminate anySignedNumber
 
-data DirectXFrame = DirectXFrame Mat44 [DirectXFrame] (Maybe Mesh)
+data DirectXFrame = DirectXFrame {
+                  frameName :: String,
+                  mat :: Mat44,
+                  children :: [DirectXFrame],
+                  mesh :: Maybe Mesh
+                  }
            deriving (Show)
 
 data Mesh = Mesh {
@@ -217,22 +223,18 @@ sepByCount_ p sep c = (:) <$> p <*> count (c - 1) (sep *> p)
 
 sepByCount p sepChar = sepByCount_ p (lexeme (char sepChar))
 
-mat44FromList :: [a] -> M44 a
-mat44FromList [a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,d1,d2,d3,d4] =
-        V4 (V4 a1 a2 a3 a4) (V4 b1 b2 b3 b4) (V4 c1 c2 c3 c4) (V4 d1 d2 d3 d4)
-mat44FromList _ = error "Can't build matrix. Wrong size list."
-
-v4FromList :: [a] -> V4 a
-v4FromList [a,b,c,d] = V4 a b c d
-v4FromList _ = error "Can't build vector. Wrong size list."
+quaternionFromList :: [a] -> Quaternion a
+quaternionFromList [a,b,c,d] = Quaternion a (V3 b c d)
+quaternionFromList _ = error "Can't build quaternion. Wrong size list."
 
 parseMatrix4x4 :: Parser Mat44
 parseMatrix4x4 = mat44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
 
 memberItems = mapM terminate
 
+parseFrame :: Parser DirectXFrame
 parseFrame = parseNamedSection "Frame" $ \name ->
-    DirectXFrame <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
+    DirectXFrame name <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
           <*> many parseFrame
           <*> optional parseMesh
 
@@ -241,18 +243,32 @@ parseHeader = lexeme (manyTill anyChar eol)
 skipSection :: String -> Parser ()
 skipSection name = lexeme $ string name >> manyTill anyChar (char '}') >> return ()
 
-parseAnimationKey = parseSection "AnimationKey" $ do
+parseAnimationKey element = parseSection "AnimationKey" $ do
     terminate int
     nkeys <- terminate int
-    parseArraySize nkeys $ terminate $ do
+    parseArraySize nkeys $ terminate $ element
+
+parseRotationKey = parseAnimationKey $ do
         _ <- terminate int
         _ <- terminate int
-        v4FromList <$> parseArraySize 4 anySignedNumber
+        quaternionFromList <$> parseArraySize 4 anySignedNumber
+
+parseScaleKey = parseAnimationKey $ do
+        _ <- terminate int
+        _ <- terminate int
+        v3FromList <$> parseArraySize 3 anySignedNumber
+
+parsePositionKey = parseAnimationKey $ do
+        _ <- terminate int
+        _ <- terminate int
+        v3FromList <$> parseArraySize 3 anySignedNumber
 
 parseBoneAnimation :: Parser BoneAnimation
 parseBoneAnimation = parseSection "Animation" $ do
     name <- braces identifier
-    rotationKeys <- parseAnimationKey
+    rotationKeys <- parseRotationKey
+    {-scaleKeys <- parseScaleKey-}
+    {-positionKeys <- parsePositionKey-}
     skipSection "AnimationKey"
     skipSection "AnimationKey"
     return $ BoneAnimation name rotationKeys
@@ -278,11 +294,13 @@ data Animation = Animation {
                ticksPerSecond :: Int,
                bones :: [BoneAnimation]
                }
+               deriving (Show)
 
 data BoneAnimation = BoneAnimation {
                    boneName :: String,
-                   rotations :: [V4 Double]
+                   rotations :: [Quaternion Double]
                    }
+                   deriving (Show)
 
 loadX :: String -> IO (DirectXFrame, [Animation])
 loadX filePath = do

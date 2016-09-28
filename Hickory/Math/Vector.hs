@@ -26,7 +26,9 @@ module Hickory.Math.Vector
     vunpackFractional,
     timeToIntersection,
     intersectionPoint,
-    Scalar
+    Scalar,
+    v4FromList,
+    v3FromList
     )
     where
 
@@ -146,3 +148,11 @@ v2rotate :: Floating a => V2 a -> a -> V2 a
 v2rotate (V2 x y) ang = v2 (x * co - y * si) (y * co + x * si)
     where co = cos ang
           si = sin ang
+
+v4FromList :: [a] -> V4 a
+v4FromList [a,b,c,d] = V4 a b c d
+v4FromList _ = error "Can't build vector. Wrong size list."
+
+v3FromList :: [a] -> V3 a
+v3FromList [a,b,c] = V3 a b c
+v3FromList _ = error "Can't build vector. Wrong size list."
