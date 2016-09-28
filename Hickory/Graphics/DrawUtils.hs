@@ -25,18 +25,34 @@ data Command = Command Shader Mat44 Color DrawSpec
 
 data DrawSpec = Text (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj |
+                Animated AnimatedModel Int Scalar |
                 DynVAO (Maybe TexID) VAOConfig ([GLfloat],[GLushort],DrawType)
               deriving (Show)
+
+xx :: Bone -> KeyFrame -> [Mat44]
+xx b boneRotations = map snd $ sortOn fst $ go identity b
+    where go parentMat (Bone idx mat children) = (idx, m) : childs
+            where childs = concatMap (go m) children
+                  m = parentMat !*! (fromJust $ lookup idx boneRotations :: Mat44) !*! mat
 
 drawSpec :: Shader -> Mat44 -> Color -> DrawSpec -> IO ()
 drawSpec shader mat color spec =
         case spec of
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
-            VAO tex (VAOObj vaoConfig numitems drawType) -> do
+            Animated (AnimatedModel (VAOObj vaoConfig numitems drawType) rootBone actions) actionIdx time -> do
+                let (Action keyFrames) = actions !! actionIdx
                 drawCommand shader
                             [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]),
                              UniformBinding sp_UNIFORM_COLOR (QuadFUniform color),
-                             UniformBinding sp_UNIFORM_BONE_MAT (MatrixUniform [mkRotation (V3 1 0 0) (pi/2), mkRotation (V3 1 0 0) (-pi/12)])
+                             -- TODO: Variable FPS
+                             UniformBinding sp_UNIFORM_BONE_MAT (MatrixUniform (xx rootBone (keyFrames !! (floor (time * 60) `mod` length keyFrames))))
+                             --[mkRotation (V3 1 0 0) (pi/2), mkRotation (V3 1 0 0) (-pi/12)])
+                             ]
+                            Nothing vaoConfig (fromIntegral numitems) drawType
+            VAO tex (VAOObj vaoConfig numitems drawType) -> do
+                drawCommand shader
+                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]),
+                             UniformBinding sp_UNIFORM_COLOR (QuadFUniform color)
                              ]
                             tex vaoConfig (fromIntegral numitems) drawType
             DynVAO tex vaoConfig (verts,indices,drawType) -> do
@@ -74,7 +90,11 @@ data RenderTree = Primative Shader Mat44 Color DrawSpec
                 | NoRender
                 deriving (Show)
 
-data VAOObj = VAOObj VAOConfig Int DrawType
+data VAOObj = VAOObj {
+            vaoConfig :: VAOConfig,
+            count :: Int,
+            drawType :: DrawType
+            }
             deriving (Show)
 
 data PrintDesc = PrintDesc (Printer Int) TextCommand Color
@@ -209,6 +229,14 @@ interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
     where pull ns vs = concatMap (\(n,v) -> take n v) (zip ns vs)
           sub ns vs = map (\(n,v) -> drop n v) (zip ns vs)
 
+type KeyFrame = [(Int, Mat44)] -- List of bone indices and transforms
+data Action = Action [KeyFrame]
+            deriving (Show)
+data Bone = Bone Int Mat44 [Bone]
+            deriving (Show)
+data AnimatedModel = AnimatedModel VAOObj Bone [Action]
+            deriving (Show)
+
 -- .X
 packX :: DX.DirectXFrame -> ([GLfloat], [GLushort])
 packX x = fromMaybe (error "Could not grab mesh from X structure") (go x)
@@ -216,14 +244,15 @@ packX x = fromMaybe (error "Could not grab mesh from X structure") (go x)
           go (DX.DirectXFrame mat _ (Just mesh)) = Just $ packMesh mesh
           packMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights } = (dat, indices)
               where verts = Vector.toList (Vector.map realToFrac vertices)
-                    dat = interleave [verts, [1,1,1,1,1,1] ++ repeat 0] [3,1]
+                    dat = interleave [verts, repeat 0] [3,1]
                     indices = Vector.toList (Vector.map fromIntegral faces)
 
-createVAOConfigFromX :: Shader -> String -> IO VAOObj
-createVAOConfigFromX shader path = do
+loadModelFromX :: Shader -> String -> IO AnimatedModel
+loadModelFromX shader path = do
         (x,_) <- DX.loadX path
-        createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_BONE_INDEX 1]]
+        vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_BONE_INDEX 1]]
             >>= \config -> loadVAOObj config Triangles (packX x)
+        return $ AnimatedModel vo (Bone 0 identity []) [Action [[(0, identity)]]]
 
 --
 
