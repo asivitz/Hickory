@@ -267,11 +267,10 @@ parseBoneAnimation :: Parser BoneAnimation
 parseBoneAnimation = parseSection "Animation" $ do
     name <- braces identifier
     rotationKeys <- parseRotationKey
-    {-scaleKeys <- parseScaleKey-}
-    {-positionKeys <- parsePositionKey-}
-    skipSection "AnimationKey"
-    skipSection "AnimationKey"
-    return $ BoneAnimation name rotationKeys
+    scaleKeys <- parseScaleKey
+    positionKeys <- parsePositionKey
+    let transforms = map (\(r, V3 x y z, p) -> mkTransformation r p !*! scaled (V4 x y z 1)) (zip3 rotationKeys scaleKeys positionKeys)
+    return $ BoneAnimation name transforms
 
 parseAnimationSet :: Int -> Parser Animation
 parseAnimationSet tps = parseNamedSection "AnimationSet" $ \name ->
@@ -298,7 +297,7 @@ data Animation = Animation {
 
 data BoneAnimation = BoneAnimation {
                    boneName :: String,
-                   rotations :: [Quaternion Double]
+                   _transforms :: [M44 Double]
                    }
                    deriving (Show)
 

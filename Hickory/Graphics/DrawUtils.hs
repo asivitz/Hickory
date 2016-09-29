@@ -290,10 +290,10 @@ repeatedPull inputs mapper finished = b : repeatedPull as mapper finished
 
 createAction :: [Bone] -> DX.Animation -> Action
 createAction bs DX.Animation { DX.actionName, DX.bones } = Action actionName frames
-        where tagged = mapMaybe (\DX.BoneAnimation { DX.boneName = n, DX.rotations = r } -> (,r) <$> findIndex (\x -> boneName x == n) bs) bones
+        where tagged = mapMaybe (\DX.BoneAnimation { DX.boneName = n, DX._transforms = r } -> (,r) <$> findIndex (\x -> boneName x == n) bs) bones
               frames = repeatedPull tagged mapper (\a -> null a || any (\(_, xs) -> null xs) a)
               mapper as = let res = map go as
-                              go (i, x:xs) = ((i, mkTransformation x zero), (i, xs))
+                              go (i, x:xs) = ((i, x), (i, xs))
                               in (map fst res, map snd res)
 
 packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
