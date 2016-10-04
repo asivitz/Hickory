@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Hickory.Utils.DirectX where
 
@@ -15,6 +16,7 @@ import qualified Data.Vector.Unboxed as Vector
 import Control.Applicative
 import Hickory.Color
 import Linear.Quaternion
+import Data.List
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -103,11 +105,12 @@ parseColorRGB = terminate $ rgb <$> terminate anySignedNumber
                                 <*> terminate anySignedNumber
                                 <*> terminate anySignedNumber
 
-data DirectXFrame = DirectXFrame {
+data Frame = Frame {
                   frameName :: String,
                   mat :: Mat44,
-                  children :: [DirectXFrame],
-                  mesh :: Maybe Mesh
+                  children :: [Frame],
+                  mesh :: Maybe Mesh,
+                  actionMats :: [(String, [Mat44])]
                   }
            deriving (Show)
 
@@ -223,8 +226,8 @@ sepByCount_ p sep c = (:) <$> p <*> count (c - 1) (sep *> p)
 
 sepByCount p sepChar = sepByCount_ p (lexeme (char sepChar))
 
-quaternionFromList :: [a] -> Quaternion a
-quaternionFromList [a,b,c,d] = Quaternion a (V3 b c d)
+quaternionFromList :: Num a => [a] -> Quaternion a
+quaternionFromList [a,b,c,d] = Quaternion (negate a) (V3 b c d)
 quaternionFromList _ = error "Can't build quaternion. Wrong size list."
 
 parseMatrix4x4 :: Parser Mat44
@@ -232,11 +235,12 @@ parseMatrix4x4 = mat44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
 
 memberItems = mapM terminate
 
-parseFrame :: Parser DirectXFrame
+parseFrame :: Parser Frame
 parseFrame = parseNamedSection "Frame" $ \name ->
-    DirectXFrame name <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
+    Frame name <$> (head <$> parseSection "FrameTransformMatrix" (memberItems [parseMatrix4x4]))
           <*> many parseFrame
           <*> optional parseMesh
+          <*> return []
 
 parseHeader = lexeme (manyTill anyChar eol)
 
@@ -276,7 +280,14 @@ parseAnimationSet :: Int -> Parser Animation
 parseAnimationSet tps = parseNamedSection "AnimationSet" $ \name ->
     Animation name tps <$> (many parseBoneAnimation)
 
-parseX :: Parser (DirectXFrame, [Animation])
+fillFrame :: [Animation] -> Frame -> Frame
+fillFrame animations frame@Frame { frameName, children } = frame { actionMats = filtered, children = map (fillFrame animations) children }
+    where mapped = for animations (\Animation { actionName, boneAnimations } ->
+                        (actionName, fromMaybe [] (_transforms <$> find (\BoneAnimation { boneName } -> boneName == frameName) boneAnimations)))
+          filtered = filter (\(name, xforms) -> (not . null) xforms) mapped
+          for = flip map
+
+parseX :: Parser Frame
 parseX = do
         parseHeader
         many (lexeme $ skipSection "template")
@@ -286,12 +297,12 @@ parseX = do
         sets <- many (parseAnimationSet tps)
 
         manyTill anyChar eof
-        return (f, sets)
+        return $ fillFrame sets f
 
 data Animation = Animation {
                actionName :: String,
                ticksPerSecond :: Int,
-               bones :: [BoneAnimation]
+               boneAnimations :: [BoneAnimation]
                }
                deriving (Show)
 
@@ -301,7 +312,7 @@ data BoneAnimation = BoneAnimation {
                    }
                    deriving (Show)
 
-loadX :: String -> IO (DirectXFrame, [Animation])
+loadX :: String -> IO Frame
 loadX filePath = do
         res <- parseFromFile parseX filePath
         case res of

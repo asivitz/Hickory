@@ -32,37 +32,35 @@ data DrawSpec = Text (Printer Int) TextCommand |
                 DynVAO (Maybe TexID) VAOConfig ([GLfloat],[GLushort],DrawType)
               deriving (Show)
 
-xx :: [Bone] -> KeyFrame -> [Mat44]
-xx bs boneRotations = map go (zip bs [0..])
-    where go ((Bone name parent mat), idx) = cM idx !*! mat
-          cM idx = let (Bone _ parent _) = bs !! idx
-                       rot = (fromJust $ lookup idx boneRotations)
-                       in case parent of
-                              Just p -> cM p !*! rot
-                              Nothing -> rot
 
-{-
-xx :: [Bone] -> KeyFrame -> [Mat44]
-xx bs boneRotations = foldl' go [] (zip bs [0..])
-    where go mats ((Bone name parent mat), idx) = mats ++ [m']
-            where m = (fromJust $ lookup idx boneRotations) !*! mat
-                  m' = case parent of
-                           Just i -> traceShow "BONES:" $ traceShow bs $ traceShow (mats, i) $ (mats !! i) !*! m
-                           Nothing -> m
-                           -}
+retrieveActionMat :: (String, Double) -> [(String, [Mat44])] -> Maybe Mat44
+retrieveActionMat (actionName, time) actionMats = (\kf -> kf !! (floor (time * 60) `mod` length kf)) <$> keyFrames
+        where keyFrames = lookup actionName actionMats
+
+buildAnimatedMats :: Mat44 -> Mat44 -> (String, Double) -> DX.Frame -> [(String, Mat44)]
+buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.children, DX.actionMats, DX.mat }
+    = (frameName, m) : concatMap (buildAnimatedMats bindPose animMat animSel) children
+        where m = animMat !*! inv44 bindPose
+              bindPose = bindParent !*! mat
+              animMat = animParent !*! actionMat
+              actionMat = fromMaybe mat $ retrieveActionMat animSel actionMats
+
+animatedMats :: DX.Frame -> (String, Double) -> [Mat44]
+animatedMats f animSel = (sortem . buildAnimatedMats identity identity animSel) f
+        where sortem :: [(String, Mat44)] -> [Mat44]
+              sortem pairs = let DX.Mesh { DX.skinWeights } = pullMesh f in
+                  reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, mat) -> name == DX.transformNodeName sw) pairs) [] skinWeights
 
 drawSpec :: Shader -> Mat44 -> Color -> DrawSpec -> IO ()
 drawSpec shader mat color spec =
         case spec of
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
-            Animated (AnimatedModel (VAOObj vaoConfig numitems drawType) bones actions) actionName time -> do
-                let (Action name keyFrames) = fromMaybe (error $ "Can't find action with name: " ++ actionName) (find (\(Action n _) -> n == actionName) actions)
+            Animated (AnimatedModel (VAOObj vaoConfig numitems drawType) frame) actionName time -> do
                 drawCommand shader
                             [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]),
                              UniformBinding sp_UNIFORM_COLOR (QuadFUniform color),
                              -- TODO: Variable FPS
-                             UniformBinding sp_UNIFORM_BONE_MAT (MatrixUniform (xx bones (keyFrames !! (floor (time * 60) `mod` length keyFrames))))
-                             --[mkRotation (V3 1 0 0) (pi/2), mkRotation (V3 1 0 0) (-pi/12)])
+                             UniformBinding sp_UNIFORM_BONE_MAT (MatrixUniform (animatedMats frame (actionName, time)))
                              ]
                             Nothing vaoConfig (fromIntegral numitems) drawType
             VAO tex (VAOObj vaoConfig numitems drawType) -> do
@@ -248,56 +246,24 @@ interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
     where pull ns vs = concatMap (\(n,v) -> take n v) (zip ns vs)
           sub ns vs = map (\(n,v) -> drop n v) (zip ns vs)
 
-type KeyFrame = [(Int, Mat44)] -- List of bone indices and transforms
-data Action = Action String [KeyFrame]
-            deriving (Show)
-data Bone = Bone {
-          boneName :: String,
-          parent :: Maybe Int,
-          mat :: Mat44
-          }
-          deriving (Show)
-data AnimatedModel = AnimatedModel VAOObj [Bone] [Action]
+data AnimatedModel = AnimatedModel VAOObj DX.Frame
             deriving (Show)
 
 -- .X
-pullMesh :: DX.DirectXFrame -> DX.Mesh
+pullMesh :: DX.Frame -> DX.Mesh
 pullMesh x = case go x of
                  Nothing -> error "Could not grab mesh from X structure"
                  Just (m@DX.Mesh { DX.skinWeights }) -> m { DX.skinWeights = sortWeights skinWeights x }
-    where go (DX.DirectXFrame name mat children Nothing) = listToMaybe $ mapMaybe go children
-          go (DX.DirectXFrame name mat _ (Just mesh)) = Just mesh
+    where go (DX.Frame name mat children Nothing _) = listToMaybe $ mapMaybe go children
+          go (DX.Frame name mat _ (Just mesh) _) = Just mesh
           -- Put weights, and therefore bones, in order from root to leaf
-          sortWeights :: [DX.SkinWeights] -> DX.DirectXFrame -> [DX.SkinWeights]
-          sortWeights weights (DX.DirectXFrame name _ children _) = case find (\DX.SkinWeights { DX.transformNodeName } -> transformNodeName == name) weights of
+          sortWeights :: [DX.SkinWeights] -> DX.Frame -> [DX.SkinWeights]
+          sortWeights weights (DX.Frame name _ children _ _) = case find (\DX.SkinWeights { DX.transformNodeName } -> transformNodeName == name) weights of
                                                                         Just w -> [w] ++ concatMap (sortWeights weights) children
                                                                         Nothing -> concatMap (sortWeights weights) children
 
-pullBones :: DX.Mesh -> DX.DirectXFrame -> [Bone]
-pullBones m@DX.Mesh { DX.skinWeights } f = mapMaybe (\DX.SkinWeights { DX.transformNodeName } -> find (\(Bone n _ _) -> n == transformNodeName) unsorted) skinWeights
-    where unsorted = go Nothing f
-          go :: Maybe Int -> DX.DirectXFrame -> [Bone]
-          go parent (DX.DirectXFrame name mat children _) =
-                case idx of
-                    Just i -> let DX.SkinWeights { DX.matrixOffset } = skinWeights !! i in Bone name parent matrixOffset : concatMap (go (Just i)) children
-                    Nothing -> concatMap (go parent) children
-            where idx = findIndex (\w -> DX.transformNodeName w == name) skinWeights
-
-repeatedPull :: [a] -> ([a] -> (b, [a])) -> ([a] -> Bool) -> [b]
-repeatedPull inputs mapper finished | finished inputs = []
-repeatedPull inputs mapper finished = b : repeatedPull as mapper finished
-    where (b, as) = mapper inputs
-
-createAction :: [Bone] -> DX.Animation -> Action
-createAction bs DX.Animation { DX.actionName, DX.bones } = Action actionName frames
-        where tagged = mapMaybe (\DX.BoneAnimation { DX.boneName = n, DX._transforms = r } -> (,r) <$> findIndex (\x -> boneName x == n) bs) bones
-              frames = repeatedPull tagged mapper (\a -> null a || any (\(_, xs) -> null xs) a)
-              mapper as = let res = map go as
-                              go (i, x:xs) = ((i, x), (i, xs))
-                              in (map fst res, map snd res)
-
 packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
-packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights } = traceShowId $ (dat, indices)
+packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights } = (dat, indices)
     where verts = Vector.toList (Vector.map realToFrac vertices)
           assignments = reverse $ foldl' (\lst i -> fromMaybe (error $ "Vertex #" ++ show i ++ " not assigned to a bone.")
                                                               (fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> Vector.elem i vertexIndices) skinWeights) : lst)
@@ -307,32 +273,12 @@ packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNorma
 
 loadModelFromX :: Shader -> String -> IO AnimatedModel
 loadModelFromX shader path = do
-        (x,animations) <- DX.loadX path
-        print "loaded model"
-        let mesh = pullMesh x
-            bones = pullBones mesh x
-            actions = map (createAction bones) animations
-        print "x model"
-        {-print $ animations !! 1-}
+        frame <- DX.loadX path
+        let mesh = pullMesh frame
         vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_BONE_INDEX 1]]
             >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
 
-        return $ AnimatedModel vo bones actions
-
-{-
-data Animation = Animation {
-               actionName :: String,
-               ticksPerSecond :: Int,
-               bones :: [BoneAnimation]
-               }
-
-data BoneAnimation = BoneAnimation {
-                   boneName :: String,
-                   rotations :: [V4 Double]
-                   }
--}
-
---
+        return $ AnimatedModel vo frame
 
 renderTree :: Mat44 -> RenderTree -> RenderState -> IO RenderState
 renderTree viewmat tree state = do
