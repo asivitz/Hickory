@@ -262,20 +262,31 @@ pullMesh x = case go x of
                                                                         Just w -> [w] ++ concatMap (sortWeights weights) children
                                                                         Nothing -> concatMap (sortWeights weights) children
 
+-- Provide a material index for each vertex
+packMaterialIndices :: Vector.Vector Int -> Vector.Vector Int -> [Float]
+packMaterialIndices vertFaces materialIndices = for [0..numIndices-1] $ \x -> realToFrac $ materialIndices Vector.! (faceNum x)
+    where faceNum x = floor $ (realToFrac $ fromJust $ Vector.elemIndex x vertFaces) / 3
+          numIndices = Vector.length vertFaces
+          for = flip map
+
 packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
-packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights } = (dat, indices)
+packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights, DX.meshMaterialList }
+    = (dat, indices)
     where verts = Vector.toList (Vector.map realToFrac vertices)
+          material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
           assignments = reverse $ foldl' (\lst i -> fromMaybe (error $ "Vertex #" ++ show i ++ " not assigned to a bone.")
                                                               (fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> Vector.elem i vertexIndices) skinWeights) : lst)
                                          [] [0..(Vector.length vertices - 1)]
-          dat = interleave [verts, assignments] [3,1]
+          dat = interleave [verts, assignments, material_indices] [3,1,1]
           indices = Vector.toList (Vector.map fromIntegral faces)
 
 loadModelFromX :: Shader -> String -> IO AnimatedModel
 loadModelFromX shader path = do
         frame <- DX.loadX path
         let mesh = pullMesh frame
-        vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_BONE_INDEX 1]]
+        vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3,
+                                                   Attachment sp_ATTR_BONE_INDEX 1,
+                                                   Attachment sp_ATTR_MATERIAL_INDEX 1]]
             >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
 
         return $ AnimatedModel vo frame

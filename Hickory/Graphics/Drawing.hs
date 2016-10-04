@@ -86,6 +86,7 @@ data Shader = Shader {
             sp_ATTR_COLOR2 :: AttrLoc,
             sp_ATTR_NORMALS :: AttrLoc,
             sp_ATTR_BONE_INDEX :: AttrLoc,
+            sp_ATTR_MATERIAL_INDEX :: AttrLoc,
 
             sp_UNIFORM_TEXID :: UniformLoc,
             sp_UNIFORM_COLOR :: UniformLoc,

@@ -226,6 +226,7 @@ buildShaderProgram vertShader fragShader = do
                     (fromIntegral <$> getAttribLocation programId "color2") <*>
                     (fromIntegral <$> getAttribLocation programId "normals") <*>
                     (fromIntegral <$> getAttribLocation programId "boneIndex") <*>
+                    (fromIntegral <$> getAttribLocation programId "materialIndex") <*>
 
                     getUniformLocation programId "tex" <*>
                     getUniformLocation programId "color" <*>

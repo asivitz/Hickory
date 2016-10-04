@@ -142,8 +142,6 @@ data MeshTextureCoords = MeshTextureCoords {
                        deriving (Show)
 
 data MeshMaterialList = MeshMaterialList {
-                      nMaterials :: Int,
-                      nFaceIndexes :: Int,
                       faceIndexes :: Vector.Vector Int,
                       materials :: [Material]
                       }
@@ -201,10 +199,10 @@ parseMeshNormals = parseSection "MeshNormals" $
                 <*> terminate int
                 <*> parseMeshFaceArray
 
-parseMeshMaterialList = parseSection "MeshMaterialList" $
-    MeshMaterialList <$> terminate int
-                     <*> terminate int
-                     <*> (Vector.fromList <$> parseArray int)
+parseMeshMaterialList = parseSection "MeshMaterialList" $ do
+    num_mats <- terminate int
+    num_indices <- terminate int
+    MeshMaterialList <$> (Vector.fromList <$> parseArraySize num_indices int)
                      <*> many parseMaterial
 
 parseMesh = parseSection "Mesh" $

@@ -323,6 +323,7 @@ configGLState r g b = do
         glDisable GL_STENCIL_TEST
 
         glEnable GL_PROGRAM_POINT_SIZE -- for OSX
+        glEnable GL_DEPTH_TEST
 
         glEnable GL_BLEND
 
