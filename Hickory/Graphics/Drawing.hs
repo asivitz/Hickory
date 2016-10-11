@@ -18,7 +18,8 @@ module Hickory.Graphics.Drawing (
                         ProgramID,
                         UniformLoc,
                         UniformBinding(..),
-                        UniformValue(..)
+                        UniformValue(..),
+                        retrieveLoc
                         )
                         where
 
@@ -26,6 +27,7 @@ import Data.Word
 import Data.Int
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
+import qualified Data.HashMap.Strict as HashMap
 
 #if defined(ghcjs_HOST_OS)
 import GHCJS.Types
@@ -88,12 +90,7 @@ data Shader = Shader {
             sp_ATTR_BONE_INDEX :: AttrLoc,
             sp_ATTR_MATERIAL_INDEX :: AttrLoc,
 
-            sp_UNIFORM_TEXID :: UniformLoc,
-            sp_UNIFORM_COLOR :: UniformLoc,
-            sp_UNIFORM_COLOR2 :: UniformLoc,
-            sp_UNIFORM_MODEL_MAT :: UniformLoc,
-            sp_UNIFORM_SIZE :: UniformLoc,
-            sp_UNIFORM_BONE_MAT :: UniformLoc
+            uniformLocs :: HashMap.HashMap String UniformLoc
             } deriving (Show)
 
 getShader Shader { program } = program
@@ -106,8 +103,11 @@ instance Show VertexGroup where
         show x = "Vertex Group"
 
 data UniformValue = MatrixUniform [Mat44]
-                  | QuadFUniform (V4 Scalar)
-data UniformBinding = UniformBinding (Shader -> UniformLoc) UniformValue
+                  | QuadFUniform [V4 Scalar]
+data UniformBinding = UniformBinding String UniformValue
+
+retrieveLoc :: String -> Shader -> Maybe UniformLoc
+retrieveLoc name shader = HashMap.lookup name (uniformLocs shader)
 
 {-
 halveInt :: Int -> Int

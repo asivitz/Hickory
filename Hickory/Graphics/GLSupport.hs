@@ -103,10 +103,12 @@ glenumForDrawType dt = case dt of
                            Triangles -> GL_TRIANGLES
 
 bindUniform :: Shader -> UniformBinding -> IO ()
-bindUniform shader (UniformBinding loc uniVal) =
-        case uniVal of
-            MatrixUniform mat -> uniformMatrix4fv (loc shader) mat
-            QuadFUniform vec -> uniform4fv (loc shader) vec
+bindUniform shader (UniformBinding name uniVal) =
+        case retrieveLoc name shader of
+            Just loc -> case uniVal of
+                            MatrixUniform mat -> uniformMatrix4fv loc mat
+                            QuadFUniform vec -> uniform4fv loc vec
+            Nothing -> print $ "Uniform named " ++ name ++ " not found in shader"
 
 drawCommand :: Shader -> [UniformBinding] -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
 drawCommand shader uniformBindings texid vaoconfig numitems drawType = do
@@ -217,10 +219,15 @@ disableVertexAttribArray = glDisableVertexAttribArray . fromIntegral
 drawElements :: GLenum -> GLsizei -> GLenum -> IO ()
 drawElements a b c = glDrawElements a b c nullPtr
 
-uniform4fv :: GLint -> V4 Double -> IO ()
-uniform4fv loc v =
-        withVec4 v $ \ptr ->
-            glUniform4fv loc 1 (castPtr ptr)
+uniform4fv :: GLint -> [V4 Double] -> IO ()
+uniform4fv loc vs =
+        withVec4s vs $ \ptr ->
+            glUniform4fv loc (genericLength vs) (castPtr ptr)
+
+withVec4s :: [V4 Double] -> (Ptr GLfloat -> IO b) -> IO b
+withVec4s vecs f = withArray (map (fmap realToFrac) vecs :: [V4 GLfloat]) (f . castPtr)
+
+{-withVec4s vecs f = withVec4 (vecs !! 0) (f . castPtr) --withArray vecs (f . castPtr)-}
 
 withMat44s :: [Mat44] -> (Ptr GLfloat -> IO b) -> IO b
 withMat44s mats f = withArray (map (\mat -> (fmap (fmap realToFrac) $ transpose mat :: M44 GLfloat)) mats) (f . castPtr)

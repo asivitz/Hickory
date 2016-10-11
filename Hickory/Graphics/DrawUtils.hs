@@ -22,7 +22,6 @@ import Hickory.Graphics.Drawing
 import Hickory.Color
 import Graphics.GL.Compatibility41 as GL
 import qualified Data.Vector.Unboxed as Vector
-import Debug.Trace
 
 data Command = Command Shader Mat44 Color DrawSpec
 
@@ -57,22 +56,22 @@ drawSpec shader mat color spec =
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
             Animated (AnimatedModel (VAOObj vaoConfig numitems drawType) frame) actionName time -> do
                 drawCommand shader
-                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]),
-                             UniformBinding sp_UNIFORM_COLOR (QuadFUniform color),
+                            [UniformBinding "modelMat" (MatrixUniform [mat]),
+                             UniformBinding "colors" (QuadFUniform [rgb 0 0 0, rgb 0.9 0.9 0.9, rgb 0 0 0.4, rgb 0.3 0 0, rgb 0.9 0.9 0.9, rgb 0.9 0.9 0.9]),
                              -- TODO: Variable FPS
-                             UniformBinding sp_UNIFORM_BONE_MAT (MatrixUniform (animatedMats frame (actionName, time)))
+                             UniformBinding "boneMat" (MatrixUniform (animatedMats frame (actionName, time)))
                              ]
                             Nothing vaoConfig (fromIntegral numitems) drawType
             VAO tex (VAOObj vaoConfig numitems drawType) -> do
                 drawCommand shader
-                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]),
-                             UniformBinding sp_UNIFORM_COLOR (QuadFUniform color)
+                            [UniformBinding "modelMat" (MatrixUniform [mat]),
+                             UniformBinding "color" (QuadFUniform [color])
                              ]
                             tex vaoConfig (fromIntegral numitems) drawType
             DynVAO tex vaoConfig (verts,indices,drawType) -> do
                 loadVerticesIntoVAOConfig vaoConfig verts indices
                 drawCommand shader
-                            [UniformBinding sp_UNIFORM_MODEL_MAT (MatrixUniform [mat]), UniformBinding sp_UNIFORM_COLOR (QuadFUniform color)]
+                            [UniformBinding "modelMat" (MatrixUniform [mat]), UniformBinding "color" (QuadFUniform [color])]
                             tex vaoConfig (fromIntegral $ length indices) drawType
     {-where depth = (mat !* v4 0 0 0 1) ^. _z-}
 

@@ -21,6 +21,7 @@ import Control.Monad
 import Hickory.Utils.Utils
 import qualified Data.Text as Text
 import qualified Data.Text.Foreign as FText
+import qualified Data.HashMap.Strict as HashMap
 
 #if defined(ghcjs_HOST_OS)
 import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort, GLboolean, GLsizei, GLintptr,
@@ -181,7 +182,7 @@ shaderSourceForPath path = do
 
 #endif
 
-loadShader resPath vert frag = do
+loadShader resPath vert frag uniforms = do
    let prefix = resPath ++ "/Shaders/"
        vpath = prefix ++ vert
        fpath = prefix ++ frag
@@ -194,7 +195,7 @@ loadShader resPath vert frag = do
    case vs of
        Just vsh -> case fs of
                        Just fsh -> do
-                           prog <- buildShaderProgram vsh fsh
+                           prog <- buildShaderProgram vsh fsh uniforms
                            case prog of
                                Just pr -> return pr
                                Nothing -> do
@@ -210,8 +211,8 @@ compileVertShader source = compileShader source GL_VERTEX_SHADER
 compileFragShader :: Text.Text -> IO (Maybe ShaderID)
 compileFragShader source = compileShader source GL_FRAGMENT_SHADER
 
-buildShaderProgram :: ShaderID -> ShaderID -> IO (Maybe Shader)
-buildShaderProgram vertShader fragShader = do
+buildShaderProgram :: ShaderID -> ShaderID -> [String] -> IO (Maybe Shader)
+buildShaderProgram vertShader fragShader uniforms = do
         programId <- glCreateProgram
 
         linked <- linkProgram programId vertShader fragShader
@@ -227,13 +228,9 @@ buildShaderProgram vertShader fragShader = do
                     (fromIntegral <$> getAttribLocation programId "normals") <*>
                     (fromIntegral <$> getAttribLocation programId "boneIndex") <*>
                     (fromIntegral <$> getAttribLocation programId "materialIndex") <*>
-
-                    getUniformLocation programId "tex" <*>
-                    getUniformLocation programId "color" <*>
-                    getUniformLocation programId "color2" <*>
-                    getUniformLocation programId "modelMat" <*>
-                    getUniformLocation programId "size" <*>
-                    getUniformLocation programId "boneMat"
+                    (foldM (\hsh name -> do
+                        loc <- getUniformLocation programId name
+                        return $ HashMap.insert name loc hsh) HashMap.empty uniforms)
                 return $ Just res
 
 useShader (Shader { program }) = glUseProgram program
