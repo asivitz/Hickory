@@ -104,7 +104,9 @@ instance Show VertexGroup where
 
 data UniformValue = MatrixUniform [Mat44]
                   | QuadFUniform [V4 Scalar]
+                  deriving (Eq, Show)
 data UniformBinding = UniformBinding String UniformValue
+                  deriving (Eq, Show)
 
 retrieveLoc :: String -> Shader -> Maybe UniformLoc
 retrieveLoc name shader = HashMap.lookup name (uniformLocs shader)

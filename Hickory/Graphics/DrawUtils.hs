@@ -23,11 +23,10 @@ import Hickory.Color
 import Graphics.GL.Compatibility41 as GL
 import qualified Data.Vector.Unboxed as Vector
 
-data Command = Command Shader Mat44 Color DrawSpec
+data Command = Command Shader Mat44 [UniformBinding] DrawSpec
 
 data DrawSpec = Text (Printer Int) TextCommand |
                 VAO (Maybe TexID) VAOObj |
-                Animated AnimatedModel String Scalar |
                 DynVAO (Maybe TexID) VAOConfig ([GLfloat],[GLushort],DrawType)
               deriving (Show)
 
@@ -50,29 +49,28 @@ animatedMats f animSel = (sortem . buildAnimatedMats identity identity animSel) 
               sortem pairs = let DX.Mesh { DX.skinWeights } = pullMesh f in
                   reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, mat) -> name == DX.transformNodeName sw) pairs) [] skinWeights
 
-drawSpec :: Shader -> Mat44 -> Color -> DrawSpec -> IO ()
-drawSpec shader mat color spec =
+colorUniform color = UniformBinding "color" (QuadFUniform [color])
+
+boneMatUniform (ThreeDModel vao Nothing) actionName time = []
+boneMatUniform (ThreeDModel vao (Just frame)) actionName time = [UniformBinding "boneMat" (MatrixUniform mats)]
+    where mats = animatedMats frame (actionName, time)
+
+drawSpec :: Shader -> [UniformBinding] -> DrawSpec -> IO ()
+drawSpec shader uniforms spec =
         case spec of
             Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
-            Animated (AnimatedModel (VAOObj vaoConfig numitems drawType) frame) actionName time -> do
-                drawCommand shader
-                            [UniformBinding "modelMat" (MatrixUniform [mat]),
-                             UniformBinding "colors" (QuadFUniform [rgb 0 0 0, rgb 0.9 0.9 0.9, rgb 0 0 0.4, rgb 0.3 0 0, rgb 0.9 0.9 0.9, rgb 0.9 0.9 0.9]),
-                             -- TODO: Variable FPS
-                             UniformBinding "boneMat" (MatrixUniform (animatedMats frame (actionName, time)))
-                             ]
-                            Nothing vaoConfig (fromIntegral numitems) drawType
             VAO tex (VAOObj vaoConfig numitems drawType) -> do
-                drawCommand shader
+                drawCommand shader uniforms tex vaoConfig (fromIntegral numitems) drawType
+                {-
                             [UniformBinding "modelMat" (MatrixUniform [mat]),
                              UniformBinding "color" (QuadFUniform [color])
                              ]
-                            tex vaoConfig (fromIntegral numitems) drawType
+                             -}
             DynVAO tex vaoConfig (verts,indices,drawType) -> do
                 loadVerticesIntoVAOConfig vaoConfig verts indices
-                drawCommand shader
-                            [UniformBinding "modelMat" (MatrixUniform [mat]), UniformBinding "color" (QuadFUniform [color])]
-                            tex vaoConfig (fromIntegral $ length indices) drawType
+                drawCommand shader uniforms tex vaoConfig (fromIntegral $ length indices) drawType
+                            {-[UniformBinding "modelMat" (MatrixUniform [mat]), UniformBinding "color" (QuadFUniform [color])]-}
+
     {-where depth = (mat !* v4 0 0 0 1) ^. _z-}
 
 
@@ -100,7 +98,7 @@ sizePosRotMat (Size w h) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) r
 size3PosRotMat :: V3 Scalar -> V3 Scalar -> Scalar -> Mat44
 size3PosRotMat (V3 w h d) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h d 1)
 
-data RenderTree = Primative Shader Mat44 Color DrawSpec
+data RenderTree = Primative Shader Mat44 [UniformBinding] DrawSpec
                 | List [RenderTree]
                 | XForm (Maybe Mat44) RenderTree
                 | NoRender
@@ -113,35 +111,38 @@ data VAOObj = VAOObj {
             }
             deriving (Show)
 
-data PrintDesc = PrintDesc (Printer Int) TextCommand Color
-               deriving (Show)
+data PrintDesc = PrintDesc (Printer Int) TextCommand
+               deriving (Eq, Show)
 
 -- Vector equality using (==) doesn't always work on ARM
+{-
+- Using standard Eq for now since arm doesn't work for other reasons
 instance Eq PrintDesc where
         PrintDesc pra tca cola == PrintDesc prb tcb colb = pra == prb && tca == tcb && vnull (cola - colb)
+        -}
 
 data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
 
 collectPrintDescs :: RenderTree -> [PrintDesc]
 collectPrintDescs (List subs) = concatMap collectPrintDescs subs
-collectPrintDescs (Primative shader mat color (Text printer text) ) = [PrintDesc printer text color]
+collectPrintDescs (Primative shader mat uniforms (Text printer text) ) = [PrintDesc printer text]
 collectPrintDescs (XForm _ child) = collectPrintDescs child
 collectPrintDescs _ = []
 
 textToVAO :: [(Maybe PrintDesc, VAOObj)] -> RenderTree -> RenderTree
 textToVAO m (List subs) = List $ map (textToVAO m) subs
 textToVAO m (XForm mat child) = XForm mat $ textToVAO m child
-textToVAO m (Primative sh mat col (Text pr@(Printer font tex) txt)) =
-        Primative sh mat col
+textToVAO m (Primative sh mat uniforms (Text pr@(Printer font tex) txt)) =
+        Primative sh mat uniforms
                     (VAO (Just tex)
-                         (fromMaybe (error $ "Can't find vao for text command: " ++ show (pr, txt, col) ++ " in: " ++ show m)
-                                    (lookup (Just (PrintDesc pr txt col)) m)))
+                         (fromMaybe (error $ "Can't find vao for text command: " ++ show (pr, txt) ++ " in: " ++ show m)
+                                    (lookup (Just (PrintDesc pr txt)) m)))
 textToVAO m a = a
 
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
-updateVAOObj (PrintDesc (Printer font texid) textCommand color)
+updateVAOObj (PrintDesc (Printer font texid) textCommand)
              (VAOObj vaoconfig _ _) = do
-                 let command = PositionedTextCommand zero (textCommand { color = color })
+                 let command = PositionedTextCommand zero textCommand
                      (numsquares, floats) = transformTextCommandsToVerts [command] font
 
                  if not $ null floats then do
@@ -245,8 +246,10 @@ interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
     where pull ns vs = concatMap (\(n,v) -> take n v) (zip ns vs)
           sub ns vs = map (\(n,v) -> drop n v) (zip ns vs)
 
-data AnimatedModel = AnimatedModel VAOObj DX.Frame
+data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame)
             deriving (Show)
+
+animModelVAO (ThreeDModel v _) = v
 
 -- .X
 pullMesh :: DX.Frame -> DX.Mesh
@@ -268,8 +271,8 @@ packMaterialIndices vertFaces materialIndices = for [0..numIndices-1] $ \x -> re
           numIndices = Vector.length vertFaces
           for = flip map
 
-packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
-packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights, DX.meshMaterialList }
+packAnimatedXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
+packAnimatedXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights, DX.meshMaterialList }
     = (dat, indices)
     where verts = Vector.toList (Vector.map realToFrac vertices)
           material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
@@ -279,16 +282,35 @@ packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNorma
           dat = interleave [verts, assignments, material_indices] [3,1,1]
           indices = Vector.toList (Vector.map fromIntegral faces)
 
-loadModelFromX :: Shader -> String -> IO AnimatedModel
+packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
+packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.meshMaterialList }
+    = (dat, indices)
+    where verts = Vector.toList (Vector.map realToFrac vertices)
+          material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
+          dat = interleave [verts, material_indices] [3,1]
+          indices = Vector.toList (Vector.map fromIntegral faces)
+
+isAnimated :: DX.Mesh -> Bool
+isAnimated DX.Mesh { DX.skinWeights } = (not . null) skinWeights
+
+loadModelFromX :: Shader -> String -> IO ThreeDModel
 loadModelFromX shader path = do
         frame <- DX.loadX path
         let mesh = pullMesh frame
-        vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3,
-                                                   Attachment sp_ATTR_BONE_INDEX 1,
-                                                   Attachment sp_ATTR_MATERIAL_INDEX 1]]
-            >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
 
-        return $ AnimatedModel vo frame
+        if isAnimated mesh
+            then do
+                vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3,
+                                                        Attachment sp_ATTR_BONE_INDEX 1,
+                                                        Attachment sp_ATTR_MATERIAL_INDEX 1]]
+                    >>= \config -> loadVAOObj config Triangles (packAnimatedXMesh mesh)
+
+                return $ ThreeDModel vo (Just frame)
+            else do
+                vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3,
+                                                           Attachment sp_ATTR_MATERIAL_INDEX 1]]
+                    >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
+                return $ ThreeDModel vo Nothing
 
 renderTree :: Mat44 -> RenderTree -> RenderState -> IO RenderState
 renderTree viewmat tree state = do
@@ -328,7 +350,7 @@ updateRenderState tree (RenderState vaolst) = do
         vaolst' <- xx vaolst new unused
         return $ RenderState vaolst'
 
-runDrawCommand (Command sh mat col spec) = drawSpec sh mat col spec
+runDrawCommand (Command sh mat uniforms spec) = drawSpec sh (UniformBinding "modelMat" (MatrixUniform [mat]) : uniforms) spec
 
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
@@ -345,7 +367,7 @@ collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs mat' child
                      Just n -> parentMat !*! n
                      Nothing -> parentMat
 
-collectTreeSpecs parentMat (Primative sh mat col spec) = [Command sh mat' col spec]
+collectTreeSpecs parentMat (Primative sh mat uniforms spec) = [Command sh mat' uniforms spec]
     where mat' = parentMat !*! mat
 collectTreeSpecs parentMat (List children) = concatMap (collectTreeSpecs parentMat) children -- (sortOn rtDepth children)
 
