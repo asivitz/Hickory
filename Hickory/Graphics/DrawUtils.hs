@@ -5,6 +5,7 @@ module Hickory.Graphics.DrawUtils where
 
 import Hickory.Types
 
+import Hickory.Utils.Utils
 import Hickory.Math.Matrix
 import Hickory.Math.Vector
 import Data.List
@@ -264,22 +265,33 @@ pullMesh x = case go x of
                                                                         Just w -> [w] ++ concatMap (sortWeights weights) children
                                                                         Nothing -> concatMap (sortWeights weights) children
 
+faceNumForFaceIdx x = floor $ realToFrac x / 3
+
 -- Provide a material index for each vertex
 packMaterialIndices :: Vector.Vector Int -> Vector.Vector Int -> [Float]
-packMaterialIndices vertFaces materialIndices = for [0..numIndices-1] $ \x -> realToFrac $ materialIndices Vector.! (faceNum x)
-    where faceNum x = floor $ (realToFrac $ fromJust $ Vector.elemIndex x vertFaces) / 3
+packMaterialIndices vertFaces materialIndices = for [0..numIndices-1] $ \x -> realToFrac $ materialIndices Vector.! faceNum x
+    where faceNum x = faceNumForFaceIdx (fromJust $ Vector.elemIndex x vertFaces)
           numIndices = Vector.length vertFaces
-          for = flip map
+
+-- TODO: Technically we can't assume each normal corresponds with a face.
+-- We should read the extra data their to find the actual correspondance.
+-- However, Blender exports them in face order so it doesn't matter.
+packNormals faces normals = concat $ (map snd . sortOn fst) pairs
+        where pairs = for (Vector.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx * 3 in
+                                    (vIdx, [normals Vector.! fnum,
+                                            normals Vector.! fnum + 1,
+                                            normals Vector.! fnum + 2]))
 
 packAnimatedXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
 packAnimatedXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights, DX.meshMaterialList }
     = (dat, indices)
     where verts = Vector.toList (Vector.map realToFrac vertices)
           material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
+          normals = map realToFrac $ packNormals faces (DX.normals meshNormals)
           assignments = reverse $ foldl' (\lst i -> fromMaybe (error $ "Vertex #" ++ show i ++ " not assigned to a bone.")
                                                               (fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> Vector.elem i vertexIndices) skinWeights) : lst)
                                          [] [0..(Vector.length vertices - 1)]
-          dat = interleave [verts, assignments, material_indices] [3,1,1]
+          dat = interleave [verts, normals, assignments, material_indices] [3,3,1,1]
           indices = Vector.toList (Vector.map fromIntegral faces)
 
 packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
@@ -301,8 +313,9 @@ loadModelFromX shader path = do
         if isAnimated mesh
             then do
                 vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3,
-                                                        Attachment sp_ATTR_BONE_INDEX 1,
-                                                        Attachment sp_ATTR_MATERIAL_INDEX 1]]
+                                                           Attachment sp_ATTR_NORMALS 3,
+                                                           Attachment sp_ATTR_BONE_INDEX 1,
+                                                           Attachment sp_ATTR_MATERIAL_INDEX 1]]
                     >>= \config -> loadVAOObj config Triangles (packAnimatedXMesh mesh)
 
                 return $ ThreeDModel vo (Just frame)
