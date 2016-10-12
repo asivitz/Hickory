@@ -106,7 +106,8 @@ bindUniform :: Shader -> UniformBinding -> IO ()
 bindUniform shader (UniformBinding name uniVal) =
         case retrieveLoc name shader of
             Just loc -> case uniVal of
-                            MatrixUniform mat -> uniformMatrix4fv loc mat
+                            Matrix4Uniform mat -> uniformMatrix4fv loc mat
+                            Matrix3Uniform mat -> uniformMatrix3fv loc mat
                             QuadFUniform vec -> uniform4fv loc vec
             Nothing -> print $ "Uniform named " ++ name ++ " not found in shader"
 
@@ -232,10 +233,18 @@ withVec4s vecs f = withArray (map (fmap realToFrac) vecs :: [V4 GLfloat]) (f . c
 withMat44s :: [Mat44] -> (Ptr GLfloat -> IO b) -> IO b
 withMat44s mats f = withArray (map (\mat -> (fmap (fmap realToFrac) $ transpose mat :: M44 GLfloat)) mats) (f . castPtr)
 
+withMat33s :: [Mat33] -> (Ptr GLfloat -> IO b) -> IO b
+withMat33s mats f = withArray (map (\mat -> (fmap (fmap realToFrac) $ transpose mat :: M33 GLfloat)) mats) (f . castPtr)
+
 uniformMatrix4fv :: GLint -> [Mat44] -> IO ()
 uniformMatrix4fv loc mats =
         withMat44s mats $ \ptr ->
             glUniformMatrix4fv loc (genericLength mats) GL_FALSE (castPtr ptr)
+
+uniformMatrix3fv :: GLint -> [Mat33] -> IO ()
+uniformMatrix3fv loc mats =
+        withMat33s mats $ \ptr ->
+            glUniformMatrix3fv loc (genericLength mats) GL_FALSE (castPtr ptr)
 
 vertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
 vertexAttribPointer a b c d e f = glVertexAttribPointer (fromIntegral a) b c d e (plusPtr nullPtr (fromIntegral f))

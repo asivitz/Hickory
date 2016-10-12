@@ -5,6 +5,7 @@ module Hickory.Math.Matrix
     mkTranslation,
     mkRotation,
     Mat44,
+    Mat33,
     mat44Lerp,
     mat44FromList
     )
@@ -18,6 +19,7 @@ import Linear.V4
 import Control.Lens
 
 type Mat44 = M44 Double
+type Mat33 = M33 Double
 
 mkRotation v ang = mkTransformation (axisAngle v ang) zero
 mkTranslation v = identity & translation .~ v

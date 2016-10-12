@@ -225,7 +225,7 @@ buildShaderProgram vertShader fragShader uniforms = do
                     (fromIntegral <$> getAttribLocation programId "texCoords") <*>
                     (fromIntegral <$> getAttribLocation programId "color") <*>
                     (fromIntegral <$> getAttribLocation programId "color2") <*>
-                    (fromIntegral <$> getAttribLocation programId "normals") <*>
+                    (fromIntegral <$> getAttribLocation programId "normal") <*>
                     (fromIntegral <$> getAttribLocation programId "boneIndex") <*>
                     (fromIntegral <$> getAttribLocation programId "materialIndex") <*>
                     (foldM (\hsh name -> do

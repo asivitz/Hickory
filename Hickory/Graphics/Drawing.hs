@@ -102,7 +102,8 @@ data VertexGroup = VertexGroup [Attachment]
 instance Show VertexGroup where
         show x = "Vertex Group"
 
-data UniformValue = MatrixUniform [Mat44]
+data UniformValue = Matrix4Uniform [Mat44]
+                  | Matrix3Uniform [Mat33]
                   | QuadFUniform [V4 Scalar]
                   deriving (Eq, Show)
 data UniformBinding = UniformBinding String UniformValue

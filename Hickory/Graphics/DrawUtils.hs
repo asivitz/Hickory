@@ -53,7 +53,7 @@ animatedMats f animSel = (sortem . buildAnimatedMats identity identity animSel) 
 colorUniform color = UniformBinding "color" (QuadFUniform [color])
 
 boneMatUniform (ThreeDModel vao Nothing) actionName time = []
-boneMatUniform (ThreeDModel vao (Just frame)) actionName time = [UniformBinding "boneMat" (MatrixUniform mats)]
+boneMatUniform (ThreeDModel vao (Just frame)) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
     where mats = animatedMats frame (actionName, time)
 
 drawSpec :: Shader -> [UniformBinding] -> DrawSpec -> IO ()
@@ -363,7 +363,7 @@ updateRenderState tree (RenderState vaolst) = do
         vaolst' <- xx vaolst new unused
         return $ RenderState vaolst'
 
-runDrawCommand (Command sh mat uniforms spec) = drawSpec sh (UniformBinding "modelMat" (MatrixUniform [mat]) : uniforms) spec
+runDrawCommand (Command sh mat uniforms spec) = drawSpec sh (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) spec
 
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
