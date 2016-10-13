@@ -279,8 +279,8 @@ packMaterialIndices vertFaces materialIndices = for [0..numIndices-1] $ \x -> re
 packNormals faces normals = concat $ (map snd . sortOn fst) pairs
         where pairs = for (Vector.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx * 3 in
                                     (vIdx, [normals Vector.! fnum,
-                                            normals Vector.! fnum + 1,
-                                            normals Vector.! fnum + 2]))
+                                            normals Vector.! (fnum + 1),
+                                            normals Vector.! (fnum + 2)]))
 
 packAnimatedXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
 packAnimatedXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights, DX.meshMaterialList }
