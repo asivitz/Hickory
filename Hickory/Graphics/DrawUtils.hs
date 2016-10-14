@@ -52,8 +52,8 @@ animatedMats f animSel = (sortem . buildAnimatedMats identity identity animSel) 
 
 colorUniform color = UniformBinding "color" (QuadFUniform [color])
 
-boneMatUniform (ThreeDModel vao Nothing) actionName time = []
-boneMatUniform (ThreeDModel vao (Just frame)) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
+boneMatUniform (ThreeDModel vao Nothing _) actionName time = []
+boneMatUniform (ThreeDModel vao (Just frame) _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
     where mats = animatedMats frame (actionName, time)
 
 drawSpec :: Shader -> [UniformBinding] -> DrawSpec -> IO ()
@@ -247,10 +247,10 @@ interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
     where pull ns vs = concatMap (\(n,v) -> take n v) (zip ns vs)
           sub ns vs = map (\(n,v) -> drop n v) (zip ns vs)
 
-data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame)
+data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame) (V3 Double, V3 Double)
             deriving (Show)
 
-animModelVAO (ThreeDModel v _) = v
+animModelVAO (ThreeDModel v _ _) = v
 
 -- .X
 pullMesh :: DX.Frame -> DX.Mesh
@@ -258,12 +258,14 @@ pullMesh x = case go x of
                  Nothing -> error "Could not grab mesh from X structure"
                  Just (m@DX.Mesh { DX.skinWeights }) -> m { DX.skinWeights = sortWeights skinWeights x }
     where go (DX.Frame name mat children Nothing _) = listToMaybe $ mapMaybe go children
-          go (DX.Frame name mat _ (Just mesh) _) = Just mesh
+          go (DX.Frame name mat _ (Just mesh) _) = Just (transformMesh mat mesh)
           -- Put weights, and therefore bones, in order from root to leaf
           sortWeights :: [DX.SkinWeights] -> DX.Frame -> [DX.SkinWeights]
           sortWeights weights (DX.Frame name _ children _ _) = case find (\DX.SkinWeights { DX.transformNodeName } -> transformNodeName == name) weights of
                                                                         Just w -> [w] ++ concatMap (sortWeights weights) children
                                                                         Nothing -> concatMap (sortWeights weights) children
+          transformMesh :: Mat44 -> DX.Mesh -> DX.Mesh
+          transformMesh m msh@DX.Mesh { DX.vertices } = msh { DX.vertices = Vector.map (\(x,y,z) -> let V4 x' y' z' _ = m !* (V4 x y z 1) in (x', y', z')) vertices }
 
 faceNumForFaceIdx x = floor $ realToFrac x / 3
 
@@ -276,16 +278,16 @@ packMaterialIndices vertFaces materialIndices = for [0..numIndices-1] $ \x -> re
 -- TODO: Technically we can't assume each normal corresponds with a face.
 -- We should read the extra data their to find the actual correspondance.
 -- However, Blender exports them in face order so it doesn't matter.
-packNormals faces normals = concat $ (map snd . sortOn fst) pairs
-        where pairs = for (Vector.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx * 3 in
-                                    (vIdx, [normals Vector.! fnum,
-                                            normals Vector.! (fnum + 1),
-                                            normals Vector.! (fnum + 2)]))
+packNormals faces normals = concat $ (map (\(x,y,z) -> [x,y,z]) . map snd . sortOn fst) pairs
+        where pairs = for (Vector.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx in
+                                    (vIdx, normals Vector.! fnum))
+
+packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFrac z]) (Vector.toList verts)
 
 packAnimatedXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
 packAnimatedXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights, DX.meshMaterialList }
     = (dat, indices)
-    where verts = Vector.toList (Vector.map realToFrac vertices)
+    where verts = packVertices vertices
           material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
           normals = map realToFrac $ packNormals faces (DX.normals meshNormals)
           assignments = reverse $ foldl' (\lst i -> fromMaybe (error $ "Vertex #" ++ show i ++ " not assigned to a bone.")
@@ -297,7 +299,7 @@ packAnimatedXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.m
 packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
 packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.meshMaterialList }
     = (dat, indices)
-    where verts = Vector.toList (Vector.map realToFrac vertices)
+    where verts = packVertices vertices
           material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
           dat = interleave [verts, material_indices] [3,1]
           indices = Vector.toList (Vector.map fromIntegral faces)
@@ -305,10 +307,19 @@ packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNorma
 isAnimated :: DX.Mesh -> Bool
 isAnimated DX.Mesh { DX.skinWeights } = (not . null) skinWeights
 
+meshExtents :: DX.Mesh -> (V3 Double, V3 Double)
+meshExtents DX.Mesh { DX.vertices } = (V3 mnx mny mnz, V3 mxx mxy mxz)
+    where Just (mnx, mny, mnz) = f min
+          Just (mxx, mxy, mxz) = f max
+          f func = Vector.foldl' (\trip (x,y,z) -> case trip of
+                                                   Just (mx,my,mz) -> Just (func mx x, func my y, func mz z)
+                                                   Nothing -> Just (x,y,z)) Nothing vertices
+
 loadModelFromX :: Shader -> String -> IO ThreeDModel
 loadModelFromX shader path = do
         frame <- DX.loadX path
         let mesh = pullMesh frame
+            extents = meshExtents mesh
 
         if isAnimated mesh
             then do
@@ -318,12 +329,12 @@ loadModelFromX shader path = do
                                                            Attachment sp_ATTR_MATERIAL_INDEX 1]]
                     >>= \config -> loadVAOObj config Triangles (packAnimatedXMesh mesh)
 
-                return $ ThreeDModel vo (Just frame)
+                return $ ThreeDModel vo (Just frame) extents
             else do
                 vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3,
                                                            Attachment sp_ATTR_MATERIAL_INDEX 1]]
                     >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
-                return $ ThreeDModel vo Nothing
+                return $ ThreeDModel vo Nothing extents
 
 renderTree :: Mat44 -> RenderTree -> RenderState -> IO RenderState
 renderTree viewmat tree state = do

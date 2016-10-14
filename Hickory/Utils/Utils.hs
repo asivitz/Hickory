@@ -72,6 +72,10 @@ deleteAt [] _ = []
 deleteAt (x:xs) 0 = xs
 deleteAt (x:xs) n = x : (deleteAt xs (n - 1))
 
+chopBy :: Int -> [a] -> [[a]]
+chopBy num [] = []
+chopBy num lst = take num lst : chopBy num (drop num lst)
+
 makeFPSTicker :: IO (IO Double)
 makeFPSTicker = do
         initial_time <- getCurrentTime

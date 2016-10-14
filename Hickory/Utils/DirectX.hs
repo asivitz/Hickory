@@ -87,7 +87,7 @@ parseArraySize size p = terminate (sepByCount p ',' size)
 
 parseVectorSize size x = (Vector.fromList . concat) <$> parseArraySize size x
 
-parseVectorArray = parseVector (count 3 $ terminate anySignedNumber)
+parseVectorArray = (Vector.fromList . map (\[x,y,z] -> (x,y,z))) <$> parseArray (count 3 $ terminate anySignedNumber)
 parseMeshFaceArray = parseVector meshFace
 parseCoord2dArray = parseVector (count 2 $ terminate anySignedNumber)
 
@@ -116,7 +116,7 @@ data Frame = Frame {
 
 data Mesh = Mesh {
           nVertices :: Int,
-          vertices :: Vector.Vector Double,
+          vertices :: Vector.Vector (Double, Double, Double),
           nFaces :: Int,
           faces :: Vector.Vector Int,
           meshNormals :: MeshNormals,
@@ -129,7 +129,7 @@ data Mesh = Mesh {
 
 data MeshNormals = MeshNormals {
                  nNormals :: Int,
-                 normals :: Vector.Vector Double,
+                 normals :: Vector.Vector (Double, Double, Double),
                  nFaceNormals :: Int,
                  faceNormals :: Vector.Vector Int
                  }
