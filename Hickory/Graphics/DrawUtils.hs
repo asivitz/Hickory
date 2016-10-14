@@ -44,17 +44,17 @@ buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.chil
               animMat = animParent !*! actionMat
               actionMat = fromMaybe mat $ retrieveActionMat animSel actionMats
 
-animatedMats :: DX.Frame -> (String, Double) -> [Mat44]
-animatedMats f animSel = (sortem . buildAnimatedMats identity identity animSel) f
+animatedMats :: DX.Frame -> DX.Mesh -> (String, Double) -> [Mat44]
+animatedMats f DX.Mesh { DX.skinWeights } animSel = (sortem . buildAnimatedMats identity identity animSel) f
         where sortem :: [(String, Mat44)] -> [Mat44]
-              sortem pairs = let DX.Mesh { DX.skinWeights } = pullMesh f in
-                  reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, mat) -> name == DX.transformNodeName sw) pairs) [] skinWeights
+              sortem pairs = reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, mat) -> name == DX.transformNodeName sw) pairs) [] skinWeights
 
 colorUniform color = UniformBinding "color" (QuadFUniform [color])
 
-boneMatUniform (ThreeDModel vao Nothing _) actionName time = []
-boneMatUniform (ThreeDModel vao (Just frame) _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
-    where mats = animatedMats frame (actionName, time)
+boneMatUniform :: ThreeDModel -> String -> Double -> [UniformBinding]
+boneMatUniform (ThreeDModel vao Nothing _ _) actionName time = []
+boneMatUniform (ThreeDModel vao (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
+    where mats = animatedMats frame mesh (actionName, time)
 
 drawSpec :: Shader -> [UniformBinding] -> DrawSpec -> IO ()
 drawSpec shader uniforms spec =
@@ -247,10 +247,10 @@ interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
     where pull ns vs = concatMap (\(n,v) -> take n v) (zip ns vs)
           sub ns vs = map (\(n,v) -> drop n v) (zip ns vs)
 
-data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame) (V3 Double, V3 Double)
+data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame) DX.Mesh (V3 Double, V3 Double)
             deriving (Show)
 
-animModelVAO (ThreeDModel v _ _) = v
+animModelVAO (ThreeDModel v _ _ _) = v
 
 -- .X
 pullMesh :: DX.Frame -> DX.Mesh
@@ -329,12 +329,12 @@ loadModelFromX shader path = do
                                                            Attachment sp_ATTR_MATERIAL_INDEX 1]]
                     >>= \config -> loadVAOObj config Triangles (packAnimatedXMesh mesh)
 
-                return $ ThreeDModel vo (Just frame) extents
+                return $ ThreeDModel vo (Just frame) mesh extents
             else do
                 vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3,
                                                            Attachment sp_ATTR_MATERIAL_INDEX 1]]
                     >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
-                return $ ThreeDModel vo Nothing extents
+                return $ ThreeDModel vo Nothing mesh extents
 
 renderTree :: Mat44 -> RenderTree -> RenderState -> IO RenderState
 renderTree viewmat tree state = do
