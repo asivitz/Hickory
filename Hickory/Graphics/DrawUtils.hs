@@ -31,9 +31,9 @@ data DrawSpec = Text (Printer Int) TextCommand |
                 DynVAO (Maybe TexID) VAOConfig ([GLfloat],[GLushort],DrawType)
               deriving (Show)
 
-
+--TODO: Read animation FPS from directx file
 retrieveActionMat :: (String, Double) -> [(String, [Mat44])] -> Maybe Mat44
-retrieveActionMat (actionName, time) actionMats = (\kf -> kf !! (floor (time * 60) `mod` length kf)) <$> keyFrames
+retrieveActionMat (actionName, time) actionMats = (\kf -> kf !! (floor (time * 25) `mod` length kf)) <$> keyFrames
         where keyFrames = lookup actionName actionMats
 
 buildAnimatedMats :: Mat44 -> Mat44 -> (String, Double) -> DX.Frame -> [(String, Mat44)]
