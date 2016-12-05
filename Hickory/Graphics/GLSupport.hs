@@ -17,7 +17,8 @@ module Hickory.Graphics.GLSupport --( module Graphics.GL.Compatibility41)
      drawCommand,
      configGLState,
      clearScreen,
-     loadVerticesIntoVAOConfig
+     loadVerticesIntoVAOConfig,
+     clearDepth
      )
     where
 
@@ -346,3 +347,7 @@ configGLState r g b = do
 clearScreen :: IO ()
 clearScreen = do
         glClear (GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT)
+
+clearDepth :: IO ()
+clearDepth = do
+        glClear (GL_DEPTH_BUFFER_BIT)
