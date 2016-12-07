@@ -72,6 +72,11 @@ deleteAt [] _ = []
 deleteAt (x:xs) 0 = xs
 deleteAt (x:xs) n = x : (deleteAt xs (n - 1))
 
+replace :: (a -> Bool) -> a -> [a] -> [a]
+replace pred a (x:xs) | pred x = a:xs
+replace pred a (x:xs) = x : replace pred a xs
+replace pred a [] = []
+
 chopBy :: Int -> [a] -> [[a]]
 chopBy num [] = []
 chopBy num lst = take num lst : chopBy num (drop num lst)
