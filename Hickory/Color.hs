@@ -10,6 +10,15 @@ white = V4 1 1 1 1
 black :: Color
 black = V4 0 0 0 1
 
+red :: Color
+red = V4 1 0 0 1
+
+green :: Color
+green = V4 0 1 0 1
+
+blue :: Color
+blue = V4 0 0 1 1
+
 rgb :: Scalar -> Scalar -> Scalar -> Color
 rgb r g b = rgba r g b 1
 

@@ -8,12 +8,17 @@ import Data.Maybe
 import Data.IORef
 import Data.Time
 import qualified Data.Text.IO as TextIO
+import qualified Debug.Trace
 
 #if defined(ghcjs_HOST_OS)
 import qualified Data.Text as Text
 import JavaScript.Web.XMLHttpRequest
 import Data.JSString (unpack, pack, JSString)
 #endif
+
+
+tracer :: (Show a, Show b) => b -> a -> a
+tracer label a = Debug.Trace.traceShow (label, a) a
 
 clamp :: Ord a => a -> a -> a -> a
 clamp a low high = min (max a low) high

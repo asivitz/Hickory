@@ -44,7 +44,7 @@ Flag Ios
 library
   exposed-modules:     Hickory.Camera, Hickory.Color, Hickory.Types, Hickory.Platform, Hickory.Input
                        Hickory.Graphics.Drawing, Hickory.Graphics.DrawText, Hickory.Graphics.Textures, Hickory.Graphics.GLSupport,
-                       Hickory.Graphics.DrawUtils, Hickory.Graphics.Animation, Hickory.Graphics.Shader,
+                       Hickory.Graphics.DrawUtils, Hickory.Graphics.Animation, Hickory.Graphics.Shader, Hickory.Graphics.Debug,
                        Hickory.Math.Matrix, Hickory.Math.Vector, Hickory.Math.VectorMatrix, Hickory.Math.Interpolate,
                        Hickory.Utils.Resources, Hickory.Utils.Utils, Hickory.Utils.HashMap, Hickory.Utils.Projection,
                        Hickory.Utils.BVH, Hickory.Utils.OBJ, Hickory.Utils.DirectX, Hickory.Utils.Parsing,
