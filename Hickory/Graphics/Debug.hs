@@ -14,6 +14,7 @@ import Hickory.Math.Vector
 import Hickory.Color
 import Text.PrettyPrint
 import Text.PrettyPrint.GenericPretty
+import Text.Printf
 
 data DebugShape = DebugVector (V3 Scalar)
                 | DebugPoint (V3 Scalar)
@@ -24,7 +25,7 @@ instance Out DebugShape where
   doc (DebugVector v) = doc v
   doc (DebugPoint v) = doc v
   doc (DebugLine f t) = doc f <> text " -> " <> doc t
-  doc (DebugAngle a) = doc a
+  doc (DebugAngle a) = text $ printf "%0.2f" a
   docPrec _ = doc
 
 {-# NOINLINE lst #-}
