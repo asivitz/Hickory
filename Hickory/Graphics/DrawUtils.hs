@@ -17,10 +17,8 @@ import Data.Foldable (toList)
 import qualified Hickory.Utils.OBJ as OBJ
 import qualified Hickory.Utils.DirectX as DX
 import qualified Data.List.Utils as LUtils
-import Linear.Matrix
 
 import Hickory.Graphics.Drawing
-import Hickory.Color
 import Graphics.GL.Compatibility41 as GL
 import qualified Data.Vector.Unboxed as Vector
 
@@ -254,9 +252,9 @@ animModelVAO (ThreeDModel v _ _ _) = v
 
 -- .X
 pullMesh :: DX.Frame -> DX.Mesh
-pullMesh x = case go x of
+pullMesh fr = case go fr of
                  Nothing -> error "Could not grab mesh from X structure"
-                 Just (m@DX.Mesh { DX.skinWeights }) -> m { DX.skinWeights = sortWeights skinWeights x }
+                 Just (m@DX.Mesh { DX.skinWeights }) -> m { DX.skinWeights = sortWeights skinWeights fr }
     where go (DX.Frame name mat children Nothing _) = listToMaybe $ mapMaybe go children
           go (DX.Frame name mat _ (Just mesh) _) = Just (transformMesh mat mesh)
           -- Put weights, and therefore bones, in order from root to leaf
@@ -267,7 +265,8 @@ pullMesh x = case go x of
           transformMesh :: Mat44 -> DX.Mesh -> DX.Mesh
           transformMesh m msh@DX.Mesh { DX.vertices } = msh { DX.vertices = Vector.map (\(x,y,z) -> let V4 x' y' z' _ = m !* (V4 x y z 1) in (x', y', z')) vertices }
 
-faceNumForFaceIdx x = floor $ realToFrac x / 3
+faceNumForFaceIdx :: Int -> Int
+faceNumForFaceIdx x = floor $ (realToFrac x :: Double) / 3
 
 -- Provide a material index for each vertex
 packMaterialIndices :: Vector.Vector Int -> Vector.Vector Int -> [Float]

@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 {-
 module Graphics.GLSupport ( module Graphics.GL.ARB.ES2Compatibility ) where
@@ -67,11 +68,8 @@ import Graphics.GL.Compatibility41 as GL
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Foreign.Ptr
-import Foreign.Marshal.Utils
 import Foreign.Marshal.Array
-import Hickory.Color
 import Hickory.Math.Matrix
-import Hickory.Math.VectorMatrix
 import Data.Bits
 import Data.List (genericLength)
 import Hickory.Graphics.Drawing

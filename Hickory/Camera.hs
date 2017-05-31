@@ -5,20 +5,26 @@ module Hickory.Camera where
 
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
-import Linear.Projection
 import Text.PrettyPrint.GenericPretty
 
-data Projection = Perspective {
-                     fov :: Scalar,
-                     nearPlane :: Scalar,
-                     farPlane :: Scalar }
-                  | Ortho {
-                     width :: Scalar,
-                     near :: Scalar,
-                     far :: Scalar,
-                     shouldCenter :: Bool }
-                     deriving (Show, Generic)
-data Camera = Camera Projection (V3 Scalar) (V3 Scalar) (V3 Scalar) deriving (Show, Generic)
+data Projection = Perspective
+  { fov :: Scalar
+  , nearPlane :: Scalar
+  , farPlane :: Scalar
+  }
+  | Ortho
+  { width :: Scalar
+  , near :: Scalar
+  , far :: Scalar
+  , shouldCenter :: Bool
+  } deriving (Show, Generic)
+
+data Camera = Camera
+  { _cameraProj   :: Projection
+  , _cameraCenter :: V3 Scalar
+  , _cameraTarget :: V3 Scalar
+  , _cameraUp     :: V3 Scalar
+  } deriving (Show, Generic)
 
 instance Out Projection where
 instance Out Camera where

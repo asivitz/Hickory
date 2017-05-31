@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE Rank2Types #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Hickory.Utils.Layer where
 
