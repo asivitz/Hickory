@@ -23,6 +23,7 @@ module Hickory.Math.Vector
     v2clockwise,
     v2rotate,
     v2SegmentsIntersect,
+    v2perp,
     vunpackFractional,
     timeToIntersection,
     intersectionPoint,
@@ -156,3 +157,6 @@ v4FromList _ = error "Can't build vector. Wrong size list."
 v3FromList :: [a] -> V3 a
 v3FromList [a,b,c] = V3 a b c
 v3FromList _ = error "Can't build vector. Wrong size list."
+
+v2perp :: Num a => V2 a -> V2 a
+v2perp (V2 x y) = V2 y (negate x)

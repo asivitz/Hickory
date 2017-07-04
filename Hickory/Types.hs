@@ -4,6 +4,7 @@ module Hickory.Types
    FSize,
    nullSize,
    mkSize,
+   v2ToSize,
    aspectRatio,
    screenPos,
    RelativeScalar(..),
@@ -20,12 +21,22 @@ module Hickory.Types
    convertSize,
    screenCenter,
    addConst,
-   relativePosInRect
+   relativePosInRect,
+   rectExtents,
+   rectFromExtents
    ) where
 
 import Hickory.Math.Vector
 
 data Size a = Size a a deriving (Show)
+
+instance Num a => Num (Size a) where
+  Size w h + Size w' h' = Size (w + w') (h + h')
+  Size w h - Size w' h' = Size (w - w') (h - h')
+  Size w h * Size w' h' = Size (w * w') (h * h')
+  abs (Size w h) = Size (abs w) (abs h)
+  fromInteger i = Size (fromInteger i) (fromInteger i)
+  signum (Size a b) = Size (signum a) (signum b)
 
 convertSize :: (Real a, Fractional b) => Size a -> Size b
 convertSize (Size a b) = Size (realToFrac a) (realToFrac b)
@@ -40,6 +51,8 @@ nullSize = Size 0 0
 
 mkSize :: a -> Size a
 mkSize a = Size a a
+
+v2ToSize (V2 x y) = Size x y
 
 aspectRatio :: (Real a, Fractional b) => Size a -> b
 aspectRatio (Size w h) = w' / h'
@@ -72,6 +85,15 @@ relativePosInRect (V2 px py) (Rect (V2 ox oy) (Size w h)) =
             in if (rx >= 0 && rx <= 1) && (ry >= 0 && ry <= 1)
                    then Just $ v2 rx ry
                    else Nothing
+
+rectExtents :: Rect -> (V2 Scalar, V2 Scalar)
+rectExtents (Rect cen (Size w h)) = (cen - offset, cen + offset)
+  where offset = V2 (w/2) (h/2)
+
+rectFromExtents :: (V2 Scalar, V2 Scalar) -> Rect
+rectFromExtents (ll, ur) = Rect cen (Size w h)
+  where siz@(V2 w h) = ur - ll
+        cen = ll + siz ^* (0.5)
 
 data RelativeScalar fract offset = RScal fract offset
 

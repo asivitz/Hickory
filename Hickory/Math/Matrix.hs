@@ -2,6 +2,7 @@ module Hickory.Math.Matrix
     (
     module Linear.Matrix,
     module Linear.Projection,
+    mkScale,
     mkTranslation,
     mkRotation,
     Mat44,
@@ -15,6 +16,7 @@ import Linear.Vector
 import Linear.Matrix
 import Linear.Projection
 import Linear.Quaternion
+import Linear.V3
 import Linear.V4
 import Control.Lens
 
@@ -23,6 +25,7 @@ type Mat33 = M33 Double
 
 mkRotation v ang = mkTransformation (axisAngle v ang) zero
 mkTranslation v = identity & translation .~ v
+mkScale (V3 x y z) = scaled (V4 x y z 1)
 
 mat44Lerp :: Double -> Mat44 -> Mat44 -> Mat44
 mat44Lerp x = liftI2 (lerp x)
