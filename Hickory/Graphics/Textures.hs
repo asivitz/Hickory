@@ -1,14 +1,11 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE CPP #-}
 
-module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures) where
+module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures, texRepeat, texClamp) where
 
 import Data.Vector.Storable(unsafeWith)
-
 import Hickory.Graphics.Drawing
-
 import Hickory.Utils.Utils
-
 import Codec.Picture
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
@@ -35,6 +32,11 @@ loadTexture' a b = loadTexture'' (pack a) (pack b)
 loadTexture a b = loadTexture' a b >>= return . Just
 #else
 import Graphics.GL.Compatibility41 as GL
+
+data TexLoadOptions = TexLoadOptions
+  { _texLoadWrap :: GLenum
+  }
+
 -- Textures
 genTexture = alloca $ \p ->
     do
@@ -42,7 +44,7 @@ genTexture = alloca $ \p ->
         peek p
 
 -- create linear filtered texture
-loadGLTex format w h ptr = do
+loadGLTex format w h texWrap ptr = do
     tex <- genTexture
     glBindTexture GL_TEXTURE_2D tex
 
@@ -54,38 +56,48 @@ loadGLTex format w h ptr = do
 
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
+
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S (fromIntegral texWrap)
+    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T (fromIntegral texWrap)
+
     return $ Just $ TexID (fromIntegral tex)
 
-loadTextureFromPath :: String -> IO (Maybe TexID)
-loadTextureFromPath path = do
+loadTextureFromPath :: String -> GLenum -> IO (Maybe TexID)
+loadTextureFromPath path texWrap = do
         res <- readPng path
         case res of
             Left s -> print s >> return Nothing
             Right image -> case image of
                 -- TODO: Refactor and handle more cases
                 ImageRGBA8 (Image w h dat) ->
-                    unsafeWith dat $ \ptr -> loadGLTex GL_RGBA w h ptr
+                    unsafeWith dat $ \ptr -> loadGLTex GL_RGBA w h texWrap ptr
                 ImageRGB8 (Image w h dat) ->
-                    unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h ptr
+                    unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h texWrap ptr
                 _ -> error "Error loading texture: Unknown image format"
 
-loadTexture :: String -> String -> IO (Maybe TexID)
-loadTexture resPath image = do
+loadTexture :: String -> String -> GLenum -> IO (Maybe TexID)
+loadTexture resPath image texWrap = do
         let prefix = resPath ++ "/images/"
             ipath = prefix ++ image
-        tid <- loadTextureFromPath ipath
+        tid <- loadTextureFromPath ipath texWrap
         whenNothing tid $ print ("Couldn't load texture: " ++ image)
         return tid
 
-loadTexture' :: String -> String -> IO TexID
-loadTexture' path image = do
-        tex <- loadTexture path image
+loadTexture' :: String -> (String, TexLoadOptions) -> IO TexID
+loadTexture' path (image, opts) = do
+        tex <- loadTexture path image (_texLoadWrap opts)
         case tex of
             Just t -> return t
             Nothing -> error ("Can't load texture " ++ image)
 #endif
 
-loadTextures :: String -> [String] -> IO (HashMap.HashMap Text.Text TexID)
+loadTextures :: String -> [(String, TexLoadOptions)] -> IO (HashMap.HashMap Text.Text TexID)
 loadTextures path images = do
         loaded <- mapM (loadTexture' path) images
-        return $ HashMap.fromList $ zip (map Text.pack images) loaded
+        return $ HashMap.fromList $ zip (map (Text.pack . fst) images) loaded
+
+texRepeat :: TexLoadOptions
+texRepeat = TexLoadOptions GL_REPEAT
+
+texClamp :: TexLoadOptions
+texClamp  = TexLoadOptions GL_CLAMP_TO_EDGE

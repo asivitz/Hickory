@@ -10,6 +10,7 @@ import Hickory.Text.Text
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
+import Graphics.GL.Compatibility41 as GL
 
 data Printer a = Printer (Font a) TexID
 
@@ -27,7 +28,7 @@ createPrinterVAOConfig shader = createVAOConfig shader
 
 loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
 loadPrinter resPath shader name = do
-        texid <- loadTexture resPath $ name ++ ".png"
+        texid <- loadTexture resPath (name ++ ".png") GL_REPEAT
         case texid of
             Nothing -> return Nothing
             Just tid -> do

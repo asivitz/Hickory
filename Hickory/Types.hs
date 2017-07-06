@@ -91,7 +91,7 @@ rectExtents (Rect cen (Size w h)) = (cen - offset, cen + offset)
   where offset = V2 (w/2) (h/2)
 
 rectFromExtents :: (V2 Scalar, V2 Scalar) -> Rect
-rectFromExtents (ll, ur) = Rect cen (Size w h)
+rectFromExtents (ll, ur) = Rect cen (Size (abs w) (abs h))
   where siz@(V2 w h) = ur - ll
         cen = ll + siz ^* (0.5)
 
