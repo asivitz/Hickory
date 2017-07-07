@@ -7,6 +7,7 @@ import Data.Ord
 import Data.Maybe
 import Data.IORef
 import Data.Time
+import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
 import qualified Debug.Trace
 import Text.PrettyPrint.GenericPretty (Out, pretty)
@@ -46,7 +47,7 @@ whenMaybe2 a b f = case a of
 whenNothing :: Monad m => Maybe a -> m () -> m ()
 whenNothing a f = case a of
                       Nothing -> f
-                      Just b -> return ()
+                      Just _ -> return ()
 
 justOrM :: Monad m => a -> Maybe a -> m a
 justOrM def val = return $ maybe def id val
@@ -65,7 +66,7 @@ sortOnMaybe f = map snd . sortBy (comparing fst) . mapMaybe (\x ->
 modifyAt :: (a -> a) -> Int -> [a] -> [a]
 modifyAt f 0 (x:xs) = f x : xs
 modifyAt f num (x:xs) = x : (modifyAt f (num - 1) xs)
-modifyAt f num [] = []
+modifyAt _ _ [] = []
 
 modify :: Eq a => a -> (a -> a) -> [a] -> [a]
 modify _ _ [] = []
@@ -73,20 +74,21 @@ modify a f (x:xs)
     | a == x = f x : xs
     | otherwise = x : modify a f xs
 
+for :: [a] -> (a -> b) -> [b]
 for = flip map
 
 deleteAt :: [a] -> Int -> [a]
 deleteAt [] _ = []
-deleteAt (x:xs) 0 = xs
+deleteAt (_:xs) 0 = xs
 deleteAt (x:xs) n = x : (deleteAt xs (n - 1))
 
 replace :: (a -> Bool) -> a -> [a] -> [a]
 replace p a (x:xs) | p x = a:xs
 replace p a (x:xs) = x : replace p a xs
-replace p a [] = []
+replace _ _ [] = []
 
 chopBy :: Int -> [a] -> [[a]]
-chopBy num [] = []
+chopBy _ [] = []
 chopBy num lst = take num lst : chopBy num (drop num lst)
 
 makeFPSTicker :: IO (IO Double)
@@ -107,6 +109,7 @@ makeFPSTicker = do
                     writeIORef ref (count+1, last_time, last_report)
                     return last_report
 
+readFileAsText :: FilePath -> IO Text
 #if defined(ghcjs_HOST_OS)
 readFileAsText path = do
         resp <- xhr Request { reqMethod = GET, reqURI = pack path, reqLogin = Nothing, reqHeaders = [], reqWithCredentials = False, reqData = NoData }

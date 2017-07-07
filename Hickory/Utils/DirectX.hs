@@ -30,6 +30,7 @@ reserved w = string w *> notFollowedBy alphaNumChar *> sc
 identifier :: Parser String
 identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_')
 
+anySignedNumber :: Parser Double
 anySignedNumber = do
         n <- signed anyNumber
         optional (satisfy (== ' '))
@@ -41,8 +42,10 @@ number = lexeme (signed anyNumber)
 integer :: Parser Integer
 integer = lexeme L.integer
 
+int :: Parser Int
 int = fromIntegral <$> integer
 
+signed :: Num a => Parser a -> Parser a
 signed p = do
         n <- optional (symbol "-")
         num <- p
@@ -60,26 +63,33 @@ data OBJ a = OBJ {
          deriving (Show)
          -}
 
-lstToV3 [x,y,z] = V3 x y z
-lstToV3 _ = error "Wrong size list for V3"
-lstToV2 [x,y] = V2 x y
-lstToV2 _ = error "Wrong size list for V2"
-
 sc :: Parser ()
 sc = L.space (void spaceChar) (L.skipLineComment "//") empty
 
+braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
 
+angleBrackets :: Parser a -> Parser a
 angleBrackets = between (symbol "<") (symbol ">")
+
+squareBrackets :: Parser a -> Parser a
 squareBrackets = between (symbol "[") (symbol "]")
+
+doubleQuoted :: Parser a -> Parser a
 doubleQuoted = between (symbol "\"") (symbol "\"")
+
+doubleQuotedString :: Parser String
 doubleQuotedString = doubleQuoted (many $ noneOf ['"'])
 
+terminate :: Parser a -> Parser a
 terminate x = x <* lexeme (char ';')
 
+lSepBy :: Parser a -> Char -> Parser [a]
 lSepBy x y = x `sepBy` lexeme (char y)
 
+parseArray :: Parser a -> Parser [a]
 parseArray p = terminate (p `lSepBy` ',')
+
 parseVector x = (Vector.fromList . concat) <$> parseArray x
 
 parseArraySize 0 p = return []

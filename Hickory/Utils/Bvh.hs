@@ -43,11 +43,13 @@ parseBVH = do
         eof
         return $ BVH tree motion
 
+signed :: Num b => Parser b -> Parser b
 signed p = do
         n <- optional (symbol "-")
         num <- p
         return $ if isJust n then negate num else num
 
+parseFrame :: Parser [Double]
 parseFrame = do
         let f = (do
                     n <- signed anyNumber
@@ -57,17 +59,21 @@ parseFrame = do
         eol
         return fs
 
+parseOffset :: Parser (Double,Double,Double)
 parseOffset = reserved "OFFSET" *>
     ((,,) <$> number <*> number <*> number)
 
+parseEndSite :: Parser Joint
 parseEndSite = reserved "End Site" *>
         (JointEnd <$> bracket parseOffset)
 
+parseChannels :: Parser [String]
 parseChannels = do
         reserved "CHANNELS"
         n <- fromIntegral <$> integer
         count n identifier
 
+parseJointBody :: Parser Joint
 parseJointBody = do
         jname <- identifier
         (off, chans, jnts) <- bracket $ do
@@ -77,6 +83,7 @@ parseJointBody = do
             return (off, chans, joints)
         return $ Joint chans jname off jnts
 
+parseMotion :: Parser Motion
 parseMotion = do
         reserved "MOTION"
         reserved "Frames:"

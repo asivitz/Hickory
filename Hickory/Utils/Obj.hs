@@ -24,6 +24,7 @@ reserved w = string w *> notFollowedBy alphaNumChar *> sc
 identifier :: Parser String
 identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_')
 
+anySignedNumber :: Parser Double
 anySignedNumber = do
         n <- signed anyNumber
         optional (satisfy (== ' '))
@@ -35,6 +36,7 @@ number = lexeme (signed anyNumber)
 integer :: Parser Integer
 integer = lexeme L.integer
 
+signed :: Num a => Parser a -> Parser a
 signed p = do
         n <- optional (symbol "-")
         num <- p
@@ -50,17 +52,19 @@ data OBJ a = OBJ {
          }
          deriving (Show)
 
-lstToV3 [x,y,z] = V3 x y z
-lstToV3 _ = error "Wrong size list for V3"
-lstToV2 [x,y] = V2 x y
-lstToV2 _ = error "Wrong size list for V2"
-
 sc :: Parser ()
 sc = L.space (void spaceChar) (L.skipLineComment "#") empty
 
+parseVertex :: Parser (V3 Double)
 parseVertex = lstToV3 <$> try (reserved "v" *> count 3 (lexeme anySignedNumber))
+
+parseTextureCoord :: Parser (V2 Double)
 parseTextureCoord = lstToV2 <$> try (reserved "vt" *> count 2 (lexeme anyNumber))
+
+parseNormal :: Parser (V3 Double)
 parseNormal = lstToV3 <$> try (reserved "vn" *> count 3 (lexeme anySignedNumber))
+
+parseFace :: Parser Face
 parseFace = lstToV3 <$> try (reserved "f" *> count 3 (lexeme parseTriple))
     where parseTriple = do
                             v <- fromIntegral <$> L.integer

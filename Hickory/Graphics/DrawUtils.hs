@@ -45,19 +45,20 @@ buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.chil
 animatedMats :: DX.Frame -> DX.Mesh -> (String, Double) -> [Mat44]
 animatedMats f DX.Mesh { DX.skinWeights } animSel = (sortem . buildAnimatedMats identity identity animSel) f
         where sortem :: [(String, Mat44)] -> [Mat44]
-              sortem pairs = reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, mat) -> name == DX.transformNodeName sw) pairs) [] skinWeights
+              sortem pairs = reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, _) -> name == DX.transformNodeName sw) pairs) [] skinWeights
 
+colorUniform :: V4 Scalar -> UniformBinding
 colorUniform color = UniformBinding "color" (QuadFUniform [color])
 
 boneMatUniform :: ThreeDModel -> String -> Double -> [UniformBinding]
-boneMatUniform (ThreeDModel vao Nothing _ _) actionName time = []
-boneMatUniform (ThreeDModel vao (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
+boneMatUniform (ThreeDModel _ Nothing _ _) _ _ = []
+boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
     where mats = animatedMats frame mesh (actionName, time)
 
 drawSpec :: Shader -> [UniformBinding] -> DrawSpec -> IO ()
 drawSpec shader uniforms spec =
         case spec of
-            Text printer _ -> error "Can't print text directly. Should transform into a VAO command."
+            Text _ _ -> error "Can't print text directly. Should transform into a VAO command."
             VAO tex (VAOObj vaoConfig numitems drawType) -> do
                 drawCommand shader uniforms tex vaoConfig (fromIntegral numitems) drawType
                 {-
@@ -124,22 +125,22 @@ data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
 
 collectPrintDescs :: RenderTree -> [PrintDesc]
 collectPrintDescs (List subs) = concatMap collectPrintDescs subs
-collectPrintDescs (Primative shader mat uniforms (Text printer text) ) = [PrintDesc printer text]
+collectPrintDescs (Primative _ _ _ (Text printer text) ) = [PrintDesc printer text]
 collectPrintDescs (XForm _ child) = collectPrintDescs child
 collectPrintDescs _ = []
 
 textToVAO :: [(Maybe PrintDesc, VAOObj)] -> RenderTree -> RenderTree
 textToVAO m (List subs) = List $ map (textToVAO m) subs
 textToVAO m (XForm mat child) = XForm mat $ textToVAO m child
-textToVAO m (Primative sh mat uniforms (Text pr@(Printer font tex) txt)) =
+textToVAO m (Primative sh mat uniforms (Text pr@(Printer _ tex) txt)) =
         Primative sh mat uniforms
                     (VAO (Just tex)
                          (fromMaybe (error $ "Can't find vao for text command: " ++ show (pr, txt) ++ " in: " ++ show m)
                                     (lookup (Just (PrintDesc pr txt)) m)))
-textToVAO m a = a
+textToVAO _ a = a
 
 updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
-updateVAOObj (PrintDesc (Printer font texid) textCommand)
+updateVAOObj (PrintDesc (Printer font _) textCommand)
              (VAOObj vaoconfig _ _) = do
                  let command = PositionedTextCommand zero textCommand
                      (numsquares, floats) = transformTextCommandsToVerts [command] font
@@ -180,6 +181,7 @@ loadCubeIntoVAOConfig vaoconfig = do
 mkCubeVAOObj :: Shader -> IO VAOObj
 mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
 
+mkSquareVerts :: (Num t, Fractional t1) => t1 -> t1 -> ([t1], [t], DrawType)
 mkSquareVerts texW texH = (floats, indices, TriangleFan)
     where h = 0.5
           l = -h
@@ -240,7 +242,7 @@ createVAOConfigFromOBJ shader path = do
 -- interleaves arrays based on an array of counts
 -- interleave [[1,2,3,4,5,6],[40,50,60]] [2,1] ~> [1,2,40,3,4,50,5,6,60]
 interleave :: [[a]] -> [Int] -> [a]
-interleave vals counts | any null vals = []
+interleave vals _ | any null vals = []
 interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
     where pull ns vs = concatMap (\(n,v) -> take n v) (zip ns vs)
           sub ns vs = map (\(n,v) -> drop n v) (zip ns vs)
@@ -248,6 +250,7 @@ interleave vals counts = pull counts vals ++ interleave (sub counts vals) counts
 data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame) DX.Mesh (V3 Double, V3 Double)
             deriving (Show)
 
+animModelVAO :: ThreeDModel -> VAOObj
 animModelVAO (ThreeDModel v _ _ _) = v
 
 -- .X
@@ -255,8 +258,8 @@ pullMesh :: DX.Frame -> DX.Mesh
 pullMesh fr = case go fr of
                  Nothing -> error "Could not grab mesh from X structure"
                  Just (m@DX.Mesh { DX.skinWeights }) -> m { DX.skinWeights = sortWeights skinWeights fr }
-    where go (DX.Frame name mat children Nothing _) = listToMaybe $ mapMaybe go children
-          go (DX.Frame name mat _ (Just mesh) _) = Just (transformMesh mat mesh)
+    where go (DX.Frame _ _ children Nothing _) = listToMaybe $ mapMaybe go children
+          go (DX.Frame _ mat _ (Just mesh) _) = Just (transformMesh mat mesh)
           -- Put weights, and therefore bones, in order from root to leaf
           sortWeights :: [DX.SkinWeights] -> DX.Frame -> [DX.SkinWeights]
           sortWeights weights (DX.Frame name _ children _ _) = case find (\DX.SkinWeights { DX.transformNodeName } -> transformNodeName == name) weights of
@@ -277,14 +280,17 @@ packMaterialIndices vertFaces materialIndices = for [0..numIndices-1] $ \x -> re
 -- TODO: Technically we can't assume each normal corresponds with a face.
 -- We should read the extra data their to find the actual correspondance.
 -- However, Blender exports them in face order so it doesn't matter.
+packNormals :: Vector.Unbox a => Vector.Vector Int -> Vector.Vector (a, a, a) -> [a]
 packNormals faces normals = concat $ (map (\(x,y,z) -> [x,y,z]) . map snd . sortOn fst) pairs
         where pairs = for (Vector.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx in
                                     (vIdx, normals Vector.! fnum))
 
+
+packVertices :: (Vector.Unbox a, Vector.Unbox a1, Vector.Unbox a2, Real a, Real a1, Real a2, Fractional b) => Vector.Vector (a2, a1, a) -> [b]
 packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFrac z]) (Vector.toList verts)
 
 packAnimatedXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
-packAnimatedXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.skinWeights, DX.meshMaterialList }
+packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeights, DX.meshMaterialList }
     = (dat, indices)
     where verts = packVertices vertices
           material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
@@ -296,7 +302,7 @@ packAnimatedXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.m
           indices = Vector.toList (Vector.map fromIntegral faces)
 
 packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
-packXMesh DX.Mesh { DX.nVertices, DX.vertices, DX.nFaces, DX.faces, DX.meshNormals, DX.meshTextureCoords, DX.meshMaterialList }
+packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList }
     = (dat, indices)
     where verts = packVertices vertices
           material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
@@ -352,7 +358,7 @@ updateRenderState tree (RenderState vaolst) = do
             new = texts \\ existing
 
             xx :: [(Maybe PrintDesc, VAOObj)] -> [PrintDesc] -> [PrintDesc] -> IO [(Maybe PrintDesc, VAOObj)]
-            xx [] newones notneeded = return []
+            xx [] _ _ = return []
             xx ((desc, vaoobj):ys) newones notneeded =
                 case desc of
                     Nothing -> case newones of
@@ -373,6 +379,7 @@ updateRenderState tree (RenderState vaolst) = do
         vaolst' <- xx vaolst new unused
         return $ RenderState vaolst'
 
+runDrawCommand :: Command -> IO ()
 runDrawCommand (Command sh mat uniforms spec) = drawSpec sh (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) spec
 
 {-rtDepth :: RenderTree -> Scalar-}

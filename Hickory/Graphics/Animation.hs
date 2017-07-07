@@ -22,10 +22,16 @@ data Animation a = Animation {
 degToRad :: Double -> Double
 degToRad = (*(pi/180))
 
+vmax :: V3 Scalar -> V3 Scalar -> V3 Scalar
 vmax = liftI2 max
+
+vmin :: V3 Scalar -> V3 Scalar -> V3 Scalar
 vmin = liftI2 min
 
+vminimum :: [V3 Scalar] -> V3 Scalar
 vminimum = foldl' vmin 10000
+
+vmaximum :: [V3 Scalar] -> V3 Scalar
 vmaximum = foldl' vmax (-10000)
 
 findJointLimits :: Frame Double -> (V3 Double, V3 Double)
