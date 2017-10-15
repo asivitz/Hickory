@@ -29,7 +29,9 @@ module Hickory.Math.Vector
     intersectionPoint,
     Scalar,
     v4FromList,
-    v3FromList
+    v3FromList,
+    v3map,
+    v2map
     )
     where
 
@@ -160,3 +162,9 @@ v3FromList _ = error "Can't build vector. Wrong size list."
 
 v2perp :: Num a => V2 a -> V2 a
 v2perp (V2 x y) = V2 y (negate x)
+
+v3map :: (a -> b) -> V3 a -> V3 b
+v3map f (V3 a b c) = V3 (f a) (f b) (f c)
+
+v2map :: (a -> b) -> V2 a -> V2 b
+v2map f (V2 a b) = V2 (f a) (f b)

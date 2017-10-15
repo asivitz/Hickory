@@ -7,10 +7,11 @@ module Hickory.Utils.BVH where
 import Control.Monad (void)
 import Control.Applicative (empty)
 import Text.Megaparsec
-import Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as L
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Maybe
 import Hickory.Utils.Parsing
+import Data.Text (Text, pack)
 
 sc :: Parser ()
 sc = L.space (void spaceChar) empty empty
@@ -18,14 +19,14 @@ sc = L.space (void spaceChar) empty empty
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
-symbol :: String -> Parser String
+symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
-reserved :: String -> Parser ()
+reserved :: Text -> Parser ()
 reserved w = string w *> notFollowedBy alphaNumChar *> sc
 
-identifier :: Parser String
-identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.')
+identifier :: Parser Text
+identifier = lexeme $ pack <$> ((:) <$> letterChar <*> many (alphaNumChar <|> char '.'))
 
 bracket :: Parser a -> Parser a
 bracket = between (symbol "{") (symbol "}")
@@ -34,7 +35,7 @@ number :: Parser Double
 number = lexeme (signed anyNumber)
 
 integer :: Parser Integer
-integer = lexeme L.integer
+integer = lexeme L.decimal
 
 parseBVH :: Parser BVH
 parseBVH = do
@@ -67,7 +68,7 @@ parseEndSite :: Parser Joint
 parseEndSite = reserved "End Site" *>
         (JointEnd <$> bracket parseOffset)
 
-parseChannels :: Parser [String]
+parseChannels :: Parser [Text]
 parseChannels = do
         reserved "CHANNELS"
         n <- fromIntegral <$> integer
@@ -106,8 +107,8 @@ data Motion = Motion {
 type Offset = (Double, Double, Double)
 
 data Joint = Joint {
-           channels :: [String],
-           name :: String,
+           channels :: [Text],
+           name :: Text,
            offset :: Offset,
            children :: [Joint]
            }

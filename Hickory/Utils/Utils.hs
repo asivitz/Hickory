@@ -21,6 +21,9 @@ import Data.JSString (unpack, pack, JSString)
 pp :: Out a => a -> IO ()
 pp = putStrLn . pretty
 
+ppl :: Out a => String -> a -> IO ()
+ppl label = putStrLn . ((label ++ ": ") ++) . pretty
+
 tracer :: (Show a, Show b) => b -> a -> a
 tracer label a = Debug.Trace.traceShow (label, a) a
 

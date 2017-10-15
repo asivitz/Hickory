@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -17,6 +18,7 @@ import Data.Foldable (toList)
 import qualified Hickory.Utils.OBJ as OBJ
 import qualified Hickory.Utils.DirectX as DX
 import qualified Data.List.Utils as LUtils
+import Data.Text (Text)
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
@@ -30,11 +32,11 @@ data DrawSpec = Text (Printer Int) TextCommand |
               deriving (Show)
 
 --TODO: Read animation FPS from directx file
-retrieveActionMat :: (String, Double) -> [(String, [Mat44])] -> Maybe Mat44
+retrieveActionMat :: (Text, Double) -> [(Text, [Mat44])] -> Maybe Mat44
 retrieveActionMat (actionName, time) actionMats = (\kf -> kf !! (floor (time * 25) `mod` length kf)) <$> keyFrames
         where keyFrames = lookup actionName actionMats
 
-buildAnimatedMats :: Mat44 -> Mat44 -> (String, Double) -> DX.Frame -> [(String, Mat44)]
+buildAnimatedMats :: Mat44 -> Mat44 -> (Text, Double) -> DX.Frame -> [(Text, Mat44)]
 buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.children, DX.actionMats, DX.mat }
     = (frameName, m) : concatMap (buildAnimatedMats bindPose animMat animSel) children
         where m = animMat !*! inv44 bindPose
@@ -42,15 +44,15 @@ buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.chil
               animMat = animParent !*! actionMat
               actionMat = fromMaybe mat $ retrieveActionMat animSel actionMats
 
-animatedMats :: DX.Frame -> DX.Mesh -> (String, Double) -> [Mat44]
+animatedMats :: DX.Frame -> DX.Mesh -> (Text, Double) -> [Mat44]
 animatedMats f DX.Mesh { DX.skinWeights } animSel = (sortem . buildAnimatedMats identity identity animSel) f
-        where sortem :: [(String, Mat44)] -> [Mat44]
+        where sortem :: [(Text, Mat44)] -> [Mat44]
               sortem pairs = reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, _) -> name == DX.transformNodeName sw) pairs) [] skinWeights
 
 colorUniform :: V4 Scalar -> UniformBinding
 colorUniform color = UniformBinding "color" (QuadFUniform [color])
 
-boneMatUniform :: ThreeDModel -> String -> Double -> [UniformBinding]
+boneMatUniform :: ThreeDModel -> Text -> Double -> [UniformBinding]
 boneMatUniform (ThreeDModel _ Nothing _ _) _ _ = []
 boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
     where mats = animatedMats frame mesh (actionName, time)

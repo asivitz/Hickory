@@ -3,20 +3,22 @@
 module Hickory.Utils.Parsing where
 
 import Text.Megaparsec
-import Text.Megaparsec.Prim
-import qualified Text.Megaparsec.Lexer as L
+import qualified Text.Megaparsec.Char.Lexer as L
 import qualified Text.Megaparsec.Char as C
 import Data.Scientific
 import Control.Monad (void)
 import Hickory.Utils.Utils
 import Data.Text (Text)
 import Hickory.Math.Vector
+import Data.Void
+
+type Parser = Parsec Void Text
 
 parseFromFile :: Parsec e Text a -> String -> IO (Either (ParseError Char e) a)
 parseFromFile p file = runParser p file <$> readFileAsText file
 
 anyNumber :: (MonadParsec e s m, Token s ~ Char) => m Double
-anyNumber = toRealFloat <$> L.number
+anyNumber = toRealFloat <$> L.scientific
 
 floating :: (MonadParsec e s m, Token s ~ Char) => m Double
 floating = label "floating" (read <$> f)

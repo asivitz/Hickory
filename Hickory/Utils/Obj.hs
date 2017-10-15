@@ -6,23 +6,24 @@ module Hickory.Utils.OBJ where
 import Control.Monad (void)
 import Control.Applicative (empty)
 import Text.Megaparsec
-import Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as L
+import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Maybe
 import Hickory.Math.Vector
 import Hickory.Utils.Parsing
+import Data.Text (Text, pack)
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
-symbol :: String -> Parser String
+symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
-reserved :: String -> Parser ()
+reserved :: Text -> Parser ()
 reserved w = string w *> notFollowedBy alphaNumChar *> sc
 
-identifier :: Parser String
-identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_')
+identifier :: Parser Text
+identifier = lexeme $ pack <$> ((:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_'))
 
 anySignedNumber :: Parser Double
 anySignedNumber = do
@@ -34,7 +35,7 @@ number :: Parser Double
 number = lexeme (signed anyNumber)
 
 integer :: Parser Integer
-integer = lexeme L.integer
+integer = lexeme L.decimal
 
 signed :: Num a => Parser a -> Parser a
 signed p = do
@@ -67,11 +68,11 @@ parseNormal = lstToV3 <$> try (reserved "vn" *> count 3 (lexeme anySignedNumber)
 parseFace :: Parser Face
 parseFace = lstToV3 <$> try (reserved "f" *> count 3 (lexeme parseTriple))
     where parseTriple = do
-                            v <- fromIntegral <$> L.integer
+                            v <- fromIntegral <$> L.decimal
                             char '/'
-                            t <- fromIntegral <$> L.integer
+                            t <- fromIntegral <$> L.decimal
                             char '/'
-                            n <- fromIntegral <$> L.integer
+                            n <- fromIntegral <$> L.decimal
                             return (v,t,n)
 
 parseOBJ :: Parser (OBJ Double)

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Hickory.Graphics.Animation where
 
 import Hickory.Math.Vector
@@ -6,8 +8,9 @@ import Linear.Quaternion
 import Data.List
 import Control.Lens ((^.))
 import qualified Hickory.Utils.BVH as BVH
+import Data.Text (Text)
 
-data Frame a = Joint String (M44 a) [Frame a]
+data Frame a = Joint Text (M44 a) [Frame a]
              | End (M44 a)
              deriving (Show)
 
@@ -55,10 +58,10 @@ bvhToAnimation (BVH.BVH joint (BVH.Motion nFrames fTime fs)) =
           framelist = (map (\f -> let ([], frame) = animateJoint rot f joint in (frame, findJointLimits frame)) fs)
           bbox = (vminimum (map (fst . snd) framelist), vmaximum (map (snd . snd) framelist))
 
-consumeChanData :: [String] -> [Double] -> (Double, Double, Double) -> (M44 Double, [Double])
+consumeChanData :: [Text] -> [Double] -> (Double, Double, Double) -> (M44 Double, [Double])
 consumeChanData chanNames chanData (x, y, z) = (mkTransformation quat (v + V3 x y z), drop (length chanNames) chanData)
-    where (v, quat) = foldl' f (zero :: V3 Double, axisAngle (unit _x) 0 :: Quaternion Double) (zip chanNames chanData :: [(String, Double)])
-          f :: (V3 Double, Quaternion Double) -> (String, Double) -> (V3 Double, Quaternion Double)
+    where (v, quat) = foldl' f (zero :: V3 Double, axisAngle (unit _x) 0 :: Quaternion Double) (zip chanNames chanData :: [(Text, Double)])
+          f :: (V3 Double, Quaternion Double) -> (Text, Double) -> (V3 Double, Quaternion Double)
           f (v', quat') (name, val) = case name of
                                           "Xposition" -> (v' + unit _x ^* val, quat')
                                           "Yposition" -> (v' + unit _y ^* val, quat')

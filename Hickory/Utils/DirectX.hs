@@ -6,8 +6,8 @@ module Hickory.Utils.DirectX where
 
 import Control.Monad (void, when)
 import Text.Megaparsec
-import Text.Megaparsec.Text
-import qualified Text.Megaparsec.Lexer as L
+import qualified Text.Megaparsec.Char.Lexer as L
+import Text.Megaparsec.Char
 import Data.Maybe
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
@@ -17,18 +17,19 @@ import Control.Applicative
 import Hickory.Color
 import Linear.Quaternion
 import Data.List
+import Data.Text (Text, pack)
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
-symbol :: String -> Parser String
+symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
-reserved :: String -> Parser ()
+reserved :: Text -> Parser ()
 reserved w = string w *> notFollowedBy alphaNumChar *> sc
 
-identifier :: Parser String
-identifier = lexeme $ (:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_')
+identifier :: Parser Text
+identifier = lexeme $ pack <$> ((:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_'))
 
 anySignedNumber :: Parser Double
 anySignedNumber = do
@@ -40,7 +41,7 @@ number :: Parser Double
 number = lexeme (signed anyNumber)
 
 integer :: Parser Integer
-integer = lexeme L.integer
+integer = lexeme L.decimal
 
 int :: Parser Int
 int = fromIntegral <$> integer
@@ -78,8 +79,8 @@ squareBrackets = between (symbol "[") (symbol "]")
 doubleQuoted :: Parser a -> Parser a
 doubleQuoted = between (symbol "\"") (symbol "\"")
 
-doubleQuotedString :: Parser String
-doubleQuotedString = doubleQuoted (many $ noneOf ['"'])
+doubleQuotedString :: Parser Text
+doubleQuotedString = pack <$> doubleQuoted (many $ noneOf ['"'])
 
 terminate :: Parser a -> Parser a
 terminate x = x <* lexeme (char ';')
@@ -116,11 +117,11 @@ parseColorRGB = terminate $ rgb <$> terminate anySignedNumber
                                 <*> terminate anySignedNumber
 
 data Frame = Frame {
-                  frameName :: String,
+                  frameName :: Text,
                   mat :: Mat44,
                   children :: [Frame],
                   mesh :: Maybe Mesh,
-                  actionMats :: [(String, [Mat44])]
+                  actionMats :: [(Text, [Mat44])]
                   }
            deriving (Show)
 
@@ -173,7 +174,7 @@ data XSkinMeshHeader = XSkinMeshHeader {
                      deriving (Show)
 
 data SkinWeights = SkinWeights {
-                 transformNodeName :: String,
+                 transformNodeName :: Text,
                  vertexIndices :: Vector.Vector Int,
                  weights :: Vector.Vector Double,
                  matrixOffset :: Mat44
@@ -252,7 +253,7 @@ parseFrame = parseNamedSection "Frame" $ \name ->
 
 parseHeader = lexeme (manyTill anyChar eol)
 
-skipSection :: String -> Parser ()
+skipSection :: Text -> Parser ()
 skipSection name = lexeme $ string name >> manyTill anyChar (char '}') >> return ()
 
 parseAnimationKey element = parseSection "AnimationKey" $ do
@@ -308,14 +309,14 @@ parseX = do
         return $ fillFrame sets f
 
 data Animation = Animation {
-               actionName :: String,
+               actionName :: Text,
                ticksPerSecond :: Int,
                boneAnimations :: [BoneAnimation]
                }
                deriving (Show)
 
 data BoneAnimation = BoneAnimation {
-                   boneName :: String,
+                   boneName :: Text,
                    _transforms :: [M44 Double]
                    }
                    deriving (Show)
