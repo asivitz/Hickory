@@ -1,0 +1,108 @@
+name:                Hickory
+version:             0.1.0.0
+synopsis:            A practical game engine based on Entity Systems
+homepage:            https://github.com/asivitz/Hickory
+description:         Please see README.md
+license:             MIT
+license-file:        LICENSE
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2017 Axis Sivitz
+
+extra-source-files:
+    - Readme.md
+
+default-extensions:
+    - NamedFieldPuns
+    - Rank2Types
+    - BangPatterns
+    - OverloadedStrings
+
+dependencies:
+    - base >= 4.7 && < 5
+    - parsec
+    - unordered-containers >=0.2 && <0.3
+    - containers >=0.5 && <0.6
+    - hashable >=1.2 && <1.3
+    - time
+    - mtl >=2.2 && <2.3
+    - OpenGLRaw == 3.2.1.0
+    - text >=1.2 && <1.3
+    - array >=0.5 && <0.6
+    - attoparsec
+    - JuicyPixels >= 3.1.7.1
+    - vector
+    - cereal
+    - GenericPretty
+    - pretty
+    - lens
+    - megaparsec >= 5.0.1
+    - scientific
+    - linear
+    - MissingH
+    - layer
+
+when:
+    - condition: impl(ghcjs)
+      dependencies:
+        - ghcjs-base
+    - condition: os(osx)
+      cc-options:         -F/System/Library/Frameworks
+    - condition: flag(ios)
+      include-dirs: include/
+      cc-options: -DTARGET_OS_IPHONE
+
+cpp-options: -Duses_VAO
+
+flags:
+    Ios:
+        description: Build for IOS. Use OpenGLES2 functions instead of standard OpenGL
+        manual:      True
+        default:     False
+
+library:
+  source-dirs:
+  exposed-modules:
+    - Hickory.Camera
+    - Hickory.Color
+    - Hickory.Types
+    - Hickory.Platform
+    - Hickory.Input
+    - Hickory.Graphics.Drawing
+    - Hickory.Graphics.DrawText
+    - Hickory.Graphics.Textures
+    - Hickory.Graphics.GLSupport
+    - Hickory.Graphics.DrawUtils
+    - Hickory.Graphics.Animation
+    - Hickory.Graphics.Shader
+    - Hickory.Graphics.Debug
+    - Hickory.Math.Matrix
+    - Hickory.Math.Vector
+    - Hickory.Math.VectorMatrix
+    - Hickory.Math.Interpolate
+    - Hickory.Utils.Resources
+    - Hickory.Utils.Utils
+    - Hickory.Utils.HashMap
+    - Hickory.Utils.Projection
+    - Hickory.Utils.BVH
+    - Hickory.Utils.OBJ
+    - Hickory.Utils.DirectX
+    - Hickory.Utils.Parsing
+    - Hickory.Text.Text
+    - Hickory.Text.Font
+    - Hickory.Utils.Layer
+    - UI.Stack
+    - UI.Elements
+
+tests:
+    hickory-test:
+        main:            Main.hs
+        source-dirs:     test
+        dependencies:
+            - base >=4.7 && <5
+            - test-framework
+            - test-framework-hunit
+            - HUnit
+            - HUnit-approx >= 1.0
+            - Hickory
+            - containers >= 0.5 && < 0.6
