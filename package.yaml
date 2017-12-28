@@ -40,7 +40,6 @@ dependencies:
     - scientific
     - linear
     - MissingH
-    - layer
 
 when:
     - condition: impl(ghcjs)
@@ -90,7 +89,6 @@ library:
     - Hickory.Utils.Parsing
     - Hickory.Text.Text
     - Hickory.Text.Font
-    - Hickory.Utils.Layer
     - UI.Stack
     - UI.Elements
 
