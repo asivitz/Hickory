@@ -6,15 +6,7 @@ It renders using OpenGL and has support for both GLFW (for desktop) and WebGL th
 
 ## Documentation
 
-Proper documentation is lacking for now. Please check out Examples/Shooter in the meantime.
-
-```Bash
-$ git clone https://github.com/asivitz/Hickory.git
-$ git clone https://github.com/asivitz/layer.git
-$ cd Hickory/Example/Shooter
-$ stack build
-$ stack exec shooter
-```
+Proper documentation is lacking for now.  :(
 
 ## Contributing
 

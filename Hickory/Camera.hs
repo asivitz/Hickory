@@ -26,20 +26,17 @@ data Camera = Camera
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
-        perspective fov (realToFrac screenRatio) nearPlane farPlane
-shotMatrix Ortho { width, near, far, shouldCenter } screenRatio =
-        if shouldCenter
-            then
-                ortho (-(width/2)) (width/2) (-(height/2)) (height/2) near far
-            else
-                ortho 0 width 0 height near far
-        where height = width / (realToFrac screenRatio)
+  perspective fov (realToFrac screenRatio) nearPlane farPlane
+shotMatrix Ortho { width, near, far, shouldCenter } screenRatio = if shouldCenter
+  then ortho (-(width / 2)) (width / 2) (-(height / 2)) (height / 2) near far
+  else ortho 0 width 0 height near far
+  where height = width / (realToFrac screenRatio)
 
 worldViewMatrix :: Projection -> Scalar -> V3 Scalar -> V3 Scalar -> V3 Scalar -> Mat44
 worldViewMatrix proj screenRatio pos target up =
-        let worldMatrix = shotMatrix proj screenRatio
-            camera = lookAt pos target up in
-                worldMatrix !*! camera
+  let worldMatrix = shotMatrix proj screenRatio
+      camera      = lookAt pos target up
+  in  worldMatrix !*! camera
 
 cameraMatrix :: Camera -> Scalar -> Mat44
 cameraMatrix (Camera proj center target up) screenRatio = worldViewMatrix proj screenRatio center target up
@@ -48,11 +45,11 @@ cameraMatrix (Camera proj center target up) screenRatio = worldViewMatrix proj s
 
 data Route = Route (V3 Scalar) (Maybe Target) deriving Show
 
-data Target = Target {
-            tpos :: (V3 Scalar),
-            moveTime :: Double,
-            moveDuration :: Double
-            } deriving Show
+data Target = Target
+  { tpos :: (V3 Scalar)
+  , moveTime :: Double
+  , moveDuration :: Double
+  } deriving Show
 
 cameraCenter :: Route -> (V3 Scalar)
 cameraCenter (Route pos Nothing ) = pos
@@ -60,7 +57,6 @@ cameraCenter (Route pos (Just (Target tarpos time duration))) = lerp (realToFrac
 
 checkTarget :: Route -> Double -> Route
 checkTarget r@(Route pos Nothing) _ = r
-checkTarget (Route pos (Just (Target tpos moveTime moveDuration))) delta = let time' = (moveTime + delta) in
-    if time' > moveDuration
-        then (Route tpos Nothing)
-        else (Route pos (Just (Target tpos time' moveDuration)))
+checkTarget (Route pos (Just (Target tpos moveTime moveDuration))) delta =
+  let time' = (moveTime + delta)
+  in  if time' > moveDuration then (Route tpos Nothing) else (Route pos (Just (Target tpos time' moveDuration)))

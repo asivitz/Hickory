@@ -1,27 +1,26 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE CPP #-}
 
-module Hickory.Graphics.Drawing (
-                        DrawType(..),
-                        Shader(..),
-                        Attribute,
-                        Attachment(..),
-                        VertexGroup(..),
-                        squareIndices,
-                        VAO,
-                        VBO,
-                        VAOConfig(..),
-                        getShader,
-                        TexID(..),
-                        getTexID,
-                        ShaderID,
-                        ProgramID,
-                        UniformLoc,
-                        UniformBinding(..),
-                        UniformValue(..),
-                        retrieveLoc
-                        )
-                        where
+module Hickory.Graphics.Drawing
+  ( DrawType(..)
+  , Shader(..)
+  , Attribute
+  , Attachment(..)
+  , VertexGroup(..)
+  , squareIndices
+  , VAO
+  , VBO
+  , VAOConfig(..)
+  , getShader
+  , TexID(..)
+  , getTexID
+  , ShaderID
+  , ProgramID
+  , UniformLoc
+  , UniformBinding(..)
+  , UniformValue(..)
+  , retrieveLoc
+  ) where
 
 import Data.Word
 import Data.Int
@@ -99,15 +98,16 @@ type Attribute = Shader -> AttrLoc
 
 data Attachment = Attachment Attribute Int32
 data VertexGroup = VertexGroup [Attachment]
-instance Show VertexGroup where
-        show x = "Vertex Group"
+instance Show VertexGroup where show x = "Vertex Group"
 
-data UniformValue = Matrix4Uniform [Mat44]
-                  | Matrix3Uniform [Mat33]
-                  | QuadFUniform [V4 Scalar]
-                  deriving (Eq, Show)
+data UniformValue
+  = Matrix4Uniform [Mat44]
+  | Matrix3Uniform [Mat33]
+  | QuadFUniform [V4 Scalar]
+  deriving (Eq, Show)
+
 data UniformBinding = UniformBinding String UniformValue
-                  deriving (Eq, Show)
+  deriving (Eq, Show)
 
 retrieveLoc :: String -> Shader -> Maybe UniformLoc
 retrieveLoc name shader = HashMap.lookup name (uniformLocs shader)
@@ -133,12 +133,13 @@ drawPoints _ a b c = print "invalid drawpoints command" >> print a >> print b >>
 
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
 squareIndices numSquares = (indices, 4 * numSquares + 2 * (numSquares - 1))
-        where indices = concat $ (flip map) [0..(numSquares - 1)]
-                                 (\i -> let items = [i * 4,
-                                                     i * 4 + 1,
-                                                     i * 4 + 2,
-                                                     i * 4 + 3]
-                                            -- We need to start and end degenerate squares if
-                                            -- we're not at the beginning/end
-                                            withStartOfDegenerateSquare = if i < numSquares - 1 then items ++ [i * 4 + 3] else items
-                                            in  if i > 0 then (i * 4) : withStartOfDegenerateSquare else withStartOfDegenerateSquare)
+ where
+  indices = concatMap
+    ( \i ->
+      let items                       = [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 3]
+          -- We need to start and end degenerate squares if
+          -- we're not at the beginning/end
+          withStartOfDegenerateSquare = if i < numSquares - 1 then items ++ [i * 4 + 3] else items
+      in  if i > 0 then (i * 4) : withStartOfDegenerateSquare else withStartOfDegenerateSquare
+    )
+    [0 .. (numSquares - 1)]
