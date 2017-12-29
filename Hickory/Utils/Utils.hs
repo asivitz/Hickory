@@ -10,19 +10,12 @@ import Data.Time
 import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
 import qualified Debug.Trace
-import Text.PrettyPrint.GenericPretty (Out, pretty)
 
 #if defined(ghcjs_HOST_OS)
 import qualified Data.Text as Text
 import JavaScript.Web.XMLHttpRequest
 import Data.JSString (unpack, pack, JSString)
 #endif
-
-pp :: Out a => a -> IO ()
-pp = putStrLn . pretty
-
-ppl :: Out a => String -> a -> IO ()
-ppl label = putStrLn . ((label ++ ": ") ++) . pretty
 
 tracer :: (Show a, Show b) => b -> a -> a
 tracer label a = Debug.Trace.traceShow (label, a) a

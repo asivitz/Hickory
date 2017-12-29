@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Hickory.Math.Vector
     (
@@ -40,8 +39,6 @@ import Linear.V2
 import Linear.V3
 import Linear.V4
 import Linear.Vector
-import Text.PrettyPrint
-import Text.PrettyPrint.GenericPretty
 import Text.Printf
 import Linear.Epsilon
 import Linear.Metric
@@ -52,18 +49,6 @@ v3 = V3
 v4 = V4
 
 type Vector v a = (Metric v, Epsilon (v a), Additive v, Floating a, Real a, RealFloat a)
-
-instance (PrintfArg a, Out a) => Out (V2 a) where
-  doc (V2 x y) =  parens $ text (printf "V2 (%.2f) (%.2f)" x y)
-  docPrec _ = doc
-
-instance (PrintfArg a, Out a) => Out (V3 a) where
-  doc (V3 x y z) =  parens $ text (printf "V3 (%.2f) (%.2f) (%.2f)" x y z)
-  docPrec _ = doc
-
-instance (PrintfArg a, Out a) => Out (V4 a) where
-  doc (V4 x y z w) =  parens $ text (printf "V4 (%.2f) (%.2f) (%.2f) (%.2f)" x y z w)
-  docPrec _ = doc
 
 type Scalar = Double
 

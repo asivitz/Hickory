@@ -12,21 +12,11 @@ import System.IO.Unsafe
 import Data.IORef
 import Hickory.Math.Vector
 import Hickory.Color
-import Text.PrettyPrint
-import Text.PrettyPrint.GenericPretty
-import Text.Printf
 
 data DebugShape = DebugVector (V3 Scalar)
                 | DebugPoint (V3 Scalar)
                 | DebugLine (V3 Scalar) (V3 Scalar)
                 | DebugAngle Scalar
-
-instance Out DebugShape where
-  doc (DebugVector v) = doc v
-  doc (DebugPoint v) = doc v
-  doc (DebugLine f t) = doc f <> text " -> " <> doc t
-  doc (DebugAngle a) = text $ printf "%0.2f" a
-  docPrec _ = doc
 
 {-# NOINLINE lst #-}
 lst :: IORef [(Color, String, DebugShape)]

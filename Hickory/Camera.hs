@@ -1,11 +1,9 @@
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Hickory.Camera where
 
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
-import Text.PrettyPrint.GenericPretty
 
 data Projection = Perspective
   { fov :: Scalar
@@ -17,17 +15,14 @@ data Projection = Perspective
   , near :: Scalar
   , far :: Scalar
   , shouldCenter :: Bool
-  } deriving (Show, Generic)
+  } deriving (Show)
 
 data Camera = Camera
   { _cameraProj   :: Projection
   , _cameraCenter :: V3 Scalar
   , _cameraTarget :: V3 Scalar
   , _cameraUp     :: V3 Scalar
-  } deriving (Show, Generic)
-
-instance Out Projection where
-instance Out Camera where
+  } deriving (Show)
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
