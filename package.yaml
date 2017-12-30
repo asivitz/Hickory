@@ -20,7 +20,6 @@ default-extensions:
 
 dependencies:
     - JuicyPixels
-    - MissingH
     - OpenGLRaw
     - attoparsec
     - base

@@ -17,7 +17,6 @@ import Hickory.Graphics.GLSupport
 import Data.Foldable (toList)
 import qualified Hickory.Utils.OBJ as OBJ
 import qualified Hickory.Utils.DirectX as DX
-import qualified Data.List.Utils as LUtils
 import Data.Text (Text)
 
 import Hickory.Graphics.Drawing
@@ -222,13 +221,13 @@ mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachmen
 -- Packs an OBJ's data into an array of vertices and indices
 -- The vertices are position, tex coords, and normals packed together
 packOBJ :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
-packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concat $ LUtils.valuesAL pool, indices)
+packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concat $ map snd pool, indices)
  where
   construct (vidx, tcidx, nidx) =
     map realToFrac $ toList (vertices  !! (vidx - 1))
                   ++ toList (texCoords !! (tcidx - 1))
                   ++ toList (normals   !! (nidx - 1))
-  pool    = foldl' (\alst e -> LUtils.addToAL alst e (construct e)) [] $ concatMap toList faces
+  pool    = foldl' (\alst e -> (e, construct e) : alst) [] $ concatMap toList faces
   indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap toList faces
 
 createVAOConfigFromOBJ :: Shader -> String -> IO VAOObj
