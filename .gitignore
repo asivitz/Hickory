@@ -11,3 +11,4 @@ cabal.sandbox.config
 *.ps
 .DS_Store
 Hickory.cabal
+dist-newstyle/

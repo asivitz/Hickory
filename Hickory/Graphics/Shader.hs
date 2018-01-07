@@ -177,8 +177,9 @@ getUniformLocation progId name = withCString name (glGetUniformLocation progId)
 shaderSourceForPath :: String -> IO Text.Text
 shaderSourceForPath path = do
         source <- readFileAsText path
+        return source
         -- TODO: iOS shouldn't have this header
-        return $ Text.append "#version 150\n" source
+        {-return $ Text.append "#version 150\n" source-}
 
 #endif
 
