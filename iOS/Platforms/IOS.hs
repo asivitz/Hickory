@@ -2,41 +2,42 @@
 
 module Platforms.IOS where
 
-import Graphics.GL.Compatibility41 as GL
-import Data.Bits
-import Hickory.Graphics.Drawing
-{-import Engine.Scene.Scene-}
-{-import Engine.Scene.Run-}
-import Hickory.Types
-import Data.Time
 import Data.IORef
-import Hickory.Input
-import Hickory.Math.Vector
-import Hickory.Platform
-import qualified Data.HashMap.Strict as HashMap
-
+import Data.Time
 import Foreign
 import Foreign.C
+import Hickory.Input
+import Hickory.Math.Vector
+import System.Mem (performMinorGC)
+import qualified Data.HashMap.Strict as HashMap
+import Hickory.Types
+import Hickory.Platform
 
-import Foreign.Marshal.Array
-import Foreign.C.Types
-import Foreign.C.String
-import Foreign.Marshal.Alloc
-
-{-foreign import ccall safe "register_touch_began_callback" regTouchBeganCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()-}
-{-foreign import ccall safe "register_touch_ended_callback" regTouchEndedCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()-}
-{-foreign import ccall safe "register_touch_moved_callback" regTouchMovedCallback :: FunPtr (CInt -> CDouble -> CDouble -> IO ()) -> IO ()-}
-{-foreign import ccall safe "register_init_draw_callback" regInitDrawCallback :: FunPtr (CInt -> CInt -> IO ()) -> IO ()-}
-{-foreign import ccall safe "register_draw_frame_callback" regDrawFrameCallback :: FunPtr (IO ()) -> IO ()-}
-{-foreign import ccall "wrapper" mkTouchFunWrap :: (CInt -> CDouble -> CDouble -> IO ()) -> IO (FunPtr (CInt -> CDouble -> CDouble -> IO ()))-}
-{-foreign import ccall "wrapper" mkDrawFrame :: IO () -> IO (FunPtr (IO ()))-}
-{-foreign import ccall "wrapper" mkInit :: (CInt -> CInt -> IO ()) -> IO (FunPtr (CInt -> CInt -> IO ()))-}
-{-foreign import ccall safe "c_main" c_main :: IO ()-}
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
 foreign export ccall "touch_began" touchBegan :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
 foreign export ccall "touch_moved" touchMoved :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
 foreign export ccall "touch_ended" touchEnded :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
+foreign export ccall "draw"        draw       :: StablePtr (IO (),a) -> IO ()
+
+type CDrawInit = CInt -> CInt -> IO (StablePtr (IO (), TouchData))
+type RenderInit resources = [Char] -> IO resources
+type DrawInit resources gamedata = IORef resources -> IO [RawInput] -> IORef (Size Int) -> (gamedata -> IO ()) -> IO gamedata -> IO (IO ())
+
+mkDrawInit :: RenderInit resources -> DrawInit resources gamedata -> CInt -> CInt -> IO (StablePtr (IO (), TouchData))
+mkDrawInit ri di w h = do
+  td          <- initTouchData
+  inputPoller <- makeInputPoller (touchFunc td)
+
+  resRef      <- newIORef undefined
+  winsize     <- newIORef (Size 400 600)
+
+  rp          <- resourcesPath
+  resources   <- ri (rp ++ "/assets")
+  writeIORef resRef  resources
+  writeIORef winsize (Size (fromIntegral w) (fromIntegral h))
+  dm <- di resRef inputPoller winsize (error "Can't write state") (error "Can't load state")
+  newStablePtr (dm, td)
 
 resourcesPath :: IO String
 resourcesPath = do
@@ -46,31 +47,18 @@ resourcesPath = do
         free ptr
         return str
 
-{-mkTouchFun f = mkTouchFunWrap (\ident x y -> f (fromIntegral ident) (realToFrac x) (realToFrac y))-}
+draw :: StablePtr (IO (), a) -> IO ()
+draw pkg = do
+  (drawF,_) <- deRefStablePtr pkg
+  drawF
+  performMinorGC
 
-{-
-makeIOSStepFunc :: Show ie => [SceneOperator ie] -> IO () -> IO (IO ())
-makeIOSStepFunc operators stepInput = do
-        start_time <- getCurrentTime
-        timeref <- newIORef start_time
-
-        return $ do
-            prev_time <- readIORef timeref
-            current_time <- getCurrentTime
-            let delta = min 0.1 $ realToFrac (diffUTCTime current_time prev_time)
-            writeIORef timeref current_time
-
-            stepInput
-            runOneFrame operators iosRender delta
-
-iosInitFunc :: [SceneOperator ie] -> CInt -> CInt -> IO ()
-iosInitFunc ops w h = iosInit (Size (fromIntegral w) (fromIntegral h)) ops
--}
-
-{-makeIOSInputPoller :: IO (IO [RawInput])-}
-{-makeIOSInputPoller = makeInputPoller iosInputInit-}
-
-type TouchData = (IORef [(Int, Double, Double, UTCTime)], IORef [(Int, Double, Double, UTCTime)], IORef [(Int, Double, Double)], IORef (HashMap.HashMap Int (V2 Scalar, UTCTime)))
+type TouchData =
+  ( IORef [(Int, Double, Double, UTCTime)]
+  , IORef [(Int, Double, Double, UTCTime)]
+  , IORef [(Int, Double, Double)]
+  , IORef (HashMap.HashMap Int (V2 Scalar, UTCTime))
+  )
 
 initTouchData :: IO TouchData
 initTouchData = (,,,) <$> newIORef [] <*> newIORef [] <*> newIORef [] <*> newIORef HashMap.empty
@@ -121,42 +109,3 @@ touchFunc touchData handleRawInput = pure $ do
 
   -- Record the new hash
   writeIORef touches hash'''
-
-{-
-iosInit :: Size Int -> [SceneOperator ie] -> IO ()
-iosInit scrSize operators = do
-        initRenderer
-        glClearColor 0.125 0.125 0.125 1
-        glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
-        glActiveTexture gl_TEXTURE0
-
-        {-glEnable gl_PROGRAM_POINT_SIZE -- for OSX-}
-
-        mapM_ (\op -> (_initRenderer op) scrSize) operators
-
-iosRender :: [SceneOperator ie] -> IO ()
-iosRender operators = do
-        glClear (gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT)
-
-        mapM_ _renderOp operators
-
-        resetRenderer
-        -}
-
-mapAll :: [a -> b] -> a -> [b]
-mapAll fs a = map (\f -> f a) fs
-
-{-
-iosMain :: Show ie => [SceneOperator ie] -> (RawInput -> IO ()) -> IO ()
-iosMain operators inputHandler = do
-        inputStep <- iosInputInit inputHandler
-
-        drawFrame <- mkDrawFrame =<< (makeIOSStepFunc operators inputStep)
-
-        initCallback <- mkInit $ iosInitFunc operators
-
-        regInitDrawCallback initCallback
-        regDrawFrameCallback drawFrame
-
-        c_main
-        -}
