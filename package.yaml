@@ -17,6 +17,7 @@ default-extensions:
     - Rank2Types
     - BangPatterns
     - OverloadedStrings
+    - ScopedTypeVariables
 
 dependencies:
     - JuicyPixels

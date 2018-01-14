@@ -10,18 +10,19 @@ module Hickory.Graphics.Shader (
               )
               where
 
-import Foreign.Storable
+import Control.Monad
+import Data.Semigroup
+import Data.Text (Text)
 import Foreign.C.String
-import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
+import Foreign.Ptr
+import Foreign.Storable
 import Hickory.Graphics.Drawing
-import Control.Monad
 import Hickory.Utils.Utils
-import qualified Data.Text as Text
-import qualified Data.Text.Foreign as FText
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text.Foreign as FText
 
 #if defined(ghcjs_HOST_OS)
 import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort, GLboolean, GLsizei, GLintptr,
@@ -121,7 +122,7 @@ retrieveLog lenFun infoFun = do
                return $ Just info
            else return Nothing
 
-compileShader :: Text.Text -> GLenum -> IO (Maybe GLuint)
+compileShader :: Text -> GLenum -> IO (Maybe GLuint)
 compileShader source shaderType = do
         compileSupported <- glGetBoolean GL_SHADER_COMPILER
         unless compileSupported (error "ERROR: Shader compilation not supported.")
@@ -174,7 +175,7 @@ linkProgram programId vertShader fragShader = do
 getAttribLocation progId name = withCString name (glGetAttribLocation progId)
 getUniformLocation progId name = withCString name (glGetUniformLocation progId)
 
-shaderSourceForPath :: String -> IO Text.Text
+shaderSourceForPath :: String -> IO Text
 shaderSourceForPath path = do
         source <- readFileAsText path
         return source
@@ -183,33 +184,37 @@ shaderSourceForPath path = do
 
 #endif
 
-loadShader resPath vert frag uniforms = do
-   let prefix = resPath ++ "/Shaders/"
-       vpath = prefix ++ vert
-       fpath = prefix ++ frag
-   vsource <- shaderSourceForPath vpath
-   fsource <- shaderSourceForPath fpath
+loadShader :: Text -> String -> String -> String -> [String] -> IO Shader
+loadShader version resPath vert frag uniforms = do
+  let prefix = resPath ++ "/Shaders/"
+      vpath  = prefix ++ vert
+      fpath  = prefix ++ frag
+  vsource <- getSource vpath
+  fsource <- getSource fpath
 
-   vs <- compileVertShader vsource
-   fs <- compileFragShader fsource
+  vs      <- compileVertShader vsource
+  fs      <- compileFragShader fsource
 
-   case vs of
-       Just vsh -> case fs of
-                       Just fsh -> do
-                           prog <- buildShaderProgram vsh fsh uniforms
-                           case prog of
-                               Just pr -> return pr
-                               Nothing -> do
-                                   deleteShader vsh
-                                   deleteShader fsh
-                                   error $ "Failed to link shader program: " ++ vpath ++ "-" ++ fpath
-                       Nothing -> error $ "Couldn't load frag shader: " ++ fpath
-       Nothing -> error $ "Couldn't load vertex shader: " ++ vpath
+  case vs of
+    Just vsh -> case fs of
+      Just fsh -> do
+        prog <- buildShaderProgram vsh fsh uniforms
+        case prog of
+          Just pr -> return pr
+          Nothing -> do
+            deleteShader vsh
+            deleteShader fsh
+            error $ "Failed to link shader program: " ++ vpath ++ "-" ++ fpath
+      Nothing -> error $ "Couldn't load frag shader: " ++ fpath
+    Nothing -> error $ "Couldn't load vertex shader: " ++ vpath
+  where
+    getSource :: String -> IO Text
+    getSource pth = (("#version " <> version <> "\n") <>) <$> shaderSourceForPath pth
 
-compileVertShader :: Text.Text -> IO (Maybe ShaderID)
+compileVertShader :: Text -> IO (Maybe ShaderID)
 compileVertShader source = compileShader source GL_VERTEX_SHADER
 
-compileFragShader :: Text.Text -> IO (Maybe ShaderID)
+compileFragShader :: Text -> IO (Maybe ShaderID)
 compileFragShader source = compileShader source GL_FRAGMENT_SHADER
 
 buildShaderProgram :: ShaderID -> ShaderID -> [String] -> IO (Maybe Shader)

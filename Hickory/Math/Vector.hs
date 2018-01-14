@@ -39,7 +39,6 @@ import Linear.V2
 import Linear.V3
 import Linear.V4
 import Linear.Vector
-import Text.Printf
 import Linear.Epsilon
 import Linear.Metric
 import Data.Foldable (toList)

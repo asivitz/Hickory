@@ -67,26 +67,27 @@ parseNormal = lstToV3 <$> try (reserved "vn" *> count 3 (lexeme anySignedNumber)
 
 parseFace :: Parser Face
 parseFace = lstToV3 <$> try (reserved "f" *> count 3 (lexeme parseTriple))
-    where parseTriple = do
-                            v <- fromIntegral <$> L.decimal
-                            char '/'
-                            t <- fromIntegral <$> L.decimal
-                            char '/'
-                            n <- fromIntegral <$> L.decimal
-                            return (v,t,n)
+ where
+  parseTriple = do
+    v <- L.decimal
+    char '/'
+    t <- L.decimal
+    char '/'
+    n <- L.decimal
+    pure (v, t, n)
 
 parseOBJ :: Parser (OBJ Double)
 parseOBJ = do
-        sc
-        reserved "mtllib" *> identifier *> reserved "o" *> identifier
-        vs <- many parseVertex
-        tCoords <- many parseTextureCoord
-        norms <- many parseNormal
-        reserved "usemtl" *> identifier
-        reserved "s" *> identifier
-        fs <- many parseFace
+  sc
+  reserved "mtllib" *> identifier *> reserved "o" *> identifier
+  vs      <- many parseVertex
+  tCoords <- many parseTextureCoord
+  norms   <- many parseNormal
+  reserved "usemtl" *> identifier
+  reserved "s" *> identifier
+  fs <- many parseFace
 
-        return $ OBJ vs tCoords norms fs
+  return $ OBJ vs tCoords norms fs
 
 loadOBJ :: String -> IO (OBJ Double)
 loadOBJ filePath = do
