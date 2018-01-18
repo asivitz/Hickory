@@ -16,11 +16,11 @@ m44overV3 m v = (m !* (v3tov4 v 1)) ^. _xyz
 withVec4 :: V4 Scalar -> (Ptr CFloat -> IO b) -> IO b
 withVec4 v f = with (fmap realToFrac v :: (V4 CFloat)) (f . castPtr)
 
-viewProject :: V3 Scalar -> Mat44 -> V4 Scalar -> V3 Scalar
-viewProject pos modelView (V4 vpx vpy vpw vph) =
-        let projected = m44overV3 modelView pos
-            (V3 x y z) = fmap (\a -> (a + 1) / 2) projected in
-                v3 (vpx + vpw * x) (vpy + vph * y) z
+viewProject :: Mat44 -> V4 Scalar -> V3 Scalar -> V3 Scalar
+viewProject modelView (V4 vpx vpy vpw vph) pos =
+  let projected  = modelView !* (v3tov4 pos 1)
+      (V3 x y z) = fmap (\a -> (a + 1) / 2) $ (projected ^. _xyz) ^/ (projected ^. _w)
+  in  v3 (vpx + vpw * x) (vpy + vph * y) z
 
 viewUnproject :: V3 Scalar -> Mat44 -> V4 Scalar -> V3 Scalar
 viewUnproject (V3 wx wy wz) modelView (V4 vpx vpy vpw vph) =
