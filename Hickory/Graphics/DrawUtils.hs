@@ -362,14 +362,9 @@ loadModelFromX shader path = do
         >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
       return $ ThreeDModel vo Nothing mesh extents
 
-renderTree :: Mat44 -> RenderTree -> RenderState -> IO RenderState
-renderTree viewmat tree state = do
-  state'@(RenderState vaolst) <- updateRenderState tree state
-  let tree' = textToVAO vaolst tree
-
-  drawTree viewmat tree'
-
-  return state'
+renderTree :: Mat44 -> RenderTree -> RenderState -> IO ()
+renderTree viewmat tree (RenderState vaolst) =
+  drawTree viewmat $ textToVAO vaolst tree
 
 updateRenderState :: RenderTree -> RenderState -> IO RenderState
 updateRenderState tree (RenderState vaolst) = do
