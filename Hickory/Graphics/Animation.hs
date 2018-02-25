@@ -7,7 +7,7 @@ import Hickory.Math.Matrix
 import Linear.Quaternion
 import Data.List
 import Control.Lens ((^.))
-import qualified Hickory.Utils.BVH as BVH
+import qualified Hickory.Utils.Bvh as BVH
 import Data.Text (Text)
 
 data Frame a = Joint Text (M44 a) [Frame a]

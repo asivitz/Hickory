@@ -15,7 +15,7 @@ import Hickory.Graphics.DrawText
 import Hickory.Text.Text
 import Hickory.Graphics.GLSupport
 import Data.Foldable (toList)
-import qualified Hickory.Utils.OBJ as OBJ
+import qualified Hickory.Utils.Obj as OBJ
 import qualified Hickory.Utils.DirectX as DX
 import Data.Text (Text)
 

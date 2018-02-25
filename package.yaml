@@ -77,8 +77,8 @@ library:
     - Hickory.Utils.Utils
     - Hickory.Utils.HashMap
     - Hickory.Utils.Projection
-    - Hickory.Utils.BVH
-    - Hickory.Utils.OBJ
+    - Hickory.Utils.Bvh
+    - Hickory.Utils.Obj
     - Hickory.Utils.DirectX
     - Hickory.Utils.Parsing
     - Hickory.Text.Text

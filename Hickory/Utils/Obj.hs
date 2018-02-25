@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Hickory.Utils.OBJ where
+module Hickory.Utils.Obj where
 
 import Control.Monad (void)
 import Control.Applicative (empty)

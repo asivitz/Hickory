@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 
-module Hickory.Utils.BVH where
+module Hickory.Utils.Bvh where
 
 import Control.Monad (void)
 import Control.Applicative (empty)
