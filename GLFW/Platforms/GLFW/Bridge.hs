@@ -29,7 +29,7 @@ getBufferSizeRef :: GLFW.Window -> IO (IORef (Size Int))
 getBufferSizeRef win = do
   fbSize     <- uncurry Size <$> GLFW.getFramebufferSize win
   fbSizeRef  <- newIORef fbSize
-  GLFW.setFramebufferSizeCallback win (Just $ \_ w h -> print "resize" >> print (w,h) >> writeIORef fbSizeRef (Size w h))
+  GLFW.setFramebufferSizeCallback win (Just $ \_ w h -> print ("resize" :: String) >> print (w,h) >> writeIORef fbSizeRef (Size w h))
   pure fbSizeRef
 
 setupInput :: GLFW.Window -> IORef (Size Int) -> (RawInput -> IO ()) -> IO (IO ())

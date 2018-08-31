@@ -11,7 +11,6 @@ module Hickory.Graphics.Shader (
               where
 
 import Control.Monad
-import Data.Semigroup
 import Data.Text (Text)
 import Foreign.C.String
 import Foreign.Marshal.Alloc

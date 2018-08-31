@@ -13,7 +13,7 @@ import Hickory.Math.Vector
 import Hickory.Math.Matrix
 import Hickory.Utils.Parsing
 import qualified Data.Vector.Unboxed as Vector
-import Control.Applicative
+import Control.Applicative hiding (many)
 import Hickory.Color
 import Linear.Quaternion
 import Data.List
@@ -230,7 +230,7 @@ parseMesh = parseSection "Mesh" $
 parseSection name p = lexeme (string name) >> braces p
 parseNamedSection name p = lexeme (string name) >> identifier >>= \x -> braces (p x)
 
-sepByCount_ :: Alternative m => m a -> m sep -> Int -> m [a]
+sepByCount_ :: (Monad m, Alternative m) => m a -> m sep -> Int -> m [a]
 sepByCount_ p sep c = (:) <$> p <*> count (c - 1) (sep *> p)
 
 sepByCount p sepChar = sepByCount_ p (lexeme (char sepChar))
