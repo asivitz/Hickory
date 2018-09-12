@@ -18,17 +18,23 @@ default-extensions:
     - BangPatterns
     - OverloadedStrings
     - ScopedTypeVariables
+    - LambdaCase
+    - TupleSections
 
 dependencies:
     - JuicyPixels
+    - MonadRandom
     - OpenGLRaw
     - attoparsec
     - base
     - containers
+    - groom
     - hashable
     - lens
     - linear
     - megaparsec
+    - random
+    - reactive-banana
     - scientific
     - text
     - time
@@ -82,6 +88,8 @@ library:
     - Hickory.Utils.Parsing
     - Hickory.Text.Text
     - Hickory.Text.Font
+    - Hickory.Serialize
+    - Hickory.FRP
     - UI.Stack
     - UI.Elements
 

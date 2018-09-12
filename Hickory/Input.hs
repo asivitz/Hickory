@@ -140,3 +140,14 @@ data Key =
 
 instance Data.Hashable.Hashable Key where
       hashWithSalt s k = hashWithSalt s (fromEnum k)
+
+data TouchEvent
+  = Up   (V2 Scalar)
+  | Down (V2 Scalar)
+  | Loc  (V2 Scalar)
+
+mapTouchEvent :: (V2 Scalar -> V2 Scalar) -> TouchEvent -> TouchEvent
+mapTouchEvent f = \case
+  Up   v -> Up (f v)
+  Down v -> Down (f v)
+  Loc  v -> Loc (f v)
