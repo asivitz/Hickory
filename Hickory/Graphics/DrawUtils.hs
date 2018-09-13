@@ -362,9 +362,18 @@ loadModelFromX shader path = do
         >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
       return $ ThreeDModel vo Nothing mesh extents
 
-renderTree :: Mat44 -> RenderTree -> RenderState -> IO ()
-renderTree viewmat tree (RenderState vaolst) =
-  drawTree viewmat $ textToVAO vaolst tree
+renderTrees :: [RenderTree] -> RenderState -> IO RenderState
+renderTrees trees state = do
+  clearScreen
+  state' <- updateRenderState (List trees) state
+  flip mapM_ trees $ \t -> do
+    renderTree t state'
+    clearDepth
+  pure state'
+
+renderTree :: RenderTree -> RenderState -> IO ()
+renderTree tree (RenderState vaolst) =
+  drawTree $ textToVAO vaolst tree
 
 updateRenderState :: RenderTree -> RenderState -> IO RenderState
 updateRenderState tree (RenderState vaolst) = do
@@ -400,19 +409,22 @@ runDrawCommand (Command sh mat uniforms spec) = drawSpec sh (UniformBinding "mod
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
 {-rtDepth _ = 0-}
-drawTree :: M44 Scalar -> RenderTree -> IO ()
-drawTree mat tree = mapM_ runDrawCommand (reverse commands)
-  where commands = collectTreeSpecs mat tree
+drawTree :: RenderTree -> IO ()
+drawTree tree = mapM_ runDrawCommand (reverse commands)
+  where commands = collectTreeSpecs Nothing tree
         {-sorted = sortOn (\(Command _ m _ _) -> - (m !* V4 0 0 0 1) ^. _z) commands-}
 
-collectTreeSpecs :: M44 Scalar -> RenderTree -> [Command]
-collectTreeSpecs _         NoRender          = []
-collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs mat' child
- where
-  mat' = case mat of
-    Just n  -> parentMat !*! n
-    Nothing -> parentMat
+combineMats :: Maybe (M44 Scalar) -> Maybe (M44 Scalar) -> Maybe (M44 Scalar)
+combineMats Nothing Nothing = Nothing
+combineMats Nothing (Just y) = Just y
+combineMats (Just x) Nothing = Just x
+combineMats (Just x) (Just y) = Just (x !*! y)
 
+collectTreeSpecs :: Maybe (M44 Scalar) -> RenderTree -> [Command]
+collectTreeSpecs _         NoRender          = []
+collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs (combineMats parentMat mat) child
 collectTreeSpecs parentMat (Primative sh mat uniforms spec) = [Command sh mat' uniforms spec]
-  where mat' = parentMat !*! mat
+  where mat' = case parentMat of
+          Just m -> m !*! mat
+          Nothing -> mat
 collectTreeSpecs parentMat (List children) = concatMap (collectTreeSpecs parentMat) children -- (sortOn rtDepth children)
