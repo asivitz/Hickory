@@ -10,6 +10,7 @@ import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddH
 import Control.Monad.Random.Lazy (runRand, Rand, liftIO)
 import System.Random (StdGen, newStdGen)
 import qualified Data.Sequence as S
+import Control.Applicative (liftA2)
 
 
 type HandlerPair a = (AddHandler a, Handler a)
@@ -107,6 +108,12 @@ historicalWithEvents initial eStep eChangeIndex = do
     in  case S.viewl rst' of
           S.EmptyL -> error "SHouldn't happen"
           x S.:< _ -> let (acc, evs) = stepF x in (evs, (acc S.<| rst', 0))
+
+-- useful for [Behavior (Resources -> RenderTree)] -> Behavior (Resources -> [RenderTree])
+combineRenderFuncs :: Applicative f => [f (a -> b)] -> f (a -> [b])
+combineRenderFuncs = foldr (liftA2 go) (pure $ const [])
+  where go :: (a -> b) -> (a -> [b]) -> a -> [b]
+        go f fs r = f r : fs r
 
 -- Unused
 
