@@ -6,6 +6,7 @@ module Hickory.Graphics.DrawUtils where
 
 import Hickory.Types
 
+import Control.Lens (Lens', view, set)
 import Hickory.Utils.Utils
 import Hickory.Math.Matrix
 import Hickory.Math.Vector
@@ -18,6 +19,7 @@ import Data.Foldable (toList)
 import qualified Hickory.Utils.Obj as OBJ
 import qualified Hickory.Utils.DirectX as DX
 import Data.Text (Text)
+import Data.IORef (IORef, writeIORef, readIORef)
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
@@ -402,6 +404,16 @@ updateRenderState tree (RenderState vaolst) = do
             return ((desc, vaoobj) : rest)
   vaolst' <- xx vaolst new unused
   return $ RenderState vaolst'
+
+class HasRenderState a where
+  renderState :: Lens' a RenderState
+
+render :: HasRenderState a => IORef a -> (a -> [RenderTree]) -> IO ()
+render resRef rf = do
+  res <- readIORef resRef
+  rs' <- renderTrees (rf res) (view renderState res)
+  writeIORef resRef (set renderState rs' res)
+
 
 runDrawCommand :: Command -> IO ()
 runDrawCommand (Command sh mat uniforms spec) = drawSpec sh (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) spec

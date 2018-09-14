@@ -11,6 +11,8 @@ import Control.Monad.Random.Lazy (runRand, Rand, liftIO)
 import System.Random (StdGen, newStdGen)
 import qualified Data.Sequence as S
 import Control.Applicative (liftA2)
+import qualified Hickory.Graphics.DrawUtils as DU
+import Data.IORef (IORef)
 
 
 type HandlerPair a = (AddHandler a, Handler a)
@@ -125,3 +127,6 @@ foldEvents b h e = fmap (foldE h) b <@> e
 
 foldEvents' :: Behavior (a -> b -> a) -> Behavior a -> Event [b] -> Event a
 foldEvents' bf b e = foldE <$> bf <*> b <@> e
+
+render :: DU.HasRenderState a => IORef a -> [Behavior (a -> DU.RenderTree)] -> Behavior (IO ())
+render resRef renderFuncs = DU.render resRef <$> combineRenderFuncs renderFuncs
