@@ -1,7 +1,7 @@
 # For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-12.7
+resolver: lts-12.18
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -12,9 +12,7 @@ allow-newer: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps: [
-    OpenGLRaw-3.2.1.0,
-    GLFW-b-1.4.8.1,
-    bindings-GLFW-3.1.2.2
+    reactive-banana-1.2.0.0
 ]
 
 # Override default flag values for local packages and extra-deps
