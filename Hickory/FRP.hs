@@ -13,7 +13,7 @@ import qualified Data.Sequence as S
 import Control.Applicative (liftA2)
 import qualified Hickory.Graphics.DrawUtils as DU
 import Data.IORef (IORef)
-
+import Hickory.Utils.Utils (makeFPSTicker)
 
 type HandlerPair a = (AddHandler a, Handler a)
 
@@ -60,7 +60,8 @@ mkKeyEvents (keyPair, keysHeldPair) = do
   pure (keyDown, keyDownOrHeld)
 
 data CoreEventGenerators = CoreEventGenerators
-  { touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
+  { renderEvent :: HandlerPair Scalar
+  , touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
                    , HandlerPair [(Double, V2 Scalar, Int)]
                    , HandlerPair [(V2 Scalar, Int)])
   , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double))
@@ -68,7 +69,8 @@ data CoreEventGenerators = CoreEventGenerators
   }
 
 data CoreEvents = CoreEvents
-  { eTouchEvs :: Event [TouchEvent]
+  { eRender   :: Event Scalar
+  , eTouchEvs :: Event [TouchEvent]
   , eTime     :: Event Scalar
   , keyDown   :: Key -> Event Key
   , keyDownOrHeld :: Key -> Event Key
@@ -79,7 +81,14 @@ coreEventGenerators inputP = do
   touchPairs <- touchHandlers
   keyPairs   <- keyHandlers
   timePair   <- newAddHandler
+  renderPair <- newAddHandler
+
+  fpsTicker  <- makeFPSTicker
+
   let processor = do
+        fps <- fpsTicker
+        fire renderPair fps
+
         (inputP >>=) . mapM_ $ \case
           InputKeyDown k -> fire (view _1 keyPairs) k
           InputKeysHeld keymap -> fire (view _2 keyPairs) keymap
@@ -88,14 +97,15 @@ coreEventGenerators inputP = do
           InputTouchesUp   touches -> fire (view _2 touchPairs) touches
           InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
           _ -> pure ()
-  pure (processor, CoreEventGenerators touchPairs keyPairs timePair)
+  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair)
 
 mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
 mkCoreEvents coreEvGens = do
   eTouchEvs                <- mkTouchEvents . touchEvents $ coreEvGens
   eTime                    <- mkEvent . stepEvents $ coreEvGens
   (keyDown, keyDownOrHeld) <- mkKeyEvents . keyEvents $ coreEvGens
-  pure $ CoreEvents eTouchEvs eTime keyDown keyDownOrHeld
+  eRender                  <- mkEvent . renderEvent $ coreEvGens
+  pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld
 
 -- Utils
 
