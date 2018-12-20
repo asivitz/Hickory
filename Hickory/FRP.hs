@@ -2,9 +2,9 @@ module Hickory.FRP where
 
 import Control.Lens (_1, _2, _3, view)
 import qualified Data.HashMap.Strict as HashMap
-import Hickory.Math.Vector (V4(..), V2(..), Scalar, V3(..), v2tov3)
+import Hickory.Math.Vector (V2(..), Scalar)
 import Data.Hashable (Hashable)
-import Hickory.Input (TouchEvent(..))
+import Hickory.Input (TouchEvent(..), RawInput(..), Key)
 import Reactive.Banana (Behavior, Event, MonadMoment, (<@>), mapAccum, unions, accumB, filterE, filterJust, First(..), getFirst)
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler)
 import Control.Monad.Random.Lazy (runRand, Rand, liftIO)
@@ -27,13 +27,13 @@ touchHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
 touchHandlers =
   (,,) <$> newAddHandler <*> newAddHandler <*> newAddHandler
 
-touchEvents
+mkTouchEvents
   :: ( HandlerPair [(V2 Scalar, b)]
      , HandlerPair [(Double, V2 Scalar, Int)]
      , HandlerPair [(V2 Scalar, b3)]
      )
   -> MomentIO (Event [TouchEvent])
-touchEvents (pointDownPair, pointUpPair, pointLocPair) = do
+mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
   ePointDown <- mkEvent pointDownPair
   ePointUp   <- mkEvent pointUpPair
   ePointLoc  <- mkEvent pointLocPair
@@ -49,8 +49,8 @@ touchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 keyHandlers :: IO (HandlerPair a, HandlerPair b)
 keyHandlers = (,) <$> newAddHandler <*> newAddHandler
 
-keyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => (HandlerPair k, HandlerPair (HashMap.HashMap k b1)) -> MomentIO (k -> Event k, k -> Event k)
-keyEvents (keyPair, keysHeldPair) = do
+mkKeyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => (HandlerPair k, HandlerPair (HashMap.HashMap k b1)) -> MomentIO (k -> Event k, k -> Event k)
+mkKeyEvents (keyPair, keysHeldPair) = do
   eKey    <- mkEvent keyPair
   eKeysHeld <- mkEvent keysHeldPair
   let keyDown k = filterE (==k) eKey
@@ -58,6 +58,44 @@ keyEvents (keyPair, keysHeldPair) = do
                                    , k <$ (filterE (>0.2) . filterJust $ HashMap.lookup k <$> eKeysHeld)
                                    ]
   pure (keyDown, keyDownOrHeld)
+
+data CoreEventGenerators = CoreEventGenerators
+  { touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
+                   , HandlerPair [(Double, V2 Scalar, Int)]
+                   , HandlerPair [(V2 Scalar, Int)])
+  , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double))
+  , stepEvents  :: HandlerPair Scalar
+  }
+
+data CoreEvents = CoreEvents
+  { eTouchEvs :: Event [TouchEvent]
+  , eTime     :: Event Scalar
+  , keyDown   :: Key -> Event Key
+  , keyDownOrHeld :: Key -> Event Key
+  }
+
+coreEventGenerators :: IO [RawInput] -> IO (IO (), CoreEventGenerators)
+coreEventGenerators inputP = do
+  touchPairs <- touchHandlers
+  keyPairs   <- keyHandlers
+  timePair   <- newAddHandler
+  let processor = do
+        (inputP >>=) . mapM_ $ \case
+          InputKeyDown k -> fire (view _1 keyPairs) k
+          InputKeysHeld keymap -> fire (view _2 keyPairs) keymap
+          Step d         -> fire timePair d
+          InputTouchesDown touches -> fire (view _1 touchPairs) touches
+          InputTouchesUp   touches -> fire (view _2 touchPairs) touches
+          InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
+          _ -> pure ()
+  pure (processor, CoreEventGenerators touchPairs keyPairs timePair)
+
+mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
+mkCoreEvents coreEvGens = do
+  eTouchEvs                <- mkTouchEvents . touchEvents $ coreEvGens
+  eTime                    <- mkEvent . stepEvents $ coreEvGens
+  (keyDown, keyDownOrHeld) <- mkKeyEvents . keyEvents $ coreEvGens
+  pure $ CoreEvents eTouchEvs eTime keyDown keyDownOrHeld
 
 -- Utils
 
