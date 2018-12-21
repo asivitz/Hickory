@@ -1,19 +1,20 @@
 module Hickory.FRP where
 
-import Control.Lens (_1, _2, _3, view)
-import qualified Data.HashMap.Strict as HashMap
-import Hickory.Math.Vector (V2(..), Scalar)
-import Data.Hashable (Hashable)
-import Hickory.Input (TouchEvent(..), RawInput(..), Key)
-import Reactive.Banana (Behavior, Event, MonadMoment, (<@>), mapAccum, unions, accumB, filterE, filterJust, First(..), getFirst)
-import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler)
-import Control.Monad.Random.Lazy (runRand, Rand, liftIO)
-import System.Random (StdGen, newStdGen)
-import qualified Data.Sequence as S
 import Control.Applicative (liftA2)
-import qualified Hickory.Graphics.DrawUtils as DU
-import Data.IORef (IORef)
+import Control.Lens (_1, _2, _3, view)
+import Control.Monad.Random.Lazy (runRand, Rand, liftIO)
+import Data.Hashable (Hashable)
+import Data.IORef (IORef, readIORef)
+import Hickory.Input (TouchEvent(..), RawInput(..), Key)
+import Hickory.Math.Vector (V2(..), Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
+import Hickory.Types (Size)
+import Reactive.Banana (Behavior, Event, MonadMoment, (<@>), mapAccum, unions, accumB, filterE, filterJust, First(..), getFirst, stepper)
+import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll)
+import System.Random (StdGen, newStdGen)
+import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Sequence as S
+import qualified Hickory.Graphics.DrawUtils as DU
 
 type HandlerPair a = (AddHandler a, Handler a)
 
@@ -66,6 +67,7 @@ data CoreEventGenerators = CoreEventGenerators
                    , HandlerPair [(V2 Scalar, Int)])
   , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double))
   , stepEvents  :: HandlerPair Scalar
+  , frameBufferSize :: IORef (Size Int)
   }
 
 data CoreEvents = CoreEvents
@@ -74,10 +76,13 @@ data CoreEvents = CoreEvents
   , eTime     :: Event Scalar
   , keyDown   :: Key -> Event Key
   , keyDownOrHeld :: Key -> Event Key
+  , scrSizeB  :: Behavior (Size Int)
+  , fpsB      :: Behavior Scalar
   }
 
-coreEventGenerators :: IO [RawInput] -> IO (IO (), CoreEventGenerators)
-coreEventGenerators inputP = do
+coreEventGenerators :: IO [RawInput] -> IORef (Size Int) -> IO (IO (), CoreEventGenerators)
+coreEventGenerators inputPoller fbSizeRef = do
+
   touchPairs <- touchHandlers
   keyPairs   <- keyHandlers
   timePair   <- newAddHandler
@@ -89,7 +94,7 @@ coreEventGenerators inputP = do
         fps <- fpsTicker
         fire renderPair fps
 
-        (inputP >>=) . mapM_ $ \case
+        (inputPoller >>=) . mapM_ $ \case
           InputKeyDown k -> fire (view _1 keyPairs) k
           InputKeysHeld keymap -> fire (view _2 keyPairs) keymap
           Step d         -> fire timePair d
@@ -97,7 +102,7 @@ coreEventGenerators inputP = do
           InputTouchesUp   touches -> fire (view _2 touchPairs) touches
           InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
           _ -> pure ()
-  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair)
+  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair fbSizeRef)
 
 mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
 mkCoreEvents coreEvGens = do
@@ -105,7 +110,11 @@ mkCoreEvents coreEvGens = do
   eTime                    <- mkEvent . stepEvents $ coreEvGens
   (keyDown, keyDownOrHeld) <- mkKeyEvents . keyEvents $ coreEvGens
   eRender                  <- mkEvent . renderEvent $ coreEvGens
-  pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld
+
+  scrSizeB <- fromPoll . readIORef . frameBufferSize $ coreEvGens
+  fpsB     <- stepper 0 eRender
+
+  pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld scrSizeB fpsB
 
 -- Utils
 
