@@ -1,7 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Hickory.Graphics.DrawText (Printer(..), loadPrinter, pvcShaderPair, createPrinterVAOConfig, PositionedTextCommand(..), textcommand) where
+module Hickory.Graphics.DrawText (Printer(..), loadPrinter, createPrinterVAOConfig, PositionedTextCommand(..), textcommand) where
 
 import Hickory.Color
 import Hickory.Graphics.GLSupport
@@ -47,6 +47,3 @@ textcommand = TextCommand {
                           valign = Middle,
                           color = black,
                           leftBump = 0 }
-
-pvcShaderPair :: (String, String)
-pvcShaderPair = ("PerVertColor.vsh", "PerVertColor.fsh")

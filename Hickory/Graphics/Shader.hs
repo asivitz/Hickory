@@ -5,13 +5,14 @@
 
 module Hickory.Graphics.Shader (
               loadShader,
+              loadShaderFromPaths,
               useShader,
               deleteShader
               )
               where
 
 import Control.Monad
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import Foreign.C.String
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -183,13 +184,20 @@ shaderSourceForPath path = do
 
 #endif
 
-loadShader :: Text -> String -> String -> String -> [String] -> IO Shader
-loadShader version resPath vert frag uniforms = do
+loadShaderFromPaths :: Text -> String -> String -> String -> [String] -> IO Shader
+loadShaderFromPaths version resPath vert frag uniforms = do
   let prefix = resPath ++ "/Shaders/"
       vpath  = prefix ++ vert
       fpath  = prefix ++ frag
-  vsource <- getSource vpath
-  fsource <- getSource fpath
+  vsource <- shaderSourceForPath vpath
+  fsource <- shaderSourceForPath fpath
+
+  loadShader version vsource fsource uniforms
+
+loadShader :: Text -> Text -> Text -> [String] -> IO Shader
+loadShader version vert frag uniforms = do
+  let vsource = addVersion vert
+      fsource = addVersion frag
 
   vs      <- compileVertShader vsource
   fs      <- compileFragShader fsource
@@ -203,12 +211,12 @@ loadShader version resPath vert frag uniforms = do
           Nothing -> do
             deleteShader vsh
             deleteShader fsh
-            error $ "Failed to link shader program: " ++ vpath ++ "-" ++ fpath
-      Nothing -> error $ "Couldn't load frag shader: " ++ fpath
-    Nothing -> error $ "Couldn't load vertex shader: " ++ vpath
+            error $ "Failed to link shader program: " ++ unpack vert ++ "\n\n" ++ unpack frag
+      Nothing -> error $ "Couldn't load frag shader: " ++ unpack frag
+    Nothing -> error $ "Couldn't load vertex shader: " ++ unpack vert
   where
-    getSource :: String -> IO Text
-    getSource pth = (("#version " <> version <> "\n") <>) <$> shaderSourceForPath pth
+    addVersion :: Text -> Text
+    addVersion = mappend ("#version " <> version <> "\n")
 
 compileVertShader :: Text -> IO (Maybe ShaderID)
 compileVertShader source = compileShader source GL_VERTEX_SHADER
