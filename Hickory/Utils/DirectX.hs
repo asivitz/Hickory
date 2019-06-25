@@ -251,10 +251,10 @@ parseFrame = parseNamedSection "Frame" $ \name ->
           <*> optional parseMesh
           <*> return []
 
-parseHeader = lexeme (manyTill anyChar eol)
+parseHeader = lexeme (manyTill anySingle eol)
 
 skipSection :: Text -> Parser ()
-skipSection name = lexeme $ string name >> manyTill anyChar (char '}') >> return ()
+skipSection name = lexeme $ string name >> manyTill anySingle (char '}') >> return ()
 
 parseAnimationKey element = parseSection "AnimationKey" $ do
     terminate int
@@ -305,7 +305,7 @@ parseX = do
         tps <- parseSection "AnimTicksPerSecond" (terminate int)
         sets <- many (parseAnimationSet tps)
 
-        manyTill anyChar eof
+        manyTill anySingle eof
         return $ fillFrame sets f
 
 data Animation = Animation {

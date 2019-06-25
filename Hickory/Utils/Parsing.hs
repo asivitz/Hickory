@@ -14,7 +14,7 @@ import Data.Void
 
 type Parser = Parsec Void Text
 
-parseFromFile :: Parsec e Text a -> String -> IO (Either (ParseError Char e) a)
+parseFromFile :: Parsec e Text a -> String -> IO (Either (ParseErrorBundle Text e) a)
 parseFromFile p file = runParser p file <$> readFileAsText file
 
 anyNumber :: (MonadParsec e s m, Token s ~ Char) => m Double
