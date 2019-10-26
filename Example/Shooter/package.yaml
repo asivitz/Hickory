@@ -1,0 +1,41 @@
+name:                Shooter
+version:             0.1.0.0
+synopsis:            An example action game
+description:         Please see README.md
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2019 Axis Sivitz
+
+ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+
+dependencies:
+    - Hickory
+    - Hickory-GLFW
+    - GLFW-b
+    - base
+    - bytestring
+    - lens
+    - random
+    - raw-strings-qq
+    - unordered-containers
+    - reactive-banana
+    - text
+    - groom
+    - hashable
+    - linear
+    - time
+    - generic-lens
+
+default-extensions:
+    - LambdaCase
+    - TupleSections
+    - ViewPatterns
+    - NamedFieldPuns
+    - OverloadedStrings
+    - DeriveGeneric
+    - QuasiQuotes
+    - Rank2Types
+
+executables:
+  shooter:
+    main: shooter.hs

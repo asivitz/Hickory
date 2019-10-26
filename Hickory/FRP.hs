@@ -47,25 +47,27 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 
   pure eTouchEvs
 
-keyHandlers :: IO (HandlerPair a, HandlerPair b)
-keyHandlers = (,) <$> newAddHandler <*> newAddHandler
+keyHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
+keyHandlers = (,,) <$> newAddHandler <*> newAddHandler <*> newAddHandler
 
-mkKeyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => (HandlerPair k, HandlerPair (HashMap.HashMap k b1)) -> MomentIO (k -> Event k, k -> Event k)
-mkKeyEvents (keyPair, keysHeldPair) = do
+mkKeyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => (HandlerPair k, HandlerPair (HashMap.HashMap k b1), HandlerPair k) -> MomentIO (Event k, k -> Event k, Event k)
+mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
   eKey    <- mkEvent keyPair
   eKeysHeld <- mkEvent keysHeldPair
-  let keyDown k = filterE (==k) eKey
-      keyDownOrHeld k = unionFirst [ keyDown k
+  eKeyUp  <- mkEvent keyUpPair
+  let -- keyDown k = filterE (==k) eKey
+      keyDownOrHeld k = unionFirst [ filterE (==k) $ eKey
                                    , k <$ (filterE (>0.2) . filterJust $ HashMap.lookup k <$> eKeysHeld)
                                    ]
-  pure (keyDown, keyDownOrHeld)
+      -- keyUp k = filterE (==k) eKeyUp
+  pure (eKey, keyDownOrHeld, eKeyUp)
 
 data CoreEventGenerators = CoreEventGenerators
   { renderEvent :: HandlerPair Scalar
   , touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
                    , HandlerPair [(Double, V2 Scalar, Int)]
                    , HandlerPair [(V2 Scalar, Int)])
-  , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double))
+  , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double), HandlerPair Key)
   , stepEvents  :: HandlerPair Scalar
   , frameBufferSize :: IORef (Size Int)
   }
@@ -74,8 +76,9 @@ data CoreEvents = CoreEvents
   { eRender   :: Event Scalar
   , eTouchEvs :: Event [TouchEvent]
   , eTime     :: Event Scalar
-  , keyDown   :: Key -> Event Key
+  , keyDown   :: Event Key
   , keyDownOrHeld :: Key -> Event Key
+  , keyUp     :: Event Key
   , scrSizeB  :: Behavior (Size Int)
   , fpsB      :: Behavior Scalar
   }
@@ -97,24 +100,24 @@ coreEventGenerators inputPoller fbSizeRef = do
         (inputPoller >>=) . mapM_ $ \case
           InputKeyDown k -> fire (view _1 keyPairs) k
           InputKeysHeld keymap -> fire (view _2 keyPairs) keymap
+          InputKeyUp k _ -> fire (view _3 keyPairs) k
           Step d         -> fire timePair d
           InputTouchesDown touches -> fire (view _1 touchPairs) touches
           InputTouchesUp   touches -> fire (view _2 touchPairs) touches
           InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
-          _ -> pure ()
   pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair fbSizeRef)
 
 mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
 mkCoreEvents coreEvGens = do
   eTouchEvs                <- mkTouchEvents . touchEvents $ coreEvGens
   eTime                    <- mkEvent . stepEvents $ coreEvGens
-  (keyDown, keyDownOrHeld) <- mkKeyEvents . keyEvents $ coreEvGens
+  (keyDown, keyDownOrHeld, keyUp) <- mkKeyEvents . keyEvents $ coreEvGens
   eRender                  <- mkEvent . renderEvent $ coreEvGens
 
   scrSizeB <- fromPoll . readIORef . frameBufferSize $ coreEvGens
   fpsB     <- stepper 0 eRender
 
-  pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld scrSizeB fpsB
+  pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld keyUp scrSizeB fpsB
 
 -- Utils
 
