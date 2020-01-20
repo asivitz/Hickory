@@ -11,6 +11,7 @@ import Hickory.Input
 import Data.Time
 import Data.Maybe
 import Control.Monad
+import qualified Graphics.GL.Compatibility41 as GL
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -29,7 +30,9 @@ getBufferSizeRef :: GLFW.Window -> IO (IORef (Size Int))
 getBufferSizeRef win = do
   fbSize     <- uncurry Size <$> GLFW.getFramebufferSize win
   fbSizeRef  <- newIORef fbSize
-  GLFW.setFramebufferSizeCallback win (Just $ \_ w h -> print ("resize" :: String) >> print (w,h) >> writeIORef fbSizeRef (Size w h))
+  GLFW.setFramebufferSizeCallback win . Just $ \_ w h -> do
+    writeIORef fbSizeRef (Size w h)
+    GL.glViewport 0 0 (fromIntegral w) (fromIntegral h)
   pure fbSizeRef
 
 setupInput :: GLFW.Window -> IORef (Size Int) -> (RawInput -> IO ()) -> IO (IO ())
