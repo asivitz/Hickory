@@ -69,7 +69,7 @@ data CoreEventGenerators = CoreEventGenerators
                    , HandlerPair [(V2 Scalar, Int)])
   , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double), HandlerPair Key)
   , stepEvents  :: HandlerPair Scalar
-  , frameBufferSize :: IORef (Size Int)
+  , windowSize  :: IORef (Size Int)
   }
 
 data CoreEvents = CoreEvents
@@ -84,7 +84,7 @@ data CoreEvents = CoreEvents
   }
 
 coreEventGenerators :: IO [RawInput] -> IORef (Size Int) -> IO (IO (), CoreEventGenerators)
-coreEventGenerators inputPoller fbSizeRef = do
+coreEventGenerators inputPoller wSizeRef = do
 
   touchPairs <- touchHandlers
   keyPairs   <- keyHandlers
@@ -105,7 +105,7 @@ coreEventGenerators inputPoller fbSizeRef = do
           InputTouchesDown touches -> fire (view _1 touchPairs) touches
           InputTouchesUp   touches -> fire (view _2 touchPairs) touches
           InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
-  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair fbSizeRef)
+  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef)
 
 mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
 mkCoreEvents coreEvGens = do
@@ -114,7 +114,7 @@ mkCoreEvents coreEvGens = do
   (keyDown, keyDownOrHeld, keyUp) <- mkKeyEvents . keyEvents $ coreEvGens
   eRender                  <- mkEvent . renderEvent $ coreEvGens
 
-  scrSizeB <- fromPoll . readIORef . frameBufferSize $ coreEvGens
+  scrSizeB <- fromPoll . readIORef . windowSize $ coreEvGens
   fpsB     <- stepper 0 eRender
 
   pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld keyUp scrSizeB fpsB

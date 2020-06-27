@@ -11,5 +11,5 @@ makeGLFWInputPoller :: GLFW.Window -> IORef (Size Int) -> IO (IO [RawInput])
 makeGLFWInputPoller win fbSizeRef = makeInputPoller (Bridge.setupInput win fbSizeRef)
 
 
-getGLFWBufferSizeRef :: GLFW.Window -> IO (IORef (Size Int))
-getGLFWBufferSizeRef = Bridge.getBufferSizeRef
+getGLFWWindowSizeRef :: GLFW.Window -> IO (IORef (Size Int))
+getGLFWWindowSizeRef = Bridge.getWindowSizeRef
