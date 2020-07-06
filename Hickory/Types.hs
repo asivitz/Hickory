@@ -28,7 +28,7 @@ module Hickory.Types
 
 import Hickory.Math.Vector
 
-data Size a = Size a a deriving (Show)
+data Size a = Size a a deriving (Show, Read)
 
 instance Num a => Num (Size a) where
   Size w h + Size w' h' = Size (w + w') (h + h')
@@ -64,7 +64,7 @@ viewportFromSize (Size w h) = v4 0 0 (fromIntegral w) (fromIntegral h)
 fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
-data Rect = Rect (V2 Scalar) (Size Scalar) deriving (Show)
+data Rect = Rect (V2 Scalar) (Size Scalar) deriving (Show, Read)
 
 data RelativeRect a b = RRect (RelativeVec a b) (RelativeVec a b)
 
