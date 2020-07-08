@@ -4,7 +4,6 @@
 module Hickory.Utils.Obj where
 
 import Control.Monad (void)
-import Control.Applicative (empty)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L

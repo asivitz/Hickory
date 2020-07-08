@@ -377,13 +377,15 @@ renderTree :: RenderTree -> RenderState -> IO ()
 renderTree tree (RenderState vaolst) =
   drawTree $ textToVAO vaolst tree
 
+-- Traverse the RenderTree, updating the RenderState as needed
 updateRenderState :: RenderTree -> RenderState -> IO RenderState
 updateRenderState tree (RenderState vaolst) = do
-  let texts    = collectPrintDescs tree
-      existing = mapMaybe fst vaolst
-      unused   = existing \\ texts
-      new      = texts \\ existing
+  let texts    = nub $ collectPrintDescs tree
+      existing = nub $ mapMaybe fst vaolst
+      unused   = nub $ existing \\ texts
+      new      = nub $ texts \\ existing
 
+      -- Alloc/dealloc print descs as needed based on what we found in the tree
       xx :: [(Maybe PrintDesc, VAOObj)] -> [PrintDesc] -> [PrintDesc] -> IO [(Maybe PrintDesc, VAOObj)]
       xx []                  _       _         = return []
       xx ((desc, vaoobj):ys) newones notneeded = case desc of
@@ -395,13 +397,9 @@ updateRenderState tree (RenderState vaolst) = do
           [] -> do
             rest <- xx ys [] notneeded
             return ((desc, vaoobj) : rest)
-        Just d -> if d `elem` notneeded
-          then do
-            rest <- xx ys newones notneeded
-            return ((Nothing, vaoobj) : rest)
-          else do
-            rest <- xx ys newones notneeded
-            return ((desc, vaoobj) : rest)
+        Just d -> do
+          rest <- xx ys newones notneeded
+          pure $ ((if d `elem` notneeded then Nothing else desc), vaoobj) : rest
   vaolst' <- xx vaolst new unused
   return $ RenderState vaolst'
 
