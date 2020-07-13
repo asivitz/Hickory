@@ -116,70 +116,62 @@ parseColorRGB = terminate $ rgb <$> terminate anySignedNumber
                                 <*> terminate anySignedNumber
                                 <*> terminate anySignedNumber
 
-data Frame = Frame {
-                  frameName :: Text,
-                  mat :: Mat44,
-                  children :: [Frame],
-                  mesh :: Maybe Mesh,
-                  actionMats :: [(Text, [Mat44])]
-                  }
-           deriving (Show)
+data Frame = Frame
+  { frameName :: Text
+  , mat :: Mat44
+  , children :: [Frame]
+  , mesh :: Maybe Mesh
+  , actionMats :: [(Text, [Mat44])]
+  } deriving (Show)
 
-data Mesh = Mesh {
-          nVertices :: Int,
-          vertices :: Vector.Vector (Double, Double, Double),
-          nFaces :: Int,
-          faces :: Vector.Vector Int,
-          meshNormals :: MeshNormals,
-          meshTextureCoords :: MeshTextureCoords,
-          meshMaterialList :: MeshMaterialList,
-          xSkinMeshHeader :: XSkinMeshHeader,
-          skinWeights :: [SkinWeights]
-          }
-          deriving (Show)
+data Mesh = Mesh
+  { nVertices :: Int
+  , vertices :: Vector.Vector (Double, Double, Double)
+  , nFaces :: Int
+  , faces :: Vector.Vector Int
+  , meshNormals :: MeshNormals
+  , meshTextureCoords :: MeshTextureCoords
+  , meshMaterialList :: MeshMaterialList
+  , xSkinMeshHeader :: XSkinMeshHeader
+  , skinWeights :: [SkinWeights]
+  } deriving (Show)
 
-data MeshNormals = MeshNormals {
-                 nNormals :: Int,
-                 normals :: Vector.Vector (Double, Double, Double),
-                 nFaceNormals :: Int,
-                 faceNormals :: Vector.Vector Int
-                 }
-                 deriving (Show)
+data MeshNormals = MeshNormals
+  { nNormals :: Int
+  , normals :: Vector.Vector (Double, Double, Double)
+  , nFaceNormals :: Int
+  , faceNormals :: Vector.Vector Int
+  } deriving (Show)
 
-data MeshTextureCoords = MeshTextureCoords {
-                       nTextureCoords :: Int,
-                       textureCoords :: Vector.Vector Double
-                       }
-                       deriving (Show)
+data MeshTextureCoords = MeshTextureCoords
+  { nTextureCoords :: Int
+  , textureCoords :: Vector.Vector Double
+  } deriving (Show)
 
-data MeshMaterialList = MeshMaterialList {
-                      faceIndexes :: Vector.Vector Int,
-                      materials :: [Material]
-                      }
-                      deriving (Show)
+data MeshMaterialList = MeshMaterialList
+  { faceIndexes :: Vector.Vector Int
+  , materials :: [Material]
+  } deriving (Show)
 
-data Material = Material {
-              faceColor :: Color,
-              power :: Double,
-              specularColor :: Color,
-              emissiveColor :: Color
-              }
-              deriving (Show)
+data Material = Material
+  { faceColor :: Color
+  , power :: Double
+  , specularColor :: Color
+  , emissiveColor :: Color
+  } deriving (Show)
 
-data XSkinMeshHeader = XSkinMeshHeader {
-                     nMaxSkinWeightsPerVertex :: Int,
-                     nMaxSkinWeightsPerFace :: Int,
-                     nBones :: Int
-                     }
-                     deriving (Show)
+data XSkinMeshHeader = XSkinMeshHeader
+  { nMaxSkinWeightsPerVertex :: Int
+  , nMaxSkinWeightsPerFace :: Int
+  , nBones :: Int
+  } deriving (Show)
 
-data SkinWeights = SkinWeights {
-                 transformNodeName :: Text,
-                 vertexIndices :: Vector.Vector Int,
-                 weights :: Vector.Vector Double,
-                 matrixOffset :: Mat44
-                 }
-                 deriving (Show)
+data SkinWeights = SkinWeights
+  { transformNodeName :: Text
+  , vertexIndices :: Vector.Vector Int
+  , weights :: Vector.Vector Double
+  , matrixOffset :: Mat44
+  } deriving (Show)
 
 parseSkinWeights = parseSection "SkinWeights" $ do
     name <- terminate doubleQuotedString
@@ -298,32 +290,30 @@ fillFrame animations frame@Frame { frameName, children } = frame { actionMats = 
 
 parseX :: Parser Frame
 parseX = do
-        parseHeader
-        many (lexeme $ skipSection "template")
-        f <- parseFrame
+  parseHeader
+  many (lexeme $ skipSection "template")
+  f <- parseFrame
 
-        tps <- parseSection "AnimTicksPerSecond" (terminate int)
-        sets <- many (parseAnimationSet tps)
+  tps <- parseSection "AnimTicksPerSecond" (terminate int)
+  sets <- many (parseAnimationSet tps)
 
-        manyTill anySingle eof
-        return $ fillFrame sets f
+  manyTill anySingle eof
+  return $ fillFrame sets f
 
-data Animation = Animation {
-               actionName :: Text,
-               ticksPerSecond :: Int,
-               boneAnimations :: [BoneAnimation]
-               }
-               deriving (Show)
+data Animation = Animation
+  { actionName :: Text
+  , ticksPerSecond :: Int
+  , boneAnimations :: [BoneAnimation]
+  } deriving (Show)
 
-data BoneAnimation = BoneAnimation {
-                   boneName :: Text,
-                   _transforms :: [M44 Double]
-                   }
-                   deriving (Show)
+data BoneAnimation = BoneAnimation
+  { boneName :: Text
+  , _transforms :: [M44 Double]
+  } deriving (Show)
 
 loadX :: String -> IO Frame
 loadX filePath = do
-        res <- parseFromFile parseX filePath
-        case res of
-            Left err -> error (show err)
-            Right obj -> return obj
+  res <- parseFromFile parseX filePath
+  case res of
+    Left err -> error (show err)
+    Right obj -> return obj
