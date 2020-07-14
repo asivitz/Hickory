@@ -162,6 +162,9 @@ cubeFloats = concatMap toList verts
   p8    = v3 l h h
   verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
+cubeIndices :: [GLushort]
+cubeIndices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
+
 loadVAOObj :: VAOConfig -> DrawType -> ([GLfloat], [GLushort]) -> IO VAOObj
 loadVAOObj vaoconfig drawType (verts, indices) = do
   loadVerticesIntoVAOConfig vaoconfig verts indices
@@ -170,11 +173,18 @@ loadVAOObj vaoconfig drawType (verts, indices) = do
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
   let floats  = cubeFloats
-      indices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
+      indices = cubeIndices
   loadVAOObj vaoconfig TriangleStrip (floats, indices)
+
+loadInvertedCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
+loadInvertedCubeIntoVAOConfig vaoconfig = do
+  loadVAOObj vaoconfig TriangleStrip (cubeFloats, reverse cubeIndices)
 
 mkCubeVAOObj :: Shader -> IO VAOObj
 mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
+
+mkInvertedCubeVAOObj :: Shader -> IO VAOObj
+mkInvertedCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
 
 mkSquareVerts :: (Num t, Fractional t1) => t1 -> t1 -> ([t1], [t], DrawType)
 mkSquareVerts texW texH = (floats, indices, TriangleFan)
