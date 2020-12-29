@@ -15,29 +15,30 @@ import System.Random (StdGen, newStdGen)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Sequence as S
 import qualified Hickory.Graphics.DrawUtils as DU
+import qualified Reflex as R
 
-type HandlerPair a = (AddHandler a, Handler a)
+type HandlerPair t a = (R.Event t a, a -> IO ())
 
-mkEvent :: (AddHandler a, b) -> MomentIO (Event a)
-mkEvent = fromAddHandler . fst
+-- mkEvent :: (AddHandler a, b) -> MomentIO (Event a)
+-- mkEvent = fromAddHandler . fst
 
-fire :: (AddHandler a, b) -> b
+fire :: (R.Event t a, b) -> b
 fire = snd
 
-touchHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
+touchHandlers :: IO (HandlerPair t a, HandlerPair t b, HandlerPair t c)
 touchHandlers =
-  (,,) <$> newAddHandler <*> newAddHandler <*> newAddHandler
+  (,,) <$> R.newTriggerEvent <*> R.newTriggerEvent <*> R.newTriggerEvent
 
 mkTouchEvents
-  :: ( HandlerPair [(V2 Scalar, b)]
-     , HandlerPair [(Double, V2 Scalar, Int)]
-     , HandlerPair [(V2 Scalar, b3)]
+  :: Monad m => ( HandlerPair t [(V2 Scalar, b)]
+     , HandlerPair t [(Double, V2 Scalar, Int)]
+     , HandlerPair t [(V2 Scalar, b3)]
      )
-  -> MomentIO (Event [TouchEvent])
+  -> m (R.Event t [TouchEvent])
 mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
-  ePointDown <- mkEvent pointDownPair
-  ePointUp   <- mkEvent pointUpPair
-  ePointLoc  <- mkEvent pointLocPair
+  let ePointDown = fst pointDownPair
+  let ePointUp   = fst pointUpPair
+  let ePointLoc  = fst pointLocPair
 
   let eTouchEvs = mconcat
         [ map (Down . fst)     <$> ePointDown
@@ -47,49 +48,49 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 
   pure eTouchEvs
 
-keyHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
-keyHandlers = (,,) <$> newAddHandler <*> newAddHandler <*> newAddHandler
+keyHandlers :: IO (HandlerPair t a, HandlerPair t b, HandlerPair t c)
+keyHandlers = (,,) <$> R.newTriggerEvent <*> R.newTriggerEvent <*> R.newTriggerEvent
 
-mkKeyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => (HandlerPair k, HandlerPair (HashMap.HashMap k b1), HandlerPair k) -> MomentIO (Event k, k -> Event k, Event k)
+mkKeyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => Monad m => (HandlerPair t k, HandlerPair t (HashMap.HashMap k b1), HandlerPair t k) -> m (R.Event t k, k -> R.Event t k, R.Event t k)
 mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
-  eKey    <- mkEvent keyPair
-  eKeysHeld <- mkEvent keysHeldPair
-  eKeyUp  <- mkEvent keyUpPair
+  let eKey    = fst keyPair
+  let eKeysHeld = fst keysHeldPair
+  let eKeyUp  = fst keyUpPair
   let -- keyDown k = filterE (==k) eKey
-      keyDownOrHeld k = unionFirst [ filterE (==k) $ eKey
-                                   , k <$ (filterE (>0.2) . filterJust $ HashMap.lookup k <$> eKeysHeld)
+      keyDownOrHeld k = unionFirst [ R.ffilter (==k) $ eKey
+                                   , k <$ (R.ffilter (>0.2) . R.fmapMaybe (HashMap.lookup k) $ eKeysHeld)
                                    ]
       -- keyUp k = filterE (==k) eKeyUp
   pure (eKey, keyDownOrHeld, eKeyUp)
 
-data CoreEventGenerators = CoreEventGenerators
-  { renderEvent :: HandlerPair Scalar
-  , touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
-                   , HandlerPair [(Double, V2 Scalar, Int)]
-                   , HandlerPair [(V2 Scalar, Int)])
-  , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double), HandlerPair Key)
-  , stepEvents  :: HandlerPair Scalar
+data CoreEventGenerators t = CoreEventGenerators
+  { renderEvent :: HandlerPair t Scalar
+  , touchEvents :: ( HandlerPair t [(V2 Scalar, Int)]
+                   , HandlerPair t [(Double, V2 Scalar, Int)]
+                   , HandlerPair t [(V2 Scalar, Int)])
+  , keyEvents   :: (HandlerPair t Key, HandlerPair t (HashMap.HashMap Key Double), HandlerPair t Key)
+  , stepEvents  :: HandlerPair t Scalar
   , windowSize  :: IORef (Size Int)
   }
 
-data CoreEvents = CoreEvents
-  { eRender   :: Event Scalar
-  , eTouchEvs :: Event [TouchEvent]
-  , eTime     :: Event Scalar
-  , keyDown   :: Event Key
-  , keyDownOrHeld :: Key -> Event Key
-  , keyUp     :: Event Key
-  , scrSizeB  :: Behavior (Size Int)
-  , fpsB      :: Behavior Scalar
+data CoreEvents t = CoreEvents
+  { eRender   :: R.Event t Scalar
+  , eTouchEvs :: R.Event t [TouchEvent]
+  , eTime     :: R.Event t Scalar
+  , keyDown   :: R.Event t Key
+  , keyDownOrHeld :: Key -> R.Event t Key
+  , keyUp     :: R.Event t Key
+  , scrSizeB  :: R.Behavior t (Size Int)
+  , fpsB      :: R.Behavior t Scalar
   }
 
-coreEventGenerators :: IO [RawInput] -> IORef (Size Int) -> IO (IO (), CoreEventGenerators)
+coreEventGenerators :: IO [RawInput] -> IORef (Size Int) -> IO (IO (), CoreEventGenerators t)
 coreEventGenerators inputPoller wSizeRef = do
 
   touchPairs <- touchHandlers
   keyPairs   <- keyHandlers
-  timePair   <- newAddHandler
-  renderPair <- newAddHandler
+  timePair   <- R.newTriggerEvent
+  renderPair <- R.newTriggerEvent
 
   fpsTicker  <- makeFPSTicker
 
@@ -107,14 +108,14 @@ coreEventGenerators inputPoller wSizeRef = do
           InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
   pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef)
 
-mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
+mkCoreEvents :: Monad m => CoreEventGenerators t -> m (CoreEvents t)
 mkCoreEvents coreEvGens = do
   eTouchEvs                <- mkTouchEvents . touchEvents $ coreEvGens
-  eTime                    <- mkEvent . stepEvents $ coreEvGens
+  let eTime                = fst . stepEvents $ coreEvGens
   (keyDown, keyDownOrHeld, keyUp) <- mkKeyEvents . keyEvents $ coreEvGens
-  eRender                  <- mkEvent . renderEvent $ coreEvGens
+  let eRender              = fst . renderEvent $ coreEvGens
 
-  scrSizeB <- fromPoll . readIORef . windowSize $ coreEvGens
+  scrSizeB <- R.pull . readIORef . windowSize $ coreEvGens
   fpsB     <- stepper 0 eRender
 
   pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld keyUp scrSizeB fpsB
@@ -123,11 +124,11 @@ mkCoreEvents coreEvGens = do
 
 -- Helpers
 
-accumEvents :: MonadMoment m => a -> Behavior (a -> b -> a) -> Event [b] -> m (Behavior a)
+accumEvents :: Monad m => a -> R.Behavior t (a -> b -> a) -> R.Event t [b] -> m (R.Behavior t a)
 accumEvents b bf e = accumB b (fol <$> bf <@> e)
   where fol f bs a = foldr (flip f) a bs
 
-randomEvent :: Event (Rand StdGen a) -> MomentIO (Event a)
+randomEvent :: Monad m => R.Event t (Rand StdGen a) -> m (R.Event t a)
 randomEvent b = do
   initialStdGen <- liftIO $ newStdGen
   fst <$> mapAccum initialStdGen (runRand <$> b)
@@ -135,7 +136,7 @@ randomEvent b = do
 foldE :: (a -> b -> a) -> a -> [b] -> a
 foldE x = foldr (flip x)
 
-unionFirst :: [Event a] -> Event a
+unionFirst :: [R.Event t a] -> R.Event t a
 unionFirst = fmap getFirst . mconcat . fmap (fmap First)
 
 noEvs :: (a -> b -> (a, [c])) -> a -> b -> a
@@ -147,14 +148,14 @@ foldEventEmitter f a bs = foldr (flip $ evFolder f) (a, []) bs
 evFolder :: (a -> b -> (a, [c])) -> (a, [c]) -> b -> (a, [c])
 evFolder f (a, cs) b = fmap (<> cs) $ f a b
 
-counter :: MonadMoment m => Event Int -> Event Int -> m (Behavior Int)
+counter :: Monad m => R.Event t Int -> R.Event t Int -> m (Behavior Int)
 counter eDelta eReset = accumB 0 $ unions [ (+) <$> eDelta, const <$> eReset ]
 
-historical :: MonadMoment m => a -> Event (a -> a) -> Event Int -> m (Behavior a)
+historical :: Monad m => a -> R.Event t (a -> a) -> R.Event t Int -> m (Behavior a)
 historical initial eStep eChangeIndex =
   fst <$> historicalWithEvents initial (((,[]) .) <$> eStep) eChangeIndex
 
-historicalWithEvents :: MonadMoment m => a -> Event (a -> (a,[b])) -> Event Int -> m (Behavior a, Event [b])
+historicalWithEvents :: Monad m => a -> R.Event t (a -> (a,[b])) -> R.Event t Int -> m (R.Behavior t a, R.Event t [b])
 historicalWithEvents initial eStep eChangeIndex = do
   (evs, history) <- mapAccum (S.singleton initial, 0) $
     unionFirst [ append <$> eStep
@@ -179,6 +180,7 @@ combineRenderFuncs = foldr (liftA2 go) (pure $ const [])
 
 -- Unused
 
+{-
 splitPair :: Event (a, b) -> (Event a, Event b)
 splitPair e = (fst <$> e, snd <$> e)
 
@@ -190,3 +192,4 @@ foldEvents' bf b e = foldE <$> bf <*> b <@> e
 
 render :: DU.HasRenderState a => IORef a -> [Behavior (a -> DU.RenderTree)] -> Behavior (IO ())
 render resRef renderFuncs = DU.render resRef <$> combineRenderFuncs renderFuncs
+-}

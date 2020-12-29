@@ -41,6 +41,7 @@ dependencies:
     - unordered-containers
     - vector
     - rawstring-qm
+    - reflex
 
 when:
     - condition: impl(ghcjs)
