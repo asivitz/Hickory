@@ -63,6 +63,7 @@ boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [UniformBin
 drawSpec :: Shader -> [UniformBinding] -> DrawSpec -> IO ()
 drawSpec shader uniforms spec = case spec of
   Text _   _ -> error "Can't print text directly. Should transform into a VAO command."
+  VAO  _ (VAOObj _ 0 _) -> pure ()
   VAO  tex (VAOObj vaoConfig numitems drawType) -> do
     drawCommand shader uniforms tex vaoConfig (fromIntegral numitems) drawType
   DynVAO tex vaoConfig (verts, indices, drawType) -> do

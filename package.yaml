@@ -67,6 +67,7 @@ library:
     - Hickory.Types
     - Hickory.Platform
     - Hickory.Input
+    - Hickory.Graphics
     - Hickory.Graphics.Drawing
     - Hickory.Graphics.DrawText
     - Hickory.Graphics.Textures
@@ -76,6 +77,7 @@ library:
     - Hickory.Graphics.Shader
     - Hickory.Graphics.Debug
     - Hickory.Graphics.StockShaders
+    - Hickory.Math
     - Hickory.Math.Matrix
     - Hickory.Math.Vector
     - Hickory.Math.VectorMatrix
