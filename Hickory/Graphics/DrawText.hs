@@ -7,6 +7,7 @@ import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Drawing
 import Hickory.Text.Text
+import Hickory.Graphics.VAO (VAOConfig, createVAOConfig)
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures

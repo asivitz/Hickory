@@ -24,6 +24,7 @@ import Data.IORef (IORef, writeIORef, readIORef)
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
 import qualified Data.Vector.Unboxed as Vector
+import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), drawCommand, loadVerticesIntoVAOConfig)
 
 data Command = Command Shader Mat44 [UniformBinding] DrawSpec
 
@@ -101,12 +102,6 @@ data RenderTree
   | NoRender
   deriving (Show)
 
-data VAOObj = VAOObj
-  { vaoConfig :: VAOConfig
-  , count :: Int
-  , drawType :: DrawType
-  } deriving (Show)
-
 data PrintDesc = PrintDesc (Printer Int) TextCommand
   deriving (Eq, Show)
 
@@ -117,7 +112,7 @@ instance Eq PrintDesc where
         PrintDesc pra tca cola == PrintDesc prb tcb colb = pra == prb && tca == tcb && vnull (cola - colb)
         -}
 
-data RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
+newtype RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
 
 collectPrintDescs :: RenderTree -> [PrintDesc]
 collectPrintDescs (List subs) = concatMap collectPrintDescs subs

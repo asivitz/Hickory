@@ -10,7 +10,6 @@ module Hickory.Graphics.Drawing
   , squareIndices
   , VAO
   , VBO
-  , VAOConfig(..)
   , getShader
   , TexID(..)
   , getTexID
@@ -54,20 +53,6 @@ type ProgramID = Word32
 type UniformLoc = Int32
 
 newtype TexID = TexID Word32 deriving (Show)
-#endif
-
-#if defined(uses_VAO)
-data VAOConfig = VAOConfig {
-               vao :: !VAO,
-               indexVBO :: !VBO,
-               vertices :: ![VBO]
-               } deriving (Show)
-#else
-data VAOConfig = VAOConfig {
-               indexVBO :: !VBO,
-               vertices :: ![VBO],
-               vertexGroups :: [VertexGroup]
-               } deriving (Show)
 #endif
 
 getTexID (TexID num) = num

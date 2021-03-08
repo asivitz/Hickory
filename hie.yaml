@@ -1,0 +1,10 @@
+cradle:
+  stack:
+    - path: "././"
+      component: "Hickory:lib"
+
+    - path: "./test"
+      component: "Hickory:test:hickory-test"
+
+    - path: "GLFW/./"
+      component: "Hickory-GLFW:lib"

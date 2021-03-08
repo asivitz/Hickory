@@ -33,14 +33,15 @@ dependencies:
     - lens
     - linear
     - megaparsec
+    - mtl
     - random
+    - rawstring-qm
     - reactive-banana
     - scientific
     - text
     - time
     - unordered-containers
     - vector
-    - rawstring-qm
 
 when:
     - condition: impl(ghcjs)
@@ -51,8 +52,6 @@ when:
     - condition: flag(ios)
       include-dirs: include/
       cc-options: -DTARGET_OS_IPHONE
-
-cpp-options: -Duses_VAO
 
 flags:
     Ios:
@@ -77,6 +76,7 @@ library:
     - Hickory.Graphics.Shader
     - Hickory.Graphics.Debug
     - Hickory.Graphics.StockShaders
+    - Hickory.Graphics.VAO
     - Hickory.Math
     - Hickory.Math.Matrix
     - Hickory.Math.Vector

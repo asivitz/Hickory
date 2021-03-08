@@ -14,12 +14,15 @@ module Hickory.Graphics.GLSupport --( module Graphics.GL.Compatibility41)
      Shader(..),
      bufferVertices,
      bufferIndices,
-     createVAOConfig,
-     drawCommand,
      configGLState,
      clearScreen,
-     loadVerticesIntoVAOConfig,
-     clearDepth
+     clearDepth,
+     makeVAO,
+     makeVBO,
+     buildVertexGroup,
+     drawElements,
+     glenumForDrawType,
+     bindUniform
      )
     where
 
@@ -97,9 +100,9 @@ bufferIndices vbo ints = do
 -- VAO / VBO
 
 glenumForDrawType dt = case dt of
-                           TriangleStrip -> GL_TRIANGLE_STRIP
-                           TriangleFan -> GL_TRIANGLE_FAN
-                           Triangles -> GL_TRIANGLES
+  TriangleStrip -> GL_TRIANGLE_STRIP
+  TriangleFan -> GL_TRIANGLE_FAN
+  Triangles -> GL_TRIANGLES
 
 bindUniform :: Shader -> UniformBinding -> IO ()
 bindUniform shader (UniformBinding name uniVal) =
@@ -109,18 +112,6 @@ bindUniform shader (UniformBinding name uniVal) =
                             Matrix3Uniform mat -> uniformMatrix3fv loc mat
                             QuadFUniform vec -> uniform4fv loc vec
             Nothing -> print $ "Uniform named " ++ name ++ " not found in shader"
-
-drawCommand :: Shader -> [UniformBinding] -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
-drawCommand shader uniformBindings texid vaoconfig numitems drawType = do
-        useShader shader
-        case texid of
-            Just t -> glBindTexture GL_TEXTURE_2D (getTexID t)
-            _ -> return ()
-
-        mapM (bindUniform shader) uniformBindings
-
-        withVAOConfig shader vaoconfig $
-            drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
 
 attachVertexArray :: GLint -> GLint -> GLint -> GLint -> IO ()
 attachVertexArray attrLoc len stride offset = do
@@ -267,62 +258,6 @@ bindVAO :: VAO -> IO ()
 bindVAO = glBindVertexArray
 
 #endif
-
-#if defined(uses_VAO)
-createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
-createVAOConfig sh vertexgroups = do
-        vao' <- makeVAO
-        glBindVertexArray vao'
-
-        index_vbo <- makeVBO
-        glBindBuffer GL_ELEMENT_ARRAY_BUFFER index_vbo
-
-        buffers <- mapM (buildVertexGroup sh) vertexgroups
-
-        return VAOConfig { vao = vao',
-                         indexVBO = index_vbo,
-                         vertices = buffers
-                         }
-
-withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
-withVAOConfig _ VAOConfig { vao } action = glBindVertexArray vao >> action
-
-loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
-loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
-        bindVAO vao
-        bufferVertices vbo vs
-        bufferIndices ivbo indices
-loadVerticesIntoVAOConfig _ _ _ = error "VAOConfig missing buffers"
-
-#else
-
-createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
-createVAOConfig sh vertexgroups = do
-        index_vbo <- makeVBO
-
-        buffers <- mapM (const makeVBO) vertexgroups
-
-        return VAOConfig {
-                         indexVBO = index_vbo,
-                         vertices = buffers,
-                         vertexGroups = vertexgroups
-                         }
-
-withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
-withVAOConfig shader VAOConfig { indexVBO, vertices, vertexGroups } action = do
-        glBindBuffer GL_ELEMENT_ARRAY_BUFFER indexVBO
-        mapM_ (\(buf,group) -> attachVertexGroup shader buf group) (zip vertices vertexGroups)
-        action
-        mapM_ (\(VertexGroup attachments) -> mapM_ (\(Attachment attr _) -> disableVertexAttribArray (attr shader)) attachments) vertexGroups
-
-loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
-loadVerticesIntoVAOConfig VAOConfig { indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
-        bufferVertices vbo vs
-        bufferIndices ivbo indices
-loadVerticesIntoVAOConfig _ _ _ = error "VAOConfig missing buffers"
-
-#endif
-
 
 configGLState :: GLfloat -> GLfloat -> GLfloat -> IO ()
 configGLState r g b = do
