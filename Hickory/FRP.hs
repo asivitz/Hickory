@@ -177,6 +177,9 @@ combineRenderFuncs = foldr (liftA2 go) (pure $ const [])
   where go :: (a -> b) -> (a -> [b]) -> a -> [b]
         go f fs r = f r : fs r
 
+renderWithRef :: Applicative f => IORef a -> [f (a -> DU.RenderTree)] -> f (IO ())
+renderWithRef ref fs = (\f -> readIORef ref >>= DU.render . f) <$> combineRenderFuncs fs
+
 -- Unused
 
 splitPair :: Event (a, b) -> (Event a, Event b)
@@ -187,6 +190,3 @@ foldEvents b h e = fmap (foldE h) b <@> e
 
 foldEvents' :: Behavior (a -> b -> a) -> Behavior a -> Event [b] -> Event a
 foldEvents' bf b e = foldE <$> bf <*> b <@> e
-
-render :: DU.HasRenderState a => IORef a -> [Behavior (a -> DU.RenderTree)] -> Behavior (IO ())
-render resRef renderFuncs = DU.render resRef <$> combineRenderFuncs renderFuncs

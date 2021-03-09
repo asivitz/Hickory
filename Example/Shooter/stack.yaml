@@ -1,7 +1,7 @@
 # For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-13.26
+resolver: lts-17.5
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -10,8 +10,11 @@ packages:
 - '.'
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
-extra-deps: [reactive-banana-1.2.0.0
-]
+extra-deps:
+- git: https://github.com/HeinrichApfelmus/reactive-banana.git
+  commit: 79482f3e9bfab493e2d2197f70cdb11787b33a03
+  subdirs:
+    - reactive-banana
 
 # Override default flag values for local packages and extra-deps
 flags: {}

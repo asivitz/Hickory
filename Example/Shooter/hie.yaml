@@ -1,0 +1,16 @@
+cradle:
+  stack:
+    - path: "././shooter.hs"
+      component: "Shooter:exe:shooter"
+
+    - path: "././Paths_Shooter.hs"
+      component: "Shooter:exe:shooter"
+
+    - path: "../../GLFW/./"
+      component: "Hickory-GLFW:lib"
+
+    - path: "../.././"
+      component: "Hickory:lib"
+
+    - path: "../../test"
+      component: "Hickory:test:hickory-test"

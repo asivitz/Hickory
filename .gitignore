@@ -9,6 +9,8 @@ cabal.sandbox.config
 *.aux
 *.hp
 *.ps
+*.cabal
+*.yaml.lock
 .DS_Store
 Hickory.cabal
 dist-newstyle/

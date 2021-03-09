@@ -15,7 +15,7 @@ import Data.Maybe
 import Hickory.Graphics.DrawText
 import Hickory.Text.Text
 import Hickory.Graphics.GLSupport
-import Data.Foldable (toList)
+import Data.Foldable (toList, forM_)
 import qualified Hickory.Utils.Obj as OBJ
 import qualified Hickory.Utils.DirectX as DX
 import Data.Text (Text)
@@ -26,11 +26,10 @@ import Graphics.GL.Compatibility41 as GL
 import qualified Data.Vector.Unboxed as Vector
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), drawCommand, loadVerticesIntoVAOConfig)
 
-data Command = Command Shader Mat44 [UniformBinding] DrawSpec
+data Command = Command Mat44 [UniformBinding] DrawSpec
 
 data DrawSpec
-  = Text (Printer Int) TextCommand
-  | VAO (Maybe TexID) VAOObj
+  = VAO (Maybe TexID) VAOObj
   | DynVAO (Maybe TexID) VAOConfig ([GLfloat],[GLushort],DrawType)
   deriving (Show)
 
@@ -61,15 +60,14 @@ boneMatUniform (ThreeDModel _ Nothing _ _) _ _ = []
 boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
     where mats = animatedMats frame mesh (actionName, time)
 
-drawSpec :: Shader -> [UniformBinding] -> DrawSpec -> IO ()
-drawSpec shader uniforms spec = case spec of
-  Text _   _ -> error "Can't print text directly. Should transform into a VAO command."
+drawSpec :: [UniformBinding] -> DrawSpec -> IO ()
+drawSpec uniforms spec = case spec of
   VAO  _ (VAOObj _ 0 _) -> pure ()
   VAO  tex (VAOObj vaoConfig numitems drawType) -> do
-    drawCommand shader uniforms tex vaoConfig (fromIntegral numitems) drawType
+    drawCommand uniforms tex vaoConfig (fromIntegral numitems) drawType
   DynVAO tex vaoConfig (verts, indices, drawType) -> do
     loadVerticesIntoVAOConfig vaoConfig verts indices
-    drawCommand shader uniforms tex vaoConfig (fromIntegral $ length indices) drawType
+    drawCommand uniforms tex vaoConfig (fromIntegral $ length indices) drawType
 
 {-
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -96,52 +94,11 @@ size3PosRotMat :: V3 Scalar -> V3 Scalar -> Scalar -> Mat44
 size3PosRotMat (V3 w h d) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h d 1)
 
 data RenderTree
-  = Primative Shader Mat44 [UniformBinding] DrawSpec
+  = Primative Mat44 [UniformBinding] DrawSpec
   | List [RenderTree]
   | XForm (Maybe Mat44) RenderTree
   | NoRender
   deriving (Show)
-
-data PrintDesc = PrintDesc (Printer Int) TextCommand
-  deriving (Eq, Show)
-
--- Vector equality using (==) doesn't always work on ARM
-{-
-- Using standard Eq for now since arm doesn't work for other reasons
-instance Eq PrintDesc where
-        PrintDesc pra tca cola == PrintDesc prb tcb colb = pra == prb && tca == tcb && vnull (cola - colb)
-        -}
-
-newtype RenderState = RenderState [(Maybe PrintDesc, VAOObj)]
-
-collectPrintDescs :: RenderTree -> [PrintDesc]
-collectPrintDescs (List subs) = concatMap collectPrintDescs subs
-collectPrintDescs (Primative _ _ _ (Text printer text) ) = [PrintDesc printer text]
-collectPrintDescs (XForm _ child) = collectPrintDescs child
-collectPrintDescs _ = []
-
-textToVAO :: [(Maybe PrintDesc, VAOObj)] -> RenderTree -> RenderTree
-textToVAO m (List subs) = List $ map (textToVAO m) subs
-textToVAO m (XForm mat child) = XForm mat $ textToVAO m child
-textToVAO m (Primative sh mat uniforms (Text pr@(Printer _ tex) txt)) =
-  Primative sh mat uniforms
-              (VAO (Just tex)
-                    (fromMaybe (error $ "Can't find vao for text command: " ++ show (pr, txt) ++ " in: " ++ show m)
-                              (lookup (Just (PrintDesc pr txt)) m)))
-textToVAO _ a = a
-
-updateVAOObj :: PrintDesc -> VAOObj -> IO VAOObj
-updateVAOObj (PrintDesc (Printer font _) textCommand) (VAOObj vaoconfig _ _) = do
-  let command              = PositionedTextCommand zero textCommand
-      (numsquares, floats) = transformTextCommandsToVerts [command] font
-
-  if not $ null floats
-    then do
-      let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
-      loadVerticesIntoVAOConfig vaoconfig floats indices
-
-      return (VAOObj vaoconfig (fromIntegral numBlockIndices) TriangleStrip)
-    else error "Tried to print empty text command"
 
 cubeFloats :: [GLfloat]
 cubeFloats = concatMap toList verts
@@ -370,57 +327,21 @@ loadModelFromX shader path = do
         >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
       return $ ThreeDModel vo Nothing mesh extents
 
-renderTrees :: [RenderTree] -> RenderState -> IO RenderState
-renderTrees trees state = do
+renderTrees :: [RenderTree] -> IO ()
+renderTrees trees = do
   clearScreen
-  state' <- updateRenderState (List trees) state
-  flip mapM_ trees $ \t -> do
-    renderTree t state'
+  forM_ trees $ \t -> do
+    renderTree t
     clearDepth
-  pure state'
 
-renderTree :: RenderTree -> RenderState -> IO ()
-renderTree tree (RenderState vaolst) =
-  drawTree $ textToVAO vaolst tree
+renderTree :: RenderTree -> IO ()
+renderTree = drawTree
 
--- Traverse the RenderTree, updating the RenderState as needed
-updateRenderState :: RenderTree -> RenderState -> IO RenderState
-updateRenderState tree (RenderState vaolst) = do
-  let texts    = nub $ collectPrintDescs tree
-      existing = nub $ mapMaybe fst vaolst
-      unused   = nub $ existing \\ texts
-      new      = nub $ texts \\ existing
-
-      -- Alloc/dealloc print descs as needed based on what we found in the tree
-      xx :: [(Maybe PrintDesc, VAOObj)] -> [PrintDesc] -> [PrintDesc] -> IO [(Maybe PrintDesc, VAOObj)]
-      xx []                  _       _         = return []
-      xx ((desc, vaoobj):ys) newones notneeded = case desc of
-        Nothing -> case newones of
-          (x:xs) -> do
-            rest <- xx ys xs notneeded
-            vo   <- updateVAOObj x vaoobj
-            return ((Just x, vo) : rest)
-          [] -> do
-            rest <- xx ys [] notneeded
-            return ((desc, vaoobj) : rest)
-        Just d -> do
-          rest <- xx ys newones notneeded
-          pure $ ((if d `elem` notneeded then Nothing else desc), vaoobj) : rest
-  vaolst' <- xx vaolst new unused
-  return $ RenderState vaolst'
-
-class HasRenderState a where
-  renderState :: Lens' a RenderState
-
-render :: HasRenderState a => IORef a -> (a -> [RenderTree]) -> IO ()
-render resRef rf = do
-  res <- readIORef resRef
-  rs' <- renderTrees (rf res) (view renderState res)
-  writeIORef resRef (set renderState rs' res)
-
+render :: [RenderTree] -> IO ()
+render = renderTrees
 
 runDrawCommand :: Command -> IO ()
-runDrawCommand (Command sh mat uniforms spec) = drawSpec sh (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) spec
+runDrawCommand (Command mat uniforms spec) = drawSpec (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) spec
 
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
@@ -439,7 +360,7 @@ combineMats (Just x) (Just y) = Just (x !*! y)
 collectTreeSpecs :: Maybe (M44 Scalar) -> RenderTree -> [Command]
 collectTreeSpecs _         NoRender          = []
 collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs (combineMats parentMat mat) child
-collectTreeSpecs parentMat (Primative sh mat uniforms spec) = [Command sh mat' uniforms spec]
+collectTreeSpecs parentMat (Primative mat uniforms spec) = [Command mat' uniforms spec]
   where mat' = case parentMat of
           Just m -> m !*! mat
           Nothing -> mat

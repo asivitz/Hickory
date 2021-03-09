@@ -1,17 +1,25 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Hickory.Graphics.DrawText (Printer(..), loadPrinter, createPrinterVAOConfig, PositionedTextCommand(..), textcommand) where
+module Hickory.Graphics.DrawText
+  ( Printer(..)
+  , loadPrinter
+  , createPrinterVAOConfig
+  , PositionedTextCommand(..)
+  , textcommand
+  , printVAOObj
+  ) where
 
 import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Drawing
 import Hickory.Text.Text
-import Hickory.Graphics.VAO (VAOConfig, createVAOConfig)
+import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig)
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
 import Graphics.GL.Compatibility41 as GL
+import Hickory.Math (zero)
 
 data Printer a = Printer (Font a) TexID
 
@@ -41,10 +49,24 @@ loadPrinter resPath shader name = do
                     Right font -> return $ Just (Printer font tid)
 
 textcommand :: TextCommand
-textcommand = TextCommand {
-                          text = "",
-                          fontSize = 4,
-                          align = AlignCenter,
-                          valign = Middle,
-                          color = black,
-                          leftBump = 0 }
+textcommand = TextCommand
+  { text = ""
+  , fontSize = 4
+  , align = AlignCenter
+  , valign = Middle
+  , color = black
+  , leftBump = 0
+  }
+
+printVAOObj :: Printer Int -> TextCommand -> VAOConfig -> IO VAOObj
+printVAOObj (Printer font _) textCommand vaoconfig = do
+  let command              = PositionedTextCommand zero textCommand
+      (numsquares, floats) = transformTextCommandsToVerts [command] font
+
+  if not $ null floats
+    then do
+      let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
+      loadVerticesIntoVAOConfig vaoconfig floats indices
+
+      return (VAOObj vaoconfig (fromIntegral numBlockIndices) TriangleStrip)
+    else error "Tried to print empty text command"

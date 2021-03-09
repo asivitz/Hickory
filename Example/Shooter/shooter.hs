@@ -12,37 +12,25 @@
 
 
 import Control.Concurrent (threadDelay)
-import Control.Lens (Lens')
-import Control.Monad (forever, when)
-import Data.Foldable
-import Data.Generics.Labels
-import Data.Generics.Product
-import Data.IORef (IORef, modifyIORef', newIORef)
+import Control.Monad (forever, unless, (<=<))
+import Data.IORef (IORef, newIORef)
 import Data.Text (Text)
-import Debug.Trace (traceShow)
-import GHC.Generics (Generic)
 import Hickory.Camera
 import Hickory.Color
-import Hickory.FRP (unionFirst, accumEvents, foldEventEmitter, render, mkCoreEvents, CoreEvents(..), CoreEventGenerators)
-import Hickory.Graphics.DrawUtils (RenderTree(..), size3PosMat, colorUniform, DrawSpec(..), VAOObj(..), sizePosMat, mkSquareVAOObj, HasRenderState(..), RenderState(..))
-import Hickory.Graphics.Drawing
-import Hickory.Graphics.GLSupport
-import Hickory.Graphics.Shader
-import Hickory.Graphics.StockShaders (loadSolidShader, loadSkinnedShader, loadTexturedShader, loadPVCShader)
-import Hickory.Graphics.Textures
+import Hickory.FRP (unionFirst, mkCoreEvents, CoreEvents(..), CoreEventGenerators, renderWithRef)
+import qualified Hickory.Graphics as H
 import Hickory.Input
-import Hickory.Math.Matrix (Mat44)
-import Hickory.Math.Vector
+import Hickory.Math (Mat44, v2tov3, v2, zero, V2, V3(..), vnull, Scalar, (^*))
 import Hickory.Types
 import Linear.Metric
-import Platforms.GLFW
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Platforms.GLFW.Utils
-import Reactive.Banana ((<@>), (<@))
+import Reactive.Banana ((<@))
 import System.Mem (performMinorGC)
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
+import qualified Data.Map as Map
 
 -- ** GAMEPLAY **
 
@@ -81,7 +69,9 @@ physics delta model@Model { playerPos, playerMoveDir, missiles } = model
   }
 
 -- Some gameplay constants
+playerMovementSpeed :: Double
 playerMovementSpeed = 100
+missileMovementSpeed :: Double
 missileMovementSpeed = 200
 
 -- Pure utilities
@@ -96,46 +86,42 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } = model { playe
 
 -- The resources used by our rendering function
 data Resources = Resources
-  { solidShader :: Shader
-  , texturedShader :: Shader
-  , missileTex :: TexID
-  , squareVAOObj :: VAOObj
-  , resourceRenderState :: RenderState
-  } deriving (Generic)
-
-instance HasRenderState Resources where
-  renderState = #resourceRenderState :: Lens' Resources RenderState
+  { missileTex     :: H.TexID
+  , vaoCache       :: H.VAOCache
+  }
 
 -- Set up our scene, load assets, etc.
 initRenderState :: Text -> String -> IO Resources
 initRenderState shaderVersion path = do
-  configGLState 0.125 0.125 0.125
-  solid <- loadSolidShader shaderVersion
+  H.configGLState 0.125 0.125 0.125
   -- To draw the missiles, we also need a shader that can draw
   -- textures, and the actual missile texture
-  textured <- loadTexturedShader shaderVersion
-  missiletex <- loadTexture' path ("circle.png", texClamp)
+  textured <- H.loadTexturedShader shaderVersion
+  missiletex <- H.loadTexture' path ("circle.png", H.texClamp)
 
-  squareVAOObj <- mkSquareVAOObj textured
+  -- We'll use some square geometry and draw our texture on top
+  squareVAOObj <- H.mkSquareVAOObj textured
+  let vaoCache = Map.singleton "square" squareVAOObj
 
-  let rs = RenderState (zip (repeat Nothing) [])
-
-  pure $ Resources solid textured missiletex squareVAOObj rs
+  pure $ Resources missiletex vaoCache
 
 -- This function calculates a view matrix, used during rendering
 calcCameraMatrix :: Size Int -> Mat44
-calcCameraMatrix size@(Size w h) =
+calcCameraMatrix size@(Size w _h) =
   let proj = Ortho (realToFrac w) 1 100 True
       camera = Camera proj (V3 0 0 10) zero (V3 0 1 0)
   in cameraMatrix camera (aspectRatio size)
 
 -- Our render function
-renderGame :: Size Int -> Model -> Scalar -> Mat44 -> Resources -> RenderTree
-renderGame _scrSize Model { playerPos, missiles } _gameTime mat Resources { solidShader, texturedShader, missileTex, squareVAOObj }  =
-  XForm (Just mat) $ List [playerRT, missilesRT]
+renderGame :: Size Int -> Model -> Scalar -> Mat44 -> Resources -> H.RenderTree
+renderGame _scrSize Model { playerPos, missiles } _gameTime mat Resources { missileTex, vaoCache }  =
+  H.XForm (Just mat) $ H.List [playerRT, missilesRT]
   where
-    playerRT = Primative solidShader (sizePosMat (Size 10 10) (v2tov3 playerPos 0)) [colorUniform white] (VAO Nothing squareVAOObj)
-    missilesRT = List $ map (\(pos, _) -> Primative texturedShader (sizePosMat (Size 5 5) (v2tov3 pos 0)) [colorUniform $ rgb 1 0 0] (VAO (Just missileTex) squareVAOObj)) missiles
+    playerRT = pullVaoCache "square" $ \vo ->
+      H.Primative (H.sizePosMat (Size 10 10) (v2tov3 playerPos 0)) [H.colorUniform white] (H.VAO Nothing vo)
+    missilesRT = pullVaoCache "square" $ \vo ->
+      H.List $ map (\(pos, _) -> H.Primative (H.sizePosMat (Size 5 5) (v2tov3 pos 0)) [H.colorUniform $ rgb 1 0 0] (H.VAO (Just missileTex) vo)) missiles
+    pullVaoCache k f = maybe H.NoRender f $ Map.lookup k vaoCache
 
 -- ** INPUT **
 
@@ -168,7 +154,7 @@ procKeyUp k =
 -- Build the FRP network
 buildNetwork :: IORef Resources -> CoreEventGenerators -> IO ()
 buildNetwork resRef evGens = do
-  (B.actuate =<<) . B.compile $ mdo
+  B.actuate <=< B.compile $ mdo
     coreEvents    <- mkCoreEvents evGens
 
     -- currentTime isn't currently used, but it's useful for things like animation
@@ -186,7 +172,7 @@ buildNetwork resRef evGens = do
     let mat = calcCameraMatrix <$> scrSizeB coreEvents
 
     -- every time we get a 'render' event tick, draw the screen
-    B.reactimate $ render resRef
+    B.reactimate $ renderWithRef resRef
       [ renderGame <$> scrSizeB coreEvents <*> mdl <*> currentTime <*> mat
       ] <@ eRender coreEvents
 
@@ -209,6 +195,6 @@ main = withWindow 750 750 "Demo" $ \win -> do
     focused <- GLFW.getWindowFocused win
 
     -- don't consume CPU when the window isn't focused
-    when (not focused) (traceShow "Window Defocused" $ threadDelay 100000)
+    unless focused (threadDelay 100000)
 
     performMinorGC -- try to smooth out the GC a bit

@@ -13,7 +13,8 @@ import Hickory.Graphics.Shader (useShader)
 data VAOConfig = VAOConfig {
   vao :: !VAO,
   indexVBO :: !VBO,
-  vertices :: ![VBO]
+  vertices :: ![VBO],
+  shader :: Shader
   } deriving (Show)
 
 data VAOObj = VAOObj
@@ -42,10 +43,12 @@ createVAOConfig sh vertexgroups = do
 
   buffers <- mapM (buildVertexGroup sh) vertexgroups
 
-  return VAOConfig { vao = vao',
-                    indexVBO = index_vbo,
-                    vertices = buffers
-                    }
+  return VAOConfig
+    { vao = vao'
+    , indexVBO = index_vbo
+    , vertices = buffers
+    , shader = sh
+    }
 
 withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
 withVAOConfig _ VAOConfig { vao } action = glBindVertexArray vao >> action
@@ -57,8 +60,8 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) }
   bufferIndices ivbo indices
 loadVerticesIntoVAOConfig _ _ _ = error "VAOConfig missing buffers"
 
-drawCommand :: Shader -> [UniformBinding] -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
-drawCommand shader uniformBindings texid vaoconfig numitems drawType = do
+drawCommand :: [UniformBinding] -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
+drawCommand uniformBindings texid vaoconfig@VAOConfig { shader} numitems drawType = do
   useShader shader
   case texid of
       Just t -> glBindTexture GL_TEXTURE_2D (getTexID t)
