@@ -1,6 +1,7 @@
 module Hickory.Color where
 
 import Hickory.Math.Vector
+import Linear (V4(..))
 
 type Color = V4 Scalar
 
@@ -26,7 +27,7 @@ rgba :: Scalar -> Scalar -> Scalar -> Scalar -> Color
 rgba = V4
 
 rgb255 :: Int -> Int -> Int -> Color
-rgb255 r g b = rgb ((realToFrac r)/255) ((realToFrac g)/255) ((realToFrac b)/255)
+rgb255 r g b = rgb (realToFrac r / 255) (realToFrac g / 255) (realToFrac b / 255)
 
 changeAlpha :: Scalar -> Color -> Color
 changeAlpha a (V4 r g b _) = V4 r g b a

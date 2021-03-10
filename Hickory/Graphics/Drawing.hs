@@ -21,6 +21,7 @@ module Hickory.Graphics.Drawing
   , retrieveLoc
   ) where
 
+import Linear (V4)
 import Data.Word
 import Data.Int
 import Hickory.Math.Vector

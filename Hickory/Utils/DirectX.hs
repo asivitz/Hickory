@@ -18,6 +18,7 @@ import Hickory.Color
 import Linear.Quaternion
 import Data.List
 import Data.Text (Text, pack)
+import Linear (V3(..), V4(..), scaled, M44, mkTransformation, (!*!))
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc

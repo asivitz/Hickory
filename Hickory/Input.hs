@@ -1,5 +1,6 @@
 module Hickory.Input where
 
+import Linear (V2(..))
 import Hickory.Math.Vector
 import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable

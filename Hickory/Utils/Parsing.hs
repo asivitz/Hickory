@@ -11,6 +11,7 @@ import Hickory.Utils.Utils
 import Data.Text (Text)
 import Hickory.Math.Vector
 import Data.Void
+import Linear (V2(..), V3(..))
 
 type Parser = Parsec Void Text
 

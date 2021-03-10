@@ -6,6 +6,7 @@ import Hickory.Types
 import Data.Maybe
 import Hickory.Math.Vector
 import Linear.Metric
+import Linear (V2(..), V3(..))
 
 {-type TransitionAction t = TransitionStack t -> TransitionStack t-}
 
@@ -37,8 +38,8 @@ makeLabel re vec = UIElement re vec Nothing
 
 gridPositions :: V2 Scalar -> Int -> Scalar -> Scalar -> [V2 Scalar]
 gridPositions topLeft cols colSpacing rowSpacing =
-        let row = map (\i -> topLeft + (v2 (colSpacing * (realToFrac i)) 0)) [0..(cols - 1)] in
-            row ++ (gridPositions (topLeft + (v2 0 rowSpacing)) cols colSpacing rowSpacing)
+        let row = map (\i -> topLeft + (V2 (colSpacing * (realToFrac i)) 0)) [0..(cols - 1)] in
+            row ++ (gridPositions (topLeft + (V2 0 rowSpacing)) cols colSpacing rowSpacing)
 
 cartProd :: [a] -> [b] -> [(a,b)]
 cartProd xs ys = [(x,y) | y <- ys, x <- xs]

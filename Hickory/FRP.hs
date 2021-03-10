@@ -6,7 +6,7 @@ import Control.Monad.Random.Lazy (runRand, Rand, liftIO)
 import Data.Hashable (Hashable)
 import Data.IORef (IORef, readIORef)
 import Hickory.Input (TouchEvent(..), RawInput(..), Key)
-import Hickory.Math.Vector (V2(..), Scalar)
+import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
 import Reactive.Banana (Behavior, Event, MonadMoment, (<@>), mapAccum, unions, accumB, filterE, filterJust, First(..), getFirst, stepper)
@@ -15,6 +15,7 @@ import System.Random (StdGen, newStdGen)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Sequence as S
 import qualified Hickory.Graphics.DrawUtils as DU
+import Linear (V2(..))
 
 type HandlerPair a = (AddHandler a, Handler a)
 

@@ -20,17 +20,18 @@ import qualified Hickory.Utils.Obj as OBJ
 import qualified Hickory.Utils.DirectX as DX
 import Data.Text (Text)
 import Data.IORef (IORef, writeIORef, readIORef)
+import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), (!*), inv44)
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
 import qualified Data.Vector.Unboxed as Vector
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), drawCommand, loadVerticesIntoVAOConfig)
 
-data Command = Command Mat44 [UniformBinding] DrawSpec
+data Command = Command Mat44 [UniformBinding] (Maybe TexID) DrawSpec
 
 data DrawSpec
-  = VAO (Maybe TexID) VAOObj
-  | DynVAO (Maybe TexID) VAOConfig ([GLfloat],[GLushort],DrawType)
+  = VAO VAOObj
+  | DynVAO VAOConfig ([GLfloat],[GLushort],DrawType)
   deriving (Show)
 
 --TODO: Read animation FPS from directx file
@@ -60,12 +61,12 @@ boneMatUniform (ThreeDModel _ Nothing _ _) _ _ = []
 boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
     where mats = animatedMats frame mesh (actionName, time)
 
-drawSpec :: [UniformBinding] -> DrawSpec -> IO ()
-drawSpec uniforms spec = case spec of
-  VAO  _ (VAOObj _ 0 _) -> pure ()
-  VAO  tex (VAOObj vaoConfig numitems drawType) -> do
+drawSpec :: [UniformBinding] -> Maybe TexID -> DrawSpec -> IO ()
+drawSpec uniforms tex spec = case spec of
+  VAO (VAOObj _ 0 _) -> pure ()
+  VAO (VAOObj vaoConfig numitems drawType) -> do
     drawCommand uniforms tex vaoConfig (fromIntegral numitems) drawType
-  DynVAO tex vaoConfig (verts, indices, drawType) -> do
+  DynVAO vaoConfig (verts, indices, drawType) -> do
     loadVerticesIntoVAOConfig vaoConfig verts indices
     drawCommand uniforms tex vaoConfig (fromIntegral $ length indices) drawType
 
@@ -94,9 +95,9 @@ size3PosRotMat :: V3 Scalar -> V3 Scalar -> Scalar -> Mat44
 size3PosRotMat (V3 w h d) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h d 1)
 
 data RenderTree
-  = Primative Mat44 [UniformBinding] DrawSpec
+  = Primitive [UniformBinding] (Maybe TexID) DrawSpec
   | List [RenderTree]
-  | XForm (Maybe Mat44) RenderTree
+  | XForm Mat44 RenderTree
   | NoRender
   deriving (Show)
 
@@ -105,14 +106,14 @@ cubeFloats = concatMap toList verts
  where
   h     = 0.5
   l     = -h
-  p1    = v3 l l l
-  p2    = v3 h l l
-  p3    = v3 h h l
-  p4    = v3 l h l
-  p5    = v3 l l h
-  p6    = v3 h l h
-  p7    = v3 h h h
-  p8    = v3 l h h
+  p1    = V3 l l l
+  p2    = V3 h l l
+  p3    = V3 h h l
+  p4    = V3 l h l
+  p5    = V3 l l h
+  p6    = V3 h l h
+  p7    = V3 h h h
+  p8    = V3 l h h
   verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
 cubeIndices :: [GLushort]
@@ -186,7 +187,7 @@ mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachmen
 -- Packs an OBJ's data into an array of vertices and indices
 -- The vertices are position, tex coords, and normals packed together
 packOBJ :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
-packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concat $ map snd pool, indices)
+packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concatMap snd pool, indices)
  where
   construct (vidx, tcidx, nidx) =
     map realToFrac $ toList (vertices  !! (vidx - 1))
@@ -341,7 +342,7 @@ render :: [RenderTree] -> IO ()
 render = renderTrees
 
 runDrawCommand :: Command -> IO ()
-runDrawCommand (Command mat uniforms spec) = drawSpec (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) spec
+runDrawCommand (Command mat uniforms tex spec) = drawSpec (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) tex spec
 
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
@@ -359,9 +360,7 @@ combineMats (Just x) (Just y) = Just (x !*! y)
 
 collectTreeSpecs :: Maybe (M44 Scalar) -> RenderTree -> [Command]
 collectTreeSpecs _         NoRender          = []
-collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs (combineMats parentMat mat) child
-collectTreeSpecs parentMat (Primative mat uniforms spec) = [Command mat' uniforms spec]
-  where mat' = case parentMat of
-          Just m -> m !*! mat
-          Nothing -> mat
+collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs (combineMats parentMat (Just mat)) child
+collectTreeSpecs parentMat (Primitive uniforms tex spec) = [Command mat' uniforms tex spec]
+  where mat' = fromMaybe identity parentMat
 collectTreeSpecs parentMat (List children) = concatMap (collectTreeSpecs parentMat) children -- (sortOn rtDepth children)

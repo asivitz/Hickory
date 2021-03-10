@@ -9,18 +9,19 @@ import Data.List
 import Control.Lens ((^.))
 import qualified Hickory.Utils.Bvh as BVH
 import Data.Text (Text)
+import Linear (V3(..), zero, liftI2, point, unit, (^*), (!*!), (!*), identity, mkTransformation, _x, _y, _z, _xyz, M44)
 
-data Frame a = Joint Text (M44 a) [Frame a]
-             | End (M44 a)
-             deriving (Show)
+data Frame a
+  = Joint Text (M44 a) [Frame a]
+  | End (M44 a)
+  deriving (Show)
 
-data Animation a = Animation {
-        numFrames :: Integer,
-        frameTime :: Double,
-        boundingBox :: (V3 Double, V3 Double),
-        frames :: [(Frame a, (V3 Double, V3 Double))]
-        }
-        deriving (Show)
+data Animation a = Animation
+  { numFrames :: Integer
+  , frameTime :: Double
+  , boundingBox :: (V3 Double, V3 Double)
+  , frames :: [(Frame a, (V3 Double, V3 Double))]
+  } deriving (Show)
 
 degToRad :: Double -> Double
 degToRad = (*(pi/180))
@@ -39,12 +40,12 @@ vmaximum = foldl' vmax (-10000)
 
 findJointLimits :: Frame Double -> (V3 Double, V3 Double)
 findJointLimits j = case j of
-                        (Joint _ mat children) -> f mat children
-                        (End mat) -> f mat []
-    where f mat chdn = (vmin local mn, vmax local mx)
-            where local = (mat !* point zero) ^. _xyz
-                  limits = map findJointLimits chdn
-                  (mn, mx) = (vminimum (map fst limits), vmaximum (map snd limits))
+  (Joint _ mat children) -> f mat children
+  (End mat) -> f mat []
+  where f mat chdn = (vmin local mn, vmax local mx)
+          where local = (mat !* point zero) ^. _xyz
+                limits = map findJointLimits chdn
+                (mn, mx) = (vminimum (map fst limits), vmaximum (map snd limits))
 
 bvhToAnimation :: BVH.BVH -> Animation Double
 bvhToAnimation (BVH.BVH joint (BVH.Motion nFrames fTime fs)) =

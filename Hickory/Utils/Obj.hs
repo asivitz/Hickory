@@ -11,6 +11,7 @@ import Data.Maybe
 import Hickory.Math.Vector
 import Hickory.Utils.Parsing
 import Data.Text (Text, pack)
+import Linear (V2(..), V3(..))
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc

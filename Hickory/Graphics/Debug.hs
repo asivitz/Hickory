@@ -12,6 +12,7 @@ import System.IO.Unsafe
 import Data.IORef
 import Hickory.Math.Vector
 import Hickory.Color
+import Linear (V3)
 
 data DebugShape = DebugVector (V3 Scalar)
                 | DebugPoint (V3 Scalar)

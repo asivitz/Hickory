@@ -19,7 +19,7 @@ import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVertice
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
 import Graphics.GL.Compatibility41 as GL
-import Hickory.Math (zero)
+import Linear (zero)
 
 data Printer a = Printer (Font a) TexID
 

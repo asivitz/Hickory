@@ -7,7 +7,7 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE BlockArguments #-}
 
 
 
@@ -15,18 +15,19 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (forever, unless, (<=<))
 import Data.IORef (IORef, newIORef)
 import Data.Text (Text)
+import Data.Functor ((<&>))
 import Hickory.Camera
 import Hickory.Color
 import Hickory.FRP (unionFirst, mkCoreEvents, CoreEvents(..), CoreEventGenerators, renderWithRef)
 import qualified Hickory.Graphics as H
 import Hickory.Input
-import Hickory.Math (Mat44, v2tov3, v2, zero, V2, V3(..), vnull, Scalar, (^*))
+import Hickory.Math (Mat44, vnull, Scalar, mkTranslation, mkScale)
+import Linear (zero, V2(..), V3(..), (^*), (!*!))
 import Hickory.Types
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Platforms.GLFW.Utils
 import Reactive.Banana ((<@))
-import System.Mem (performMinorGC)
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
@@ -38,10 +39,10 @@ type Vec = V2 Double
 
 -- Our game data
 data Model = Model
-  { playerPos :: Vec
-  , playerMoveDir :: Vec
+  { playerPos       :: Vec
+  , playerMoveDir   :: Vec
   , firingDirection :: Vec
-  , missiles :: [(Vec, Vec)]
+  , missiles        :: [(Vec, Vec)]
   }
 
 -- All the possible inputs
@@ -49,16 +50,16 @@ data Msg = Fire | AddMove Vec | SubMove Vec | Tick Double | Noop
 
 -- By default, our firingDirection is to the right
 newGame :: Model
-newGame = Model zero zero (v2 1 0) []
+newGame = Model zero zero (V2 1 0) []
 
 -- Change the game model by processing some input
 gameStep :: Msg -> Model -> Model
 gameStep msg model@Model { playerPos, firingDirection, missiles } = case msg of
-    Tick time -> physics time model
-    Fire -> model { missiles = (playerPos, firingDirection) : missiles }
-    AddMove dir -> adjustMoveDir dir model
-    SubMove dir -> adjustMoveDir (- dir) model
-    Noop -> model
+  Tick time -> physics time model
+  Fire -> model { missiles = (playerPos, firingDirection) : missiles }
+  AddMove dir -> adjustMoveDir dir model
+  SubMove dir -> adjustMoveDir (- dir) model
+  Noop -> model
 
 -- Step the world forward by some small delta
 physics :: Double -> Model -> Model
@@ -71,6 +72,7 @@ physics delta model@Model { playerPos, playerMoveDir, missiles } = model
 -- Some gameplay constants
 playerMovementSpeed :: Double
 playerMovementSpeed = 100
+
 missileMovementSpeed :: Double
 missileMovementSpeed = 200
 
@@ -79,8 +81,11 @@ missileInBounds :: (Vec, Vec) -> Bool
 missileInBounds (pos, _) = norm pos < 500
 
 adjustMoveDir :: Vec -> Model -> Model
-adjustMoveDir dir model@Model { playerMoveDir, firingDirection } = model { playerMoveDir = newMoveDir, firingDirection = if vnull newMoveDir then firingDirection else newMoveDir }
-    where newMoveDir = playerMoveDir + dir
+adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
+  model { playerMoveDir = newMoveDir
+        , firingDirection = if vnull newMoveDir then firingDirection else newMoveDir
+        }
+  where newMoveDir = playerMoveDir + dir
 
 -- ** RENDERING **
 
@@ -115,13 +120,17 @@ calcCameraMatrix size@(Size w _h) =
 -- Our render function
 renderGame :: Size Int -> Model -> Scalar -> Mat44 -> Resources -> H.RenderTree
 renderGame _scrSize Model { playerPos, missiles } _gameTime mat Resources { missileTex, vaoCache }  =
-  H.XForm (Just mat) $ H.List [playerRT, missilesRT]
+  H.XForm mat $ H.List [playerRT, missilesRT]
   where
-    playerRT = pullVaoCache "square" $ \vo ->
-      H.Primative (H.sizePosMat (Size 10 10) (v2tov3 playerPos 0)) [H.colorUniform white] (H.VAO Nothing vo)
-    missilesRT = pullVaoCache "square" $ \vo ->
-      H.List $ map (\(pos, _) -> H.Primative (H.sizePosMat (Size 5 5) (v2tov3 pos 0)) [H.colorUniform $ rgb 1 0 0] (H.VAO (Just missileTex) vo)) missiles
-    pullVaoCache k f = maybe H.NoRender f $ Map.lookup k vaoCache
+    playerRT = H.XForm (mkTranslation playerPos !*! mkScale (V2 10 10)) . pullVaoCache "square" $
+      H.Primitive [H.colorUniform white] Nothing
+    missilesRT = pullVaoCache "square" \vo ->
+      H.List $ missiles <&> \(pos, _) -> H.XForm (mkTranslation pos !*! mkScale (V2 5 5)) $
+        H.Primitive
+          [H.colorUniform red]
+          (Just missileTex)
+          vo
+    pullVaoCache k f = maybe H.NoRender (f . H.VAO) $ Map.lookup k vaoCache
 
 -- ** INPUT **
 
@@ -131,11 +140,11 @@ isMoveKey key = key `elem` [Key'Up, Key'Down, Key'Left, Key'Right]
 
 moveKeyVec :: Key -> Vec
 moveKeyVec key = case key of
-    Key'Up -> v2 0 1
-    Key'Down -> v2 0 (-1)
-    Key'Left -> v2 (-1) 0
-    Key'Right -> v2 1 0
-    _ -> zero
+  Key'Up    -> V2 0 1
+  Key'Down  -> V2 0 (-1)
+  Key'Left  -> V2 (-1) 0
+  Key'Right -> V2 1 0
+  _ -> zero
 
 procKeyDown :: Key -> Msg
 procKeyDown k =
@@ -196,5 +205,3 @@ main = withWindow 750 750 "Demo" $ \win -> do
 
     -- don't consume CPU when the window isn't focused
     unless focused (threadDelay 100000)
-
-    performMinorGC -- try to smooth out the GC a bit

@@ -12,6 +12,7 @@ import Data.Time
 import Data.Maybe
 import Control.Monad
 import qualified Graphics.GL.Compatibility41 as GL
+import Linear (V2(..))
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -120,7 +121,7 @@ touchIdent button = case button of
   GLFW.MouseButton'8 -> 8
 
 touchPosToScreenPos :: Size Int -> (Double, Double) -> V2 Scalar
-touchPosToScreenPos (Size w h) (x,y) = v2 (realToFrac x) (fromIntegral h - realToFrac y)
+touchPosToScreenPos (Size w h) (x,y) = V2 (realToFrac x) (fromIntegral h - realToFrac y)
 
 {-
 broadcastTouchLoc win screensize touchid = do

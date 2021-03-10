@@ -2,38 +2,28 @@
 {-# LANGUAGE ConstraintKinds #-}
 
 module Hickory.Math.Vector
-    (
-    module Linear.V2,
-    module Linear.V3,
-    module Linear.V4,
-    module Linear.Vector,
-    v2,
-    v3,
-    v4,
-    v2tov3,
-    v3tov4,
-    movePos,
-    movePosNoStop,
-    moveVal,
-    vmidpoint,
-    vnull,
-    vabsangle,
-    v2angle,
-    v2clockwise,
-    v2rotate,
-    v2SegmentsIntersect,
-    v2perp,
-    vunpackFractional,
-    timeToIntersection,
-    intersectionPoint,
-    Scalar,
-    v4FromList,
-    v3FromList,
-    v3map,
-    v2map
-    )
-    where
-
+  ( v2tov3
+  , v3tov4
+  , movePos
+  , movePosNoStop
+  , moveVal
+  , vmidpoint
+  , vnull
+  , vabsangle
+  , v2angle
+  , v2clockwise
+  , v2rotate
+  , v2SegmentsIntersect
+  , v2perp
+  , vunpackFractional
+  , timeToIntersection
+  , intersectionPoint
+  , Scalar
+  , v4FromList
+  , v3FromList
+  , v3map
+  , v2map
+  ) where
 
 import Linear.V2
 import Linear.V3
@@ -43,19 +33,15 @@ import Linear.Epsilon
 import Linear.Metric
 import Data.Foldable (toList)
 
-v2 = V2
-v3 = V3
-v4 = V4
-
 type Vector v a = (Metric v, Epsilon (v a), Additive v, Floating a, Real a, RealFloat a)
 
 type Scalar = Double
 
 v2tov3 :: V2 a -> a -> V3 a
-v2tov3 (V2 x y) z = v3 x y z
+v2tov3 (V2 x y) = V3 x y
 
 v3tov4 :: V3 a -> a -> V4 a
-v3tov4 (V3 x y z) w = v4 x y z w
+v3tov4 (V3 x y z) = V4 x y z
 
 vmidpoint :: Vector f a => f a -> f a -> f a
 vmidpoint = lerp 0.5
@@ -129,10 +115,12 @@ timeToIntersection speed pos vel =
                       else Nothing
 
 intersectionPoint :: Vector f a => f a -> a -> f a -> f a -> Maybe (f a)
-intersectionPoint p1 speed p2 vel = maybe Nothing (\t -> Just $ p2 + (vel ^* t)) (timeToIntersection speed (p2 - p1) vel)
+intersectionPoint p1 speed p2 vel = do
+  t <- timeToIntersection speed (p2 - p1) vel
+  pure $ p2 + (vel ^* t)
 
 v2rotate :: Floating a => V2 a -> a -> V2 a
-v2rotate (V2 x y) ang = v2 (x * co - y * si) (y * co + x * si)
+v2rotate (V2 x y) ang = V2 (x * co - y * si) (y * co + x * si)
     where co = cos ang
           si = sin ang
 

@@ -78,7 +78,7 @@ import Data.List (genericLength)
 import Hickory.Graphics.Drawing
 import Hickory.Graphics.Shader
 import qualified Data.Foldable as Fold
-import Linear.V4
+import Linear (V4(..), M44, M33, transpose)
 
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
