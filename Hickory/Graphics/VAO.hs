@@ -9,6 +9,7 @@ import Data.Text (Text)
 import Graphics.GL.Compatibility41
 import Hickory.Graphics.GLSupport (makeVAO, makeVBO, buildVertexGroup, bindVAO, bufferVertices, bufferIndices, drawElements, glenumForDrawType, bindUniform)
 import Hickory.Graphics.Shader (useShader)
+import qualified Data.Vector.Storable as V
 
 data VAOConfig = VAOConfig {
   vao :: !VAO,
@@ -53,7 +54,7 @@ createVAOConfig sh vertexgroups = do
 withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
 withVAOConfig _ VAOConfig { vao } action = glBindVertexArray vao >> action
 
-loadVerticesIntoVAOConfig :: VAOConfig -> [GLfloat] -> [GLushort] -> IO ()
+loadVerticesIntoVAOConfig :: VAOConfig -> V.Vector GLfloat -> V.Vector GLushort -> IO ()
 loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
   bindVAO vao
   bufferVertices vbo vs

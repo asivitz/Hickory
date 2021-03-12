@@ -1,5 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
@@ -79,23 +80,22 @@ import Hickory.Graphics.Drawing
 import Hickory.Graphics.Shader
 import qualified Data.Foldable as Fold
 import Linear (V4(..), M44, M33, transpose)
+import qualified Data.Vector.Storable as V
 
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
 
 data BufDataType = BufFloat | BufUShort
 
-bufferVertices :: VBO -> [GLfloat] -> IO ()
+bufferVertices :: VBO -> V.Vector GLfloat -> IO ()
 bufferVertices vbo floats = do
-        glBindBuffer GL_ARRAY_BUFFER vbo
-        bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW BufFloat
-        return ()
+  glBindBuffer GL_ARRAY_BUFFER vbo
+  bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW BufFloat
 
-bufferIndices :: VBO -> [GLushort] -> IO ()
+bufferIndices :: VBO -> V.Vector GLushort -> IO ()
 bufferIndices vbo ints = do
-        glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
-        bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW BufUShort
-        return ()
+  glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
+  bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW BufUShort
 
 -- VAO / VBO
 
@@ -114,12 +114,12 @@ bindUniform shader (UniformBinding name uniVal) =
             Nothing -> print $ "Uniform named " ++ name ++ " not found in shader"
 
 attachVertexArray :: GLint -> GLint -> GLint -> GLint -> IO ()
-attachVertexArray attrLoc len stride offset = do
-        if (attrLoc < 0)
-            then (print ("Can't attach vertex array: Bad attribute location" :: String))
-            else do
-                enableVertexAttribArray attrLoc
-                vertexAttribPointer attrLoc len GL_FLOAT GL_FALSE (stride * fsize) (fromIntegral $ offset * fsize)
+attachVertexArray attrLoc len stride offset =
+  if attrLoc < 0
+  then print ("Can't attach vertex array: Bad attribute location" :: String)
+  else do
+      enableVertexAttribArray attrLoc
+      vertexAttribPointer attrLoc len GL_FLOAT GL_FALSE (stride * fsize) (fromIntegral $ offset * fsize)
     where fsize :: GLint
           fsize = fromIntegral $ sizeOf (0 :: GLfloat)
 
@@ -239,12 +239,12 @@ uniformMatrix3fv loc mats =
 vertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
 vertexAttribPointer a b c d e f = glVertexAttribPointer (fromIntegral a) b c d e (plusPtr nullPtr (fromIntegral f))
 
-bufferData bufType lst usageType _ =
-        withArrayLen lst $ \len ptr ->
-            glBufferData bufType
-                         (fromIntegral (len * sizeOf (head lst)))
-                         ptr
-                         usageType
+bufferData bufType vec usageType _ =
+  V.unsafeWith vec \ptr ->
+    glBufferData bufType
+                  (fromIntegral (V.length vec * sizeOf (V.head vec)))
+                  ptr
+                  usageType
 
 -- VAO
 

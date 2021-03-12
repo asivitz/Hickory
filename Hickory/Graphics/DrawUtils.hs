@@ -21,17 +21,18 @@ import qualified Hickory.Utils.DirectX as DX
 import Data.Text (Text)
 import Data.IORef (IORef, writeIORef, readIORef)
 import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), (!*), inv44)
+import qualified Data.Vector.Storable as V
+import qualified Data.Vector.Unboxed as UV
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
-import qualified Data.Vector.Unboxed as Vector
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), drawCommand, loadVerticesIntoVAOConfig)
 
 data Command = Command Mat44 [UniformBinding] (Maybe TexID) DrawSpec
 
 data DrawSpec
   = VAO VAOObj
-  | DynVAO VAOConfig ([GLfloat],[GLushort],DrawType)
+  | DynVAO VAOConfig (V.Vector GLfloat, V.Vector GLushort, DrawType)
   deriving (Show)
 
 --TODO: Read animation FPS from directx file
@@ -68,7 +69,7 @@ drawSpec uniforms tex spec = case spec of
     drawCommand uniforms tex vaoConfig (fromIntegral numitems) drawType
   DynVAO vaoConfig (verts, indices, drawType) -> do
     loadVerticesIntoVAOConfig vaoConfig verts indices
-    drawCommand uniforms tex vaoConfig (fromIntegral $ length indices) drawType
+    drawCommand uniforms tex vaoConfig (fromIntegral $ V.length indices) drawType
 
 {-
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -101,8 +102,8 @@ data RenderTree
   | NoRender
   deriving (Show)
 
-cubeFloats :: [GLfloat]
-cubeFloats = concatMap toList verts
+cubeFloats :: V.Vector GLfloat
+cubeFloats = V.fromList . concatMap toList $ verts
  where
   h     = 0.5
   l     = -h
@@ -116,13 +117,13 @@ cubeFloats = concatMap toList verts
   p8    = V3 l h h
   verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
-cubeIndices :: [GLushort]
-cubeIndices = [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
+cubeIndices :: V.Vector GLushort
+cubeIndices = V.fromList [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
 
-loadVAOObj :: VAOConfig -> DrawType -> ([GLfloat], [GLushort]) -> IO VAOObj
+loadVAOObj :: VAOConfig -> DrawType -> (V.Vector GLfloat, V.Vector GLushort) -> IO VAOObj
 loadVAOObj vaoconfig drawType (verts, indices) = do
   loadVerticesIntoVAOConfig vaoconfig verts indices
-  return $ VAOObj vaoconfig (length indices) drawType
+  return $ VAOObj vaoconfig (V.length indices) drawType
 
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
@@ -132,7 +133,7 @@ loadCubeIntoVAOConfig vaoconfig = do
 
 loadInvertedCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadInvertedCubeIntoVAOConfig vaoconfig = do
-  loadVAOObj vaoconfig TriangleStrip (cubeFloats, reverse cubeIndices)
+  loadVAOObj vaoconfig TriangleStrip (cubeFloats, V.reverse cubeIndices)
 
 mkCubeVAOObj :: Shader -> IO VAOObj
 mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
@@ -154,11 +155,11 @@ loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadSquareIntoVAOConfig vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, indices)
   where h = 0.5
         l = -h
-        floats = [l, h, 0, 0,
-                  l, l, 0, 1,
-                  h, l, 1, 1,
-                  h, h, 1, 0]
-        indices = [0,1,2,3]
+        floats = V.fromList [l, h, 0, 0,
+                            l, l, 0, 1,
+                            h, l, 1, 1,
+                            h, h, 1, 0]
+        indices = V.fromList [0,1,2,3]
 
 mkSquareVAOObj :: Shader -> IO VAOObj
 mkSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2, Attachment sp_ATTR_TEX_COORDS 2]] >>= loadSquareIntoVAOConfig
@@ -173,7 +174,7 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
                 h, h]
       indices = [0,1,2,3]
 
-  loadVerticesIntoVAOConfig vaoconfig floats indices
+  loadVerticesIntoVAOConfig vaoconfig (V.fromList floats) (V.fromList indices)
 
   return (VAOObj vaoconfig (length indices) TriangleFan)
 
@@ -186,8 +187,8 @@ mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachmen
 
 -- Packs an OBJ's data into an array of vertices and indices
 -- The vertices are position, tex coords, and normals packed together
-packOBJ :: OBJ.OBJ Double -> ([GLfloat], [GLushort])
-packOBJ (OBJ.OBJ vertices texCoords normals faces) = (concatMap snd pool, indices)
+packOBJ :: OBJ.OBJ Double -> (V.Vector GLfloat, V.Vector GLushort)
+packOBJ (OBJ.OBJ vertices texCoords normals faces) = (V.fromList $ concatMap snd pool, V.fromList indices)
  where
   construct (vidx, tcidx, nidx) =
     map realToFrac $ toList (vertices  !! (vidx - 1))
@@ -235,33 +236,33 @@ pullMesh fr = case go fr of
       Nothing -> concatMap (sortWeights weights) children
   transformMesh :: Mat44 -> DX.Mesh -> DX.Mesh
   transformMesh m msh@DX.Mesh { DX.vertices } =
-    msh { DX.vertices = Vector.map (\(x, y, z) -> let V4 x' y' z' _ = m !* (V4 x y z 1) in (x', y', z')) vertices }
+    msh { DX.vertices = UV.map (\(x, y, z) -> let V4 x' y' z' _ = m !* (V4 x y z 1) in (x', y', z')) vertices }
 
 faceNumForFaceIdx :: Int -> Int
 faceNumForFaceIdx x = floor $ (realToFrac x :: Double) / 3
 
 -- Provide a material index for each vertex
-packMaterialIndices :: Vector.Vector Int -> Vector.Vector Int -> [Float]
+packMaterialIndices :: UV.Vector Int -> UV.Vector Int -> [Float]
 packMaterialIndices vertFaces materialIndices = for [0 .. numIndices - 1]
-  $ \x -> realToFrac $ materialIndices Vector.! faceNum x
+  $ \x -> realToFrac $ materialIndices UV.! faceNum x
  where
-  faceNum x = faceNumForFaceIdx (fromJust $ Vector.elemIndex x vertFaces)
-  numIndices = Vector.length vertFaces
+  faceNum x = faceNumForFaceIdx (fromJust $ UV.elemIndex x vertFaces)
+  numIndices = UV.length vertFaces
 
 -- TODO: Technically we can't assume each normal corresponds with a face.
 -- We should read the extra data their to find the actual correspondance.
 -- However, Blender exports them in face order so it doesn't matter.
-packNormals :: Vector.Unbox a => Vector.Vector Int -> Vector.Vector (a, a, a) -> [a]
+packNormals :: UV.Unbox a => UV.Vector Int -> UV.Vector (a, a, a) -> [a]
 packNormals faces normals = concat $ (map (\(x, y, z) -> [x, y, z]) . map snd . sortOn fst) pairs
  where
-  pairs = for (Vector.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx in (vIdx, normals Vector.! fnum))
+  pairs = for (UV.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx in (vIdx, normals UV.! fnum))
 
-packVertices :: (Vector.Unbox a, Vector.Unbox a1, Vector.Unbox a2, Real a, Real a1, Real a2, Fractional b) => Vector.Vector (a2, a1, a) -> [b]
-packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFrac z]) (Vector.toList verts)
+packVertices :: (UV.Unbox a, UV.Unbox a1, UV.Unbox a2, Real a, Real a1, Real a2, Fractional b) => UV.Vector (a2, a1, a) -> [b]
+packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFrac z]) (UV.toList verts)
 
-packAnimatedXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
+packAnimatedXMesh :: DX.Mesh -> (V.Vector GLfloat, V.Vector GLushort)
 packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeights, DX.meshMaterialList } =
-  (dat, indices)
+  (V.fromList dat, indices)
  where
   verts            = packVertices vertices
   material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
@@ -270,21 +271,21 @@ packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeight
     ( \lst i ->
       fromMaybe
           (error $ "Vertex #" ++ show i ++ " not assigned to a bone.")
-          (fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> Vector.elem i vertexIndices) skinWeights)
+          (fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> UV.elem i vertexIndices) skinWeights)
         : lst
     )
     []
-    [0 .. (Vector.length vertices - 1)]
+    [0 .. (UV.length vertices - 1)]
   dat     = interleave [verts, normals, assignments, material_indices] [3, 3, 1, 1]
-  indices = Vector.toList (Vector.map fromIntegral faces)
+  indices = V.convert $ UV.map fromIntegral faces
 
-packXMesh :: DX.Mesh -> ([GLfloat], [GLushort])
-packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList } = (dat, indices)
+packXMesh :: DX.Mesh -> (V.Vector GLfloat, V.Vector GLushort)
+packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList } = (V.fromList dat, indices)
  where
   verts            = packVertices vertices
   material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
   dat              = interleave [verts, material_indices] [3, 1]
-  indices          = Vector.toList (Vector.map fromIntegral faces)
+  indices          = V.convert (UV.map fromIntegral faces)
 
 isAnimated :: DX.Mesh -> Bool
 isAnimated DX.Mesh { DX.skinWeights } = (not . null) skinWeights
@@ -294,7 +295,7 @@ meshExtents DX.Mesh { DX.vertices } = (V3 mnx mny mnz, V3 mxx mxy mxz)
  where
   Just (mnx, mny, mnz) = f min
   Just (mxx, mxy, mxz) = f max
-  f func = Vector.foldl'
+  f func = UV.foldl'
     ( \trip (x, y, z) -> case trip of
       Just (mx, my, mz) -> Just (func mx x, func my y, func mz z)
       Nothing           -> Just (x, y, z)

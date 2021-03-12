@@ -20,6 +20,7 @@ import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
 import Graphics.GL.Compatibility41 as GL
 import Linear (zero)
+import qualified Data.Vector.Storable as V
 
 data Printer a = Printer (Font a) TexID
 
@@ -66,7 +67,7 @@ printVAOObj (Printer font _) textCommand vaoconfig = do
   if not $ null floats
     then do
       let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
-      loadVerticesIntoVAOConfig vaoconfig floats indices
+      loadVerticesIntoVAOConfig vaoconfig (V.fromList floats) (V.fromList indices)
 
       return (VAOObj vaoconfig (fromIntegral numBlockIndices) TriangleStrip)
     else error "Tried to print empty text command"
