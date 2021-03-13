@@ -141,8 +141,8 @@ mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_PO
 mkInvertedCubeVAOObj :: Shader -> IO VAOObj
 mkInvertedCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
 
-mkSquareVerts :: (Num t, Fractional t1) => t1 -> t1 -> ([t1], [t], DrawType)
-mkSquareVerts texW texH = (floats, indices, TriangleFan)
+mkSquareVerts :: (V.Storable t, V.Storable t1, Num t, Fractional t1) => t1 -> t1 -> (V.Vector t1, V.Vector t, DrawType)
+mkSquareVerts texW texH = (V.fromList floats, V.fromList indices, TriangleFan)
   where h = 0.5
         l = -h
         floats = [l, h, 0, 0,
