@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, RecordWildCards #-}
 
 module Hickory.Graphics.VAO where
 
@@ -26,13 +26,14 @@ data VAOObj = VAOObj
 
 type VAOCache = Map.Map Text VAOObj
 
-loadVao :: (MonadState VAOCache m, MonadIO m) => Text -> IO VAOConfig -> (VAOConfig -> IO VAOObj) -> m ()
+loadVao :: (MonadState VAOCache m, MonadIO m) => Text -> IO VAOConfig -> (VAOConfig -> IO VAOObj) -> m VAOObj
 loadVao k create load = do
   vaoConfig <- gets (Map.lookup k) >>= \case
     Nothing -> liftIO create
     Just (VAOObj vc _ _) -> pure vc
   newVAO <- liftIO $ load vaoConfig
   modify $ Map.insert k newVAO
+  pure newVAO
 
 createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
 createVAOConfig sh vertexgroups = do
@@ -50,6 +51,15 @@ createVAOConfig sh vertexgroups = do
     , vertices = buffers
     , shader = sh
     }
+
+deleteVAOConfigs :: [VAOConfig] -> IO ()
+deleteVAOConfigs vcs = do
+  let vaos = map (\VAOConfig {..} -> vao) vcs
+      vaosv = V.fromList vaos
+      vbos = concatMap (\VAOConfig {..} -> indexVBO : vertices) vcs
+      vbosv = V.fromList vbos
+  V.unsafeWith vaosv $ glDeleteVertexArrays (fromIntegral $ V.length vaosv)
+  V.unsafeWith vbosv $ glDeleteBuffers (fromIntegral $ V.length vbosv)
 
 withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
 withVAOConfig _ VAOConfig { vao } action = glBindVertexArray vao >> action

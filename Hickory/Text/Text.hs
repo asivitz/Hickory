@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, DerivingStrategies, DeriveAnyClass, DeriveGeneric #-}
 
 module Hickory.Text.Text where
 
@@ -12,6 +12,7 @@ import qualified Data.Text as Text
 import Data.Hashable
 import Data.List
 import Linear (V2(..), V3(..))
+import GHC.Generics (Generic)
 
 type CharTable a = HashMap.HashMap CharIdent (Glyph a)
 type KerningTable a = HashMap.HashMap KerningPair (KerningSpec a)
@@ -64,8 +65,20 @@ data Glyph a
   | Control Int
   | Null deriving Show
 
-data XAlign = AlignRight | AlignCenter | AlignLeft deriving (Show, Eq)
-data YAlign = Middle | LowerMiddle | Bottom | Top deriving (Show, Eq)
+data XAlign
+  = AlignRight
+  | AlignCenter
+  | AlignLeft
+  deriving (Show, Eq, Generic)
+  deriving anyclass Hashable
+
+data YAlign
+  = Middle
+  | LowerMiddle
+  | Bottom
+  | Top
+  deriving (Show, Eq, Generic)
+  deriving anyclass Hashable
 
 lineShiftX :: Fractional a => a -> XAlign -> a
 lineShiftX width AlignRight = negate width
@@ -85,7 +98,8 @@ data TextCommand = TextCommand
   , valign :: YAlign
   , color :: Color
   , leftBump :: Scalar }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic)
+  deriving anyclass Hashable
 
 data PositionedTextCommand = PositionedTextCommand (V3 Scalar) TextCommand deriving (Show)
 

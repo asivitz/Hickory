@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Hickory.FRP where
 
 import Control.Applicative (liftA2)
@@ -25,28 +27,33 @@ mkEvent = fromAddHandler . fst
 fire :: (AddHandler a, b) -> b
 fire = snd
 
+type Point = (V2 Scalar, Int) -- Location, Ident
+type PointUp = (Scalar, V2 Scalar, Int) -- Duration, Location, Ident
+
 touchHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
 touchHandlers =
   (,,) <$> newAddHandler <*> newAddHandler <*> newAddHandler
 
 mkTouchEvents
-  :: ( HandlerPair [(V2 Scalar, b)]
-     , HandlerPair [(Double, V2 Scalar, Int)]
-     , HandlerPair [(V2 Scalar, b3)]
+  :: ( HandlerPair [Point]
+     , HandlerPair [PointUp]
+     , HandlerPair [Point]
      )
-  -> MomentIO (Event [TouchEvent])
+  -> MomentIO (Event [Point], Event [PointUp], Event [Point])
 mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
   ePointDown <- mkEvent pointDownPair
   ePointUp   <- mkEvent pointUpPair
   ePointLoc  <- mkEvent pointLocPair
 
-  let eTouchEvs = mconcat
-        [ map (Down . fst)     <$> ePointDown
-        , map (Up   . view _2) <$> ePointUp
-        , map (Loc  . fst)     <$> ePointLoc
-        ]
+  pure (ePointDown, ePointUp, ePointLoc)
 
-  pure eTouchEvs
+
+concatTouchEvents :: CoreEvents -> Event [TouchEvent]
+concatTouchEvents CoreEvents {..} = mconcat
+  [ map (Down . fst)     <$> eTouchesDown
+  , map (Up   . view _2) <$> eTouchesUp
+  , map (Loc  . fst)     <$> eTouchesLoc
+  ]
 
 keyHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
 keyHandlers = (,,) <$> newAddHandler <*> newAddHandler <*> newAddHandler
@@ -57,7 +64,7 @@ mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
   eKeysHeld <- mkEvent keysHeldPair
   eKeyUp  <- mkEvent keyUpPair
   let -- keyDown k = filterE (==k) eKey
-      keyDownOrHeld k = unionFirst [ filterE (==k) $ eKey
+      keyDownOrHeld k = unionFirst [ filterE (==k) eKey
                                    , k <$ (filterE (>0.2) . filterJust $ HashMap.lookup k <$> eKeysHeld)
                                    ]
       -- keyUp k = filterE (==k) eKeyUp
@@ -75,11 +82,13 @@ data CoreEventGenerators = CoreEventGenerators
 
 data CoreEvents = CoreEvents
   { eRender   :: Event Scalar
-  , eTouchEvs :: Event [TouchEvent]
   , eTime     :: Event Scalar
   , keyDown   :: Event Key
   , keyDownOrHeld :: Key -> Event Key
   , keyUp     :: Event Key
+  , eTouchesDown :: Event [Point]
+  , eTouchesLoc  :: Event [Point]
+  , eTouchesUp   :: Event [PointUp]
   , scrSizeB  :: Behavior (Size Int)
   , fpsB      :: Behavior Scalar
   }
@@ -110,7 +119,7 @@ coreEventGenerators inputPoller wSizeRef = do
 
 mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
 mkCoreEvents coreEvGens = do
-  eTouchEvs                <- mkTouchEvents . touchEvents $ coreEvGens
+  (pdown, pup, ploc) <- mkTouchEvents . touchEvents $ coreEvGens
   eTime                    <- mkEvent . stepEvents $ coreEvGens
   (keyDown, keyDownOrHeld, keyUp) <- mkKeyEvents . keyEvents $ coreEvGens
   eRender                  <- mkEvent . renderEvent $ coreEvGens
@@ -118,7 +127,7 @@ mkCoreEvents coreEvGens = do
   scrSizeB <- fromPoll . readIORef . windowSize $ coreEvGens
   fpsB     <- stepper 0 eRender
 
-  pure $ CoreEvents eRender eTouchEvs eTime keyDown keyDownOrHeld keyUp scrSizeB fpsB
+  pure $ CoreEvents eRender eTime keyDown keyDownOrHeld keyUp pdown ploc pup scrSizeB fpsB
 
 -- Utils
 
@@ -178,7 +187,7 @@ combineRenderFuncs = foldr (liftA2 go) (pure $ const [])
   where go :: (a -> b) -> (a -> [b]) -> a -> [b]
         go f fs r = f r : fs r
 
-renderWithRef :: Applicative f => IORef a -> [f (a -> DU.RenderTree)] -> f (IO ())
+renderWithRef :: Applicative app => IORef a -> [app (a -> DU.RenderTree)] -> app (IO ())
 renderWithRef ref fs = (\f -> readIORef ref >>= DU.render . f) <$> combineRenderFuncs fs
 
 -- Unused

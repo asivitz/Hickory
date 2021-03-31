@@ -125,22 +125,22 @@ attachVertexArray attrLoc len stride offset =
 
 buildVertexGroup :: Shader -> VertexGroup -> IO VBO
 buildVertexGroup shader group = do
-        vbo <- makeVBO
-        attachVertexGroup shader vbo group
-        return vbo
+  vbo <- makeVBO
+  attachVertexGroup shader vbo group
+  pure vbo
 
 attachVertexGroup :: Shader -> VBO -> VertexGroup -> IO ()
 attachVertexGroup shader vbo (VertexGroup attachments) = do
-        glBindBuffer GL_ARRAY_BUFFER vbo
+  glBindBuffer GL_ARRAY_BUFFER vbo
 
-        let stride = sum $ map (\(Attachment a l) -> l) attachments
+  let stride = sum $ map (\(Attachment a l) -> l) attachments
 
-        _ <- Fold.foldlM (\offset (Attachment a l) -> do
-                attachVertexArray (a shader) l stride offset
-                return (offset + l))
-            0
-            attachments
-        return ()
+  _ <- Fold.foldlM (\offset (Attachment a l) -> do
+          attachVertexArray (a shader) l stride offset
+          return (offset + l))
+      0
+      attachments
+  pure ()
 
 #if defined(ghcjs_HOST_OS)
 foreign import javascript safe "gl.clearColor($1,$2,$3,$4)" glClearColor :: Float -> Float -> Float -> Float -> IO ()
@@ -283,4 +283,4 @@ clearScreen = do
 
 clearDepth :: IO ()
 clearDepth = do
-        glClear (GL_DEPTH_BUFFER_BIT)
+        glClear GL_DEPTH_BUFFER_BIT

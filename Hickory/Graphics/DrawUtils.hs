@@ -100,7 +100,6 @@ data RenderTree
   | List [RenderTree]
   | XForm Mat44 RenderTree
   | NoRender
-  deriving (Show)
 
 cubeFloats :: V.Vector GLfloat
 cubeFloats = V.fromList . concatMap toList $ verts
