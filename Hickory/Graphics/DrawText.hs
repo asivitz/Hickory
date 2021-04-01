@@ -22,13 +22,13 @@ import Graphics.GL.Compatibility41 as GL
 import Linear (zero)
 import qualified Data.Vector.Storable as V
 
-data Printer a = Printer (Font a) TexID
+data Printer a = Printer (Font a) TexID Shader
 
 instance Eq (Printer a) where
-        Printer fa tid == Printer fb tidb = fontName fa == fontName fb
+        Printer fa tid _ == Printer fb tidb _ = fontName fa == fontName fb
 
 instance Show (Printer a) where
-        show (Printer font tid) = "Printer:" ++ fontName font ++ "/" ++ show tid
+        show (Printer font tid _) = "Printer:" ++ fontName font ++ "/" ++ show tid
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = createVAOConfig shader
@@ -47,7 +47,7 @@ loadPrinter resPath shader name = do
                     Left s -> do
                         print $ "Error: Can't parse font file for " ++ name ++ ".fnt Msg: " ++ s
                         return Nothing
-                    Right font -> return $ Just (Printer font tid)
+                    Right font -> return $ Just (Printer font tid shader)
 
 textcommand :: TextCommand
 textcommand = TextCommand
@@ -60,7 +60,7 @@ textcommand = TextCommand
   }
 
 printVAOObj :: Printer Int -> TextCommand -> VAOConfig -> IO VAOObj
-printVAOObj (Printer font _) textCommand vaoconfig = do
+printVAOObj (Printer font _ _) textCommand vaoconfig = do
   let command              = PositionedTextCommand zero textCommand
       (numsquares, floats) = transformTextCommandsToVerts [command] font
 
