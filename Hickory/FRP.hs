@@ -11,6 +11,7 @@ import Hickory.Input (TouchEvent(..), RawInput(..), Key)
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
+import Hickory.Graphics.Types (RenderTree)
 import Reactive.Banana (Behavior, Event, MonadMoment, (<@>), mapAccum, unions, accumB, filterE, filterJust, First(..), getFirst, stepper)
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll)
 import System.Random (StdGen, newStdGen)
@@ -187,7 +188,7 @@ combineRenderFuncs = foldr (liftA2 go) (pure $ const [])
   where go :: (a -> b) -> (a -> [b]) -> a -> [b]
         go f fs r = f r : fs r
 
-renderWithRef :: Applicative app => IORef a -> [app (a -> DU.RenderTree)] -> app (IO ())
+renderWithRef :: Applicative app => IORef a -> [app (a -> RenderTree)] -> app (IO ())
 renderWithRef ref fs = (\f -> readIORef ref >>= DU.render . f) <$> combineRenderFuncs fs
 
 -- Unused

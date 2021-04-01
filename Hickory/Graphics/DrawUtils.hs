@@ -23,17 +23,13 @@ import Data.IORef (IORef, writeIORef, readIORef)
 import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), (!*), inv44)
 import qualified Data.Vector.Storable as V
 import qualified Data.Vector.Unboxed as UV
+import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), drawCommand, loadVerticesIntoVAOConfig)
 
 data Command = Command Mat44 [UniformBinding] (Maybe TexID) DrawSpec
-
-data DrawSpec
-  = VAO VAOObj
-  | DynVAO VAOConfig (V.Vector GLfloat, V.Vector GLushort, DrawType)
-  deriving (Show)
 
 --TODO: Read animation FPS from directx file
 retrieveActionMat :: (Text, Double) -> [(Text, [Mat44])] -> Maybe Mat44
@@ -94,12 +90,6 @@ sizePosRotMat (Size w h) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) r
 
 size3PosRotMat :: V3 Scalar -> V3 Scalar -> Scalar -> Mat44
 size3PosRotMat (V3 w h d) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h d 1)
-
-data RenderTree
-  = Primitive [UniformBinding] (Maybe TexID) DrawSpec
-  | List [RenderTree]
-  | XForm Mat44 RenderTree
-  | NoRender
 
 cubeFloats :: V.Vector GLfloat
 cubeFloats = V.fromList . concatMap toList $ verts
