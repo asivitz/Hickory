@@ -3,6 +3,9 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Hickory.Graphics.DrawText
   ( Printer(..)
@@ -15,11 +18,16 @@ module Hickory.Graphics.DrawText
   , PrinterT
   , runPrinterT
   , renderText
+  , loadDynamicVAO
+  , DynamicVAOMonad(..)
+  , DynamicVAOT(..)
+  , runDynamicVAOT
   ) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT, runReaderT, lift, ask)
-import Control.Monad.State.Strict (StateT, runStateT, modify)
+import Control.Monad.State.Strict (StateT, runStateT, modify, MonadState)
+import Control.Monad.Trans (MonadTrans)
 import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Drawing
@@ -83,33 +91,65 @@ printVAOObj (Printer font _ _) textCommand vaoconfig = do
       return (VAOObj vaoconfig (fromIntegral numBlockIndices) TriangleStrip)
     else error "Tried to print empty text command"
 
-class MonadIO m => PrinterMonad m where
+-- Creating new VAOs during render
+
+class Monad m => PrinterMonad m where
   getPrinter :: m (Printer Int)
-  recordVAO  :: VAOObj -> m ()
+  default getPrinter
+    :: forall t n.
+       ( PrinterMonad n
+       , MonadTrans t
+       , m ~ t n
+       )
+    => m (Printer Int)
+  getPrinter = lift getPrinter
 
 instance PrinterMonad m => PrinterMonad (ReaderT r m) where
   getPrinter = lift getPrinter
-  recordVAO = lift . recordVAO
 
-newtype PrinterT m a = PrinterT { unPrinterT :: StateT DynamicVAOs (ReaderT (Printer Int) m) a }
-  deriving newtype (Functor, Applicative, Monad, MonadIO)
+newtype PrinterT m a = PrinterT { unPrinterT :: ReaderT (Printer Int) m a }
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
+  deriving anyclass DynamicVAOMonad
 
 instance MonadIO m => PrinterMonad (PrinterT m) where
   getPrinter = PrinterT ask
-  recordVAO v = PrinterT $ modify (v:)
+
+class MonadIO m => DynamicVAOMonad m where
+  recordVAO  :: VAOObj -> m ()
+  default recordVAO
+    :: forall t n.
+       ( DynamicVAOMonad n
+       , MonadTrans t
+       , m ~ t n
+       )
+    => VAOObj -> m ()
+  recordVAO = lift . recordVAO
+
+instance DynamicVAOMonad m => DynamicVAOMonad (ReaderT r m) where
+  recordVAO = lift . recordVAO
+
+newtype DynamicVAOT m a = DynamicVAOT { unDynamicVAOT :: StateT DynamicVAOs m a }
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DynamicVAOs, MonadTrans)
+  deriving anyclass PrinterMonad
+
+instance MonadIO m => DynamicVAOMonad (DynamicVAOT m) where
+  recordVAO v = DynamicVAOT $ modify (v:)
 
 type DynamicVAOs = [VAOObj]
 
-runPrinterT :: Printer Int -> PrinterT m a -> m (a, [VAOObj])
-runPrinterT printer = flip runReaderT printer . flip runStateT [] . unPrinterT
+runPrinterT :: Printer Int -> PrinterT m a -> m a
+runPrinterT printer = flip runReaderT printer . unPrinterT
 
-loadDynamicVAO :: PrinterMonad m => m VAOObj -> m VAOObj
+runDynamicVAOT :: DynamicVAOT m a -> m (a, [VAOObj])
+runDynamicVAOT = flip runStateT [] . unDynamicVAOT
+
+loadDynamicVAO :: DynamicVAOMonad m => m VAOObj -> m VAOObj
 loadDynamicVAO create = do
   vao <- create
   recordVAO vao
   pure vao
 
-renderText :: PrinterMonad m => TextCommand -> m RenderTree
+renderText :: (DynamicVAOMonad m, PrinterMonad m) => TextCommand -> m RenderTree
 renderText tc = do
   printer@(Printer _ tex shader) <- getPrinter
   vao <- loadDynamicVAO do
