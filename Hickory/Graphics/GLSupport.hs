@@ -81,6 +81,7 @@ import Hickory.Graphics.Shader
 import qualified Data.Foldable as Fold
 import Linear (V4(..), M44, M33, transpose)
 import qualified Data.Vector.Storable as V
+import Control.Monad (when)
 
 withNewPtr :: Storable b => (Ptr b -> IO a) -> IO b
 withNewPtr f = alloca (\p -> f p >> peek p)
@@ -136,7 +137,10 @@ attachVertexGroup shader vbo (VertexGroup attachments) = do
   let stride = sum $ map (\(Attachment a l) -> l) attachments
 
   _ <- Fold.foldlM (\offset (Attachment a l) -> do
-          attachVertexArray (a shader) l stride offset
+          loc <- getAttribLocation (program shader) a
+          -- when (loc < 0) do
+            -- print $ "Cannot find attribute " ++ a ++ " in shader"
+          attachVertexArray loc l stride offset
           return (offset + l))
       0
       attachments

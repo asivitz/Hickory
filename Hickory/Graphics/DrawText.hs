@@ -51,9 +51,9 @@ instance Show (Printer a) where
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = createVAOConfig shader
-            [VertexGroup [Attachment sp_ATTR_POSITION 3,
-                          Attachment sp_ATTR_TEX_COORDS 2,
-                          Attachment sp_ATTR_COLOR 4]]
+            [VertexGroup [Attachment "position" 3,
+                          Attachment "texCoords" 2,
+                          Attachment "color" 4]]
 
 loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
 loadPrinter resPath shader name = do

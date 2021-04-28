@@ -7,7 +7,8 @@ module Hickory.Graphics.Shader (
               loadShader,
               loadShaderFromPaths,
               useShader,
-              deleteShader
+              deleteShader,
+              getAttribLocation
               )
               where
 
@@ -226,24 +227,17 @@ compileFragShader source = compileShader source GL_FRAGMENT_SHADER
 
 buildShaderProgram :: ShaderID -> ShaderID -> [String] -> IO (Maybe Shader)
 buildShaderProgram vertShader fragShader uniforms = do
-        programId <- glCreateProgram
+  programId <- glCreateProgram
 
-        linked <- linkProgram programId vertShader fragShader
-        if not linked
-            then return Nothing
-            else do
-                let sh = Shader programId vertShader fragShader
-                res <- sh <$>
-                    (fromIntegral <$> getAttribLocation programId "position") <*>
-                    (fromIntegral <$> getAttribLocation programId "texCoords") <*>
-                    (fromIntegral <$> getAttribLocation programId "color") <*>
-                    (fromIntegral <$> getAttribLocation programId "color2") <*>
-                    (fromIntegral <$> getAttribLocation programId "normal") <*>
-                    (fromIntegral <$> getAttribLocation programId "boneIndex") <*>
-                    (fromIntegral <$> getAttribLocation programId "materialIndex") <*>
-                    (foldM (\hsh name -> do
-                        loc <- getUniformLocation programId name
-                        return $ HashMap.insert name loc hsh) HashMap.empty uniforms)
-                return $ Just res
+  linked <- linkProgram programId vertShader fragShader
+  if not linked
+      then return Nothing
+      else do
+          let sh = Shader programId vertShader fragShader
+          res <- sh <$>
+              (foldM (\hsh name -> do
+                  loc <- getUniformLocation programId name
+                  return $ HashMap.insert name loc hsh) HashMap.empty uniforms)
+          return $ Just res
 
 useShader (Shader { program }) = glUseProgram program

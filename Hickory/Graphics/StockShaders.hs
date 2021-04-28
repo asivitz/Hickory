@@ -48,6 +48,57 @@ void main()
 }
 |]
 
+litVertexShader :: Text
+litVertexShader = [qt|
+in vec4 position;
+in vec3 normal;
+in vec2 texCoords;
+
+out vec4 vcolor;
+out vec2 texCoordsVarying;
+
+uniform mat4 modelMat;
+uniform mat3 normalMat;
+uniform mat4 justModelMat;
+uniform lowp vec4 color;
+
+void main()
+{
+    vec3 normal_adj;
+    vec3 surfaceToLight;
+    float brightness;
+    vec4 surfaceColor;
+    vec3 lightPos;
+
+    gl_Position = modelMat * position;
+    texCoordsVarying = texCoords;
+
+    /* Lighting */
+    normal_adj = normalize(normalMat * normal);
+    lightPos = vec3(50,-50,5);
+    surfaceToLight = lightPos - vec3(justModelMat * position);
+
+    brightness = dot(normal_adj, surfaceToLight) / (length(surfaceToLight) * length(normal_adj));
+    brightness = clamp(brightness, 0.0, 1.0);
+
+    vcolor = vec4((0.6 + brightness * 0.4) * color.rgb, color.a);
+}
+|]
+
+litFragmentShader :: Text
+litFragmentShader = [qt|
+uniform sampler2D tex;
+
+in mediump vec2 texCoordsVarying;
+in lowp vec4 vcolor;
+out lowp vec4 outcolor;
+
+void main()
+{
+   outcolor = texture(tex, texCoordsVarying) * vcolor;
+}
+|]
+
 skinnedVertexShader :: Text
 skinnedVertexShader = [qt|
 in vec4 position;
@@ -188,3 +239,7 @@ loadTexturedShader shaderVersion =
 loadSkinnedShader :: Text -> IO Shader
 loadSkinnedShader shaderVersion =
   loadShader shaderVersion skinnedVertexShader skinnedFragmentShader ["modelMat", "boneMat", "colors", "normalMat", "justModelMat"]
+
+loadLitTexturedShader :: Text -> IO Shader
+loadLitTexturedShader shaderVersion =
+  loadShader shaderVersion litVertexShader litFragmentShader ["modelMat", "color", "tex", "normalMat", "justModelMat"]

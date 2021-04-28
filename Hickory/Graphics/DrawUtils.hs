@@ -125,10 +125,10 @@ loadInvertedCubeIntoVAOConfig vaoconfig = do
   loadVAOObj vaoconfig TriangleStrip (cubeFloats, V.reverse cubeIndices)
 
 mkCubeVAOObj :: Shader -> IO VAOObj
-mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
+mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadCubeIntoVAOConfig
 
 mkInvertedCubeVAOObj :: Shader -> IO VAOObj
-mkInvertedCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3]] >>= loadCubeIntoVAOConfig
+mkInvertedCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadInvertedCubeIntoVAOConfig
 
 mkSquareVerts :: (V.Storable t, V.Storable t1, Num t, Fractional t1) => t1 -> t1 -> (V.Vector t1, V.Vector t, DrawType)
 mkSquareVerts texW texH = (V.fromList floats, V.fromList indices, TriangleFan)
@@ -144,14 +144,14 @@ loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadSquareIntoVAOConfig vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, indices)
   where h = 0.5
         l = -h
-        floats = V.fromList [l, h, 0, 0,
-                            l, l, 0, 1,
-                            h, l, 1, 1,
-                            h, h, 1, 0]
+        floats = V.fromList [l, h, 0, 0, 1, 0, 0,
+                            l, l, 0, 0, 1, 0, 1,
+                            h, l, 0, 0, 1, 1, 1,
+                            h, h, 0, 0, 1, 1, 0]
         indices = V.fromList [0,1,2,3]
 
 mkSquareVAOObj :: Shader -> IO VAOObj
-mkSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2, Attachment sp_ATTR_TEX_COORDS 2]] >>= loadSquareIntoVAOConfig
+mkSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 2, Attachment "normal" 3, Attachment "texCoords" 2]] >>= loadSquareIntoVAOConfig
 
 loadUntexturedSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadUntexturedSquareIntoVAOConfig vaoconfig = do
@@ -168,7 +168,7 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
   return (VAOObj vaoconfig (length indices) TriangleFan)
 
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
-mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 2]] >>= loadUntexturedSquareIntoVAOConfig
+mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 2]] >>= loadUntexturedSquareIntoVAOConfig
 
 -- Model Loading
 
@@ -191,7 +191,7 @@ createVAOConfigFromOBJ shader path = do
   obj <- OBJ.loadOBJ path
   createVAOConfig
       shader
-      [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_TEX_COORDS 2, Attachment sp_ATTR_NORMALS 3]]
+      [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3]]
     >>= \config -> loadVAOObj config Triangles (packOBJ obj)
 
 -- interleaves arrays based on an array of counts
@@ -304,17 +304,17 @@ loadModelFromX shader path = do
         createVAOConfig
             shader
             [ VertexGroup
-                [ Attachment sp_ATTR_POSITION       3
-                , Attachment sp_ATTR_NORMALS        3
-                , Attachment sp_ATTR_BONE_INDEX     1
-                , Attachment sp_ATTR_MATERIAL_INDEX 1
+                [ Attachment "position" 3
+                , Attachment "normal" 3
+                , Attachment "boneIndex" 1
+                , Attachment "materialIndex" 1
                 ]
             ]
           >>= \config -> loadVAOObj config Triangles (packAnimatedXMesh mesh)
 
       return $ ThreeDModel vo (Just frame) mesh extents
     else do
-      vo <- createVAOConfig shader [VertexGroup [Attachment sp_ATTR_POSITION 3, Attachment sp_ATTR_MATERIAL_INDEX 1]]
+      vo <- createVAOConfig shader [VertexGroup [Attachment "position" 3, Attachment "materialIndex" 1]]
         >>= \config -> loadVAOObj config Triangles (packXMesh mesh)
       return $ ThreeDModel vo Nothing mesh extents
 

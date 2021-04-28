@@ -4,7 +4,6 @@
 module Hickory.Graphics.Drawing
   ( DrawType(..)
   , Shader(..)
-  , Attribute
   , Attachment(..)
   , VertexGroup(..)
   , squareIndices
@@ -66,24 +65,13 @@ data Shader = Shader {
             program :: ProgramID,
             vertShader :: ShaderID,
             fragShader :: ShaderID,
-
-            sp_ATTR_POSITION :: AttrLoc,
-            sp_ATTR_TEX_COORDS :: AttrLoc,
-            sp_ATTR_COLOR :: AttrLoc,
-            sp_ATTR_COLOR2 :: AttrLoc,
-            sp_ATTR_NORMALS :: AttrLoc,
-            sp_ATTR_BONE_INDEX :: AttrLoc,
-            sp_ATTR_MATERIAL_INDEX :: AttrLoc,
-
             uniformLocs :: HashMap.HashMap String UniformLoc
             } deriving (Show)
 
 getShader Shader { program } = program
 
-type Attribute = Shader -> AttrLoc
-
-data Attachment = Attachment Attribute Int32
-data VertexGroup = VertexGroup [Attachment]
+data Attachment = Attachment String Int32
+newtype VertexGroup = VertexGroup [Attachment]
 instance Show VertexGroup where show x = "Vertex Group"
 
 data UniformValue
