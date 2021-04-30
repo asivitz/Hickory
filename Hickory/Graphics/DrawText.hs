@@ -57,7 +57,7 @@ createPrinterVAOConfig shader = createVAOConfig shader
 
 loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
 loadPrinter resPath shader name = do
-        texid <- loadTexture resPath (name ++ ".png") GL_REPEAT
+        texid <- loadTexture resPath (name ++ ".png") texLoadDefaults { flipY = False }
         case texid of
             Nothing -> return Nothing
             Just tid -> do

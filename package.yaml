@@ -23,6 +23,7 @@ default-extensions:
 
 dependencies:
     - JuicyPixels
+    - JuicyPixels-extra
     - MonadRandom
     - OpenGLRaw
     - attoparsec
@@ -42,6 +43,7 @@ dependencies:
     - time
     - unordered-containers
     - vector
+    - wavefront
 
 when:
     - condition: impl(ghcjs)
@@ -88,7 +90,6 @@ library:
     - Hickory.Utils.HashMap
     - Hickory.Utils.Projection
     - Hickory.Utils.Bvh
-    - Hickory.Utils.Obj
     - Hickory.Utils.DirectX
     - Hickory.Utils.Parsing
     - Hickory.Text.Text

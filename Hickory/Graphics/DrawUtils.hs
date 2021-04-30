@@ -16,14 +16,17 @@ import Hickory.Graphics.DrawText
 import Hickory.Text.Text
 import Hickory.Graphics.GLSupport
 import Data.Foldable (toList, forM_)
-import qualified Hickory.Utils.Obj as OBJ
+-- import qualified Hickory.Utils.Obj as OBJ
 import qualified Hickory.Utils.DirectX as DX
 import Data.Text (Text)
 import Data.IORef (IORef, writeIORef, readIORef)
 import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), (!*), inv44)
-import qualified Data.Vector.Storable as V
+import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
 import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
+import Codec.Wavefront (WavefrontOBJ(..), Location(..), TexCoord(..), Normal(..), Face(..), FaceIndex(..), elValue)
+import qualified Codec.Wavefront as Wavefront
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
@@ -65,7 +68,7 @@ drawSpec uniforms tex spec = case spec of
     drawCommand uniforms tex vaoConfig (fromIntegral numitems) drawType
   DynVAO vaoConfig (verts, indices, drawType) -> do
     loadVerticesIntoVAOConfig vaoConfig verts indices
-    drawCommand uniforms tex vaoConfig (fromIntegral $ V.length indices) drawType
+    drawCommand uniforms tex vaoConfig (fromIntegral $ SV.length indices) drawType
 
 {-
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -91,8 +94,8 @@ sizePosRotMat (Size w h) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) r
 size3PosRotMat :: V3 Scalar -> V3 Scalar -> Scalar -> Mat44
 size3PosRotMat (V3 w h d) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h d 1)
 
-cubeFloats :: V.Vector GLfloat
-cubeFloats = V.fromList . concatMap toList $ verts
+cubeFloats :: SV.Vector GLfloat
+cubeFloats = SV.fromList . concatMap toList $ verts
  where
   h     = 0.5
   l     = -h
@@ -106,13 +109,13 @@ cubeFloats = V.fromList . concatMap toList $ verts
   p8    = V3 l h h
   verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
-cubeIndices :: V.Vector GLushort
-cubeIndices = V.fromList [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
+cubeIndices :: SV.Vector GLushort
+cubeIndices = SV.fromList [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
 
-loadVAOObj :: VAOConfig -> DrawType -> (V.Vector GLfloat, V.Vector GLushort) -> IO VAOObj
+loadVAOObj :: VAOConfig -> DrawType -> (SV.Vector GLfloat, SV.Vector GLushort) -> IO VAOObj
 loadVAOObj vaoconfig drawType (verts, indices) = do
   loadVerticesIntoVAOConfig vaoconfig verts indices
-  return $ VAOObj vaoconfig (V.length indices) drawType
+  return $ VAOObj vaoconfig (SV.length indices) drawType
 
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
@@ -122,7 +125,7 @@ loadCubeIntoVAOConfig vaoconfig = do
 
 loadInvertedCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadInvertedCubeIntoVAOConfig vaoconfig = do
-  loadVAOObj vaoconfig TriangleStrip (cubeFloats, V.reverse cubeIndices)
+  loadVAOObj vaoconfig TriangleStrip (cubeFloats, SV.reverse cubeIndices)
 
 mkCubeVAOObj :: Shader -> IO VAOObj
 mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadCubeIntoVAOConfig
@@ -130,25 +133,25 @@ mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position"
 mkInvertedCubeVAOObj :: Shader -> IO VAOObj
 mkInvertedCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadInvertedCubeIntoVAOConfig
 
-mkSquareVerts :: (V.Storable t, V.Storable t1, Num t, Fractional t1) => t1 -> t1 -> (V.Vector t1, V.Vector t, DrawType)
-mkSquareVerts texW texH = (V.fromList floats, V.fromList indices, TriangleFan)
+mkSquareVerts :: (SV.Storable t, SV.Storable t1, Num t, Fractional t1) => t1 -> t1 -> (SV.Vector t1, SV.Vector t, DrawType)
+mkSquareVerts texW texH = (SV.fromList floats, SV.fromList indices, TriangleFan)
   where h = 0.5
         l = -h
-        floats = [l, h, 0, 0,
-                  l, l, 0, texH,
-                  h, l, texW, texH,
-                  h, h, texW, 0]
+        floats = [l, h, 0, texH,
+                  l, l, 0, 0,
+                  h, l, texW, 0,
+                  h, h, texW, texH]
         indices = [0,1,2,3]
 
 loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadSquareIntoVAOConfig vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, indices)
   where h = 0.5
         l = -h
-        floats = V.fromList [l, h, 0, 0, 1, 0, 0,
-                            l, l, 0, 0, 1, 0, 1,
-                            h, l, 0, 0, 1, 1, 1,
-                            h, h, 0, 0, 1, 1, 0]
-        indices = V.fromList [0,1,2,3]
+        floats = SV.fromList [l, h, 0, 0, 1, 0, 1,
+                            l, l, 0, 0, 1, 0, 0,
+                            h, l, 0, 0, 1, 1, 0,
+                            h, h, 0, 0, 1, 1, 1]
+        indices = SV.fromList [0,1,2,3]
 
 mkSquareVAOObj :: Shader -> IO VAOObj
 mkSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 2, Attachment "normal" 3, Attachment "texCoords" 2]] >>= loadSquareIntoVAOConfig
@@ -163,7 +166,7 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
                 h, h]
       indices = [0,1,2,3]
 
-  loadVerticesIntoVAOConfig vaoconfig (V.fromList floats) (V.fromList indices)
+  loadVerticesIntoVAOConfig vaoconfig (SV.fromList floats) (SV.fromList indices)
 
   return (VAOObj vaoconfig (length indices) TriangleFan)
 
@@ -176,23 +179,29 @@ mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachmen
 
 -- Packs an OBJ's data into an array of vertices and indices
 -- The vertices are position, tex coords, and normals packed together
-packOBJ :: OBJ.OBJ Double -> (V.Vector GLfloat, V.Vector GLushort)
-packOBJ (OBJ.OBJ vertices texCoords normals faces) = (V.fromList $ concatMap snd pool, V.fromList indices)
+packOBJ :: WavefrontOBJ -> (SV.Vector GLfloat, SV.Vector GLushort)
+packOBJ WavefrontOBJ { objLocations, objTexCoords, objNormals, objFaces } = (SV.fromList $ concatMap snd pool, SV.fromList indices)
  where
-  construct (vidx, tcidx, nidx) =
-    map realToFrac $ toList (vertices  !! (vidx - 1))
-                  ++ toList (texCoords !! (tcidx - 1))
-                  ++ toList (normals   !! (nidx - 1))
-  pool    = foldl' (\alst e -> (e, construct e) : alst) [] $ concatMap toList faces
-  indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap toList faces
+  construct (FaceIndex vidx (Just tcidx) (Just nidx)) =
+    map realToFrac $ locToList (objLocations  V.! (vidx - 1))
+                  ++ tcToList (objTexCoords V.! (tcidx - 1))
+                  ++ normalToList (objNormals   V.! (nidx - 1))
+  pool    = foldl' (\alst e -> (e, construct e) : alst) [] $ concatMap (faceToList . elValue) objFaces
+  indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap (faceToList . elValue) objFaces
+  locToList (Location x y z _) = [x,y,z]
+  tcToList (TexCoord u v _) = [u,v]
+  normalToList (Normal x y z) = [x,y,z]
+  faceToList (Face one two three _) = [one, two, three]
 
 createVAOConfigFromOBJ :: Shader -> String -> IO VAOObj
 createVAOConfigFromOBJ shader path = do
-  obj <- OBJ.loadOBJ path
-  createVAOConfig
-      shader
-      [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3]]
-    >>= \config -> loadVAOObj config Triangles (packOBJ obj)
+  Wavefront.fromFile path >>= \case
+    Left err -> error err
+    Right obj -> do
+      createVAOConfig
+          shader
+          [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3]]
+        >>= \config -> loadVAOObj config Triangles (packOBJ obj)
 
 -- interleaves arrays based on an array of counts
 -- interleave [[1,2,3,4,5,6],[40,50,60]] [2,1] ~> [1,2,40,3,4,50,5,6,60]
@@ -249,9 +258,9 @@ packNormals faces normals = concat $ (map (\(x, y, z) -> [x, y, z]) . map snd . 
 packVertices :: (UV.Unbox a, UV.Unbox a1, UV.Unbox a2, Real a, Real a1, Real a2, Fractional b) => UV.Vector (a2, a1, a) -> [b]
 packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFrac z]) (UV.toList verts)
 
-packAnimatedXMesh :: DX.Mesh -> (V.Vector GLfloat, V.Vector GLushort)
+packAnimatedXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLushort)
 packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeights, DX.meshMaterialList } =
-  (V.fromList dat, indices)
+  (SV.fromList dat, indices)
  where
   verts            = packVertices vertices
   material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
@@ -268,8 +277,8 @@ packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeight
   dat     = interleave [verts, normals, assignments, material_indices] [3, 3, 1, 1]
   indices = V.convert $ UV.map fromIntegral faces
 
-packXMesh :: DX.Mesh -> (V.Vector GLfloat, V.Vector GLushort)
-packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList } = (V.fromList dat, indices)
+packXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLushort)
+packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList } = (SV.fromList dat, indices)
  where
   verts            = packVertices vertices
   material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)

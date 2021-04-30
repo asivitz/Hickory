@@ -1,12 +1,14 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ViewPatterns #-}
 
-module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures, texRepeat, texClamp) where
+module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures, texLoadDefaults, TexLoadOptions(..) ) where
 
 import Data.Vector.Storable(unsafeWith)
 import Hickory.Graphics.Drawing
 import Hickory.Utils.Utils
 import Codec.Picture
+import Codec.Picture.Extra (flipVertically)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
 import Foreign.Marshal.Alloc
@@ -34,7 +36,10 @@ loadTexture a b = loadTexture' a b >>= return . Just
 import Graphics.GL.Compatibility41 as GL
 
 data TexLoadOptions = TexLoadOptions
-  { _texLoadWrap :: GLenum
+  { wrap :: GLenum
+  , magFilter :: GLenum
+  , minFilter :: GLenum
+  , flipY :: Bool
   }
 
 -- Textures
@@ -44,51 +49,54 @@ genTexture = alloca $ \p ->
         peek p
 
 -- create linear filtered texture
-loadGLTex format w h texWrap ptr = do
-    tex <- genTexture
-    glBindTexture GL_TEXTURE_2D tex
+loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = do
+  tex <- genTexture
+  glBindTexture GL_TEXTURE_2D tex
 
-    glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
-        (fromIntegral w) (fromIntegral h)
-        0 format GL_UNSIGNED_BYTE ptr
+  glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
+      (fromIntegral w) (fromIntegral h)
+      0 format GL_UNSIGNED_BYTE ptr
 
-    glGenerateMipmap GL_TEXTURE_2D
+  glGenerateMipmap GL_TEXTURE_2D
 
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_LINEAR)
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_LINEAR_MIPMAP_LINEAR)
+  glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral magFilter)
+  glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral minFilter)
 
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S (fromIntegral texWrap)
-    glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T (fromIntegral texWrap)
+  glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S (fromIntegral wrap)
+  glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T (fromIntegral wrap)
 
-    return $ Just $ TexID (fromIntegral tex)
+  return $ Just $ TexID (fromIntegral tex)
 
-loadTextureFromPath :: String -> GLenum -> IO (Maybe TexID)
-loadTextureFromPath path texWrap = do
-        res <- readPng path
-        case res of
-            Left s -> print s >> return Nothing
-            Right image -> case image of
-                -- TODO: Refactor and handle more cases
-                ImageRGBA8 (Image w h dat) ->
-                    unsafeWith dat $ \ptr -> loadGLTex GL_RGBA w h texWrap ptr
-                ImageRGB8 (Image w h dat) ->
-                    unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h texWrap ptr
-                _ -> error "Error loading texture: Unknown image format"
+loadTextureFromPath :: String -> TexLoadOptions -> IO (Maybe TexID)
+loadTextureFromPath path loadOpts = do
+  res <- readPng path
 
-loadTexture :: String -> String -> GLenum -> IO (Maybe TexID)
-loadTexture resPath image texWrap = do
-        let prefix = resPath ++ "/images/"
-            ipath = prefix ++ image
-        tid <- loadTextureFromPath ipath texWrap
-        whenNothing tid $ print ("Couldn't load texture: " ++ image)
-        return tid
+  case res of
+      Left s -> print s >> return Nothing
+      Right image -> case image of
+          -- TODO: Refactor and handle more cases
+          ImageRGBA8 (doFlip -> Image w h dat) ->
+              unsafeWith dat $ \ptr -> loadGLTex GL_RGBA w h loadOpts ptr
+          ImageRGB8 (doFlip -> Image w h dat) ->
+              unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h loadOpts ptr
+          _ -> error "Error loading texture: Unknown image format"
+  where
+  doFlip img = if flipY loadOpts then flipVertically img else img
+
+loadTexture :: String -> String -> TexLoadOptions -> IO (Maybe TexID)
+loadTexture resPath image loadOpts = do
+  let prefix = resPath ++ "/images/"
+      ipath = prefix ++ image
+  tid <- loadTextureFromPath ipath loadOpts
+  whenNothing tid $ print ("Couldn't load texture: " ++ image)
+  return tid
 
 loadTexture' :: String -> (String, TexLoadOptions) -> IO TexID
 loadTexture' path (image, opts) = do
-        tex <- loadTexture path image (_texLoadWrap opts)
-        case tex of
-            Just t -> return t
-            Nothing -> error ("Can't load texture " ++ image)
+  tex <- loadTexture path image opts
+  case tex of
+      Just t -> return t
+      Nothing -> error ("Can't load texture " ++ image)
 #endif
 
 loadTextures :: String -> [(String, TexLoadOptions)] -> IO (HashMap.HashMap Text.Text TexID)
@@ -96,8 +104,4 @@ loadTextures path images = do
         loaded <- mapM (loadTexture' path) images
         return $ HashMap.fromList $ zip (map (Text.pack . fst) images) loaded
 
-texRepeat :: TexLoadOptions
-texRepeat = TexLoadOptions GL_REPEAT
-
-texClamp :: TexLoadOptions
-texClamp  = TexLoadOptions GL_CLAMP_TO_EDGE
+texLoadDefaults = TexLoadOptions { wrap = GL_REPEAT, minFilter = GL_LINEAR_MIPMAP_LINEAR, magFilter = GL_LINEAR, flipY = True }
