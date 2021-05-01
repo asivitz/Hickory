@@ -75,7 +75,7 @@ void main()
 
     /* Lighting */
     normal_adj = normalize(normalMat * normal);
-    lightPos = vec3(50,-50,5);
+    lightPos = vec3((-2), 1, 3);
     surfaceToLight = lightPos - vec3(justModelMat * position);
 
     brightness = dot(normal_adj, surfaceToLight) / (length(surfaceToLight) * length(normal_adj));
