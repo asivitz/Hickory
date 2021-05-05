@@ -20,7 +20,7 @@ module Hickory.Graphics.Drawing
   , retrieveLoc
   ) where
 
-import Linear (V4)
+import Linear (V4, V3)
 import Data.Word
 import Data.Int
 import Hickory.Math.Vector
@@ -78,6 +78,9 @@ data UniformValue
   = Matrix4Uniform [Mat44]
   | Matrix3Uniform [Mat33]
   | QuadFUniform [V4 Scalar]
+  | TripleFUniform [V3 Scalar]
+  | SingleFUniform Scalar
+  | SingleIUniform Int
   deriving (Eq, Show)
 
 data UniformBinding = UniformBinding String UniformValue

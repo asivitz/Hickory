@@ -39,7 +39,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Platforms.GLFW.Utils, Platforms.GLFW.Bridge, Platforms.GLFW.FRP, Platforms.GLFW
-  other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings
+  other-extensions:    NamedFieldPuns, TemplateHaskell, Rank2Types, BangPatterns, OverloadedStrings, BlockArguments
   build-depends:       base, OpenGLRaw, GLFW-b, time, unordered-containers >=0.2 && <0.3, Hickory, linear
   default-language:    Haskell2010
   ghc-prof-options:   -fprof-auto

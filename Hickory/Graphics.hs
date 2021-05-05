@@ -8,6 +8,7 @@ module Hickory.Graphics
   , module Hickory.Graphics.VAO
   , module Hickory.Graphics.Types
   , module Hickory.Graphics.DrawText
+  , module Hickory.Graphics.DeferredRendering
   ) where
 
 import Hickory.Graphics.DrawUtils
@@ -19,3 +20,4 @@ import Hickory.Graphics.StockShaders
 import Hickory.Graphics.Textures
 import Hickory.Graphics.VAO
 import Hickory.Graphics.Types
+import Hickory.Graphics.DeferredRendering

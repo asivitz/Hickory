@@ -79,7 +79,7 @@ import Data.List (genericLength)
 import Hickory.Graphics.Drawing
 import Hickory.Graphics.Shader
 import qualified Data.Foldable as Fold
-import Linear (V4(..), M44, M33, transpose)
+import Linear (V4(..), V3(..), M44, M33, transpose)
 import qualified Data.Vector.Storable as V
 import Control.Monad (when)
 
@@ -107,12 +107,15 @@ glenumForDrawType dt = case dt of
 
 bindUniform :: Shader -> UniformBinding -> IO ()
 bindUniform shader (UniformBinding name uniVal) =
-        case retrieveLoc name shader of
-            Just loc -> case uniVal of
-                            Matrix4Uniform mat -> uniformMatrix4fv loc mat
-                            Matrix3Uniform mat -> uniformMatrix3fv loc mat
-                            QuadFUniform vec -> uniform4fv loc vec
-            Nothing -> print $ "Uniform named " ++ name ++ " not found in shader"
+  case retrieveLoc name shader of
+      Just loc -> case uniVal of
+                      Matrix4Uniform mat -> uniformMatrix4fv loc mat
+                      Matrix3Uniform mat -> uniformMatrix3fv loc mat
+                      QuadFUniform vec   -> uniform4fv loc vec
+                      TripleFUniform vec -> uniform3fv loc vec
+                      SingleFUniform f   -> glUniform1f loc (realToFrac f)
+                      SingleIUniform i   -> glUniform1i loc (fromIntegral i)
+      Nothing -> pure () -- print $ "Uniform named " ++ name ++ " not found in shader"
 
 attachVertexArray :: GLint -> GLint -> GLint -> GLint -> IO ()
 attachVertexArray attrLoc len stride offset =
@@ -138,8 +141,8 @@ attachVertexGroup shader vbo (VertexGroup attachments) = do
 
   _ <- Fold.foldlM (\offset (Attachment a l) -> do
           loc <- getAttribLocation (program shader) a
-          -- when (loc < 0) do
-            -- print $ "Cannot find attribute " ++ a ++ " in shader"
+          when (loc < 0) do
+            print $ "Cannot find attribute " ++ a ++ " in shader"
           attachVertexArray loc l stride offset
           return (offset + l))
       0
@@ -219,8 +222,16 @@ uniform4fv loc vs =
         withVec4s vs $ \ptr ->
             glUniform4fv loc (genericLength vs) (castPtr ptr)
 
+uniform3fv :: GLint -> [V3 Double] -> IO ()
+uniform3fv loc vs =
+        withVec3s vs $ \ptr ->
+            glUniform3fv loc (genericLength vs) (castPtr ptr)
+
 withVec4s :: [V4 Double] -> (Ptr GLfloat -> IO b) -> IO b
 withVec4s vecs f = withArray (map (fmap realToFrac) vecs :: [V4 GLfloat]) (f . castPtr)
+
+withVec3s :: [V3 Double] -> (Ptr GLfloat -> IO b) -> IO b
+withVec3s vecs f = withArray (map (fmap realToFrac) vecs :: [V3 GLfloat]) (f . castPtr)
 
 {-withVec4s vecs f = withVec4 (vecs !! 0) (f . castPtr) --withArray vecs (f . castPtr)-}
 

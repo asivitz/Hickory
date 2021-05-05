@@ -20,6 +20,9 @@ default-extensions:
     - ScopedTypeVariables
     - LambdaCase
     - TupleSections
+    - ViewPatterns
+    - BlockArguments
+    - RecordWildCards
 
 dependencies:
     - JuicyPixels
@@ -80,6 +83,7 @@ library:
     - Hickory.Graphics.StockShaders
     - Hickory.Graphics.VAO
     - Hickory.Graphics.Types
+    - Hickory.Graphics.DeferredRendering
     - Hickory.Math
     - Hickory.Math.Matrix
     - Hickory.Math.Vector

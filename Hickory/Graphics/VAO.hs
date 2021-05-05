@@ -10,6 +10,7 @@ import Graphics.GL.Compatibility41
 import Hickory.Graphics.GLSupport (makeVAO, makeVBO, buildVertexGroup, bindVAO, bufferVertices, bufferIndices, drawElements, glenumForDrawType, bindUniform)
 import Hickory.Graphics.Shader (useShader)
 import qualified Data.Vector.Storable as V
+import Control.Lens (ifor_)
 
 data VAOConfig = VAOConfig {
   vao :: !VAO,
@@ -71,14 +72,14 @@ loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) }
   bufferIndices ivbo indices
 loadVerticesIntoVAOConfig _ _ _ = error "VAOConfig missing buffers"
 
-drawCommand :: [UniformBinding] -> Maybe TexID -> VAOConfig -> GLint -> DrawType -> IO ()
-drawCommand uniformBindings texid vaoconfig@VAOConfig { shader} numitems drawType = do
+drawCommand :: [UniformBinding] -> [TexID] -> VAOConfig -> GLint -> DrawType -> IO ()
+drawCommand uniformBindings texids vaoconfig@VAOConfig { shader } numitems drawType = do
   useShader shader
-  case texid of
-      Just t -> glBindTexture GL_TEXTURE_2D (getTexID t)
-      _ -> return ()
+  ifor_ texids \i t -> do
+    glActiveTexture $ GL_TEXTURE0 + fromIntegral i
+    glBindTexture GL_TEXTURE_2D (getTexID t)
 
   mapM_ (bindUniform shader) uniformBindings
 
   withVAOConfig shader vaoconfig $
-      drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
+    drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT

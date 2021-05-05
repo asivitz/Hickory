@@ -6,7 +6,7 @@ module Hickory.Graphics.DrawUtils where
 
 import Hickory.Types
 
-import Control.Lens (Lens', view, set)
+import Control.Lens (Lens', view, set, (^.))
 import Hickory.Utils.Utils
 import Hickory.Math.Matrix
 import Hickory.Math.Vector
@@ -20,7 +20,7 @@ import Data.Foldable (toList, forM_)
 import qualified Hickory.Utils.DirectX as DX
 import Data.Text (Text)
 import Data.IORef (IORef, writeIORef, readIORef)
-import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), (!*), inv44)
+import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), (!*), inv44, _m33, inv33, transpose)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
@@ -32,7 +32,7 @@ import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), drawCommand, loadVerticesIntoVAOConfig)
 
-data Command = Command Mat44 [UniformBinding] (Maybe TexID) DrawSpec
+data Command = Command Mat44 [UniformBinding] [TexID] DrawSpec
 
 --TODO: Read animation FPS from directx file
 retrieveActionMat :: (Text, Double) -> [(Text, [Mat44])] -> Maybe Mat44
@@ -61,14 +61,14 @@ boneMatUniform (ThreeDModel _ Nothing _ _) _ _ = []
 boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
     where mats = animatedMats frame mesh (actionName, time)
 
-drawSpec :: [UniformBinding] -> Maybe TexID -> DrawSpec -> IO ()
-drawSpec uniforms tex spec = case spec of
+drawSpec :: [UniformBinding] -> [TexID] -> DrawSpec -> IO ()
+drawSpec uniforms texs spec = case spec of
   VAO (VAOObj _ 0 _) -> pure ()
   VAO (VAOObj vaoConfig numitems drawType) -> do
-    drawCommand uniforms tex vaoConfig (fromIntegral numitems) drawType
+    drawCommand uniforms texs vaoConfig (fromIntegral numitems) drawType
   DynVAO vaoConfig (verts, indices, drawType) -> do
     loadVerticesIntoVAOConfig vaoConfig verts indices
-    drawCommand uniforms tex vaoConfig (fromIntegral $ SV.length indices) drawType
+    drawCommand uniforms texs vaoConfig (fromIntegral $ SV.length indices) drawType
 
 {-
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -143,9 +143,9 @@ mkSquareVerts texW texH = (SV.fromList floats, SV.fromList indices, TriangleFan)
                   h, h, texW, texH]
         indices = [0,1,2,3]
 
-loadSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
-loadSquareIntoVAOConfig vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, indices)
-  where h = 0.5
+loadSquareIntoVAOConfig :: Scalar -> VAOConfig -> IO VAOObj
+loadSquareIntoVAOConfig sideLength vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, indices)
+  where h = realToFrac sideLength
         l = -h
         floats = SV.fromList [l, h, 0, 0, 1, 0, 1,
                             l, l, 0, 0, 1, 0, 0,
@@ -153,8 +153,9 @@ loadSquareIntoVAOConfig vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, in
                             h, h, 0, 0, 1, 1, 1]
         indices = SV.fromList [0,1,2,3]
 
-mkSquareVAOObj :: Shader -> IO VAOObj
-mkSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 2, Attachment "normal" 3, Attachment "texCoords" 2]] >>= loadSquareIntoVAOConfig
+mkSquareVAOObj :: Scalar -> Shader -> IO VAOObj
+mkSquareVAOObj sideLength shader = createVAOConfig shader [VertexGroup [Attachment "position" 2, Attachment "normal" 3, Attachment "texCoords" 2]]
+                               >>= loadSquareIntoVAOConfig sideLength
 
 loadUntexturedSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadUntexturedSquareIntoVAOConfig vaoconfig = do
@@ -341,7 +342,12 @@ render :: [RenderTree] -> IO ()
 render = renderTrees
 
 runDrawCommand :: Command -> IO ()
-runDrawCommand (Command mat uniforms tex spec) = drawSpec (UniformBinding "modelMat" (Matrix4Uniform [mat]) : uniforms) tex spec
+runDrawCommand (Command mat uniforms texs spec) = drawSpec (stdUniforms ++ uniforms) texs spec
+  where
+  stdUniforms =
+    [ UniformBinding "modelMat" (Matrix4Uniform [mat])
+    , UniformBinding "normalMat" (Matrix3Uniform [Linear.transpose (inv33 $ mat ^. _m33)])
+    ]
 
 {-rtDepth :: RenderTree -> Scalar-}
 {-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
@@ -360,6 +366,6 @@ combineMats (Just x) (Just y) = Just (x !*! y)
 collectTreeSpecs :: Maybe (M44 Scalar) -> RenderTree -> [Command]
 collectTreeSpecs _         NoRender          = []
 collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs (combineMats parentMat (Just mat)) child
-collectTreeSpecs parentMat (Primitive uniforms tex spec) = [Command mat' uniforms tex spec]
+collectTreeSpecs parentMat (Primitive uniforms texs spec) = [Command mat' uniforms texs spec]
   where mat' = fromMaybe identity parentMat
 collectTreeSpecs parentMat (List children) = concatMap (collectTreeSpecs parentMat) children -- (sortOn rtDepth children)

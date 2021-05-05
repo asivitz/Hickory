@@ -12,7 +12,7 @@ data DrawSpec
   deriving (Show)
 
 data RenderTree
-  = Primitive [UniformBinding] (Maybe TexID) DrawSpec
+  = Primitive [UniformBinding] [TexID] DrawSpec
   | List [RenderTree]
   | XForm Mat44 RenderTree
   | NoRender

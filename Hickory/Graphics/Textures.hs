@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ViewPatterns, BlockArguments #-}
 
 module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures, texLoadDefaults, TexLoadOptions(..) ) where
 
@@ -42,15 +42,9 @@ data TexLoadOptions = TexLoadOptions
   , flipY :: Bool
   }
 
--- Textures
-genTexture = alloca $ \p ->
-    do
-        glGenTextures 1 p
-        peek p
-
 -- create linear filtered texture
 loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = do
-  tex <- genTexture
+  tex <- alloc1 glGenTextures
   glBindTexture GL_TEXTURE_2D tex
 
   glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)

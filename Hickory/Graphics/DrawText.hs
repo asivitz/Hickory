@@ -156,4 +156,4 @@ renderText tc = do
     vc <- liftIO $ createPrinterVAOConfig shader
     liftIO $ printVAOObj printer tc vc
 
-  pure $ Primitive [] (Just tex) (VAO vao)
+  pure $ Primitive [] [tex] (VAO vao)

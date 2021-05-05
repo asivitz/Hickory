@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, BlockArguments #-}
 
 module Hickory.Utils.Utils where
 
@@ -10,6 +10,11 @@ import Data.Time
 import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
 import qualified Debug.Trace
+import Foreign.Marshal.Alloc (alloca)
+import qualified Foreign.Marshal.Array as FMA
+import Foreign.Storable (Storable, peek)
+import GHC.Ptr (Ptr)
+import qualified Data.Vector.Generic as V
 
 #if defined(ghcjs_HOST_OS)
 import qualified Data.Text as Text
@@ -107,3 +112,9 @@ readFileAsText path = do
 #else
 readFileAsText = TextIO.readFile
 #endif
+
+alloc1 :: (Integral i, Storable b) => (i -> Ptr b -> IO a) -> IO b
+alloc1 f = alloca \p -> f 1 p >> peek p
+
+withArrayLen :: (Storable a, Integral i) => [a] -> (i -> Ptr a -> IO b) -> IO b
+withArrayLen l f = FMA.withArrayLen l $ f . fromIntegral

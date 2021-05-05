@@ -27,19 +27,14 @@ empty = SysData
   , keys = HashMap.empty
   }
 
+-- Userspace likely cares about the window size, not framebuffer size.
+-- (Could be different for high DPI displays)
 getWindowSizeRef :: GLFW.Window -> IO (IORef (Size Int))
 getWindowSizeRef win = do
   wSize     <- uncurry Size <$> GLFW.getWindowSize win
   wSizeRef  <- newIORef wSize
   GLFW.setWindowSizeCallback win . Just $ \_ w h -> do
     writeIORef wSizeRef (Size w h)
-
-  -- Maybe not the best place to set the viewport, but since we're setting
-  -- a resize callback here anyway...
-  -- Note that the viewport uses the buffer size, while userspace cares
-  -- about the window size. (Could be different for high DPI displays)
-  GLFW.setFramebufferSizeCallback win . Just $ \_ w h -> do
-    GL.glViewport 0 0 (fromIntegral w) (fromIntegral h)
 
   pure wSizeRef
 
