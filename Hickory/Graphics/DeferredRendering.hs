@@ -60,7 +60,7 @@ loadGBufShader =
 loadDeferredShader :: IO Shader
 loadDeferredShader =
   loadShader "330 core" deferredvs deferredfs
-    ["positionTex", "normalTex", "albedoTex", "lightPosition", "lightColor", "linear", "quadratic", "ambientLightColor"]
+    ["positionTex", "normalTex", "albedoTex", "lightDir", "lightColor", "ambientLightColor"]
 
 gbufvs = [qt|
 layout (location = 0) in vec3 position;
@@ -130,13 +130,10 @@ uniform sampler2D positionTex;
 uniform sampler2D normalTex;
 uniform sampler2D albedoTex;
 
-uniform float ambientLightColor;
+uniform vec3 ambientLightColor;
 
-uniform vec3 lightPosition;
+uniform vec3 lightDir;
 uniform vec3 lightColor;
-
-uniform float linear;
-uniform float quadratic;
 
 void main()
 {
@@ -144,16 +141,10 @@ void main()
     vec3 normal  = texture(normalTex, texCoordsF).rgb;
     vec3 albedo = texture(albedoTex, texCoordsF).rgb;
 
-    // ambient lighting
     vec3 totalLight = albedo * ambientLightColor;
 
-    // diffuse lighting
-    vec3 lightDir = normalize(lightPosition - fragPos);
     vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 
-    float distance = length(lightPosition - fragPos);
-    float attenuation = 1.0 / (1.0 + linear * distance + quadratic * distance * distance);
-    diffuse *= attenuation;
     totalLight += diffuse;
 
     fragColor = vec4(totalLight, 1.0);
