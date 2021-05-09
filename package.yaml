@@ -9,6 +9,9 @@ author:              Axis Sivitz
 maintainer:          aosivitz@gmail.com
 copyright:           2017 Axis Sivitz
 
+ghc-options:
+    - -Wall
+
 extra-source-files:
     - Readme.md
 
@@ -84,6 +87,7 @@ library:
     - Hickory.Graphics.VAO
     - Hickory.Graphics.Types
     - Hickory.Graphics.DeferredRendering
+    - Hickory.Graphics.DirectXModel
     - Hickory.Math
     - Hickory.Math.Matrix
     - Hickory.Math.Vector
