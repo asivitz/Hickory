@@ -24,11 +24,9 @@ import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig)
 import Hickory.Graphics.Textures (TexID)
+import Hickory.Graphics.Uniforms (ShaderFunction, bindUniform)
 
-data Command = Command Mat44 [UniformBinding] [TexID] DrawSpec
-
-colorUniform :: V4 Scalar -> UniformBinding
-colorUniform color = UniformBinding "color" (QuadFUniform [color])
+data Command = Command Mat44 [ShaderFunction] [TexID] DrawSpec
 
 {-
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -181,8 +179,8 @@ runDrawCommand :: Command -> IO ()
 runDrawCommand (Command mat uniforms texs spec) = drawSpec (stdUniforms ++ uniforms) texs spec
   where
   stdUniforms =
-    [ UniformBinding "modelMat" (Matrix4Uniform [mat])
-    , UniformBinding "normalMat" (Matrix3Uniform [Linear.transpose (inv33 $ mat ^. _m33)])
+    [ bindUniform "modelMat" [mat]
+    , bindUniform "normalMat" [Linear.transpose (inv33 $ mat ^. _m33)]
     ]
 
 {-rtDepth :: RenderTree -> Scalar-}

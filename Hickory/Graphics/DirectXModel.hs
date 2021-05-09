@@ -12,10 +12,10 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
 
-import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.VAO (createVAOConfig, VAOObj(..))
 import Hickory.Graphics.DrawUtils (loadVAOObj)
+import Hickory.Graphics.Uniforms (ShaderFunction, bindUniform)
 
 
 data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame) DX.Mesh (V3 Double, V3 Double)
@@ -24,9 +24,9 @@ data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame) DX.Mesh (V3 Double, V3 Do
 animModelVAO :: ThreeDModel -> VAOObj
 animModelVAO (ThreeDModel v _ _ _) = v
 
-boneMatUniform :: ThreeDModel -> Text -> Double -> [UniformBinding]
+boneMatUniform :: ThreeDModel -> Text -> Double -> [ShaderFunction]
 boneMatUniform (ThreeDModel _ Nothing _ _) _ _ = []
-boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [UniformBinding "boneMat" (Matrix4Uniform mats)]
+boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [bindUniform "boneMat" mats]
     where mats = animatedMats frame mesh (actionName, time)
 
 -- .X

@@ -60,9 +60,6 @@ deleteVAOConfigs vcs = do
   V.unsafeWith vaosv $ glDeleteVertexArrays (fromIntegral $ V.length vaosv)
   V.unsafeWith vbosv $ glDeleteBuffers (fromIntegral $ V.length vbosv)
 
-withVAOConfig :: Shader -> VAOConfig -> IO () -> IO ()
-withVAOConfig _ VAOConfig { vao } action = glBindVertexArray vao >> action
-
 loadVerticesIntoVAOConfig :: VAOConfig -> V.Vector GLfloat -> V.Vector GLushort -> IO ()
 loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
   glBindVertexArray vao

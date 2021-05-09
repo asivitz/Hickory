@@ -9,23 +9,25 @@ import qualified Data.Vector.Storable as SV
 import Graphics.GL.Compatibility41
 import Hickory.Graphics.Shader (useShader)
 import Hickory.Graphics.Textures (TexID(..))
-import Hickory.Graphics.GLSupport (DrawType, UniformBinding, bindUniform, drawElements, glenumForDrawType)
-import Hickory.Graphics.VAO (VAOConfig(..), VAOObj(..), withVAOConfig, loadVerticesIntoVAOConfig)
+import Hickory.Graphics.GLSupport (DrawType, drawElements, glenumForDrawType)
+import Hickory.Graphics.Uniforms (ShaderFunction)
+import Hickory.Graphics.VAO (VAOConfig(..), VAOObj(..), loadVerticesIntoVAOConfig)
 import Hickory.Graphics.Types (DrawSpec(..))
 
-drawCommand :: [UniformBinding] -> [TexID] -> VAOConfig -> GLint -> DrawType -> IO ()
-drawCommand uniformBindings texids vaoconfig@VAOConfig { shader } numitems drawType = do
+drawCommand :: [ShaderFunction] -> [TexID] -> VAOConfig -> GLint -> DrawType -> IO ()
+drawCommand uniformBindings texids VAOConfig { shader, vao } numitems drawType = do
   useShader shader
   ifor_ texids \i t -> do
     glActiveTexture $ GL_TEXTURE0 + fromIntegral i
     glBindTexture GL_TEXTURE_2D (getTexID t)
 
-  mapM_ (bindUniform shader) uniformBindings
+  mapM_ ($shader) uniformBindings
 
-  withVAOConfig shader vaoconfig $
-    drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
+  glBindVertexArray vao
 
-drawSpec :: [UniformBinding] -> [TexID] -> DrawSpec -> IO ()
+  drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
+
+drawSpec :: [ShaderFunction] -> [TexID] -> DrawSpec -> IO ()
 drawSpec uniforms texs spec = case spec of
   VAO (VAOObj _ 0 _) -> pure ()
   VAO (VAOObj vaoConfig numitems drawType) -> do
