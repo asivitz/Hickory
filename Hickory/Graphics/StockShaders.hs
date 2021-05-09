@@ -4,8 +4,7 @@ module Hickory.Graphics.StockShaders where
 
 import Data.String.QM (qt)
 import Data.Text (Text)
-import Hickory.Graphics.Shader (loadShader)
-import Hickory.Graphics.Drawing (Shader)
+import Hickory.Graphics.Shader (loadShader, Shader)
 
 texturedVertexShader :: Text
 texturedVertexShader = [qt|

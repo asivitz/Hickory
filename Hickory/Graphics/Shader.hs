@@ -4,13 +4,16 @@
 {-# LANGUAGE CPP #-}
 
 module Hickory.Graphics.Shader (
-              loadShader,
-              loadShaderFromPaths,
-              useShader,
-              deleteShader,
-              getAttribLocation
-              )
-              where
+  loadShader,
+  loadShaderFromPaths,
+  useShader,
+  getAttribLocation,
+  UniformLoc
+  , retrieveLoc
+  , ShaderID
+  , Shader(..)
+  )
+    where
 
 import Control.Monad
 import Data.Text (Text, unpack)
@@ -20,14 +23,28 @@ import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
-import Hickory.Graphics.Drawing
 import Hickory.Utils.Utils
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text.Foreign as FText
+import Data.Word (Word32)
+import Data.Int (Int32)
 
 import Graphics.GL.Compatibility41 as GL
 
-deleteShader = glDeleteShader
+data Shader = Shader
+  { program :: ProgramID
+  , vertShader :: ShaderID
+  , fragShader :: ShaderID
+  , uniformLocs :: HashMap.HashMap String UniformLoc
+  } deriving (Show)
+
+type UniformLoc = Int32
+type ShaderID = Word32
+type ProgramID = Word32
+
+retrieveLoc :: String -> Shader -> Maybe UniformLoc
+retrieveLoc name shader = HashMap.lookup name (uniformLocs shader)
+
 glGetShaderi shaderId x = alloca (\ptr -> glGetShaderiv shaderId x ptr >> peek ptr)
 
 glGetProgrami programId x = alloca (\ptr -> glGetProgramiv programId x ptr >> peek ptr)
@@ -131,8 +148,8 @@ loadShader version vert frag uniforms = do
         case prog of
           Just pr -> return pr
           Nothing -> do
-            deleteShader vsh
-            deleteShader fsh
+            glDeleteShader vsh
+            glDeleteShader fsh
             error $ "Failed to link shader program: " ++ unpack vert ++ "\n\n" ++ unpack frag
       Nothing -> error $ "Couldn't load frag shader: " ++ unpack frag
     Nothing -> error $ "Couldn't load vertex shader: " ++ unpack vert

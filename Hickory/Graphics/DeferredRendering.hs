@@ -2,15 +2,15 @@
 
 module Hickory.Graphics.DeferredRendering where
 
-import Hickory.Utils.Utils (alloc1)
 import Hickory.Types (Size(..))
 import Graphics.GL.Compatibility41
 import Foreign.Marshal.Array (withArray)
 import Foreign.Ptr (nullPtr)
 import Control.Monad (when)
 import Data.String.QM (qt)
-import Hickory.Graphics.Drawing (Shader, TexID(..))
-import Hickory.Graphics.Shader (loadShader)
+import Hickory.Graphics.Shader (loadShader, Shader)
+import Hickory.Graphics.GLSupport (alloc1)
+import Hickory.Graphics.Textures (TexID(..))
 
 data GBuffer = GBuffer
   { frameBuffer :: GLuint

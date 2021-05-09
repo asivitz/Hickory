@@ -30,24 +30,22 @@ import Control.Monad.State.Strict (StateT, runStateT, modify, MonadState)
 import Control.Monad.Trans (MonadTrans)
 import Hickory.Color
 import Hickory.Graphics.GLSupport
-import Hickory.Graphics.Drawing
 import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 import Hickory.Text.Text
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig)
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
-import Graphics.GL.Compatibility41 as GL
 import Linear (zero)
 import qualified Data.Vector.Storable as V
 
 data Printer a = Printer (Font a) TexID Shader
 
 instance Eq (Printer a) where
-        Printer fa tid _ == Printer fb tidb _ = fontName fa == fontName fb
+  Printer fa _tid _ == Printer fb _tidb _ = fontName fa == fontName fb
 
 instance Show (Printer a) where
-        show (Printer font tid _) = "Printer:" ++ fontName font ++ "/" ++ show tid
+  show (Printer font tid _) = "Printer:" ++ fontName font ++ "/" ++ show tid
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
 createPrinterVAOConfig shader = createVAOConfig shader
@@ -90,6 +88,19 @@ printVAOObj (Printer font _ _) textCommand vaoconfig = do
 
       return (VAOObj vaoconfig (fromIntegral numBlockIndices) TriangleStrip)
     else error "Tried to print empty text command"
+
+squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
+squareIndices numSquares = (indices, 4 * numSquares + 2 * (numSquares - 1))
+ where
+  indices = concatMap
+    ( \i ->
+      let items                       = [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 3]
+          -- We need to start and end degenerate squares if
+          -- we're not at the beginning/end
+          withStartOfDegenerateSquare = if i < numSquares - 1 then items ++ [i * 4 + 3] else items
+      in  if i > 0 then (i * 4) : withStartOfDegenerateSquare else withStartOfDegenerateSquare
+    )
+    [0 .. (numSquares - 1)]
 
 -- Creating new VAOs during render
 

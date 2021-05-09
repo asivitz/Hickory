@@ -10,7 +10,6 @@ import Data.Time
 import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
 import qualified Debug.Trace
-import Foreign.Marshal.Alloc (alloca)
 import qualified Foreign.Marshal.Array as FMA
 import Foreign.Storable (Storable, peek)
 import GHC.Ptr (Ptr)
@@ -99,9 +98,6 @@ makeFPSTicker = do
 
 readFileAsText :: FilePath -> IO Text
 readFileAsText = TextIO.readFile
-
-alloc1 :: (Integral i, Storable b) => (i -> Ptr b -> IO a) -> IO b
-alloc1 f = alloca \p -> f 1 p >> peek p
 
 withArrayLen :: (Storable a, Integral i) => [a] -> (i -> Ptr a -> IO b) -> IO b
 withArrayLen l f = FMA.withArrayLen l $ f . fromIntegral

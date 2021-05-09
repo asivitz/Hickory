@@ -22,21 +22,13 @@ import qualified Codec.Wavefront as Wavefront
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), drawCommand, loadVerticesIntoVAOConfig)
+import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig)
+import Hickory.Graphics.Textures (TexID)
 
 data Command = Command Mat44 [UniformBinding] [TexID] DrawSpec
 
 colorUniform :: V4 Scalar -> UniformBinding
 colorUniform color = UniformBinding "color" (QuadFUniform [color])
-
-drawSpec :: [UniformBinding] -> [TexID] -> DrawSpec -> IO ()
-drawSpec uniforms texs spec = case spec of
-  VAO (VAOObj _ 0 _) -> pure ()
-  VAO (VAOObj vaoConfig numitems drawType) -> do
-    drawCommand uniforms texs vaoConfig (fromIntegral numitems) drawType
-  DynVAO vaoConfig (verts, indices, drawType) -> do
-    loadVerticesIntoVAOConfig vaoConfig verts indices
-    drawCommand uniforms texs vaoConfig (fromIntegral $ SV.length indices) drawType
 
 {-
 data ParticleShader = ParticleShader Shader UniformLoc

@@ -2,19 +2,22 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ViewPatterns, BlockArguments #-}
 
-module Hickory.Graphics.Textures (loadTexture, loadTexture', loadTextures, texLoadDefaults, TexLoadOptions(..) ) where
+module Hickory.Graphics.Textures
+  (loadTexture, loadTexture', loadTextures, texLoadDefaults, TexLoadOptions(..), TexID(..) ) where
 
 import Data.Vector.Storable(unsafeWith)
-import Hickory.Graphics.Drawing
 import Hickory.Utils.Utils
 import Codec.Picture
 import Codec.Picture.Extra (flipVertically)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text as Text
-import Foreign.Marshal.Alloc
-import Foreign.Storable
+import Data.Word (Word32)
+import GHC.Ptr (Ptr)
 
+import Hickory.Graphics.GLSupport (alloc1)
 import Graphics.GL.Compatibility41 as GL
+
+newtype TexID = TexID { getTexID :: Word32 } deriving (Show)
 
 data TexLoadOptions = TexLoadOptions
   { wrap :: GLenum
@@ -23,7 +26,7 @@ data TexLoadOptions = TexLoadOptions
   , flipY :: Bool
   }
 
--- create linear filtered texture
+loadGLTex :: Word32 -> Int -> Int -> TexLoadOptions -> Ptr a -> IO (Maybe TexID)
 loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = do
   tex <- alloc1 glGenTextures
   glBindTexture GL_TEXTURE_2D tex
