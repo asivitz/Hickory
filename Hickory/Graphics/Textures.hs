@@ -14,25 +14,6 @@ import qualified Data.Text as Text
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 
-#if defined(ghcjs_HOST_OS)
-import Data.JSString (pack, JSString)
-
-foreign import javascript safe " \
-    var tex = gl.createTexture(); \
-    tex.image = new Image(); \
-    tex.image.onload = function() { \
-        gl.bindTexture(gl.TEXTURE_2D, tex); \
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tex.image); \
-        gl.generateMipmap(gl.TEXTURE_2D); \
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); \
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); \
-    }; \
-    tex.image.src = $1 + '/images/' + $2; \
-    $r = tex;" loadTexture'' :: JSString -> JSString -> IO TexID
-
-loadTexture' a b = loadTexture'' (pack a) (pack b)
-loadTexture a b = loadTexture' a b >>= return . Just
-#else
 import Graphics.GL.Compatibility41 as GL
 
 data TexLoadOptions = TexLoadOptions
@@ -91,7 +72,6 @@ loadTexture' path (image, opts) = do
   case tex of
       Just t -> return t
       Nothing -> error ("Can't load texture " ++ image)
-#endif
 
 loadTextures :: String -> [(String, TexLoadOptions)] -> IO (HashMap.HashMap Text.Text TexID)
 loadTextures path images = do

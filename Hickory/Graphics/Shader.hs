@@ -25,83 +25,6 @@ import Hickory.Utils.Utils
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text.Foreign as FText
 
-#if defined(ghcjs_HOST_OS)
-import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort, GLboolean, GLsizei, GLintptr,
-                                         pattern GL_SRC_ALPHA,
-                                         pattern GL_ONE_MINUS_SRC_ALPHA,
-                                         pattern GL_TEXTURE0,
-                                         pattern GL_DITHER,
-                                         pattern GL_STENCIL_TEST,
-                                         pattern GL_PROGRAM_POINT_SIZE,
-                                         pattern GL_BLEND,
-                                         pattern GL_COLOR_BUFFER_BIT,
-                                         pattern GL_DEPTH_BUFFER_BIT,
-                                         pattern GL_FRAGMENT_SHADER,
-                                         pattern GL_VERTEX_SHADER,
-                                         pattern GL_LINK_STATUS,
-                                         pattern GL_COMPILE_STATUS,
-                                         pattern GL_SHADER_COMPILER,
-                                         pattern GL_INFO_LOG_LENGTH,
-                                         pattern GL_LINEAR_MIPMAP_LINEAR,
-                                         pattern GL_TRUE,
-                                         pattern GL_TEXTURE_MIN_FILTER,
-                                         pattern GL_TEXTURE_2D,
-                                         pattern GL_LINEAR,
-                                         pattern GL_TEXTURE_MAG_FILTER,
-                                         pattern GL_UNSIGNED_BYTE,
-                                         pattern GL_ELEMENT_ARRAY_BUFFER,
-                                         pattern GL_ARRAY_BUFFER,
-                                         pattern GL_FALSE,
-                                         pattern GL_FLOAT,
-                                         pattern GL_UNSIGNED_SHORT,
-                                         pattern GL_TRIANGLES,
-                                         pattern GL_TRIANGLE_FAN,
-                                         pattern GL_TRIANGLE_STRIP,
-                                         pattern GL_STREAM_DRAW)
-
-import Data.JSString (unpack, pack, JSString)
-import Hickory.Utils.Utils
-
-foreign import javascript safe "gl.deleteShader($1)" deleteShader :: ShaderID -> IO ()
-
-foreign import javascript safe " \
-    var shader = gl.createShader($2); \
-    gl.shaderSource(shader, $1); \
-    gl.compileShader(shader); \
-    \
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { \
-        alert(gl.getShaderInfoLog(shader)); \
-    } \
-    $r = shader; \
-    " compileShader' :: JSString -> GLenum -> IO ShaderID
-
-compileShader :: Text.Text -> GLenum -> IO (Maybe ShaderID)
-compileShader a b = compileShader' (pack . Text.unpack $ a) b >>= return . Just
-
-foreign import javascript safe " \
-    gl.attachShader($1, $2); \
-    gl.attachShader($1, $3); \
-    gl.linkProgram($1); \
-    if (!gl.getProgramParameter($1, gl.LINK_STATUS)) { \
-        alert(gl.getProgramInfoLog($1)); \
-    } \
-    $r = true; \
-    " linkProgram :: ProgramID -> ShaderID -> ShaderID -> IO Bool
-
-foreign import javascript safe "$r = gl.getUniformLocation($1,$2);" glGetUniformLocation :: ProgramID -> JSString -> IO UniformLoc
-getUniformLocation :: ProgramID -> String -> IO UniformLoc
-getUniformLocation a b = glGetUniformLocation a (pack b)
-
-foreign import javascript safe "$r = gl.getAttribLocation($1,$2);" glGetAttribLocation :: ProgramID -> JSString -> IO GLint
-getAttribLocation :: ProgramID -> String -> IO GLint
-getAttribLocation a b = glGetAttribLocation a (pack b)
-
-foreign import javascript safe "gl.useProgram($1)" glUseProgram :: ProgramID -> IO ()
-foreign import javascript safe "$r = gl.createProgram();" glCreateProgram :: IO ProgramID
-
-shaderSourceForPath path = readFileAsText path
-
-#else
 import Graphics.GL.Compatibility41 as GL
 
 deleteShader = glDeleteShader
@@ -182,8 +105,6 @@ shaderSourceForPath path = do
         return source
         -- TODO: iOS shouldn't have this header
         {-return $ Text.append "#version 150\n" source-}
-
-#endif
 
 loadShaderFromPaths :: Text -> String -> String -> String -> [String] -> IO Shader
 loadShaderFromPaths version resPath vert frag uniforms = do

@@ -14,13 +14,6 @@ import Foreign.Marshal.Alloc (alloca)
 import qualified Foreign.Marshal.Array as FMA
 import Foreign.Storable (Storable, peek)
 import GHC.Ptr (Ptr)
-import qualified Data.Vector.Generic as V
-
-#if defined(ghcjs_HOST_OS)
-import qualified Data.Text as Text
-import JavaScript.Web.XMLHttpRequest
-import Data.JSString (unpack, pack, JSString)
-#endif
 
 tracer :: (Show a, Show b) => b -> a -> a
 tracer label a = Debug.Trace.traceShow (label, a) a
@@ -105,13 +98,7 @@ makeFPSTicker = do
                     return last_report
 
 readFileAsText :: FilePath -> IO Text
-#if defined(ghcjs_HOST_OS)
-readFileAsText path = do
-        resp <- xhr Request { reqMethod = GET, reqURI = pack path, reqLogin = Nothing, reqHeaders = [], reqWithCredentials = False, reqData = NoData }
-        return . Text.pack . unpack . fromJust $ contents resp
-#else
 readFileAsText = TextIO.readFile
-#endif
 
 alloc1 :: (Integral i, Storable b) => (i -> Ptr b -> IO a) -> IO b
 alloc1 f = alloca \p -> f 1 p >> peek p

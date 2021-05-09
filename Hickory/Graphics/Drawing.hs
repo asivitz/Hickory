@@ -27,25 +27,8 @@ import Hickory.Math.Vector
 import Hickory.Math.Matrix
 import qualified Data.HashMap.Strict as HashMap
 
-#if defined(ghcjs_HOST_OS)
-import GHCJS.Types
-#endif
-
 type AttrLoc = Int32
 
-#if defined(ghcjs_HOST_OS)
-instance Show JSVal
-        where show x = "Some JSVal"
-
-type VAO = JSVal
-type VBO = JSVal
-type ShaderID = JSVal
-type ProgramID = JSVal
-type UniformLoc = JSVal
-
-newtype TexID = TexID JSVal deriving (Show)
-
-#else
 type VAO = Word32
 type VBO = Word32
 type ShaderID = Word32
@@ -53,7 +36,6 @@ type ProgramID = Word32
 type UniformLoc = Int32
 
 newtype TexID = TexID Word32 deriving (Show)
-#endif
 
 getTexID (TexID num) = num
 

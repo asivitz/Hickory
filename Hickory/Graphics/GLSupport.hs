@@ -27,48 +27,7 @@ module Hickory.Graphics.GLSupport --( module Graphics.GL.Compatibility41)
      )
     where
 
-#if defined(ghcjs_HOST_OS)
-import Data.Word
-import GHCJS.Types
-import GHCJS.Marshal
-import GHCJS.Foreign
-import Data.JSString (pack, JSString)
-import Graphics.GL.Compatibility41 as GL (GLenum, GLfloat, GLint, GLuint, GLushort, GLboolean, GLsizei, GLintptr,
-                                         pattern GL_SRC_ALPHA,
-                                         pattern GL_ONE_MINUS_SRC_ALPHA,
-                                         pattern GL_ONE,
-                                         pattern GL_TEXTURE0,
-                                         pattern GL_DITHER,
-                                         pattern GL_STENCIL_TEST,
-                                         pattern GL_PROGRAM_POINT_SIZE,
-                                         pattern GL_BLEND,
-                                         pattern GL_COLOR_BUFFER_BIT,
-                                         pattern GL_DEPTH_BUFFER_BIT,
-                                         pattern GL_FRAGMENT_SHADER,
-                                         pattern GL_VERTEX_SHADER,
-                                         pattern GL_LINK_STATUS,
-                                         pattern GL_COMPILE_STATUS,
-                                         pattern GL_SHADER_COMPILER,
-                                         pattern GL_INFO_LOG_LENGTH,
-                                         pattern GL_LINEAR_MIPMAP_LINEAR,
-                                         pattern GL_TRUE,
-                                         pattern GL_TEXTURE_MIN_FILTER,
-                                         pattern GL_TEXTURE_2D,
-                                         pattern GL_LINEAR,
-                                         pattern GL_TEXTURE_MAG_FILTER,
-                                         pattern GL_UNSIGNED_BYTE,
-                                         pattern GL_ELEMENT_ARRAY_BUFFER,
-                                         pattern GL_ARRAY_BUFFER,
-                                         pattern GL_FALSE,
-                                         pattern GL_FLOAT,
-                                         pattern GL_UNSIGNED_SHORT,
-                                         pattern GL_TRIANGLES,
-                                         pattern GL_TRIANGLE_FAN,
-                                         pattern GL_TRIANGLE_STRIP,
-                                         pattern GL_STREAM_DRAW)
-#else
 import Graphics.GL.Compatibility41 as GL
-#endif
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 import Foreign.Ptr
@@ -149,66 +108,6 @@ attachVertexGroup shader vbo (VertexGroup attachments) = do
       attachments
   pure ()
 
-#if defined(ghcjs_HOST_OS)
-foreign import javascript safe "gl.clearColor($1,$2,$3,$4)" glClearColor :: Float -> Float -> Float -> Float -> IO ()
-foreign import javascript safe "gl.blendFunc($1,$2)" glBlendFunc :: GLenum -> GLenum -> IO ()
-foreign import javascript safe "gl.clear($1)" glClear :: GLuint -> IO ()
-foreign import javascript safe "gl.activeTexture($1)" glActiveTexture :: GLenum -> IO ()
-foreign import javascript safe "gl.disable($1)" glDisable :: GLenum -> IO ()
-foreign import javascript safe "gl.enable($1)" glEnable :: GLenum -> IO ()
-foreign import javascript safe "\
-    var ext = gl.getExtension('OES_vertex_array_object'); \
-    ext.bindVertexArrayOES($1); \
-    " glBindVertexArray :: VAO -> IO ()
-foreign import javascript safe "gl.bindBuffer($1,$2)" glBindBuffer :: GLenum -> VBO -> IO ()
-foreign import javascript safe "gl.bindTexture($1,$2)" glBindTexture :: GLenum -> JSVal -> IO ()
-foreign import javascript safe "gl.enableVertexAttribArray($1)" enableVertexAttribArray :: GLint -> IO ()
-foreign import javascript safe "gl.disableVertexAttribArray($1)" disableVertexAttribArray :: GLint -> IO ()
-foreign import javascript safe "gl.drawElements($1, $2, $3, 0);" glDrawElements :: GLenum -> GLsizei -> GLenum -> IO ()
-drawElements = glDrawElements
-
-foreign import javascript safe "gl.vertexAttribPointer($1, $2, $3, $4, $5, $6);" glVertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLintptr -> IO ()
-vertexAttribPointer a b c d e f = glVertexAttribPointer a b c d e (fromIntegral f)
-
-foreign import javascript safe " \
-    var ext = gl.getExtension('OES_vertex_array_object'); \
-    $r = ext.createVertexArrayOES(); \
-    " makeVAO :: IO VAO
-
-foreign import javascript safe " \
-    var ext = gl.getExtension('OES_vertex_array_object'); \
-    ext.bindVertexArrayOES($1); \
-    " bindVAO :: VAO -> IO ()
-
-foreign import javascript safe "$r = gl.createBuffer();" makeVBO :: IO VBO
-
-foreign import javascript safe "gl.bufferData($1, new Float32Array($2), $3);" glBufferFloatData :: GLenum -> JSVal -> GLenum -> IO ()
-foreign import javascript safe "gl.bufferData($1, new Int16Array($2), $3);" glBufferUShortData :: GLenum -> JSVal -> GLenum -> IO ()
-
-bufferData bufType lst usageType bufDataType = do
-        arr <- toJSVal lst
-        case bufDataType of
-            BufFloat -> glBufferFloatData bufType arr usageType
-            BufUShort -> glBufferUShortData bufType arr usageType
-
-foreign import javascript safe "if ($1) { gl.uniform4fv($1, new Float32Array($2)); }" glUniform4fv :: UniformLoc -> JSVal -> IO ()
-
-uniform4fv :: UniformLoc -> V4 Double -> IO ()
-uniform4fv loc vec = do
-        let lst = toList vec
-        arr <- toJSVal lst
-        glUniform4fv loc arr
-
-foreign import javascript safe "if ($1) { gl.uniformMatrix4fv($1, false, new Float32Array($2)); }" glUniformMatrix4fv :: UniformLoc -> JSVal -> IO ()
-
-uniformMatrix4fv :: UniformLoc -> Mat44 -> IO ()
-uniformMatrix4fv loc mat = do
-        let lst = (concatMap toList . toList . transpose) mat
-        arr <- toJSVal lst
-        glUniformMatrix4fv loc arr
-
-#else
-
 enableVertexAttribArray = glEnableVertexAttribArray . fromIntegral
 
 disableVertexAttribArray :: GLint -> IO ()
@@ -272,16 +171,10 @@ makeVBO = withNewPtr (glGenBuffers 1)
 bindVAO :: VAO -> IO ()
 bindVAO = glBindVertexArray
 
-#endif
-
 configGLState :: GLfloat -> GLfloat -> GLfloat -> IO ()
 configGLState r g b = do
         glClearColor r g b 1
-#if defined(ghcjs_HOST_OS)
-        glBlendFunc GL_ONE GL_ONE_MINUS_SRC_ALPHA
-#else
         glBlendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA
-#endif
         glActiveTexture GL_TEXTURE0
 
         glDisable GL_DITHER

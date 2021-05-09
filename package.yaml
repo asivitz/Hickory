@@ -52,9 +52,6 @@ dependencies:
     - wavefront
 
 when:
-    - condition: impl(ghcjs)
-      dependencies:
-        - ghcjs-base
     - condition: os(osx)
       cc-options:         -F/System/Library/Frameworks
     - condition: flag(ios)
