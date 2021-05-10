@@ -33,14 +33,14 @@ shotMatrix Ortho { width, near, far, shouldCenter } screenRatio = if shouldCente
   else ortho 0 width 0 height near far
   where height = width / realToFrac screenRatio
 
-worldViewMatrix :: Projection -> Scalar -> V3 Scalar -> V3 Scalar -> V3 Scalar -> Mat44
-worldViewMatrix proj screenRatio pos target up =
-  let worldMatrix = shotMatrix proj screenRatio
-      camera      = lookAt pos target up
-  in  worldMatrix !*! camera
+viewProjectionMatrix :: Camera -> Scalar -> Mat44
+viewProjectionMatrix camera screenRatio = projectionMatrix camera screenRatio !*! viewMatrix camera
 
-cameraMatrix :: Camera -> Scalar -> Mat44
-cameraMatrix (Camera proj center target up) screenRatio = worldViewMatrix proj screenRatio center target up
+viewMatrix :: Camera -> Mat44
+viewMatrix (Camera _ center target up) = lookAt center target up
+
+projectionMatrix :: Camera -> Scalar -> Mat44
+projectionMatrix (Camera proj _ _ _) = shotMatrix proj
 
 -- Drivers
 
@@ -57,7 +57,7 @@ cameraCenter (Route pos Nothing ) = pos
 cameraCenter (Route pos (Just (Target tarpos time duration))) = lerp (realToFrac (time / duration)) tarpos pos
 
 checkTarget :: Route -> Double -> Route
-checkTarget r@(Route pos Nothing) _ = r
+checkTarget r@(Route _pos Nothing) _ = r
 checkTarget (Route pos (Just (Target tpos moveTime moveDuration))) delta =
   let time' = (moveTime + delta)
   in  if time' > moveDuration then Route tpos Nothing else Route pos (Just (Target tpos time' moveDuration))
