@@ -102,6 +102,7 @@ library:
     - Hickory.Text.Font
     - Hickory.Serialize
     - Hickory.FRP
+    - Hickory.Resources
     - UI.Stack
     - UI.Elements
 

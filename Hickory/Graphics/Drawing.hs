@@ -5,6 +5,7 @@ module Hickory.Graphics.Drawing where
 
 import Control.Lens (ifor_)
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Vector.Storable as SV
 import Graphics.GL.Compatibility41
 import Hickory.Graphics.Shader (useShader)
@@ -36,3 +37,7 @@ drawSpec uniforms texs spec = case spec of
     loadVerticesIntoVAOConfig vaoConfig verts indices
     drawCommand uniforms texs vaoConfig (fromIntegral $ SV.length indices) drawType
 
+drawVAO :: MonadIO m => [TexID] -> [ShaderFunction] -> VAOObj -> m ()
+drawVAO _ _ (VAOObj _ 0 _) = pure ()
+drawVAO texIds sfs (VAOObj vaoConfig numitems drawType)  = liftIO $
+  drawCommand sfs texIds vaoConfig (fromIntegral numitems) drawType

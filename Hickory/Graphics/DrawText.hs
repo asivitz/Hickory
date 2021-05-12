@@ -6,6 +6,9 @@
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Hickory.Graphics.DrawText
   ( Printer(..)
@@ -22,17 +25,19 @@ module Hickory.Graphics.DrawText
   , DynamicVAOMonad(..)
   , DynamicVAOT(..)
   , runDynamicVAOT
+  , withDynamicVAOs
+  , withPrinting
   ) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Reader (ReaderT, runReaderT, lift, ask)
-import Control.Monad.State.Strict (StateT, runStateT, modify, MonadState)
+import Control.Monad.Reader (ReaderT, runReaderT, lift, ask, asks, MonadReader(..), mapReaderT)
+import Control.Monad.State.Strict (StateT, runStateT, modify, MonadState, mapStateT)
 import Control.Monad.Trans (MonadTrans)
 import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 import Hickory.Text.Text
-import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig)
+import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig, deleteVAOConfigs)
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
@@ -122,6 +127,13 @@ newtype PrinterT m a = PrinterT { unPrinterT :: ReaderT (Printer Int) m a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
   deriving anyclass DynamicVAOMonad
 
+mapPrinterT :: (m a -> n b) -> PrinterT m a -> PrinterT n b
+mapPrinterT f = PrinterT . mapReaderT f . unPrinterT
+
+instance MonadReader r m => MonadReader r (PrinterT m) where
+  ask = lift ask
+  local f = mapPrinterT id . local f
+
 instance MonadIO m => PrinterMonad (PrinterT m) where
   getPrinter = PrinterT ask
 
@@ -142,6 +154,13 @@ instance DynamicVAOMonad m => DynamicVAOMonad (ReaderT r m) where
 newtype DynamicVAOT m a = DynamicVAOT { unDynamicVAOT :: StateT DynamicVAOs m a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DynamicVAOs, MonadTrans)
   deriving anyclass PrinterMonad
+
+mapDynamicVAOT :: (m (a, DynamicVAOs) -> n (b, DynamicVAOs)) -> DynamicVAOT m a -> DynamicVAOT n b
+mapDynamicVAOT f = DynamicVAOT . mapStateT f . unDynamicVAOT
+
+instance MonadReader r m => MonadReader r (DynamicVAOT m) where
+  ask = lift ask
+  local f = mapDynamicVAOT id . local f
 
 instance MonadIO m => DynamicVAOMonad (DynamicVAOT m) where
   recordVAO v = DynamicVAOT $ modify (v:)
@@ -168,3 +187,14 @@ renderText tc = do
     liftIO $ printVAOObj printer tc vc
 
   pure $ Primitive [] [tex] (VAO vao)
+
+withDynamicVAOs :: MonadIO m => DynamicVAOT m a -> m a
+withDynamicVAOs f = do
+  (a, allocedVAOs) <- runDynamicVAOT f
+  liftIO $ deleteVAOConfigs $ map (\(VAOObj vc _ _) -> vc) allocedVAOs
+  pure a
+
+withPrinting :: MonadReader r m => (r -> Printer Int) -> PrinterT m a -> m a
+withPrinting getter f = do
+  printer <- asks getter
+  runPrinterT printer f

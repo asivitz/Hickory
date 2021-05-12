@@ -11,6 +11,10 @@ import Data.String.QM (qt)
 import Hickory.Graphics.Shader (loadShader, Shader)
 import Hickory.Graphics.GLSupport (alloc1)
 import Hickory.Graphics.Textures (TexID(..))
+import Data.IORef (IORef, readIORef)
+import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Data.Bits ((.|.))
 
 data GBuffer = GBuffer
   { frameBuffer :: GLuint
@@ -52,6 +56,20 @@ createGBuffer (Size (fromIntegral -> w) (fromIntegral -> h)) = do
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_NEAREST)
     glFramebufferTexture2D GL_FRAMEBUFFER attachment GL_TEXTURE_2D tex 0
     pure $ TexID tex
+
+withGBufferBound :: (MonadReader r m, MonadIO m) => (r -> IORef GBuffer) -> m a -> m a
+withGBufferBound getter f = do
+  gBufferRef <- asks getter
+
+  GBuffer { frameBuffer  } <- liftIO $ readIORef gBufferRef
+  glClearColor 0 0 0 1
+  glBindFramebuffer GL_FRAMEBUFFER frameBuffer
+  glClear $ GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT
+  a <- f
+  glBindFramebuffer GL_FRAMEBUFFER 0
+
+  glClear $ GL_COLOR_BUFFER_BIT .|. GL_DEPTH_BUFFER_BIT
+  pure a
 
 loadGBufShader :: IO Shader
 loadGBufShader =

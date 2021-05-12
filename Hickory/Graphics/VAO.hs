@@ -3,7 +3,7 @@
 module Hickory.Graphics.VAO where
 
 import Control.Monad.State.Strict (MonadIO, MonadState, gets, liftIO, modify)
-import qualified Data.Map.Strict as Map
+import qualified Data.HashMap.Strict as Map
 import Data.Text (Text)
 import qualified Data.Vector.Storable as V
 import Graphics.GL.Compatibility41
@@ -23,7 +23,7 @@ data VAOObj = VAOObj
   , drawType :: DrawType
   } deriving (Show)
 
-type VAOCache = Map.Map Text VAOObj
+type VAOCache = Map.HashMap Text VAOObj
 
 loadVao :: (MonadState VAOCache m, MonadIO m) => Text -> IO VAOConfig -> (VAOConfig -> IO VAOObj) -> m VAOObj
 loadVao k create load = do
