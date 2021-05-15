@@ -86,6 +86,7 @@ library:
     - Hickory.Graphics.DeferredRendering
     - Hickory.Graphics.DirectXModel
     - Hickory.Graphics.Uniforms
+    - Hickory.Graphics.SSAO
     - Hickory.Math
     - Hickory.Math.Matrix
     - Hickory.Math.Vector

@@ -73,12 +73,12 @@ withGBufferBound getter f = do
 
 loadGBufShader :: IO Shader
 loadGBufShader =
-  loadShader "330 core" gbufvs gbuffs ["modelMat", "normalMat", "viewProjection", "tex"]
+  loadShader "330 core" gbufvs gbuffs ["modelMat", "normalMat", "viewMat", "projectionMat", "tex"]
 
 loadDeferredShader :: IO Shader
 loadDeferredShader =
   loadShader "330 core" deferredvs deferredfs
-    ["positionTex", "normalTex", "albedoTex", "lightDir", "lightColor", "ambientLightColor"]
+    ["positionTex", "normalTex", "albedoTex", "noiseTex", "lightDir", "lightColor", "ambientLightColor", "sampleKernel", "projectionMat", "radius", "bias"]
 
 gbufvs = [qt|
 layout (location = 0) in vec3 position;
@@ -91,17 +91,18 @@ out vec3 normalF;
 
 uniform mat4 modelMat;
 uniform mat3 normalMat;
-uniform mat4 viewProjection;
+uniform mat4 viewMat;
+uniform mat4 projectionMat;
 
 void main()
 {
-    vec4 worldPos = modelMat * vec4(position, 1.0);
-    fragPos = worldPos.xyz;
+    vec4 viewPos = viewMat * modelMat * vec4(position, 1.0);
+    fragPos = viewPos.xyz;
     texCoordsF = texCoords;
 
     normalF = normalMat * normal;
 
-    gl_Position = viewProjection * worldPos;
+    gl_Position = projectionMat * viewPos;
 }
 |]
 
@@ -148,23 +149,59 @@ uniform sampler2D positionTex;
 uniform sampler2D normalTex;
 uniform sampler2D albedoTex;
 
+uniform sampler2D noiseTex;
+
 uniform vec3 ambientLightColor;
 
 uniform vec3 lightDir;
 uniform vec3 lightColor;
 
+uniform mat4 projectionMat;
+uniform vec3 sampleKernel[64];
+
+uniform float radius;
+uniform float bias;
+
+const vec2 noiseScale = vec2(750.0/4.0, 750.0/4.0);
+
+int kernelSize = 64;
+
+
 void main()
 {
     vec3 fragPos = texture(positionTex, texCoordsF).rgb;
-    vec3 normal  = texture(normalTex, texCoordsF).rgb;
+    vec3 normal = texture(normalTex, texCoordsF).rgb;
     vec3 albedo = texture(albedoTex, texCoordsF).rgb;
 
-    vec3 totalLight = albedo * ambientLightColor;
+    vec3 random = texture(noiseTex, texCoordsF * noiseScale).xyz;
+
+    vec3 tangent = normalize(randomVec - normal * dot(random, normal));
+    vec3 bitangent = cross(normal, tangent);
+    mat3 TBN = mat3(tangent, bitangent, normal);
+
+    float occlusion = 0.0;
+    for(int i = 0; i < kernelSize; i++)
+    {
+        vec3 samplePos = fragPos + TBN * sampleKernel[i] * radius;
+
+        vec4 offset = projectionMat * vec4(samplePos, 1.0);    // view space -> clip space
+        offset.xyz /= offset.w;
+        offset.xyz  = offset.xyz * 0.5 + 0.5;
+        float sampleDepth = texture(positionTex, offset.xy).z;
+
+        float rangeCheck = smoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth));
+        occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;
+    }
+
+    occlusion = 1.0 - (occlusion / kernelSize);
+
+    vec3 totalLight = albedo * ambientLightColor * occlusion;
 
     vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 
     totalLight += diffuse;
 
-    fragColor = vec4(totalLight, 1.0);
+    fragColor = vec4(occlusion, occlusion, occlusion, 1.0);
+    //fragColor = vec4(totalLight, 1.0);
 }
 |]

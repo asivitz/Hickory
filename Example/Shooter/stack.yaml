@@ -3,6 +3,8 @@
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
 resolver: lts-17.5
 
+allow-newer: true
+
 # Local packages, usually specified by relative directory name
 packages:
 - '../../'
@@ -11,10 +13,9 @@ packages:
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- git: https://github.com/HeinrichApfelmus/reactive-banana.git
-  commit: 79482f3e9bfab493e2d2197f70cdb11787b33a03
-  subdirs:
-    - reactive-banana
+  [ reactive-banana-1.2.1.0
+  , wavefront-0.7.1.4
+  ]
 
 # Override default flag values for local packages and extra-deps
 flags: {}

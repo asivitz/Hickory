@@ -27,6 +27,7 @@ module Hickory.Graphics.DrawText
   , runDynamicVAOT
   , withDynamicVAOs
   , withPrinting
+  , drawText
   ) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -38,6 +39,9 @@ import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 import Hickory.Text.Text
 import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig, deleteVAOConfigs)
+import Hickory.Math.Matrix (Mat44)
+import Hickory.Graphics.Drawing (drawVAO)
+import Hickory.Graphics.Uniforms (bindUniform)
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
@@ -179,6 +183,7 @@ loadDynamicVAO create = do
   recordVAO vao
   pure vao
 
+{-# DEPRECATED #-}
 renderText :: (DynamicVAOMonad m, PrinterMonad m) => TextCommand -> m RenderTree
 renderText tc = do
   printer@(Printer _ tex shader) <- getPrinter
@@ -187,6 +192,15 @@ renderText tc = do
     liftIO $ printVAOObj printer tc vc
 
   pure $ Primitive [] [tex] (VAO vao)
+
+drawText :: (DynamicVAOMonad m, PrinterMonad m) => TextCommand -> Mat44 -> m ()
+drawText tc mat = do
+  printer@(Printer _ tex shader) <- getPrinter
+  vao <- loadDynamicVAO do
+    vc <- liftIO $ createPrinterVAOConfig shader
+    liftIO $ printVAOObj printer tc vc
+
+  drawVAO [tex] [bindUniform "modelMat" mat] vao
 
 withDynamicVAOs :: MonadIO m => DynamicVAOT m a -> m a
 withDynamicVAOs f = do

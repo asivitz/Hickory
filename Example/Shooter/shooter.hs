@@ -31,7 +31,7 @@ import Reactive.Banana ((<@))
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import qualified Data.Map as Map
+import qualified Data.HashMap.Strict as Map
 
 -- ** GAMEPLAY **
 
@@ -102,10 +102,10 @@ initRenderState shaderVersion path = do
   -- To draw the missiles, we also need a shader that can draw
   -- textures, and the actual missile texture
   textured <- H.loadTexturedShader shaderVersion
-  missiletex <- H.loadTexture' path ("circle.png", H.texClamp)
+  missiletex <- H.loadTexture' path ("circle.png", H.texLoadDefaults)
 
   -- We'll use some square geometry and draw our texture on top
-  squareVAOObj <- H.mkSquareVAOObj textured
+  squareVAOObj <- H.mkSquareVAOObj 0.5 textured
   let vaoCache = Map.singleton "square" squareVAOObj
 
   pure $ Resources missiletex vaoCache
@@ -115,7 +115,7 @@ calcCameraMatrix :: Size Int -> Mat44
 calcCameraMatrix size@(Size w _h) =
   let proj = Ortho (realToFrac w) 1 100 True
       camera = Camera proj (V3 0 0 10) zero (V3 0 1 0)
-  in cameraMatrix camera (aspectRatio size)
+  in viewProjectionMatrix camera (aspectRatio size)
 
 -- Our render function
 renderGame :: Size Int -> Model -> Scalar -> Mat44 -> Resources -> H.RenderTree
@@ -123,12 +123,12 @@ renderGame _scrSize Model { playerPos, missiles } _gameTime mat Resources { miss
   H.XForm mat $ H.List [playerRT, missilesRT]
   where
     playerRT = H.XForm (mkTranslation playerPos !*! mkScale (V2 10 10)) . pullVaoCache "square" $
-      H.Primitive [H.colorUniform white] Nothing
+      H.Primitive [H.bindUniform "color" white] []
     missilesRT = pullVaoCache "square" \vo ->
       H.List $ missiles <&> \(pos, _) -> H.XForm (mkTranslation pos !*! mkScale (V2 5 5)) $
         H.Primitive
-          [H.colorUniform red]
-          (Just missileTex)
+          [H.bindUniform "color" red]
+          [missileTex]
           vo
     pullVaoCache k f = maybe H.NoRender (f . H.VAO) $ Map.lookup k vaoCache
 

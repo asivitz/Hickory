@@ -11,6 +11,7 @@ module Hickory.Graphics
   , module Hickory.Graphics.DeferredRendering
   , module Hickory.Graphics.DirectXModel
   , module Hickory.Graphics.Uniforms
+  , module Hickory.Graphics.SSAO
   ) where
 
 import Hickory.Graphics.DrawUtils
@@ -25,3 +26,5 @@ import Hickory.Graphics.Types
 import Hickory.Graphics.DeferredRendering
 import Hickory.Graphics.DirectXModel
 import Hickory.Graphics.Uniforms
+import Hickory.Graphics.SSAO
+

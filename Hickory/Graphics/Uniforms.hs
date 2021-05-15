@@ -2,6 +2,7 @@
 
 module Hickory.Graphics.Uniforms where
 
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Graphics.Shader (Shader, retrieveLoc, UniformLoc)
 import Hickory.Math.Matrix
 import Linear (V3, V4, M44, M33,transpose)
@@ -12,9 +13,9 @@ import Data.List (genericLength)
 
 type ShaderFunction = Shader -> IO ()
 
-bindUniform :: Uniform a => String -> a -> Shader -> IO ()
+bindUniform :: (Uniform a, MonadIO m) => String -> a -> Shader -> m ()
 bindUniform name val shader = case retrieveLoc name shader of
-  Just loc -> bindUniformLoc loc val
+  Just loc -> liftIO $ bindUniformLoc loc val
   Nothing -> pure ()
 
 class Uniform a where
@@ -22,6 +23,9 @@ class Uniform a where
 
 instance Uniform Int where
   bindUniformLoc loc i = glUniform1i loc (fromIntegral i)
+
+instance Uniform Float where
+  bindUniformLoc loc f = glUniform1f loc f
 
 instance Uniform Double where
   bindUniformLoc loc f = glUniform1f loc (realToFrac f)
