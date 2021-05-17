@@ -28,11 +28,11 @@ import Foreign.Ptr
 import Foreign.Storable
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Utils.Utils
+import Data.Maybe (catMaybes, fromMaybe)
 
 data Shader = Shader
   { program :: ProgramID,
-    vertShader :: ShaderID,
-    fragShader :: ShaderID,
+    shaderIds :: [ShaderID],
     uniformLocs :: HashMap.HashMap String UniformLoc
   }
   deriving (Show)
@@ -95,10 +95,9 @@ compileShader source shaderType = do
       glDeleteShader shaderId
       return Nothing
 
-linkProgram :: GLuint -> GLuint -> GLuint -> IO Bool
-linkProgram programId vertShader fragShader = do
-  glAttachShader programId vertShader
-  glAttachShader programId fragShader
+linkProgram :: GLuint -> [GLuint] -> IO Bool
+linkProgram programId shaders = do
+  mapM_ (glAttachShader programId) shaders
   glLinkProgram programId
 
   linked <- glGetProgrami programId GL_LINK_STATUS
@@ -121,59 +120,43 @@ getUniformLocation progId name = withCString name (glGetUniformLocation progId)
 shaderSourceForPath :: String -> IO Text
 shaderSourceForPath = readFileAsText
 
-
--- TODO: iOS shouldn't have this header
-{-return $ Text.append "#version 150\n" source-}
-
-loadShaderFromPaths :: Text -> String -> String -> String -> [String] -> IO Shader
-loadShaderFromPaths version resPath vert frag uniforms = do
+loadShaderFromPaths :: String -> String -> String -> [String] -> IO Shader
+loadShaderFromPaths resPath vert frag uniforms = do
   let prefix = resPath ++ "/Shaders/"
       vpath = prefix ++ vert
       fpath = prefix ++ frag
   vsource <- shaderSourceForPath vpath
   fsource <- shaderSourceForPath fpath
 
-  loadShader version vsource fsource uniforms
+  loadShader vsource Nothing fsource uniforms
 
-loadShader :: Text -> Text -> Text -> [String] -> IO Shader
-loadShader version vert frag uniforms = do
-  let vsource = addVersion vert
-      fsource = addVersion frag
+loadShader :: Text -> Maybe Text -> Text -> [String] -> IO Shader
+loadShader vert mgeom frag uniforms = do
+  let shaders = catMaybes
+        [ (,GL_GEOMETRY_SHADER) <$> mgeom
+        , Just (vert, GL_VERTEX_SHADER)
+        , Just (frag, GL_FRAGMENT_SHADER)
+        ]
+  shIds <- forM shaders \(source, typ) -> do
+    fromMaybe (error $ "Couldn't compile shader: " ++ unpack source) <$>
+      compileShader source typ
 
-  vs <- compileVertShader vsource
-  fs <- compileFragShader fsource
+  prog <- buildShaderProgram shIds uniforms
+  case prog of
+    Just pr -> return pr
+    Nothing -> do
+      mapM_ glDeleteShader shIds
+      error $ "Failed to link shader program: " ++ unpack vert ++ "\n\n" ++ maybe "" unpack mgeom ++ "\n\n" ++ unpack frag
 
-  case vs of
-    Just vsh -> case fs of
-      Just fsh -> do
-        prog <- buildShaderProgram vsh fsh uniforms
-        case prog of
-          Just pr -> return pr
-          Nothing -> do
-            glDeleteShader vsh
-            glDeleteShader fsh
-            error $ "Failed to link shader program: " ++ unpack vert ++ "\n\n" ++ unpack frag
-      Nothing -> error $ "Couldn't load frag shader: " ++ unpack frag
-    Nothing -> error $ "Couldn't load vertex shader: " ++ unpack vert
-  where
-    addVersion :: Text -> Text
-    addVersion = mappend ("#version " <> version <> "\n")
-
-compileVertShader :: Text -> IO (Maybe ShaderID)
-compileVertShader source = compileShader source GL_VERTEX_SHADER
-
-compileFragShader :: Text -> IO (Maybe ShaderID)
-compileFragShader source = compileShader source GL_FRAGMENT_SHADER
-
-buildShaderProgram :: ShaderID -> ShaderID -> [String] -> IO (Maybe Shader)
-buildShaderProgram vertShader fragShader uniforms = do
+buildShaderProgram :: [ShaderID] -> [String] -> IO (Maybe Shader)
+buildShaderProgram shaders uniforms = do
   programId <- glCreateProgram
 
-  linked <- linkProgram programId vertShader fragShader
+  linked <- linkProgram programId shaders
   if not linked
     then return Nothing
     else do
-      let sh = Shader programId vertShader fragShader
+      let sh = Shader programId shaders
       res <-
         sh
           <$> ( foldM

@@ -8,6 +8,8 @@ import Hickory.Graphics.Shader (loadShader, Shader)
 
 texturedVertexShader :: Text
 texturedVertexShader = [qt|
+#version 410
+
 in vec4 position;
 in vec2 texCoords;
 
@@ -24,6 +26,8 @@ void main()
 
 texturedFragmentShader :: Text
 texturedFragmentShader = [qt|
+#version 410
+
 uniform lowp vec4 color;
 uniform sampler2D tex;
 
@@ -38,6 +42,8 @@ void main()
 
 solidColorFragmentShader :: Text
 solidColorFragmentShader = [qt|
+#version 410
+
 uniform lowp vec4 color;
 out lowp vec4 outcolor;
 
@@ -49,6 +55,8 @@ void main()
 
 litVertexShader :: Text
 litVertexShader = [qt|
+#version 410
+
 in vec4 position;
 in vec3 normal;
 in vec2 texCoords;
@@ -86,6 +94,8 @@ void main()
 
 litFragmentShader :: Text
 litFragmentShader = [qt|
+#version 410
+
 uniform sampler2D tex;
 
 in mediump vec2 texCoordsVarying;
@@ -100,6 +110,8 @@ void main()
 
 skinnedVertexShader :: Text
 skinnedVertexShader = [qt|
+#version 410
+
 in vec4 position;
 in vec3 normal;
 /*in vec2 texCoords;*/
@@ -148,6 +160,8 @@ void main()
 
 skinnedFragmentShader :: Text
 skinnedFragmentShader = [qt|
+#version 410
+
 /*uniform vec4 color;*/
 /*uniform sampler2D tex;*/
 
@@ -166,6 +180,8 @@ void main()
 
 perVertColorVertexShader :: Text
 perVertColorVertexShader = [qt|
+#version 410
+
 in vec3 position;
 in vec2 texCoords;
 in vec4 color;
@@ -184,6 +200,8 @@ void main()
 
 perVertColorFragmentShader :: Text
 perVertColorFragmentShader = [qt|
+#version 410
+
 uniform sampler2D tex;
 in mediump vec2 texCoordsVarying;
 in lowp vec4 colorVarying;
@@ -197,6 +215,8 @@ void main()
 
 particleVertexShader :: Text
 particleVertexShader = [qt|
+#version 410
+
 uniform lowp vec4 color;
 in vec3 position;
 
@@ -213,6 +233,8 @@ void main()
 
 particleFragmentShader :: Text
 particleFragmentShader = [qt|
+#version 410
+
 uniform lowp vec4 color;
 uniform lowp vec4 color2;
 out lowp vec4 outcolor;
@@ -223,22 +245,22 @@ void main()
 }
 |]
 
-loadPVCShader :: Text -> IO Shader
-loadPVCShader shaderVersion =
-  loadShader shaderVersion perVertColorVertexShader perVertColorFragmentShader ["modelMat", "tex"]
+loadPVCShader :: IO Shader
+loadPVCShader =
+  loadShader perVertColorVertexShader Nothing perVertColorFragmentShader ["modelMat", "tex"]
 
-loadSolidShader :: Text -> IO Shader
-loadSolidShader shaderVersion =
-  loadShader shaderVersion texturedVertexShader solidColorFragmentShader ["modelMat", "color"]
+loadSolidShader :: IO Shader
+loadSolidShader =
+  loadShader texturedVertexShader Nothing solidColorFragmentShader ["modelMat", "color"]
 
-loadTexturedShader :: Text -> IO Shader
-loadTexturedShader shaderVersion =
-  loadShader shaderVersion texturedVertexShader texturedFragmentShader ["modelMat", "color", "tex"]
+loadTexturedShader :: IO Shader
+loadTexturedShader =
+  loadShader texturedVertexShader Nothing texturedFragmentShader ["modelMat", "color", "tex"]
 
-loadSkinnedShader :: Text -> IO Shader
-loadSkinnedShader shaderVersion =
-  loadShader shaderVersion skinnedVertexShader skinnedFragmentShader ["modelMat", "boneMat", "colors", "normalMat", "justModelMat"]
+loadSkinnedShader :: IO Shader
+loadSkinnedShader =
+  loadShader skinnedVertexShader Nothing skinnedFragmentShader ["modelMat", "boneMat", "colors", "normalMat", "justModelMat"]
 
-loadLitTexturedShader :: Text -> IO Shader
-loadLitTexturedShader shaderVersion =
-  loadShader shaderVersion litVertexShader litFragmentShader ["modelMat", "color", "tex", "normalMat", "justModelMat"]
+loadLitTexturedShader :: IO Shader
+loadLitTexturedShader =
+  loadShader litVertexShader Nothing litFragmentShader ["modelMat", "color", "tex", "normalMat", "justModelMat"]

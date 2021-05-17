@@ -73,14 +73,16 @@ withGBufferBound getter f = do
 
 loadGBufShader :: IO Shader
 loadGBufShader =
-  loadShader "330 core" gbufvs gbuffs ["modelMat", "normalMat", "viewMat", "projectionMat", "tex"]
+  loadShader gbufvs Nothing gbuffs ["modelMat", "normalMat", "viewMat", "projectionMat", "tex"]
 
 loadDeferredShader :: IO Shader
 loadDeferredShader =
-  loadShader "330 core" deferredvs deferredfs
-    ["positionTex", "normalTex", "albedoTex", "noiseTex", "lightDir", "lightColor", "ambientLightColor", "sampleKernel", "projectionMat", "radius", "bias"]
+  loadShader deferredvs Nothing deferredfs
+    ["positionTex", "normalTex", "albedoTex", "noiseTex", "lightDir", "lightColor", "ambientLightColor", "sampleKernel", "projectionMat", "radius", "bias", "kernelSize"]
 
 gbufvs = [qt|
+#version 330 core
+
 layout (location = 0) in vec3 position;
 layout (location = 1) in vec2 texCoords;
 layout (location = 2) in vec3 normal;
@@ -107,6 +109,8 @@ void main()
 |]
 
 gbuffs = [qt|
+#version 330 core
+
 layout (location = 0) out vec3 positionTexFrag;
 layout (location = 1) out vec3 normalTexFrag;
 layout (location = 2) out vec4 albedoTexFrag;
@@ -127,6 +131,8 @@ void main()
 |]
 
 deferredvs = [qt|
+#version 330 core
+
 layout (location = 0) in vec2 position;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texCoords;
@@ -141,6 +147,8 @@ void main()
 |]
 
 deferredfs = [qt|
+#version 330 core
+
 out vec4 fragColor;
 
 in vec2 texCoordsF;
@@ -164,7 +172,8 @@ uniform float bias;
 
 const vec2 noiseScale = vec2(750.0/4.0, 750.0/4.0);
 
-int kernelSize = 64;
+// int kernelSize = 64;
+uniform int kernelSize;
 
 
 void main()
@@ -175,11 +184,12 @@ void main()
 
     vec3 random = texture(noiseTex, texCoordsF * noiseScale).xyz;
 
-    vec3 tangent = normalize(randomVec - normal * dot(random, normal));
+    vec3 tangent = normalize(random - normal * dot(random, normal));
     vec3 bitangent = cross(normal, tangent);
     mat3 TBN = mat3(tangent, bitangent, normal);
 
     float occlusion = 0.0;
+    /*
     for(int i = 0; i < kernelSize; i++)
     {
         vec3 samplePos = fragPos + TBN * sampleKernel[i] * radius;
@@ -192,16 +202,18 @@ void main()
         float rangeCheck = smoothstep(0.0, 1.0, radius / abs(fragPos.z - sampleDepth));
         occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0) * rangeCheck;
     }
+    */
 
-    occlusion = 1.0 - (occlusion / kernelSize);
+    //occlusion = 1.0 - (occlusion / kernelSize);
+    occlusion = length(fwidth(normal)) > radius ? 1.0 : 0.0;
 
-    vec3 totalLight = albedo * ambientLightColor * occlusion;
+    vec3 totalLight = albedo * ambientLightColor * (1.0 - occlusion);
 
     vec3 diffuse = max(dot(normal, lightDir), 0.0) * albedo * lightColor;
 
     totalLight += diffuse;
 
-    fragColor = vec4(occlusion, occlusion, occlusion, 1.0);
-    //fragColor = vec4(totalLight, 1.0);
+    //fragColor = vec4(occlusion, occlusion, occlusion, 1.0);
+    fragColor = vec4(totalLight, 1.0);
 }
 |]
