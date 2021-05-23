@@ -12,6 +12,7 @@ module Hickory.Graphics
   , module Hickory.Graphics.DirectXModel
   , module Hickory.Graphics.Uniforms
   , module Hickory.Graphics.SSAO
+  , module Hickory.Graphics.Wavefront
   ) where
 
 import Hickory.Graphics.DrawUtils
@@ -27,4 +28,4 @@ import Hickory.Graphics.DeferredRendering
 import Hickory.Graphics.DirectXModel
 import Hickory.Graphics.Uniforms
 import Hickory.Graphics.SSAO
-
+import Hickory.Graphics.Wavefront

@@ -1,4 +1,6 @@
-module Hickory.Graphics.DirectXModel where
+module Hickory.Graphics.DirectXModel
+  ( loadModelFromX )
+  where
 
 import Hickory.Utils.Utils
 import Hickory.Math.Matrix

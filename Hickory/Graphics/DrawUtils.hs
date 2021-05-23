@@ -9,16 +9,12 @@ import Hickory.Types
 import Control.Lens ((^.))
 import Hickory.Math.Matrix
 import Hickory.Math.Vector
-import Data.List
 import Data.Maybe
 import Hickory.Graphics.GLSupport
 import Data.Foldable (toList, forM_)
 import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), _m33, inv33, transpose)
-import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
-import Codec.Wavefront (WavefrontOBJ(..), Location(..), TexCoord(..), Normal(..), Face(..), FaceIndex(..), elValue)
-import qualified Codec.Wavefront as Wavefront
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
@@ -131,36 +127,6 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
 
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
 mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 2]] >>= loadUntexturedSquareIntoVAOConfig
-
--- Model Loading
-
--- .OBJ
-
--- Packs an OBJ's data into an array of vertices and indices
--- The vertices are position, tex coords, and normals packed together
-packOBJ :: WavefrontOBJ -> (SV.Vector GLfloat, SV.Vector GLushort)
-packOBJ WavefrontOBJ { objLocations, objTexCoords, objNormals, objFaces } = (SV.fromList $ concatMap snd pool, SV.fromList indices)
- where
-  construct (FaceIndex vidx (Just tcidx) (Just nidx)) =
-    map realToFrac $ locToList (objLocations  V.! (vidx - 1))
-                  ++ tcToList (objTexCoords V.! (tcidx - 1))
-                  ++ normalToList (objNormals   V.! (nidx - 1))
-  pool    = foldl' (\alst e -> (e, construct e) : alst) [] $ concatMap (faceToList . elValue) objFaces
-  indices = map (fromIntegral . fromJust . (\e -> findIndex (\(e', _) -> e == e') pool)) $ concatMap (faceToList . elValue) objFaces
-  locToList (Location x y z _) = [x,y,z]
-  tcToList (TexCoord u v _) = [u,v]
-  normalToList (Normal x y z) = [x,y,z]
-  faceToList (Face one two three _) = [one, two, three]
-
-createVAOConfigFromOBJ :: Shader -> String -> IO VAOObj
-createVAOConfigFromOBJ shader path = do
-  Wavefront.fromFile path >>= \case
-    Left err -> error err
-    Right obj -> do
-      createVAOConfig
-          shader
-          [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3]]
-        >>= \config -> loadVAOObj config Triangles (packOBJ obj)
 
 renderTrees :: [RenderTree] -> IO ()
 renderTrees trees = do
