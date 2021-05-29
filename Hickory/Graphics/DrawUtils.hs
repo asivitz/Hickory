@@ -18,7 +18,7 @@ import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 
 import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig)
+import Hickory.Graphics.VAO (VAOConfig, createIndexedVAOConfig, VAOObj(..), loadVerticesIntoIndexedVAOConfig, loadVerticesIntoDirectVAOConfig)
 import Hickory.Graphics.Textures (TexID)
 import Hickory.Graphics.Uniforms (ShaderFunction, bindUniform)
 
@@ -66,26 +66,31 @@ cubeFloats = SV.fromList . concatMap toList $ verts
 cubeIndices :: SV.Vector GLushort
 cubeIndices = SV.fromList [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
 
-loadVAOObj :: VAOConfig -> DrawType -> (SV.Vector GLfloat, SV.Vector GLushort) -> IO VAOObj
-loadVAOObj vaoconfig drawType (verts, indices) = do
-  loadVerticesIntoVAOConfig vaoconfig verts indices
+loadVAOObjIndexed :: VAOConfig -> DrawType -> (SV.Vector GLfloat, SV.Vector GLushort) -> IO VAOObj
+loadVAOObjIndexed vaoconfig drawType (verts, indices) = do
+  loadVerticesIntoIndexedVAOConfig vaoconfig verts indices
   return $ VAOObj vaoconfig (SV.length indices) drawType
+
+loadVAOObjDirect :: VAOConfig -> DrawType -> (SV.Vector GLfloat, Int) -> IO VAOObj
+loadVAOObjDirect vaoconfig drawType (verts, numTris) = do
+  loadVerticesIntoDirectVAOConfig vaoconfig verts
+  return $ VAOObj vaoconfig numTris drawType
 
 loadCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadCubeIntoVAOConfig vaoconfig = do
   let floats  = cubeFloats
       indices = cubeIndices
-  loadVAOObj vaoconfig TriangleStrip (floats, indices)
+  loadVAOObjIndexed vaoconfig TriangleStrip (floats, indices)
 
 loadInvertedCubeIntoVAOConfig :: VAOConfig -> IO VAOObj
 loadInvertedCubeIntoVAOConfig vaoconfig = do
-  loadVAOObj vaoconfig TriangleStrip (cubeFloats, SV.reverse cubeIndices)
+  loadVAOObjIndexed vaoconfig TriangleStrip (cubeFloats, SV.reverse cubeIndices)
 
 mkCubeVAOObj :: Shader -> IO VAOObj
-mkCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadCubeIntoVAOConfig
+mkCubeVAOObj shader = createIndexedVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadCubeIntoVAOConfig
 
 mkInvertedCubeVAOObj :: Shader -> IO VAOObj
-mkInvertedCubeVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadInvertedCubeIntoVAOConfig
+mkInvertedCubeVAOObj shader = createIndexedVAOConfig shader [VertexGroup [Attachment "position" 3]] >>= loadInvertedCubeIntoVAOConfig
 
 mkSquareVerts :: (SV.Storable t, SV.Storable t1, Num t, Fractional t1) => t1 -> t1 -> (SV.Vector t1, SV.Vector t, DrawType)
 mkSquareVerts texW texH = (SV.fromList floats, SV.fromList indices, TriangleFan)
@@ -98,7 +103,7 @@ mkSquareVerts texW texH = (SV.fromList floats, SV.fromList indices, TriangleFan)
         indices = [0,1,2,3]
 
 loadSquareIntoVAOConfig :: Scalar -> VAOConfig -> IO VAOObj
-loadSquareIntoVAOConfig sideLength vaoconfig = loadVAOObj vaoconfig TriangleFan (floats, indices)
+loadSquareIntoVAOConfig sideLength vaoconfig = loadVAOObjIndexed vaoconfig TriangleFan (floats, indices)
   where h = realToFrac sideLength
         l = -h
         floats = SV.fromList [l, h, 0, 0, 1, 0, 1,
@@ -108,7 +113,7 @@ loadSquareIntoVAOConfig sideLength vaoconfig = loadVAOObj vaoconfig TriangleFan 
         indices = SV.fromList [0,1,2,3]
 
 mkSquareVAOObj :: Scalar -> Shader -> IO VAOObj
-mkSquareVAOObj sideLength shader = createVAOConfig shader [VertexGroup [Attachment "position" 2, Attachment "normal" 3, Attachment "texCoords" 2]]
+mkSquareVAOObj sideLength shader = createIndexedVAOConfig shader [VertexGroup [Attachment "position" 2, Attachment "normal" 3, Attachment "texCoords" 2]]
                                >>= loadSquareIntoVAOConfig sideLength
 
 loadUntexturedSquareIntoVAOConfig :: VAOConfig -> IO VAOObj
@@ -121,12 +126,12 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
                 h, h]
       indices = [0,1,2,3]
 
-  loadVerticesIntoVAOConfig vaoconfig (SV.fromList floats) (SV.fromList indices)
+  loadVerticesIntoIndexedVAOConfig vaoconfig (SV.fromList floats) (SV.fromList indices)
 
   return (VAOObj vaoconfig (length indices) TriangleFan)
 
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
-mkUntexturedSquareVAOObj shader = createVAOConfig shader [VertexGroup [Attachment "position" 2]] >>= loadUntexturedSquareIntoVAOConfig
+mkUntexturedSquareVAOObj shader = createIndexedVAOConfig shader [VertexGroup [Attachment "position" 2]] >>= loadUntexturedSquareIntoVAOConfig
 
 renderTrees :: [RenderTree] -> IO ()
 renderTrees trees = do

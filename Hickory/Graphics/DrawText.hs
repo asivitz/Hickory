@@ -38,7 +38,7 @@ import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 import Hickory.Text.Text
-import Hickory.Graphics.VAO (VAOConfig, createVAOConfig, VAOObj(..), loadVerticesIntoVAOConfig, deleteVAOConfigs)
+import Hickory.Graphics.VAO (VAOConfig, createIndexedVAOConfig, VAOObj(..), loadVerticesIntoIndexedVAOConfig, deleteVAOConfigs)
 import Hickory.Math.Matrix (Mat44)
 import Hickory.Graphics.Drawing (drawVAO)
 import Hickory.Graphics.Uniforms (bindUniform)
@@ -57,7 +57,7 @@ instance Show (Printer a) where
   show (Printer font tid _) = "Printer:" ++ fontName font ++ "/" ++ show tid
 
 createPrinterVAOConfig :: Shader -> IO VAOConfig
-createPrinterVAOConfig shader = createVAOConfig shader
+createPrinterVAOConfig shader = createIndexedVAOConfig shader
             [VertexGroup [Attachment "position" 3,
                           Attachment "texCoords" 2,
                           Attachment "color" 4]]
@@ -93,7 +93,7 @@ printVAOObj (Printer font _ _) textCommand vaoconfig = do
   if not $ null floats
     then do
       let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
-      loadVerticesIntoVAOConfig vaoconfig (V.fromList floats) (V.fromList indices)
+      loadVerticesIntoIndexedVAOConfig vaoconfig (V.fromList floats) (V.fromList indices)
 
       return (VAOObj vaoconfig (fromIntegral numBlockIndices) TriangleStrip)
     else error "Tried to print empty text command"

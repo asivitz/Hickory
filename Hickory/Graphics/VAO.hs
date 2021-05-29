@@ -12,10 +12,11 @@ import Hickory.Graphics.Shader (Shader)
 
 data VAOConfig = VAOConfig {
   vao :: !VAO,
-  indexVBO :: !VBO,
+  indexVBO :: Maybe VBO,
   vertices :: ![VBO],
   shader :: Shader
-  } deriving (Show)
+  }
+  deriving (Show)
 
 data VAOObj = VAOObj
   { vaoConfig :: VAOConfig
@@ -34,8 +35,8 @@ loadVao k create load = do
   modify $ Map.insert k newVAO
   pure newVAO
 
-createVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
-createVAOConfig sh vertexgroups = do
+createIndexedVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
+createIndexedVAOConfig sh vertexgroups = do
   vao' <- alloc1 glGenVertexArrays
   glBindVertexArray vao'
 
@@ -46,7 +47,21 @@ createVAOConfig sh vertexgroups = do
 
   return VAOConfig
     { vao = vao'
-    , indexVBO = index_vbo
+    , indexVBO = Just index_vbo
+    , vertices = buffers
+    , shader = sh
+    }
+
+createDirectVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
+createDirectVAOConfig sh vertexgroups = do
+  vao' <- alloc1 glGenVertexArrays
+  glBindVertexArray vao'
+
+  buffers <- mapM (buildVertexGroup sh) vertexgroups
+
+  return VAOConfig
+    { vao = vao'
+    , indexVBO = Nothing
     , vertices = buffers
     , shader = sh
     }
@@ -55,14 +70,20 @@ deleteVAOConfigs :: [VAOConfig] -> IO ()
 deleteVAOConfigs vcs = do
   let vaos = map (\VAOConfig {..} -> vao) vcs
       vaosv = V.fromList vaos
-      vbos = concatMap (\VAOConfig {..} -> indexVBO : vertices) vcs
+      vbos = concatMap (\VAOConfig {..} -> maybe id (:) indexVBO vertices) vcs
       vbosv = V.fromList vbos
   V.unsafeWith vaosv $ glDeleteVertexArrays (fromIntegral $ V.length vaosv)
   V.unsafeWith vbosv $ glDeleteBuffers (fromIntegral $ V.length vbosv)
 
-loadVerticesIntoVAOConfig :: VAOConfig -> V.Vector GLfloat -> V.Vector GLushort -> IO ()
-loadVerticesIntoVAOConfig VAOConfig { vao, indexVBO = ivbo, vertices = (vbo:_) } vs indices = do
+loadVerticesIntoIndexedVAOConfig :: VAOConfig -> V.Vector GLfloat -> V.Vector GLushort -> IO ()
+loadVerticesIntoIndexedVAOConfig VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } vs indices = do
   glBindVertexArray vao
   bufferVertices vbo vs
   bufferIndices ivbo indices
-loadVerticesIntoVAOConfig _ _ _ = error "VAOConfig missing buffers"
+loadVerticesIntoIndexedVAOConfig _ _ _ = error "VAOConfig missing buffers"
+
+loadVerticesIntoDirectVAOConfig :: VAOConfig -> V.Vector GLfloat -> IO ()
+loadVerticesIntoDirectVAOConfig VAOConfig { vao, indexVBO = Nothing, vertices = (vbo:_) } vs = do
+  glBindVertexArray vao
+  bufferVertices vbo vs
+loadVerticesIntoDirectVAOConfig _ _ = error "Can't load into direct vao config"

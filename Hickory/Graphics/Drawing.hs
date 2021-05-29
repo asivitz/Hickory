@@ -12,11 +12,11 @@ import Hickory.Graphics.Shader (useShader)
 import Hickory.Graphics.Textures (TexID(..))
 import Hickory.Graphics.GLSupport (DrawType, drawElements, glenumForDrawType)
 import Hickory.Graphics.Uniforms (ShaderFunction)
-import Hickory.Graphics.VAO (VAOConfig(..), VAOObj(..), loadVerticesIntoVAOConfig)
+import Hickory.Graphics.VAO (VAOConfig(..), VAOObj(..), loadVerticesIntoIndexedVAOConfig)
 import Hickory.Graphics.Types (DrawSpec(..))
 
 drawCommand :: [ShaderFunction] -> [TexID] -> VAOConfig -> GLint -> DrawType -> IO ()
-drawCommand uniformBindings texids VAOConfig { shader, vao } numitems drawType = do
+drawCommand uniformBindings texids VAOConfig { shader, vao, indexVBO } numitems drawType = do
   useShader shader
   ifor_ texids \i t -> do
     glActiveTexture $ GL_TEXTURE0 + fromIntegral i
@@ -26,7 +26,9 @@ drawCommand uniformBindings texids VAOConfig { shader, vao } numitems drawType =
 
   glBindVertexArray vao
 
-  drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
+  case indexVBO of
+    Just _ -> drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
+    Nothing -> glDrawArrays (glenumForDrawType drawType) 0 numitems
 
 drawSpec :: [ShaderFunction] -> [TexID] -> DrawSpec -> IO ()
 drawSpec uniforms texs spec = case spec of
@@ -34,7 +36,7 @@ drawSpec uniforms texs spec = case spec of
   VAO (VAOObj vaoConfig numitems drawType) -> do
     drawCommand uniforms texs vaoConfig (fromIntegral numitems) drawType
   DynVAO vaoConfig (verts, indices, drawType) -> do
-    loadVerticesIntoVAOConfig vaoConfig verts indices
+    loadVerticesIntoIndexedVAOConfig vaoConfig verts indices
     drawCommand uniforms texs vaoConfig (fromIntegral $ SV.length indices) drawType
 
 drawVAO :: MonadIO m => [TexID] -> [ShaderFunction] -> VAOObj -> m ()

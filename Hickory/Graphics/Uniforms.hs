@@ -5,7 +5,7 @@ module Hickory.Graphics.Uniforms where
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Graphics.Shader (Shader, retrieveLoc, UniformLoc)
 import Hickory.Math.Matrix
-import Linear (V3, V4, M44, M33,transpose)
+import Linear (V2, V3, V4, M44, M33,transpose)
 import Graphics.GL.Compatibility41 as GL
 import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Marshal.Array (withArray)
@@ -29,6 +29,9 @@ instance Uniform Float where
 
 instance Uniform Double where
   bindUniformLoc loc f = glUniform1f loc (realToFrac f)
+
+instance Uniform (V2 Double) where
+  bindUniformLoc loc v = uniform2fv loc [v]
 
 instance Uniform [V3 Double] where
   bindUniformLoc loc v = uniform3fv loc v
@@ -64,11 +67,19 @@ uniform3fv loc vs =
   withVec3s vs $ \ptr ->
     glUniform3fv loc (genericLength vs) (castPtr ptr)
 
+uniform2fv :: GLint -> [V2 Double] -> IO ()
+uniform2fv loc vs =
+  withVec2s vs $ \ptr ->
+    glUniform2fv loc (genericLength vs) (castPtr ptr)
+
 withVec4s :: [V4 Double] -> (Ptr GLfloat -> IO b) -> IO b
 withVec4s vecs f = withArray (map (fmap realToFrac) vecs :: [V4 GLfloat]) (f . castPtr)
 
 withVec3s :: [V3 Double] -> (Ptr GLfloat -> IO b) -> IO b
 withVec3s vecs f = withArray (map (fmap realToFrac) vecs :: [V3 GLfloat]) (f . castPtr)
+
+withVec2s :: [V2 Double] -> (Ptr GLfloat -> IO b) -> IO b
+withVec2s vecs f = withArray (map (fmap realToFrac) vecs :: [V2 GLfloat]) (f . castPtr)
 
 {-withVec4s vecs f = withVec4 (vecs !! 0) (f . castPtr) --withArray vecs (f . castPtr)-}
 
