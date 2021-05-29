@@ -95,9 +95,9 @@ barycentricCoords obj@WavefrontOBJ { objNormals = _, objFaces } = execState (V.m
     let c1 :: V3 Float = basis1 + hide13 + hide12
         c2 :: V3 Float = basis2 + hide23 + hide12
         c3 :: V3 Float = basis3 + hide23 + hide13
-        hide12 = if numFacesContaining obj one two > 1 then basis3 else 0
-        hide23 = if numFacesContaining obj two three > 1 then basis1 else 0
-        hide13 = if numFacesContaining obj one three > 1 then basis2 else 0
+        hide12 = if numFacesContaining obj edgeCache one two > 1 then basis3 else 0
+        hide23 = if numFacesContaining obj edgeCache two three > 1 then basis1 else 0
+        hide13 = if numFacesContaining obj edgeCache one three > 1 then basis2 else 0
 
     setCoordOfIndex one c1
     setCoordOfIndex two c2
@@ -111,11 +111,7 @@ barycentricCoords obj@WavefrontOBJ { objNormals = _, objFaces } = execState (V.m
   setCoordOfIndex :: FaceIndex -> V3 Float -> State (Map.HashMap FaceIndex (V3 Float)) ()
   setCoordOfIndex k = modify . Map.insert k
   colors = colorObj obj
-
-numFacesContaining :: WavefrontOBJ -> FaceIndex -> FaceIndex -> Int
-numFacesContaining WavefrontOBJ { objFaces } a b = V.sum $ V.map (\f -> let fis = faceIndices (elValue f) in if a `elem` fis && b `elem` fis then 1 else 0) objFaces
-  where
-  faceIndices (Face one two three is) = one : two : three : is
+  edgeCache = mkEdgeCache obj
 
 data ObjColor = Red | Green | Blue deriving (Eq, Show)
 
@@ -177,29 +173,58 @@ eachFaceIndex f obj (Face one two three xtras) = f obj <$> one : two : three : x
 
 packInternalEdge :: WavefrontOBJ -> Face -> [V.Vector GLfloat]
 packInternalEdge obj = \(Face one two three _) ->
-  let internal12 = nFC one two   > 1
-      internal23 = nFC two three > 1
-      internal13 = nFC one three > 1
+  let internal12 = numFacesContaining obj edgeCache one two   > 1
+      internal23 = numFacesContaining obj edgeCache two three > 1
+      internal13 = numFacesContaining obj edgeCache one three > 1
   in [ toV $ internal23, toV $ internal13, toV $ internal12 ]
   where
   toV False = V.fromList [ 0 ]
   toV True  = V.fromList [ 1 ]
-  nFC a b = Map.lookupDefault 0 (hashEdge a b) cache
-  hashEdge fi1 fi2 = round $ 100 * (x + 3*y + 5*z + 7*nx + 11*ny + 13*nz + 17*u + 19*v)
-    where
-    (V3 x y z)    = grabLocation obj fi1 + grabLocation obj fi2
-    (V3 nx ny nz) = fromMaybe zero (grabNormal obj fi1) + fromMaybe zero (grabNormal obj fi2)
-    (V2 u v)      = fromMaybe zero (grabTexCoords obj fi1) + fromMaybe zero (grabTexCoords obj fi2)
-  cache :: Map.HashMap Int Int
-  cache = V.foldl' (\s (elValue -> (Face one two three _))
-    -> Map.insertWith (+) (hashEdge one two) 1
-    $  Map.insertWith (+) (hashEdge one three) 1
-    $  Map.insertWith (+) (hashEdge two three) 1
-    s
-    ) Map.empty (objFaces obj)
+  edgeCache = mkEdgeCache obj
+
+packBarycentricFace :: WavefrontOBJ -> Face -> [V.Vector GLfloat]
+packBarycentricFace obj = \(Face one two three _) ->
+  let basis1 = V3 1 0 0
+      basis2 = V3 0 1 0
+      basis3 = V3 0 0 1
+      c1 :: V3 Float = basis1 + hide13 + hide12
+      c2 :: V3 Float = basis2 + hide23 + hide12
+      c3 :: V3 Float = basis3 + hide23 + hide13
+      hide12 = if numFacesContaining obj edgeCache one two > 1 then basis3 else 0
+      hide23 = if numFacesContaining obj edgeCache two three > 1 then basis1 else 0
+      hide13 = if numFacesContaining obj edgeCache one three > 1 then basis2 else 0
+  in [ convertV3 c1, convertV3 c2, convertV3 c3]
+  where
+  edgeCache = mkEdgeCache obj
 
 vaoFromWavefrontWithInternalEdges :: Shader -> WavefrontOBJ -> IO VAOObj
 vaoFromWavefrontWithInternalEdges shader obj = do
   config <- createDirectVAOConfig shader
     [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "excludeEdge" 1]]
   loadVAOObjDirect config Triangles (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packInternalEdge])
+
+vaoFromWavefrontWithBarycentricDirect :: Shader -> WavefrontOBJ -> IO VAOObj
+vaoFromWavefrontWithBarycentricDirect shader obj = do
+  config <- createDirectVAOConfig shader
+    [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "barycentric" 3]]
+  loadVAOObjDirect config Triangles (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packBarycentricFace])
+
+ -- Utils
+
+numFacesContaining :: WavefrontOBJ -> Map.HashMap Int Int -> FaceIndex -> FaceIndex -> Int
+numFacesContaining obj cache a b = Map.lookupDefault 0 (hashEdge obj a b) cache
+
+hashEdge :: WavefrontOBJ -> FaceIndex -> FaceIndex -> Int
+hashEdge obj fi1 fi2 = round $ 100 * (x + 3*y + 5*z + 7*nx + 11*ny + 13*nz + 17*u + 19*v)
+  where
+  (V3 x y z)    = grabLocation obj fi1 + grabLocation obj fi2
+  (V3 nx ny nz) = fromMaybe zero (grabNormal obj fi1) + fromMaybe zero (grabNormal obj fi2)
+  (V2 u v)      = fromMaybe zero (grabTexCoords obj fi1) + fromMaybe zero (grabTexCoords obj fi2)
+
+mkEdgeCache :: WavefrontOBJ -> Map.HashMap Int Int
+mkEdgeCache obj@WavefrontOBJ { objFaces } = V.foldl' (\s (elValue -> (Face one two three _))
+    -> Map.insertWith (+) (hashEdge obj one two) 1
+    $  Map.insertWith (+) (hashEdge obj one three) 1
+    $  Map.insertWith (+) (hashEdge obj two three) 1
+    s
+    ) Map.empty objFaces
