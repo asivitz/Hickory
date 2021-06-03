@@ -26,6 +26,7 @@ dependencies:
     - time
     - generic-lens
     - containers
+    - mtl
 
 default-extensions:
     - LambdaCase

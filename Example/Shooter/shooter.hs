@@ -8,20 +8,21 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
-
-
+{-# LANGUAGE FlexibleContexts #-}
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, unless, (<=<))
+import Control.Monad.Reader (MonadReader, asks)
+import Control.Monad.IO.Class (MonadIO)
 import Data.IORef (IORef, newIORef)
-import Data.Text (Text)
-import Data.Functor ((<&>))
+import Data.Foldable (for_)
 import Hickory.Camera
 import Hickory.Color
-import Hickory.FRP (unionFirst, mkCoreEvents, CoreEvents(..), CoreEventGenerators, renderWithRef)
+import Hickory.FRP (unionFirst, mkCoreEvents, CoreEvents(..), CoreEventGenerators)
 import qualified Hickory.Graphics as H
 import Hickory.Input
 import Hickory.Math (Mat44, vnull, Scalar, mkTranslation, mkScale)
+import Hickory.Resources (pull, readerFromIORef)
 import Linear (zero, V2(..), V3(..), (^*), (!*!))
 import Hickory.Types
 import Linear.Metric
@@ -96,17 +97,19 @@ data Resources = Resources
   }
 
 -- Set up our scene, load assets, etc.
-initRenderState :: Text -> String -> IO Resources
-initRenderState shaderVersion path = do
+initRenderState :: String -> IO Resources
+initRenderState path = do
   H.configGLState 0.125 0.125 0.125
   -- To draw the missiles, we also need a shader that can draw
   -- textures, and the actual missile texture
-  textured <- H.loadTexturedShader shaderVersion
+  solid    <- H.loadSolidShader
+  textured <- H.loadTexturedShader
   missiletex <- H.loadTexture' path ("circle.png", H.texLoadDefaults)
 
   -- We'll use some square geometry and draw our texture on top
-  squareVAOObj <- H.mkSquareVAOObj 0.5 textured
-  let vaoCache = Map.singleton "square" squareVAOObj
+  vaoCache <- Map.fromList <$> traverse sequence
+    [("square", H.mkSquareVAOObj 0.5 solid)
+    ,("squaretex", H.mkSquareVAOObj 0.5 textured)]
 
   pure $ Resources missiletex vaoCache
 
@@ -118,19 +121,15 @@ calcCameraMatrix size@(Size w _h) =
   in viewProjectionMatrix camera (aspectRatio size)
 
 -- Our render function
-renderGame :: Size Int -> Model -> Scalar -> Mat44 -> Resources -> H.RenderTree
-renderGame _scrSize Model { playerPos, missiles } _gameTime mat Resources { missileTex, vaoCache }  =
-  H.XForm mat $ H.List [playerRT, missilesRT]
-  where
-    playerRT = H.XForm (mkTranslation playerPos !*! mkScale (V2 10 10)) . pullVaoCache "square" $
-      H.Primitive [H.bindUniform "color" white] []
-    missilesRT = pullVaoCache "square" \vo ->
-      H.List $ missiles <&> \(pos, _) -> H.XForm (mkTranslation pos !*! mkScale (V2 5 5)) $
-        H.Primitive
-          [H.bindUniform "color" red]
-          [missileTex]
-          vo
-    pullVaoCache k f = maybe H.NoRender (f . H.VAO) $ Map.lookup k vaoCache
+renderGame :: (MonadIO m, MonadReader Resources m) => Size Int -> Model -> Scalar -> Mat44 -> m ()
+renderGame _scrSize Model { playerPos, missiles } _gameTime mat = do
+  H.runMatrixT . H.xform mat $ do
+    missileTex <- asks missileTex
+    squareVao <- pull vaoCache "square"
+    for_ missiles \(pos, _) -> H.withXForm (mkTranslation pos !*! mkScale (V2 5 5)) \mm ->
+      H.drawVAO [missileTex] [H.bindUniform "color" red, H.bindUniform "modelMat" mm] squareVao
+    H.withXForm (mkTranslation playerPos !*! mkScale (V2 10 10)) \mm ->
+      H.drawVAO [] [H.bindUniform "color" white, H.bindUniform "modelMat" mm] squareVao
 
 -- ** INPUT **
 
@@ -181,14 +180,14 @@ buildNetwork resRef evGens = do
     let mat = calcCameraMatrix <$> scrSizeB coreEvents
 
     -- every time we get a 'render' event tick, draw the screen
-    B.reactimate $ renderWithRef resRef
-      [ renderGame <$> scrSizeB coreEvents <*> mdl <*> currentTime <*> mat
-      ] <@ eRender coreEvents
+    B.reactimate $ readerFromIORef resRef <$>
+      (renderGame <$> scrSizeB coreEvents <*> mdl <*> currentTime <*> mat)
+      <@ eRender coreEvents
 
 main :: IO ()
 main = withWindow 750 750 "Demo" $ \win -> do
   resources <- newIORef
-           =<< initRenderState "410" "assets"
+           =<< initRenderState "assets"
 
   -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
   (coreEvProc, evGens) <- glfwCoreEventGenerators win
@@ -200,6 +199,8 @@ main = withWindow 750 750 "Demo" $ \win -> do
     coreEvProc -- check the input buffers and generate FRP events
 
     GLFW.swapBuffers win -- present latest drawn frame
+    H.clearDepth
+    H.clearScreen
 
     focused <- GLFW.getWindowFocused win
 
