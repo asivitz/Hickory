@@ -89,6 +89,7 @@ library:
     - Hickory.Graphics.SSAO
     - Hickory.Graphics.Wavefront
     - Hickory.Graphics.MatrixMonad
+    - Hickory.Graphics.ShaderMonad
     - Hickory.Math
     - Hickory.Math.Matrix
     - Hickory.Math.Vector

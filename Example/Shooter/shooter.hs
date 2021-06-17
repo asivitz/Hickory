@@ -97,9 +97,8 @@ data Resources = Resources
   }
 
 -- Set up our scene, load assets, etc.
-initRenderState :: String -> IO Resources
-initRenderState path = do
-  H.configGLState 0.125 0.125 0.125
+loadResources :: String -> IO Resources
+loadResources path = do
   -- To draw the missiles, we also need a shader that can draw
   -- textures, and the actual missile texture
   solid    <- H.loadSolidShader
@@ -121,15 +120,19 @@ calcCameraMatrix size@(Size w _h) =
   in viewProjectionMatrix camera (aspectRatio size)
 
 -- Our render function
-renderGame :: (MonadIO m, MonadReader Resources m) => Size Int -> Model -> Scalar -> Mat44 -> m ()
-renderGame _scrSize Model { playerPos, missiles } _gameTime mat = do
-  H.runMatrixT . H.xform mat $ do
+renderGame :: (MonadIO m, MonadReader Resources m) => Size Int -> Model -> Scalar -> m ()
+renderGame scrSize Model { playerPos, missiles } _gameTime = do
+  H.runMatrixT . H.xform (calcCameraMatrix scrSize) $ do
     missileTex <- asks missileTex
-    squareVao <- pull vaoCache "square"
-    for_ missiles \(pos, _) -> H.withXForm (mkTranslation pos !*! mkScale (V2 5 5)) \mm ->
-      H.drawVAO [missileTex] [H.bindUniform "color" red, H.bindUniform "modelMat" mm] squareVao
-    H.withXForm (mkTranslation playerPos !*! mkScale (V2 10 10)) \mm ->
-      H.drawVAO [] [H.bindUniform "color" white, H.bindUniform "modelMat" mm] squareVao
+    tex <- pull vaoCache "squaretex"
+    for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
+      H.drawVAO tex do
+        H.bindTextures [missileTex]
+        H.bindUniform "color" red
+        H.bindMatrix "modelMat"
+    pull vaoCache "square" >>= flip H.drawVAO do
+      H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) $ H.bindMatrix "modelMat"
+      H.bindUniform "color" white
 
 -- ** INPUT **
 
@@ -163,7 +166,7 @@ procKeyUp k =
 buildNetwork :: IORef Resources -> CoreEventGenerators -> IO ()
 buildNetwork resRef evGens = do
   B.actuate <=< B.compile $ mdo
-    coreEvents    <- mkCoreEvents evGens
+    coreEvents <- mkCoreEvents evGens
 
     -- currentTime isn't currently used, but it's useful for things like animation
     currentTime <- B.accumB 0 ((+) <$> eTime coreEvents)
@@ -176,18 +179,16 @@ buildNetwork resRef evGens = do
     -- Step the game model forward every time we get a new event
     mdl <- B.accumB newGame (gameStep <$> evs)
 
-    -- The camera matrix is dynamically based on the current screen size
-    let mat = calcCameraMatrix <$> scrSizeB coreEvents
-
     -- every time we get a 'render' event tick, draw the screen
     B.reactimate $ readerFromIORef resRef <$>
-      (renderGame <$> scrSizeB coreEvents <*> mdl <*> currentTime <*> mat)
+      (renderGame <$> scrSizeB coreEvents <*> mdl <*> currentTime)
       <@ eRender coreEvents
 
 main :: IO ()
 main = withWindow 750 750 "Demo" $ \win -> do
+  H.configGLState 0.125 0.125 0.125
   resources <- newIORef
-           =<< initRenderState "assets"
+           =<< loadResources "assets"
 
   -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
   (coreEvProc, evGens) <- glfwCoreEventGenerators win

@@ -14,6 +14,7 @@ module Hickory.Graphics
   , module Hickory.Graphics.SSAO
   , module Hickory.Graphics.Wavefront
   , module Hickory.Graphics.MatrixMonad
+  , module Hickory.Graphics.ShaderMonad
   ) where
 
 import Hickory.Graphics.DrawUtils
@@ -31,3 +32,4 @@ import Hickory.Graphics.Uniforms
 import Hickory.Graphics.SSAO
 import Hickory.Graphics.Wavefront
 import Hickory.Graphics.MatrixMonad
+import Hickory.Graphics.ShaderMonad

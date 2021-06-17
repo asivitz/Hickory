@@ -140,7 +140,7 @@ accumEvents b bf e = accumB b (fol <$> bf <@> e)
 
 randomEvent :: Event (Rand StdGen a) -> MomentIO (Event a)
 randomEvent b = do
-  initialStdGen <- liftIO $ newStdGen
+  initialStdGen <- liftIO newStdGen
   fst <$> mapAccum initialStdGen (runRand <$> b)
 
 foldE :: (a -> b -> a) -> a -> [b] -> a
@@ -153,10 +153,10 @@ noEvs :: (a -> b -> (a, [c])) -> a -> b -> a
 noEvs f a b = fst $ f a b
 
 foldEventEmitter :: (a -> b -> (a, [c])) -> a -> [b] -> (a, [c])
-foldEventEmitter f a bs = foldr (flip $ evFolder f) (a, []) bs
+foldEventEmitter f a = foldr (flip $ evFolder f) (a, [])
 
 evFolder :: (a -> b -> (a, [c])) -> (a, [c]) -> b -> (a, [c])
-evFolder f (a, cs) b = fmap (<> cs) $ f a b
+evFolder f (a, cs) b = (<> cs) <$> f a b
 
 counter :: MonadMoment m => Event Int -> Event Int -> m (Behavior Int)
 counter eDelta eReset = accumB 0 $ unions [ (+) <$> eDelta, const <$> eReset ]
@@ -187,9 +187,6 @@ combineRenderFuncs :: Applicative f => [f (a -> b)] -> f (a -> [b])
 combineRenderFuncs = foldr (liftA2 go) (pure $ const [])
   where go :: (a -> b) -> (a -> [b]) -> a -> [b]
         go f fs r = f r : fs r
-
-renderWithRef :: Applicative app => IORef a -> [app (a -> RenderTree)] -> app (IO ())
-renderWithRef ref fs = (\f -> readIORef ref >>= DU.render . f) <$> combineRenderFuncs fs
 
 -- Unused
 

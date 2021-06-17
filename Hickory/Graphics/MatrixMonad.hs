@@ -39,4 +39,3 @@ runMatrixT = flip runReaderT identity . unMatrixT
 instance Monad m => MatrixMonad (MatrixT m) where
   xform trans (MatrixT matf) = MatrixT $ local (!*! trans) matf
   askMatrix = MatrixT ask
-

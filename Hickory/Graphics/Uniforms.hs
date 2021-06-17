@@ -11,10 +11,8 @@ import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Marshal.Array (withArray)
 import Data.List (genericLength)
 
-type ShaderFunction = Shader -> IO ()
-
-bindUniform :: (Uniform a, MonadIO m) => String -> a -> Shader -> m ()
-bindUniform name val shader = case retrieveLoc name shader of
+bindShaderUniform :: (Uniform a, MonadIO m) => String -> a -> Shader -> m ()
+bindShaderUniform name val shader = case retrieveLoc name shader of
   Just loc -> liftIO $ bindUniformLoc loc val
   Nothing -> pure ()
 

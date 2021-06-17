@@ -6,23 +6,15 @@ module Hickory.Graphics.DrawUtils where
 
 import Hickory.Types
 
-import Control.Lens ((^.))
 import Hickory.Math.Matrix
 import Hickory.Math.Vector
-import Data.Maybe
 import Hickory.Graphics.GLSupport
-import Data.Foldable (toList, forM_)
-import Linear (V3(..), V4(..), scaled, M44, identity, (!*!), _m33, inv33, transpose)
+import Data.Foldable (toList)
+import Linear (V3(..), V4(..), scaled, M44, (!*!))
 import qualified Data.Vector.Storable as SV
-import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 
-import Hickory.Graphics.Drawing
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.VAO (VAOConfig, createIndexedVAOConfig, VAOObj(..), loadVerticesIntoIndexedVAOConfig, loadVerticesIntoDirectVAOConfig)
-import Hickory.Graphics.Textures (TexID)
-import Hickory.Graphics.Uniforms (ShaderFunction, bindUniform)
-
-data Command = Command Mat44 [ShaderFunction] [TexID] DrawSpec
 
 {-
 data ParticleShader = ParticleShader Shader UniformLoc
@@ -133,44 +125,8 @@ loadUntexturedSquareIntoVAOConfig vaoconfig = do
 mkUntexturedSquareVAOObj :: Shader -> IO VAOObj
 mkUntexturedSquareVAOObj shader = createIndexedVAOConfig shader [VertexGroup [Attachment "position" 2]] >>= loadUntexturedSquareIntoVAOConfig
 
-renderTrees :: [RenderTree] -> IO ()
-renderTrees trees = do
-  clearScreen
-  forM_ trees $ \t -> do
-    renderTree t
-    clearDepth
-
-renderTree :: RenderTree -> IO ()
-renderTree = drawTree
-
-render :: [RenderTree] -> IO ()
-render = renderTrees
-
-runDrawCommand :: Command -> IO ()
-runDrawCommand (Command mat uniforms texs spec) = drawSpec (stdUniforms ++ uniforms) texs spec
-  where
-  stdUniforms =
-    [ bindUniform "modelMat" [mat]
-    , bindUniform "normalMat" [Linear.transpose (inv33 $ mat ^. _m33)]
-    ]
-
-{-rtDepth :: RenderTree -> Scalar-}
-{-rtDepth (RSquare _ (Vector3 _ _ z) _ _ _) = z-}
-{-rtDepth _ = 0-}
-drawTree :: RenderTree -> IO ()
-drawTree tree = mapM_ runDrawCommand (reverse commands)
-  where commands = collectTreeSpecs Nothing tree
-        {-sorted = sortOn (\(Command _ m _ _) -> - (m !* V4 0 0 0 1) ^. _z) commands-}
-
 combineMats :: Maybe (M44 Scalar) -> Maybe (M44 Scalar) -> Maybe (M44 Scalar)
 combineMats Nothing Nothing = Nothing
 combineMats Nothing (Just y) = Just y
 combineMats (Just x) Nothing = Just x
 combineMats (Just x) (Just y) = Just (x !*! y)
-
-collectTreeSpecs :: Maybe (M44 Scalar) -> RenderTree -> [Command]
-collectTreeSpecs _         NoRender          = []
-collectTreeSpecs parentMat (XForm mat child) = collectTreeSpecs (combineMats parentMat (Just mat)) child
-collectTreeSpecs parentMat (Primitive uniforms texs spec) = [Command mat' uniforms texs spec]
-  where mat' = fromMaybe identity parentMat
-collectTreeSpecs parentMat (List children) = concatMap (collectTreeSpecs parentMat) children -- (sortOn rtDepth children)

@@ -20,7 +20,6 @@ module Hickory.Graphics.DrawText
   , PrinterMonad(..)
   , PrinterT
   , runPrinterT
-  , renderText
   , loadDynamicVAO
   , DynamicVAOMonad(..)
   , DynamicVAOT(..)
@@ -36,12 +35,12 @@ import Control.Monad.State.Strict (StateT, runStateT, modify, MonadState, mapSta
 import Control.Monad.Trans (MonadTrans)
 import Hickory.Color
 import Hickory.Graphics.GLSupport
-import Hickory.Graphics.Types (DrawSpec(..), RenderTree(..))
 import Hickory.Text.Text
 import Hickory.Graphics.VAO (VAOConfig, createIndexedVAOConfig, VAOObj(..), loadVerticesIntoIndexedVAOConfig, deleteVAOConfigs)
 import Hickory.Math.Matrix (Mat44)
-import Hickory.Graphics.Drawing (drawVAO)
-import Hickory.Graphics.Uniforms (bindUniform)
+import Hickory.Graphics.Drawing (drawVAO, bindTextures)
+import Hickory.Graphics.ShaderMonad (bindMatrix)
+import Hickory.Graphics.MatrixMonad (MatrixMonad, MatrixT)
 
 import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
@@ -155,6 +154,9 @@ class MonadIO m => DynamicVAOMonad m where
 instance DynamicVAOMonad m => DynamicVAOMonad (ReaderT r m) where
   recordVAO = lift . recordVAO
 
+instance DynamicVAOMonad m => DynamicVAOMonad (MatrixT m)
+instance PrinterMonad m => PrinterMonad (MatrixT m)
+
 newtype DynamicVAOT m a = DynamicVAOT { unDynamicVAOT :: StateT DynamicVAOs m a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DynamicVAOs, MonadTrans)
   deriving anyclass PrinterMonad
@@ -183,24 +185,16 @@ loadDynamicVAO create = do
   recordVAO vao
   pure vao
 
-{-# DEPRECATED #-}
-renderText :: (DynamicVAOMonad m, PrinterMonad m) => TextCommand -> m RenderTree
-renderText tc = do
+drawText :: (DynamicVAOMonad m, PrinterMonad m, MatrixMonad m) => TextCommand -> m ()
+drawText tc = do
   printer@(Printer _ tex shader) <- getPrinter
   vao <- loadDynamicVAO do
     vc <- liftIO $ createPrinterVAOConfig shader
     liftIO $ printVAOObj printer tc vc
 
-  pure $ Primitive [] [tex] (VAO vao)
-
-drawText :: (DynamicVAOMonad m, PrinterMonad m) => TextCommand -> Mat44 -> m ()
-drawText tc mat = do
-  printer@(Printer _ tex shader) <- getPrinter
-  vao <- loadDynamicVAO do
-    vc <- liftIO $ createPrinterVAOConfig shader
-    liftIO $ printVAOObj printer tc vc
-
-  drawVAO [tex] [bindUniform "modelMat" mat] vao
+  drawVAO vao do
+    bindTextures [tex]
+    bindMatrix "modelMat"
 
 withDynamicVAOs :: MonadIO m => DynamicVAOT m a -> m a
 withDynamicVAOs f = do
