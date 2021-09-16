@@ -82,16 +82,18 @@ data CoreEventGenerators = CoreEventGenerators
   }
 
 data CoreEvents = CoreEvents
-  { eRender   :: Event Scalar
-  , eTime     :: Event Scalar
-  , keyDown   :: Event Key
+  { eRender       :: Event Scalar
+  , eTime         :: Event Scalar
+  , keyDown       :: Event Key
   , keyDownOrHeld :: Key -> Event Key
-  , keyUp     :: Event Key
-  , eTouchesDown :: Event [Point]
-  , eTouchesLoc  :: Event [Point]
-  , eTouchesUp   :: Event [PointUp]
-  , scrSizeB  :: Behavior (Size Int)
-  , fpsB      :: Behavior Scalar
+  , keyUp         :: Event Key
+  , eTouchesDown  :: Event [Point]
+  , eTouchesLoc   :: Event [Point]
+  , eTouchesUp    :: Event [PointUp]
+  , scrSizeB      :: Behavior (Size Int)
+  , fpsB          :: Behavior Scalar
+  , currentTimeB  :: Behavior Scalar
+  , eNewTime      :: Event Scalar
   }
 
 coreEventGenerators :: IO [RawInput] -> IORef (Size Int) -> IO (IO (), CoreEventGenerators)
@@ -120,7 +122,7 @@ coreEventGenerators inputPoller wSizeRef = do
 
 mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
 mkCoreEvents coreEvGens = do
-  (pdown, pup, ploc) <- mkTouchEvents . touchEvents $ coreEvGens
+  (eTouchesDown, eTouchesUp, eTouchesLoc) <- mkTouchEvents . touchEvents $ coreEvGens
   eTime                    <- mkEvent . stepEvents $ coreEvGens
   (keyDown, keyDownOrHeld, keyUp) <- mkKeyEvents . keyEvents $ coreEvGens
   eRender                  <- mkEvent . renderEvent $ coreEvGens
@@ -128,7 +130,9 @@ mkCoreEvents coreEvGens = do
   scrSizeB <- fromPoll . readIORef . windowSize $ coreEvGens
   fpsB     <- stepper 0 eRender
 
-  pure $ CoreEvents eRender eTime keyDown keyDownOrHeld keyUp pdown ploc pup scrSizeB fpsB
+  (eNewTime, currentTimeB) <- mapAccum 0 $ (\timeDelt x -> (timeDelt + x, timeDelt + x)) <$> eTime
+
+  pure $ CoreEvents { .. }
 
 -- Utils
 
@@ -177,7 +181,7 @@ historicalWithEvents initial eStep eChangeIndex = do
   changeIdx delta (s, i) = ([], (s, min (max 0 (i + delta)) (S.length s - 1)))
   append stepF (rest, i) =
     let rst  = if i > 0 then S.drop i rest else rest
-        rst' = if length rst > 0 then S.take maxLen rst else rst
+        rst' = if not (null rst) then S.take maxLen rst else rst
     in  case S.viewl rst' of
           S.EmptyL -> error "SHouldn't happen"
           x S.:< _ -> let (acc, evs) = stepF x in (evs, (acc S.<| rst', 0))
