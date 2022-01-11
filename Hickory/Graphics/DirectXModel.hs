@@ -1,5 +1,5 @@
 module Hickory.Graphics.DirectXModel
-  ( loadModelFromX )
+  ( loadModelFromX, ThreeDModel(..), animModelVAO, animatedMats )
   where
 
 import Hickory.Utils.Utils
