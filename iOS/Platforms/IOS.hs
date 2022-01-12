@@ -12,6 +12,7 @@ import System.Mem (performMinorGC)
 import qualified Data.HashMap.Strict as HashMap
 import Hickory.Types
 import Hickory.Platform
+import Linear.V2 (V2(V2))
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
@@ -90,20 +91,20 @@ touchFunc touchData handleRawInput = pure $ do
   downs <- atomicModifyIORef newDowns (\a -> ([], a))
 
   -- Update the touch positions for move events
-  let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (v2 x y, time)) ident hsh) curhash moves
+  let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (V2 x y, time)) ident hsh) curhash moves
 
   -- Broadcast a loc event for touches held over from last frame
   handleRawInput (InputTouchesLoc (map (\(ident, (loc, _)) -> (loc, ident)) (HashMap.toList hash')))
 
   -- Add new touches
-  handleRawInput (InputTouchesDown (map (\(ident, x, y, time) -> (v2 x y, ident)) downs))
-  let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (v2 x y, time) hsh) hash' downs
+  handleRawInput (InputTouchesDown (map (\(ident, x, y, time) -> (V2 x y, ident)) downs))
+  let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (V2 x y, time) hsh) hash' downs
 
   -- Remove released touches
   handleRawInput (InputTouchesUp (map (\(ident, x, y, time) ->
                                                           case HashMap.lookup ident hash'' of
-                                                              Nothing -> (0, v2 x y, ident)
-                                                              Just (_, prev) -> (realToFrac (diffUTCTime time prev), v2 x y, ident))
+                                                              Nothing -> (0, V2 x y, ident)
+                                                              Just (_, prev) -> (realToFrac (diffUTCTime time prev), V2 x y, ident))
                                                       ups))
   let hash''' = foldl (\hsh (ident, x, y, time) -> HashMap.delete ident hsh) hash'' ups
 
