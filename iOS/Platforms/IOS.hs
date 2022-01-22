@@ -13,6 +13,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Hickory.Types
 import Hickory.Platform
 import Linear.V2 (V2(V2))
+import Hickory.FRP (CoreEventGenerators, coreEventGenerators)
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
@@ -22,31 +23,45 @@ foreign export ccall "touch_ended" touchEnded :: StablePtr (a,TouchData) -> CInt
 foreign export ccall "draw"        draw       :: StablePtr (IO (),a) -> IO ()
 
 type CDrawInit = CInt -> CInt -> IO (StablePtr (IO (), TouchData))
-type RenderInit resources = [Char] -> IO resources
-type DrawInit resources gamedata = IORef resources -> IO [RawInput] -> IORef (Size Int) -> (gamedata -> IO ()) -> IO gamedata -> IO (IO ())
 
-mkDrawInit :: RenderInit resources -> DrawInit resources gamedata -> CInt -> CInt -> IO (StablePtr (IO (), TouchData))
+type RenderInit resources
+  =  [Char] -- Path to resources folder
+  -> IO resources
+
+type DrawInit resources gamedata
+  =  IORef resources
+  -> CoreEventGenerators
+  -> (gamedata -> IO ())
+  -> IO gamedata
+  -> IO ()
+
+mkDrawInit
+  :: RenderInit resources        -- Loads assets from a given folder and provides data for use in game/render loop
+  -> DrawInit resources gamedata -- Initializes logic/draw system
+  -> CDrawInit
 mkDrawInit ri di w h = do
+  rp        <- resourcesPath
+  resources <- newIORef
+           =<< ri rp
+
   td          <- initTouchData
   inputPoller <- makeInputPoller (touchFunc td)
 
-  resRef      <- newIORef undefined
-  winsize     <- newIORef (Size 400 600)
+  wSizeRef <- newIORef (Size (fromIntegral w) (fromIntegral h))
 
-  rp          <- resourcesPath
-  resources   <- ri (rp ++ "/assets")
-  writeIORef resRef  resources
-  writeIORef winsize (Size (fromIntegral w) (fromIntegral h))
-  dm <- di resRef inputPoller winsize (error "Can't write state") (error "Can't load state")
-  newStablePtr (dm, td)
+  (coreEvProc, evGens) <- coreEventGenerators inputPoller wSizeRef
+
+  di resources evGens (error "Can't write state") (error "Can't load state")
+
+  newStablePtr (coreEvProc, td)
 
 resourcesPath :: IO String
 resourcesPath = do
-        ptr <- mallocArray 1024
-        c'getResourcePath ptr 1024
-        str <- peekCString ptr
-        free ptr
-        return str
+  ptr <- mallocArray 1024
+  c'getResourcePath ptr 1024
+  str <- peekCString ptr
+  free ptr
+  return str
 
 draw :: StablePtr (IO (), a) -> IO ()
 draw pkg = do
