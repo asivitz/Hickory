@@ -1,8 +1,6 @@
 # Hickory
 
-Hickory is a collection of haskell tools and abstractions for making interactive programs. It could be considered a game engine, but it is largely opinionless. You can use whatever library you want for actually organizing your game logic (e.g. any FRP library, my Layer library, etc...)
-
-It renders using OpenGL and has support for both GLFW (for desktop) and WebGL through GHCJS.
+Hickory is a collection of haskell tools and abstractions for making OpenGL based interactive programs. It could be considered a game engine, but it is largely opinionless. Some parts are built to work well with the reactive-banana FRP library. There's built in support for GLFW (for desktop) and iOS.
 
 ## Documentation
 
