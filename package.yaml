@@ -54,15 +54,6 @@ dependencies:
 when:
     - condition: os(osx)
       cc-options:         -F/System/Library/Frameworks
-    - condition: flag(ios)
-      include-dirs: include/
-      cc-options: -DTARGET_OS_IPHONE
-
-flags:
-    Ios:
-        description: Build for IOS. Use OpenGLES2 functions instead of standard OpenGL
-        manual:      True
-        default:     False
 
 library:
   exposed-modules:
@@ -107,8 +98,6 @@ library:
     - Hickory.Serialize
     - Hickory.FRP
     - Hickory.Resources
-    - UI.Stack
-    - UI.Elements
 
 tests:
     hickory-test:
