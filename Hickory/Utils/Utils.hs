@@ -61,9 +61,6 @@ modifyAt f 0 (x:xs) = f x : xs
 modifyAt f num (x:xs) = x : (modifyAt f (num - 1) xs)
 modifyAt _ _ [] = []
 
-for :: [a] -> (a -> b) -> [b]
-for = flip map
-
 deleteAt :: [a] -> Int -> [a]
 deleteAt [] _ = []
 deleteAt (_:xs) 0 = xs

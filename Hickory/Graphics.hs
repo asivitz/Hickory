@@ -6,7 +6,6 @@ module Hickory.Graphics
   , module Hickory.Graphics.StockShaders
   , module Hickory.Graphics.Textures
   , module Hickory.Graphics.VAO
-  , module Hickory.Graphics.Types
   , module Hickory.Graphics.DrawText
   , module Hickory.Graphics.DeferredRendering
   , module Hickory.Graphics.DirectXModel
@@ -25,7 +24,6 @@ import Hickory.Graphics.Shader
 import Hickory.Graphics.StockShaders
 import Hickory.Graphics.Textures
 import Hickory.Graphics.VAO
-import Hickory.Graphics.Types
 import Hickory.Graphics.DeferredRendering
 import Hickory.Graphics.DirectXModel
 import Hickory.Graphics.Uniforms

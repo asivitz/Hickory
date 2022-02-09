@@ -11,7 +11,6 @@ import Hickory.Input
 import Data.Time
 import Data.Maybe
 import Control.Monad
-import qualified Graphics.GL.Compatibility41 as GL
 import Linear (V2(..))
 
 --TODO: RawInput Int should instead use a generic engine key type, and then

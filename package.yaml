@@ -73,7 +73,6 @@ library:
     - Hickory.Graphics.Debug
     - Hickory.Graphics.StockShaders
     - Hickory.Graphics.VAO
-    - Hickory.Graphics.Types
     - Hickory.Graphics.DeferredRendering
     - Hickory.Graphics.DirectXModel
     - Hickory.Graphics.Uniforms

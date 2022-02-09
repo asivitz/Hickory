@@ -11,13 +11,11 @@ import Hickory.Input (TouchEvent(..), RawInput(..), Key)
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
-import Hickory.Graphics.Types (RenderTree)
 import Reactive.Banana (Behavior, Event, MonadMoment, (<@>), mapAccum, unions, accumB, filterE, filterJust, First(..), getFirst, stepper)
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll)
 import System.Random (StdGen, newStdGen)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Sequence as S
-import qualified Hickory.Graphics.DrawUtils as DU
 import Linear (V2(..))
 
 type HandlerPair a = (AddHandler a, Handler a)
@@ -175,7 +173,7 @@ historicalWithEvents initial eStep eChangeIndex = do
     unionFirst [ append <$> eStep
                , changeIdx <$> eChangeIndex
                ]
-  pure $ ((\(s, i) -> S.index s i) <$> history, evs)
+  pure (uncurry S.index <$> history, evs)
  where
   maxLen = 500
   changeIdx delta (s, i) = ([], (s, min (max 0 (i + delta)) (S.length s - 1)))

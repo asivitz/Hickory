@@ -2,7 +2,6 @@ module Hickory.Graphics.DirectXModel
   ( loadModelFromX, ThreeDModel(..), animModelVAO, animatedMats )
   where
 
-import Hickory.Utils.Utils
 import Hickory.Math.Matrix
 import Data.List
 import Data.Maybe
@@ -121,7 +120,7 @@ meshExtents DX.Mesh { DX.vertices } = (V3 mnx mny mnz, V3 mxx mxy mxz)
 
 -- Provide a material index for each vertex
 packMaterialIndices :: UV.Vector Int -> UV.Vector Int -> [Float]
-packMaterialIndices vertFaces materialIndices = for [0 .. numIndices - 1]
+packMaterialIndices vertFaces materialIndices = flip map [0 .. numIndices - 1]
   $ \x -> realToFrac $ materialIndices UV.! faceNum x
  where
   faceNum x = faceNumForFaceIdx (fromJust $ UV.elemIndex x vertFaces)
@@ -131,9 +130,9 @@ packMaterialIndices vertFaces materialIndices = for [0 .. numIndices - 1]
 -- We should read the extra data their to find the actual correspondance.
 -- However, Blender exports them in face order so it doesn't matter.
 packNormals :: UV.Unbox a => UV.Vector Int -> UV.Vector (a, a, a) -> [a]
-packNormals faces normals = concat $ (map (\(x, y, z) -> [x, y, z]) . map snd . sortOn fst) pairs
+packNormals faces normals = concatMap ((\ (x, y, z) -> [x, y, z]) . snd) (sortOn fst pairs)
  where
-  pairs = for (UV.toList faces) (\vIdx -> let fnum = faceNumForFaceIdx vIdx in (vIdx, normals UV.! fnum))
+  pairs = map (\vIdx -> let fnum = faceNumForFaceIdx vIdx in (vIdx, normals UV.! fnum)) (UV.toList faces)
 
 packVertices :: (UV.Unbox a, UV.Unbox a1, UV.Unbox a2, Real a, Real a1, Real a2, Fractional b) => UV.Vector (a2, a1, a) -> [b]
 packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFrac z]) (UV.toList verts)

@@ -1,4 +1,3 @@
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -37,7 +36,6 @@ import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Text.Text
 import Hickory.Graphics.VAO (VAOConfig, createIndexedVAOConfig, VAOObj(..), loadVerticesIntoIndexedVAOConfig, deleteVAOConfigs)
-import Hickory.Math.Matrix (Mat44)
 import Hickory.Graphics.Drawing (drawVAO, bindTextures)
 import Hickory.Graphics.ShaderMonad (bindMatrix)
 import Hickory.Graphics.MatrixMonad (MatrixMonad, MatrixT)
