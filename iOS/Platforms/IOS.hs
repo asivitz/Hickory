@@ -1,4 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE TupleSections #-}
 
 module Platforms.IOS where
 
@@ -46,10 +47,11 @@ mkDrawInit ri di w h = do
 
   td          <- initTouchData
   inputPoller <- makeInputPoller (touchFunc td)
+  timePoller  <- makeTimePoller
 
   wSizeRef <- newIORef (Size (fromIntegral w) (fromIntegral h))
 
-  (coreEvProc, evGens) <- coreEventGenerators inputPoller wSizeRef
+  (coreEvProc, evGens) <- coreEventGenerators inputPoller timePoller wSizeRef
 
   di resources evGens (error "Can't write state") (error "Can't load state")
 
@@ -101,9 +103,9 @@ touchFunc touchData handleRawInput = pure $ do
   let (newDowns, newUps, newMoves, touches) = touchData
 
   curhash <- readIORef touches
-  moves <- atomicModifyIORef newMoves (\a -> ([], a))
-  ups <- atomicModifyIORef newUps (\a -> ([], a))
-  downs <- atomicModifyIORef newDowns (\a -> ([], a))
+  moves <- atomicModifyIORef newMoves ([],)
+  ups <- atomicModifyIORef newUps ([],)
+  downs <- atomicModifyIORef newDowns ([],)
 
   -- Update the touch positions for move events
   let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (V2 x y, time)) ident hsh) curhash moves
@@ -112,7 +114,7 @@ touchFunc touchData handleRawInput = pure $ do
   handleRawInput (InputTouchesLoc (map (\(ident, (loc, _)) -> (loc, ident)) (HashMap.toList hash')))
 
   -- Add new touches
-  handleRawInput (InputTouchesDown (map (\(ident, x, y, time) -> (V2 x y, ident)) downs))
+  handleRawInput (InputTouchesDown (map (\(ident, x, y, _time) -> (V2 x y, ident)) downs))
   let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (V2 x y, time) hsh) hash' downs
 
   -- Remove released touches
@@ -121,7 +123,7 @@ touchFunc touchData handleRawInput = pure $ do
                                                               Nothing -> (0, V2 x y, ident)
                                                               Just (_, prev) -> (realToFrac (diffUTCTime time prev), V2 x y, ident))
                                                       ups))
-  let hash''' = foldl (\hsh (ident, x, y, time) -> HashMap.delete ident hsh) hash'' ups
+  let hash''' = foldl (\hsh (ident, _x, _y, _time) -> HashMap.delete ident hsh) hash'' ups
 
   -- Record the new hash
   writeIORef touches hash'''

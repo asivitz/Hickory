@@ -12,7 +12,6 @@ data RawInput = InputTouchesDown [(V2 Scalar,Int)]
               | InputKeyDown Key
               | InputKeyUp Key Scalar
               | InputKeysHeld (HashMap.HashMap Key Double)
-              | Step Scalar
               deriving (Show)
 
 data Key =

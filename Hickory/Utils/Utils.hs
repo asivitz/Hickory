@@ -11,7 +11,7 @@ import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
 import qualified Debug.Trace
 import qualified Foreign.Marshal.Array as FMA
-import Foreign.Storable (Storable, peek)
+import Foreign.Storable (Storable)
 import GHC.Ptr (Ptr)
 
 tracer :: (Show a, Show b) => b -> a -> a
@@ -77,21 +77,21 @@ chopBy num lst = take num lst : chopBy num (drop num lst)
 
 makeFPSTicker :: IO (IO Double)
 makeFPSTicker = do
-        initial_time <- getCurrentTime
-        ref <- newIORef (0, initial_time, 0)
+  initial_time <- getCurrentTime
+  ref <- newIORef (0, initial_time, 0)
 
-        return $ do
-            new_time <- getCurrentTime
-            (count, last_time, last_report) <- readIORef ref
-            let diff = diffUTCTime new_time last_time
-            if diff > 1
-                then do
-                    let report = realToFrac $ count / diff
-                    writeIORef ref (0, new_time, report)
-                    return report
-                else do
-                    writeIORef ref (count+1, last_time, last_report)
-                    return last_report
+  pure do
+    new_time <- getCurrentTime
+    (count, last_time, last_report) <- readIORef ref
+    let diff = diffUTCTime new_time last_time
+    if diff > 1 -- update fps every second
+        then do
+            let report = realToFrac $ count / diff
+            writeIORef ref (0, new_time, report)
+            pure report
+        else do
+            writeIORef ref (count+1, last_time, last_report)
+            pure last_report
 
 readFileAsText :: FilePath -> IO Text
 readFileAsText = TextIO.readFile

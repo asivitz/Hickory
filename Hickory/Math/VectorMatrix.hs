@@ -12,6 +12,7 @@ import Control.Lens
 v3rotate :: V3 Scalar -> V3 Scalar -> Scalar -> V3 Scalar
 v3rotate v axis ang = (mkRotation axis ang !* v3tov4 v 1) ^. _xyz
 
+m44overV3 :: Mat44 -> V3 Scalar -> V3 Scalar
 m44overV3 m v = (m !* v3tov4 v 1) ^. _xyz
 
 withVec4 :: V4 Scalar -> (Ptr CFloat -> IO b) -> IO b

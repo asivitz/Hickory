@@ -10,11 +10,11 @@ module Hickory.Math.Matrix
 
 import Linear.Vector
 import Linear.Matrix
-import Linear.Projection
 import Linear.Quaternion
 import Linear.V2
 import Linear.V3
 import Linear.V4
+import Linear.Epsilon
 import Control.Lens
 
 type Mat44 = M44 Double
@@ -32,7 +32,10 @@ instance MakeMat44 V3 where
   mkScale (V3 x y z) = scaled (V4 x y z 1)
   mkTranslation = mkTranslation3
 
+mkRotation :: (Floating a, Linear.Epsilon.Epsilon a) => V3 a -> a -> M44 a
 mkRotation v ang = mkTransformation (axisAngle v ang) zero
+
+mkTranslation3 :: (Num a) => V3 a -> M44 a
 mkTranslation3 v = identity & translation .~ v
 
 mat44Lerp :: Double -> Mat44 -> Mat44 -> Mat44

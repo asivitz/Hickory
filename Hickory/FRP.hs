@@ -17,6 +17,7 @@ import System.Random (StdGen, newStdGen)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Sequence as S
 import Linear (V2(..))
+import Data.Time (NominalDiffTime)
 
 type HandlerPair a = (AddHandler a, Handler a)
 
@@ -75,13 +76,13 @@ data CoreEventGenerators = CoreEventGenerators
                    , HandlerPair [(Double, V2 Scalar, Int)]
                    , HandlerPair [(V2 Scalar, Int)])
   , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double), HandlerPair Key)
-  , stepEvents  :: HandlerPair Scalar
+  , timeEvents  :: HandlerPair NominalDiffTime
   , windowSize  :: IORef (Size Int)
   }
 
 data CoreEvents = CoreEvents
   { eRender       :: Event Scalar
-  , eTime         :: Event Scalar
+  , eTime         :: Event NominalDiffTime
   , keyDown       :: Event Key
   , keyDownOrHeld :: Key -> Event Key
   , keyUp         :: Event Key
@@ -90,12 +91,12 @@ data CoreEvents = CoreEvents
   , eTouchesUp    :: Event [PointUp]
   , scrSizeB      :: Behavior (Size Int)
   , fpsB          :: Behavior Scalar
-  , currentTimeB  :: Behavior Scalar
-  , eNewTime      :: Event Scalar
+  , currentTimeB  :: Behavior NominalDiffTime
+  , eNewTime      :: Event NominalDiffTime
   }
 
-coreEventGenerators :: IO [RawInput] -> IORef (Size Int) -> IO (IO (), CoreEventGenerators)
-coreEventGenerators inputPoller wSizeRef = do
+coreEventGenerators :: IO [RawInput] -> IO NominalDiffTime -> IORef (Size Int) -> IO (IO (), CoreEventGenerators)
+coreEventGenerators inputPoller timePoller wSizeRef = do
 
   touchPairs <- touchHandlers
   keyPairs   <- keyHandlers
@@ -112,18 +113,20 @@ coreEventGenerators inputPoller wSizeRef = do
           InputKeyDown k -> fire (view _1 keyPairs) k
           InputKeysHeld keymap -> fire (view _2 keyPairs) keymap
           InputKeyUp k _ -> fire (view _3 keyPairs) k
-          Step d         -> fire timePair d
           InputTouchesDown touches -> fire (view _1 touchPairs) touches
           InputTouchesUp   touches -> fire (view _2 touchPairs) touches
           InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
+
+        timePoller >>= fire timePair
+
   pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef)
 
 mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
 mkCoreEvents coreEvGens = do
   (eTouchesDown, eTouchesUp, eTouchesLoc) <- mkTouchEvents . touchEvents $ coreEvGens
-  eTime                    <- mkEvent . stepEvents $ coreEvGens
-  (keyDown, keyDownOrHeld, keyUp) <- mkKeyEvents . keyEvents $ coreEvGens
-  eRender                  <- mkEvent . renderEvent $ coreEvGens
+  (keyDown, keyDownOrHeld, keyUp)         <- mkKeyEvents   . keyEvents $ coreEvGens
+  eTime   <- mkEvent . timeEvents $ coreEvGens
+  eRender <- mkEvent . renderEvent $ coreEvGens
 
   scrSizeB <- fromPoll . readIORef . windowSize $ coreEvGens
   fpsB     <- stepper 0 eRender
