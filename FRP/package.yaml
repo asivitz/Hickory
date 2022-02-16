@@ -1,0 +1,42 @@
+name:                Hickory-FRP
+version:             0.1.0.0
+homepage:            https://github.com/asivitz/Hickory
+description:         Please see README.md
+license:             MIT
+license-file:        LICENSE
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2022 Axis Sivitz
+
+ghc-options:
+    - -Wall
+
+default-extensions:
+    - NamedFieldPuns
+    - Rank2Types
+    - BangPatterns
+    - OverloadedStrings
+    - ScopedTypeVariables
+    - LambdaCase
+    - TupleSections
+    - ViewPatterns
+    - BlockArguments
+    - RecordWildCards
+
+dependencies:
+    - base
+    - containers
+    - reactive-banana
+    - random
+    - MonadRandom
+    - time
+    - linear
+    - unordered-containers
+    - hashable
+    - Hickory
+
+library:
+  exposed-modules:
+    - Hickory.FRP.Combinators
+    - Hickory.FRP.Historical
+    - Hickory.FRP.CoreEvents

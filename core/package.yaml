@@ -95,7 +95,6 @@ library:
     - Hickory.Text.Text
     - Hickory.Text.Font
     - Hickory.Serialize
-    - Hickory.FRP
     - Hickory.Resources
 
 tests:

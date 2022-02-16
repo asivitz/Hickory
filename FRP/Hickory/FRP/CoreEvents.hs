@@ -1,23 +1,26 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Hickory.FRP where
+module Hickory.FRP.CoreEvents where
 
-import Control.Applicative (liftA2)
-import Control.Lens (_1, _2, _3, view)
-import Control.Monad.Random.Lazy (runRand, Rand, liftIO)
 import Data.Hashable (Hashable)
 import Data.IORef (IORef, readIORef)
 import Hickory.Input (TouchEvent(..), RawInput(..), Key)
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
-import Reactive.Banana (Behavior, Event, MonadMoment, (<@>), mapAccum, unions, accumB, filterE, filterJust, First(..), getFirst, stepper)
+import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper)
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll)
-import System.Random (StdGen, newStdGen)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Sequence as S
 import Linear (V2(..))
 import Data.Time (NominalDiffTime)
+import Hickory.FRP.Combinators (unionFirst)
+
+_1 :: (a, b, c) -> a
+_1 (a,_,_) = a
+_2 :: (a, b, c) -> b
+_2 (_,b,_) = b
+_3 :: (a, b, c) -> c
+_3 (_,_,c) = c
 
 type HandlerPair a = (AddHandler a, Handler a)
 
@@ -51,7 +54,7 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 concatTouchEvents :: CoreEvents -> Event [TouchEvent]
 concatTouchEvents CoreEvents {..} = mconcat
   [ map (Down . fst)     <$> eTouchesDown
-  , map (Up   . view _2) <$> eTouchesUp
+  , map (Up   . _2) <$> eTouchesUp
   , map (Loc  . fst)     <$> eTouchesLoc
   ]
 
@@ -110,12 +113,12 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
         fire renderPair fps
 
         (inputPoller >>=) . mapM_ $ \case
-          InputKeyDown k -> fire (view _1 keyPairs) k
-          InputKeysHeld keymap -> fire (view _2 keyPairs) keymap
-          InputKeyUp k _ -> fire (view _3 keyPairs) k
-          InputTouchesDown touches -> fire (view _1 touchPairs) touches
-          InputTouchesUp   touches -> fire (view _2 touchPairs) touches
-          InputTouchesLoc  touches -> fire (view _3 touchPairs) touches
+          InputKeyDown k -> fire (_1 keyPairs) k
+          InputKeysHeld keymap -> fire (_2 keyPairs) keymap
+          InputKeyUp k _ -> fire (_3 keyPairs) k
+          InputTouchesDown touches -> fire (_1 touchPairs) touches
+          InputTouchesUp   touches -> fire (_2 touchPairs) touches
+          InputTouchesLoc  touches -> fire (_3 touchPairs) touches
 
         timePoller >>= fire timePair
 
@@ -134,72 +137,3 @@ mkCoreEvents coreEvGens = do
   (eNewTime, currentTimeB) <- mapAccum 0 $ (\timeDelt x -> (timeDelt + x, timeDelt + x)) <$> eTime
 
   pure $ CoreEvents { .. }
-
--- Utils
-
--- Helpers
-
-accumEvents :: MonadMoment m => a -> Behavior (a -> b -> a) -> Event [b] -> m (Behavior a)
-accumEvents b bf e = accumB b (fol <$> bf <@> e)
-  where fol f bs a = foldr (flip f) a bs
-
-randomEvent :: Event (Rand StdGen a) -> MomentIO (Event a)
-randomEvent b = do
-  initialStdGen <- liftIO newStdGen
-  fst <$> mapAccum initialStdGen (runRand <$> b)
-
-foldE :: (a -> b -> a) -> a -> [b] -> a
-foldE x = foldr (flip x)
-
-unionFirst :: [Event a] -> Event a
-unionFirst = fmap getFirst . mconcat . fmap (fmap First)
-
-noEvs :: (a -> b -> (a, [c])) -> a -> b -> a
-noEvs f a b = fst $ f a b
-
-foldEventEmitter :: (a -> b -> (a, [c])) -> a -> [b] -> (a, [c])
-foldEventEmitter f a = foldr (flip $ evFolder f) (a, [])
-
-evFolder :: (a -> b -> (a, [c])) -> (a, [c]) -> b -> (a, [c])
-evFolder f (a, cs) b = (<> cs) <$> f a b
-
-counter :: MonadMoment m => Event Int -> Event Int -> m (Behavior Int)
-counter eDelta eReset = accumB 0 $ unions [ (+) <$> eDelta, const <$> eReset ]
-
-historical :: MonadMoment m => a -> Event (a -> a) -> Event Int -> m (Behavior a)
-historical initial eStep eChangeIndex =
-  fst <$> historicalWithEvents initial (((,[]) .) <$> eStep) eChangeIndex
-
-historicalWithEvents :: MonadMoment m => a -> Event (a -> (a,[b])) -> Event Int -> m (Behavior a, Event [b])
-historicalWithEvents initial eStep eChangeIndex = do
-  (evs, history) <- mapAccum (S.singleton initial, 0) $
-    unionFirst [ append <$> eStep
-               , changeIdx <$> eChangeIndex
-               ]
-  pure (uncurry S.index <$> history, evs)
- where
-  maxLen = 500
-  changeIdx delta (s, i) = ([], (s, min (max 0 (i + delta)) (S.length s - 1)))
-  append stepF (rest, i) =
-    let rst  = if i > 0 then S.drop i rest else rest
-        rst' = if not (null rst) then S.take maxLen rst else rst
-    in  case S.viewl rst' of
-          S.EmptyL -> error "SHouldn't happen"
-          x S.:< _ -> let (acc, evs) = stepF x in (evs, (acc S.<| rst', 0))
-
--- useful for [Behavior (Resources -> RenderTree)] -> Behavior (Resources -> [RenderTree])
-combineRenderFuncs :: Applicative f => [f (a -> b)] -> f (a -> [b])
-combineRenderFuncs = foldr (liftA2 go) (pure $ const [])
-  where go :: (a -> b) -> (a -> [b]) -> a -> [b]
-        go f fs r = f r : fs r
-
--- Unused
-
-splitPair :: Event (a, b) -> (Event a, Event b)
-splitPair e = (fst <$> e, snd <$> e)
-
-foldEvents :: Behavior b -> (b -> a -> b) -> Event [a] -> Event b
-foldEvents b h e = fmap (foldE h) b <@> e
-
-foldEvents' :: Behavior (a -> b -> a) -> Behavior a -> Event [b] -> Event a
-foldEvents' bf b e = foldE <$> bf <*> b <@> e
