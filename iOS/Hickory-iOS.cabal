@@ -31,10 +31,6 @@ maintainer:          axis@asivitz.com
 category:            Game
 build-type:          Simple
 
--- Extra files to be distributed with the package, such as examples or a 
--- README.
-extra-source-files:  Readme.md
-
 cabal-version:       >=1.10
 
 library

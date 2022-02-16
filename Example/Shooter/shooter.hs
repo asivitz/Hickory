@@ -18,10 +18,11 @@ import Data.IORef (IORef, newIORef)
 import Data.Foldable (for_)
 import Hickory.Camera
 import Hickory.Color
-import Hickory.FRP (unionFirst, mkCoreEvents, CoreEvents(..), CoreEventGenerators)
+import Hickory.FRP.Combinators (unionFirst)
+import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
 import qualified Hickory.Graphics as H
 import Hickory.Input
-import Hickory.Math (Mat44, vnull, Scalar, mkTranslation, mkScale)
+import Hickory.Math (Mat44, vnull, mkTranslation, mkScale)
 import Hickory.Resources (pull, readerFromIORef)
 import Linear (zero, V2(..), V3(..), (^*), (!*!))
 import Hickory.Types
@@ -33,6 +34,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import qualified Data.HashMap.Strict as Map
+import Data.Time.Clock (NominalDiffTime)
 
 -- ** GAMEPLAY **
 
@@ -47,7 +49,7 @@ data Model = Model
   }
 
 -- All the possible inputs
-data Msg = Fire | AddMove Vec | SubMove Vec | Tick Double | Noop
+data Msg = Fire | AddMove Vec | SubMove Vec | Tick NominalDiffTime | Noop
 
 -- By default, our firingDirection is to the right
 newGame :: Model
@@ -63,8 +65,8 @@ gameStep msg model@Model { playerPos, firingDirection, missiles } = case msg of
   Noop -> model
 
 -- Step the world forward by some small delta
-physics :: Double -> Model -> Model
-physics delta model@Model { playerPos, playerMoveDir, missiles } = model
+physics :: NominalDiffTime -> Model -> Model
+physics (realToFrac -> delta) model@Model { playerPos, playerMoveDir, missiles } = model
   { playerPos = playerPos + (playerMoveDir ^* (delta * playerMovementSpeed))
   , missiles = filter missileInBounds $
       map (\(pos, dir) -> (pos + (dir ^* (delta * missileMovementSpeed)), dir)) missiles
@@ -99,10 +101,11 @@ data Resources = Resources
 -- Set up our scene, load assets, etc.
 loadResources :: String -> IO Resources
 loadResources path = do
+  let shaderVersion = "410"
   -- To draw the missiles, we also need a shader that can draw
   -- textures, and the actual missile texture
-  solid    <- H.loadSolidShader
-  textured <- H.loadTexturedShader
+  solid    <- H.loadSolidShader shaderVersion
+  textured <- H.loadTexturedShader shaderVersion
   missiletex <- H.loadTexture' path ("circle.png", H.texLoadDefaults)
 
   -- We'll use some square geometry and draw our texture on top
@@ -120,7 +123,7 @@ calcCameraMatrix size@(Size w _h) =
   in viewProjectionMatrix camera (aspectRatio size)
 
 -- Our render function
-renderGame :: (MonadIO m, MonadReader Resources m) => Size Int -> Model -> Scalar -> m ()
+renderGame :: (MonadIO m, MonadReader Resources m) => Size Int -> Model -> NominalDiffTime -> m ()
 renderGame scrSize Model { playerPos, missiles } _gameTime = do
   H.runMatrixT . H.xform (calcCameraMatrix scrSize) $ do
     missileTex <- asks missileTex
@@ -188,7 +191,7 @@ main :: IO ()
 main = withWindow 750 750 "Demo" $ \win -> do
   H.configGLState 0.125 0.125 0.125
   resources <- newIORef
-           =<< loadResources "assets"
+           =<< loadResources "Example/Shooter/assets"
 
   -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
   (coreEvProc, evGens) <- glfwCoreEventGenerators win

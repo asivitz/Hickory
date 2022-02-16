@@ -1,10 +1,22 @@
 cradle:
   stack:
+    - path: "Example/Shooter/./shooter.hs"
+      component: "Shooter:exe:shooter"
+
+    - path: "Example/Shooter/./Paths_Shooter.hs"
+      component: "Shooter:exe:shooter"
+
     - path: "FRP/./"
       component: "Hickory-FRP:lib"
 
     - path: "GLFW/./"
       component: "Hickory-GLFW:lib"
+
+    - path: "core/./"
+      component: "Hickory:lib"
+
+    - path: "core/test"
+      component: "Hickory:test:hickory-test"
 
     - path: "iOS/./"
       component: "Hickory-iOS:lib"

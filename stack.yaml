@@ -9,6 +9,7 @@ packages:
 - 'GLFW'
 - 'iOS'
 - 'FRP'
+- 'Example/Shooter'
 
 allow-newer: true
 
