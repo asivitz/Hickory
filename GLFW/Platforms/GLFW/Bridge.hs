@@ -67,7 +67,7 @@ mouseButtonCallback platform fbSizeRef addInput win button buttonState modkeys =
   curPos <- GLFW.getCursorPos win
 
   let pos = touchPosToScreenPos fbSize curPos
-      touchid = touchIdent button
+      touchid = glfwTouchIdent button
 
   (ev, touches') <- case buttonState of
     GLFW.MouseButtonState'Pressed -> do
@@ -103,8 +103,8 @@ keyCallback platform addInput win glfwkey scancode keyState modkeys = do
           writeIORef platform sd { keys = HashMap.delete key keys }
     _ -> return ()
 
-touchIdent :: GLFW.MouseButton -> Int
-touchIdent button = case button of
+glfwTouchIdent :: GLFW.MouseButton -> Int
+glfwTouchIdent button = case button of
   GLFW.MouseButton'1 -> 1
   GLFW.MouseButton'2 -> 2
   GLFW.MouseButton'3 -> 3

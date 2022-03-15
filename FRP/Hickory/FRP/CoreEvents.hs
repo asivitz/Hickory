@@ -53,9 +53,9 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 
 concatTouchEvents :: CoreEvents -> Event [TouchEvent]
 concatTouchEvents CoreEvents {..} = mconcat
-  [ map (Down . fst)     <$> eTouchesDown
-  , map (Up   . _2) <$> eTouchesUp
-  , map (Loc  . fst)     <$> eTouchesLoc
+  [ map (\(v,i)   -> Down i v) <$> eTouchesDown
+  , map (\(_,v,i) -> Up i v)   <$> eTouchesUp
+  , map (\(v,i)   -> Loc i v)  <$> eTouchesLoc
   ]
 
 keyHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)

@@ -141,13 +141,21 @@ data Key =
 instance Data.Hashable.Hashable Key where
       hashWithSalt s k = hashWithSalt s (fromEnum k)
 
+type TouchIdent = Int
+
 data TouchEvent
-  = Up   (V2 Scalar)
-  | Down (V2 Scalar)
-  | Loc  (V2 Scalar)
+  = Up   TouchIdent (V2 Scalar)
+  | Down TouchIdent (V2 Scalar)
+  | Loc  TouchIdent (V2 Scalar)
+
+touchIdent :: TouchEvent -> TouchIdent
+touchIdent = \case
+  Up   i _ -> i
+  Down i _ -> i
+  Loc  i _ -> i
 
 mapTouchEvent :: (V2 Scalar -> V2 Scalar) -> TouchEvent -> TouchEvent
 mapTouchEvent f = \case
-  Up   v -> Up (f v)
-  Down v -> Down (f v)
-  Loc  v -> Loc (f v)
+  Up   i v -> Up   i (f v)
+  Down i v -> Down i (f v)
+  Loc  i v -> Loc  i (f v)
