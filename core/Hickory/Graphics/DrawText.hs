@@ -12,7 +12,6 @@
 module Hickory.Graphics.DrawText
   ( Printer(..)
   , loadPrinter
-  , createPrinterVAOConfig
   , PositionedTextCommand(..)
   , textcommand
   , printVAOObj
@@ -35,7 +34,7 @@ import Control.Monad.Trans (MonadTrans)
 import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Text.Text
-import Hickory.Graphics.VAO (VAOConfig, createIndexedVAOConfig, VAOObj(..), loadVerticesIntoIndexedVAOConfig, deleteVAOConfigs)
+import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), deleteVAOConfigs)
 import Hickory.Graphics.Drawing (drawVAO, bindTextures)
 import Hickory.Graphics.ShaderMonad (bindMatrix)
 import Hickory.Graphics.MatrixMonad (MatrixMonad, MatrixT)
@@ -52,12 +51,6 @@ instance Eq (Printer a) where
 
 instance Show (Printer a) where
   show (Printer font tid _) = "Printer:" ++ fontName font ++ "/" ++ show tid
-
-createPrinterVAOConfig :: Shader -> IO VAOConfig
-createPrinterVAOConfig shader = createIndexedVAOConfig shader
-            [VertexGroup [Attachment "position" 3,
-                          Attachment "texCoords" 2,
-                          Attachment "color" 4]]
 
 loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
 loadPrinter resPath shader name = do
@@ -82,17 +75,21 @@ textcommand = TextCommand
   , leftBump = 0
   }
 
-printVAOObj :: Printer Int -> TextCommand -> VAOConfig -> IO VAOObj
-printVAOObj (Printer font _ _) textCommand vaoconfig = do
+printVAOObj :: Printer Int -> TextCommand -> IO VAO
+printVAOObj (Printer font _ shader) textCommand = do
   let command              = PositionedTextCommand zero textCommand
       (numsquares, floats) = transformTextCommandsToVerts [command] font
 
   if not $ null floats
     then do
       let (indices, numBlockIndices) = squareIndices (fromIntegral numsquares)
-      loadVerticesIntoIndexedVAOConfig vaoconfig (V.fromList floats) (V.fromList indices)
-
-      return (VAOObj vaoconfig (fromIntegral numBlockIndices) TriangleStrip)
+      createIndexedVAO
+        shader
+        [VertexGroup [Attachment "position" 3,
+                      Attachment "texCoords" 2,
+                      Attachment "color" 4]]
+        (V.fromList floats, V.fromList indices)
+        TriangleStrip
     else error "Tried to print empty text command"
 
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
@@ -139,14 +136,14 @@ instance MonadIO m => PrinterMonad (PrinterT m) where
   getPrinter = PrinterT ask
 
 class MonadIO m => DynamicVAOMonad m where
-  recordVAO  :: VAOObj -> m ()
+  recordVAO  :: VAO -> m ()
   default recordVAO
     :: forall t n.
        ( DynamicVAOMonad n
        , MonadTrans t
        , m ~ t n
        )
-    => VAOObj -> m ()
+    => VAO -> m ()
   recordVAO = lift . recordVAO
 
 instance DynamicVAOMonad m => DynamicVAOMonad (ReaderT r m) where
@@ -169,15 +166,15 @@ instance MonadReader r m => MonadReader r (DynamicVAOT m) where
 instance MonadIO m => DynamicVAOMonad (DynamicVAOT m) where
   recordVAO v = DynamicVAOT $ modify (v:)
 
-type DynamicVAOs = [VAOObj]
+type DynamicVAOs = [VAO]
 
 runPrinterT :: Printer Int -> PrinterT m a -> m a
 runPrinterT printer = flip runReaderT printer . unPrinterT
 
-runDynamicVAOT :: DynamicVAOT m a -> m (a, [VAOObj])
+runDynamicVAOT :: DynamicVAOT m a -> m (a, [VAO])
 runDynamicVAOT = flip runStateT [] . unDynamicVAOT
 
-loadDynamicVAO :: DynamicVAOMonad m => m VAOObj -> m VAOObj
+loadDynamicVAO :: DynamicVAOMonad m => m VAO -> m VAO
 loadDynamicVAO create = do
   vao <- create
   recordVAO vao
@@ -185,10 +182,9 @@ loadDynamicVAO create = do
 
 drawText :: (DynamicVAOMonad m, PrinterMonad m, MatrixMonad m) => TextCommand -> m ()
 drawText tc = do
-  printer@(Printer _ tex shader) <- getPrinter
+  printer@(Printer _ tex _) <- getPrinter
   vao <- loadDynamicVAO do
-    vc <- liftIO $ createPrinterVAOConfig shader
-    liftIO $ printVAOObj printer tc vc
+    liftIO $ printVAOObj printer tc
 
   drawVAO vao do
     bindTextures [tex]
@@ -197,7 +193,7 @@ drawText tc = do
 withDynamicVAOs :: MonadIO m => DynamicVAOT m a -> m a
 withDynamicVAOs f = do
   (a, allocedVAOs) <- runDynamicVAOT f
-  liftIO $ deleteVAOConfigs $ map (\(VAOObj vc _ _) -> vc) allocedVAOs
+  liftIO $ deleteVAOConfigs $ map (\(VAO vc _ _) -> vc) allocedVAOs
   pure a
 
 withPrinting :: MonadReader r m => (r -> Printer Int) -> PrinterT m a -> m a

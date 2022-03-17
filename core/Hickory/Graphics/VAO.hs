@@ -1,39 +1,29 @@
 {-# LANGUAGE FlexibleContexts, RecordWildCards #-}
 
-module Hickory.Graphics.VAO where
+module Hickory.Graphics.VAO (VAOCache, deleteVAOConfigs, createIndexedVAO, createDirectVAO, VAO(..), VAOConfig(..)) where
 
-import Control.Monad.State.Strict (MonadIO, MonadState, gets, liftIO, modify)
 import qualified Data.HashMap.Strict as Map
 import Data.Text (Text)
 import qualified Data.Vector.Storable as V
 import Graphics.GL.Compatibility41
-import Hickory.Graphics.GLSupport (VAO, VBO, alloc1, bufferIndices, bufferVertices, buildVertexGroup, DrawType, VertexGroup)
+import Hickory.Graphics.GLSupport (VAOId, VBOId, alloc1, bufferIndices, bufferVertices, buildVertexGroup, DrawType, VertexGroup)
 import Hickory.Graphics.Shader (Shader)
 
-data VAOConfig = VAOConfig {
-  vao :: !VAO,
-  indexVBO :: Maybe VBO,
-  vertices :: ![VBO],
-  shader :: Shader
+data VAOConfig = VAOConfig
+  { vaoId :: !VAOId
+  , indexVBO :: Maybe VBOId
+  , vertices :: ![VBOId]
+  , shader :: Shader
   }
   deriving (Show)
 
-data VAOObj = VAOObj
+data VAO = VAO
   { vaoConfig :: VAOConfig
   , count :: Int
   , drawType :: DrawType
   } deriving (Show)
 
-type VAOCache = Map.HashMap Text VAOObj
-
-loadVao :: (MonadState VAOCache m, MonadIO m) => Text -> IO VAOConfig -> (VAOConfig -> IO VAOObj) -> m VAOObj
-loadVao k create load = do
-  vaoConfig <- gets (Map.lookup k) >>= \case
-    Nothing -> liftIO create
-    Just (VAOObj vc _ _) -> pure vc
-  newVAO <- liftIO $ load vaoConfig
-  modify $ Map.insert k newVAO
-  pure newVAO
+type VAOCache = Map.HashMap Text VAO
 
 createIndexedVAOConfig :: Shader -> [VertexGroup] -> IO VAOConfig
 createIndexedVAOConfig sh vertexgroups = do
@@ -45,8 +35,8 @@ createIndexedVAOConfig sh vertexgroups = do
 
   buffers <- mapM (buildVertexGroup sh) vertexgroups
 
-  return VAOConfig
-    { vao = vao'
+  pure VAOConfig
+    { vaoId = vao'
     , indexVBO = Just index_vbo
     , vertices = buffers
     , shader = sh
@@ -59,8 +49,8 @@ createDirectVAOConfig sh vertexgroups = do
 
   buffers <- mapM (buildVertexGroup sh) vertexgroups
 
-  return VAOConfig
-    { vao = vao'
+  pure VAOConfig
+    { vaoId = vao'
     , indexVBO = Nothing
     , vertices = buffers
     , shader = sh
@@ -68,7 +58,7 @@ createDirectVAOConfig sh vertexgroups = do
 
 deleteVAOConfigs :: [VAOConfig] -> IO ()
 deleteVAOConfigs vcs = do
-  let vaos = map (\VAOConfig {..} -> vao) vcs
+  let vaos = map (\VAOConfig {..} -> vaoId) vcs
       vaosv = V.fromList vaos
       vbos = concatMap (\VAOConfig {..} -> maybe id (:) indexVBO vertices) vcs
       vbosv = V.fromList vbos
@@ -76,14 +66,26 @@ deleteVAOConfigs vcs = do
   V.unsafeWith vbosv $ glDeleteBuffers (fromIntegral $ V.length vbosv)
 
 loadVerticesIntoIndexedVAOConfig :: VAOConfig -> V.Vector GLfloat -> V.Vector GLushort -> IO ()
-loadVerticesIntoIndexedVAOConfig VAOConfig { vao, indexVBO = Just ivbo, vertices = (vbo:_) } vs indices = do
-  glBindVertexArray vao
+loadVerticesIntoIndexedVAOConfig VAOConfig { vaoId, indexVBO = Just ivbo, vertices = (vbo:_) } vs indices = do
+  glBindVertexArray vaoId
   bufferVertices vbo vs
   bufferIndices ivbo indices
 loadVerticesIntoIndexedVAOConfig _ _ _ = error "VAOConfig missing buffers"
 
 loadVerticesIntoDirectVAOConfig :: VAOConfig -> V.Vector GLfloat -> IO ()
-loadVerticesIntoDirectVAOConfig VAOConfig { vao, indexVBO = Nothing, vertices = (vbo:_) } vs = do
-  glBindVertexArray vao
+loadVerticesIntoDirectVAOConfig VAOConfig { vaoId, indexVBO = Nothing, vertices = (vbo:_) } vs = do
+  glBindVertexArray vaoId
   bufferVertices vbo vs
 loadVerticesIntoDirectVAOConfig _ _ = error "Can't load into direct vao config"
+
+createIndexedVAO :: Shader -> [VertexGroup] -> (V.Vector GLfloat, V.Vector GLushort) -> DrawType -> IO VAO
+createIndexedVAO shader vgroups (verts,indices) drawType = do
+  vc <- createIndexedVAOConfig shader vgroups
+  loadVerticesIntoIndexedVAOConfig vc verts indices
+  pure $ VAO vc (V.length indices) drawType
+
+createDirectVAO :: Shader -> [VertexGroup] -> (V.Vector GLfloat, Int) -> DrawType -> IO VAO
+createDirectVAO shader vgroups (verts, numTris) drawType = do
+  vc <- createDirectVAOConfig shader vgroups
+  loadVerticesIntoDirectVAOConfig vc verts
+  pure $ VAO vc numTris drawType

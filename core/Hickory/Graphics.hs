@@ -1,5 +1,5 @@
 module Hickory.Graphics
-  ( module Hickory.Graphics.DrawUtils
+  ( module Hickory.Graphics.Mesh
   , module Hickory.Graphics.Drawing
   , module Hickory.Graphics.GLSupport
   , module Hickory.Graphics.Shader
@@ -14,7 +14,7 @@ module Hickory.Graphics
   , module Hickory.Graphics.ShaderMonad
   ) where
 
-import Hickory.Graphics.DrawUtils
+import Hickory.Graphics.Mesh
 import Hickory.Graphics.DrawText
 import Hickory.Graphics.Drawing
 import Hickory.Graphics.GLSupport

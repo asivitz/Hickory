@@ -6,6 +6,10 @@ module Hickory.Math.Matrix
   , Mat33
   , mat44Lerp
   , mat44FromList
+  , sizePosMat
+  , size3PosMat
+  , sizePosRotMat
+  , size3PosRotMat
   ) where
 
 import Linear.Vector
@@ -16,6 +20,8 @@ import Linear.V3
 import Linear.V4
 import Linear.Epsilon
 import Control.Lens
+import Hickory.Types
+import Hickory.Math.Vector
 
 type Mat44 = M44 Double
 type Mat33 = M33 Double
@@ -45,3 +51,15 @@ mat44FromList :: [a] -> M44 a
 mat44FromList [a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,d1,d2,d3,d4] =
         transpose $ V4 (V4 a1 a2 a3 a4) (V4 b1 b2 b3 b4) (V4 c1 c2 c3 c4) (V4 d1 d2 d3 d4)
 mat44FromList _ = error "Can't build matrix. Wrong size list."
+
+sizePosMat :: Size Scalar -> V3 Scalar -> Mat44
+sizePosMat (Size w h) pos = mkTranslation pos !*! scaled (V4 w h 1 1)
+
+size3PosMat :: V3 Scalar -> V3 Scalar -> Mat44
+size3PosMat (V3 w h d) pos = mkTranslation pos !*! scaled (V4 w h d 1)
+
+sizePosRotMat :: Size Scalar -> V3 Scalar -> Scalar -> Mat44
+sizePosRotMat (Size w h) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h 1 1)
+
+size3PosRotMat :: V3 Scalar -> V3 Scalar -> Scalar -> Mat44
+size3PosRotMat (V3 w h d) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h d 1)

@@ -63,7 +63,7 @@ library:
     - Hickory.Graphics.Debug
     - Hickory.Graphics.DeferredRendering
     - Hickory.Graphics.DrawText
-    - Hickory.Graphics.DrawUtils
+    - Hickory.Graphics.Mesh
     - Hickory.Graphics.Drawing
     - Hickory.Graphics.GLSupport
     - Hickory.Graphics.MatrixMonad

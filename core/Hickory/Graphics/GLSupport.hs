@@ -1,6 +1,4 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE PatternSynonyms #-}
 
 {-
 module Graphics.GLSupport ( module Graphics.GL.ARB.ES2Compatibility ) where
@@ -17,8 +15,8 @@ module Hickory.Graphics.GLSupport
     buildVertexGroup,
     drawElements,
     glenumForDrawType,
-    VAO,
-    VBO,
+    VAOId,
+    VBOId,
     alloc1,
     DrawType(..),
     VertexGroup(..),
@@ -40,9 +38,9 @@ import Foreign.Marshal.Alloc (alloca)
 
 -- Types
 
-type VAO = Word32
+type VAOId = Word32
 
-type VBO = Word32
+type VBOId = Word32
 
 data DrawType
   = TriangleFan
@@ -63,12 +61,12 @@ alloc1 f = alloca \p -> f 1 p >> peek p
 
 data BufDataType = BufFloat | BufUShort
 
-bufferVertices :: VBO -> V.Vector GLfloat -> IO ()
+bufferVertices :: VBOId -> V.Vector GLfloat -> IO ()
 bufferVertices vbo floats = do
   glBindBuffer GL_ARRAY_BUFFER vbo
   bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW BufFloat
 
-bufferIndices :: VBO -> V.Vector GLushort -> IO ()
+bufferIndices :: VBOId -> V.Vector GLushort -> IO ()
 bufferIndices vbo ints = do
   glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
   bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW BufUShort
@@ -92,13 +90,13 @@ attachVertexArray attrLoc len stride offset =
     fsize :: GLint
     fsize = fromIntegral $ sizeOf (0 :: GLfloat)
 
-buildVertexGroup :: Shader -> VertexGroup -> IO VBO
+buildVertexGroup :: Shader -> VertexGroup -> IO VBOId
 buildVertexGroup shader group = do
   vbo <- alloc1 glGenBuffers
   attachVertexGroup shader vbo group
   pure vbo
 
-attachVertexGroup :: Shader -> VBO -> VertexGroup -> IO ()
+attachVertexGroup :: Shader -> VBOId -> VertexGroup -> IO ()
 attachVertexGroup shader vbo (VertexGroup attachments) = do
   glBindBuffer GL_ARRAY_BUFFER vbo
 

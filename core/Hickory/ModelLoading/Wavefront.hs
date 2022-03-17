@@ -4,7 +4,6 @@ import Data.List
 import Data.Maybe
 import Data.Functor ((<&>))
 import Hickory.Graphics.GLSupport
-import Hickory.Graphics.DrawUtils (loadVAOObjIndexed, loadVAOObjDirect)
 import Linear (V2(..), V3(..), zero)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
@@ -12,7 +11,7 @@ import Codec.Wavefront (WavefrontOBJ(..), Location(..), TexCoord(..), Normal(..)
 import qualified Codec.Wavefront as Wavefront
 
 import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (createIndexedVAOConfig, createDirectVAOConfig, VAOObj(..))
+import Hickory.Graphics.VAO (createIndexedVAO, createDirectVAO, VAO(..))
 import qualified Data.HashMap.Strict as Map
 import Control.Monad.State.Strict (State, execState, modify, gets)
 import Data.Hashable (Hashable(..))
@@ -146,17 +145,20 @@ loadWavefront path = Wavefront.fromFile path >>= \case
   Right obj -> pure obj
 
 -- Standard config of positions, tex coords, and normals
-vaoFromWavefront :: Shader -> WavefrontOBJ -> IO VAOObj
-vaoFromWavefront shader obj = do
-  config <- createIndexedVAOConfig shader
+vaoFromWavefront :: Shader -> WavefrontOBJ -> IO VAO
+vaoFromWavefront shader obj =
+  createIndexedVAO
+    shader
     [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3]]
-  loadVAOObjIndexed config Triangles (packOBJIndexed obj [packLocations, packTexCoords, packNormals])
+    (packOBJIndexed obj [packLocations, packTexCoords, packNormals])
+    Triangles
 
-vaoFromWavefrontWithBarycentric :: Shader -> WavefrontOBJ -> IO VAOObj
-vaoFromWavefrontWithBarycentric shader obj = do
-  config <- createIndexedVAOConfig shader
+vaoFromWavefrontWithBarycentric :: Shader -> WavefrontOBJ -> IO VAO
+vaoFromWavefrontWithBarycentric shader obj =
+  createIndexedVAO shader
     [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "barycentric" 3]]
-  loadVAOObjIndexed config Triangles (packOBJIndexed obj [packLocations, packTexCoords, packNormals, packBarycentricCoords])
+    (packOBJIndexed obj [packLocations, packTexCoords, packNormals, packBarycentricCoords])
+    Triangles
 
 -- Pack a WavefrontOBJ into vertices
 -- Configurable for different data (positions, normals, etc.)
@@ -176,7 +178,7 @@ packInternalEdge obj = \(Face one two three _) ->
   let internal12 = numFacesContaining obj edgeCache one two   > 1
       internal23 = numFacesContaining obj edgeCache two three > 1
       internal13 = numFacesContaining obj edgeCache one three > 1
-  in [ toV $ internal23, toV $ internal13, toV $ internal12 ]
+  in [ toV internal23, toV internal13, toV internal12 ]
   where
   toV False = V.fromList [ 0 ]
   toV True  = V.fromList [ 1 ]
@@ -197,17 +199,20 @@ packBarycentricFace obj = \(Face one two three _) ->
   where
   edgeCache = mkEdgeCache obj
 
-vaoFromWavefrontWithInternalEdges :: Shader -> WavefrontOBJ -> IO VAOObj
-vaoFromWavefrontWithInternalEdges shader obj = do
-  config <- createDirectVAOConfig shader
+vaoFromWavefrontWithInternalEdges :: Shader -> WavefrontOBJ -> IO VAO
+vaoFromWavefrontWithInternalEdges shader obj =
+  createDirectVAO
+    shader
     [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "excludeEdge" 1]]
-  loadVAOObjDirect config Triangles (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packInternalEdge])
+    (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packInternalEdge])
+    Triangles
 
-vaoFromWavefrontWithBarycentricDirect :: Shader -> WavefrontOBJ -> IO VAOObj
-vaoFromWavefrontWithBarycentricDirect shader obj = do
-  config <- createDirectVAOConfig shader
+vaoFromWavefrontWithBarycentricDirect :: Shader -> WavefrontOBJ -> IO VAO
+vaoFromWavefrontWithBarycentricDirect shader obj =
+  createDirectVAO shader
     [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "barycentric" 3]]
-  loadVAOObjDirect config Triangles (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packBarycentricFace])
+    (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packBarycentricFace])
+    Triangles
 
  -- Utils
 

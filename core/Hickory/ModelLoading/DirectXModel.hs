@@ -14,14 +14,12 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
 
 import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (createIndexedVAOConfig, VAOObj(..))
-import Hickory.Graphics.DrawUtils (loadVAOObjIndexed)
+import Hickory.Graphics.VAO (createIndexedVAO, VAO(..))
 
-
-data ThreeDModel = ThreeDModel VAOObj (Maybe DX.Frame) DX.Mesh (V3 Double, V3 Double)
+data ThreeDModel = ThreeDModel VAO (Maybe DX.Frame) DX.Mesh (V3 Double, V3 Double)
   deriving (Show)
 
-animModelVAO :: ThreeDModel -> VAOObj
+animModelVAO :: ThreeDModel -> VAO
 animModelVAO (ThreeDModel v _ _ _) = v
 
 {-
@@ -58,7 +56,7 @@ loadModelFromX shader path = do
   if isAnimated mesh
     then do
       vo <-
-        createIndexedVAOConfig
+        createIndexedVAO
             shader
             [ VertexGroup
                 [ Attachment "position" 3
@@ -67,12 +65,13 @@ loadModelFromX shader path = do
                 , Attachment "materialIndex" 1
                 ]
             ]
-          >>= \config -> loadVAOObjIndexed config Triangles (packAnimatedXMesh mesh)
+            (packAnimatedXMesh mesh)
+            Triangles
 
       return $ ThreeDModel vo (Just frame) mesh extents
     else do
-      vo <- createIndexedVAOConfig shader [VertexGroup [Attachment "position" 3, Attachment "materialIndex" 1]]
-        >>= \config -> loadVAOObjIndexed config Triangles (packXMesh mesh)
+      vo <- createIndexedVAO shader [VertexGroup [Attachment "position" 3, Attachment "materialIndex" 1]]
+        (packXMesh mesh) Triangles
       return $ ThreeDModel vo Nothing mesh extents
 
 packAnimatedXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLushort)
