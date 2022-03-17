@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
-module Hickory.Utils.Parsing where
+module Hickory.ModelLoading.Parsing where
 
 import Text.Megaparsec
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -9,7 +9,6 @@ import Data.Scientific
 import Control.Monad (void)
 import Hickory.Utils.Utils
 import Data.Text (Text)
-import Hickory.Math.Vector
 import Data.Void
 import Linear (V2(..), V3(..))
 

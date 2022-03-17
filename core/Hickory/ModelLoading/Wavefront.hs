@@ -1,4 +1,4 @@
-module Hickory.Graphics.Wavefront where
+module Hickory.ModelLoading.Wavefront where
 
 import Data.List
 import Data.Maybe

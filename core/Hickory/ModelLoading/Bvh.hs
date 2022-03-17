@@ -2,14 +2,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 
-module Hickory.Utils.Bvh where
+module Hickory.ModelLoading.Bvh where
 
 import Control.Monad (void)
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Maybe
-import Hickory.Utils.Parsing
+import Hickory.ModelLoading.Parsing
 import Data.Text (Text, pack)
 
 sc :: Parser ()

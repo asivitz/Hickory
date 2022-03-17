@@ -1,13 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Hickory.Graphics.Animation where
+module Hickory.ModelLoading.Animation where
 
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
 import Linear.Quaternion
 import Data.List
 import Control.Lens ((^.))
-import qualified Hickory.Utils.Bvh as BVH
+import qualified Hickory.ModelLoading.Bvh as BVH
 import Data.Text (Text)
 import Linear (V3(..), zero, liftI2, point, unit, (^*), (!*!), (!*), identity, mkTransformation, _x, _y, _z, _xyz, M44)
 

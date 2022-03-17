@@ -59,43 +59,41 @@ library:
   exposed-modules:
     - Hickory.Camera
     - Hickory.Color
-    - Hickory.Types
-    - Hickory.Platform
-    - Hickory.Input
     - Hickory.Graphics
-    - Hickory.Graphics.Drawing
-    - Hickory.Graphics.DrawText
-    - Hickory.Graphics.Textures
-    - Hickory.Graphics.GLSupport
-    - Hickory.Graphics.DrawUtils
-    - Hickory.Graphics.Animation
-    - Hickory.Graphics.Shader
     - Hickory.Graphics.Debug
-    - Hickory.Graphics.StockShaders
-    - Hickory.Graphics.VAO
     - Hickory.Graphics.DeferredRendering
-    - Hickory.Graphics.DirectXModel
-    - Hickory.Graphics.Uniforms
-    - Hickory.Graphics.SSAO
-    - Hickory.Graphics.Wavefront
+    - Hickory.Graphics.DrawText
+    - Hickory.Graphics.DrawUtils
+    - Hickory.Graphics.Drawing
+    - Hickory.Graphics.GLSupport
     - Hickory.Graphics.MatrixMonad
+    - Hickory.Graphics.SSAO
+    - Hickory.Graphics.Shader
     - Hickory.Graphics.ShaderMonad
+    - Hickory.Graphics.StockShaders
+    - Hickory.Graphics.Textures
+    - Hickory.Graphics.Uniforms
+    - Hickory.Graphics.VAO
+    - Hickory.Input
     - Hickory.Math
+    - Hickory.Math.Interpolate
     - Hickory.Math.Matrix
     - Hickory.Math.Vector
     - Hickory.Math.VectorMatrix
-    - Hickory.Math.Interpolate
-    - Hickory.Utils.Resources
-    - Hickory.Utils.Utils
-    - Hickory.Utils.HashMap
-    - Hickory.Utils.Projection
-    - Hickory.Utils.Bvh
-    - Hickory.Utils.DirectX
-    - Hickory.Utils.Parsing
-    - Hickory.Text.Text
-    - Hickory.Text.Font
-    - Hickory.Serialize
+    - Hickory.ModelLoading.Animation
+    - Hickory.ModelLoading.Bvh
+    - Hickory.ModelLoading.DirectX
+    - Hickory.ModelLoading.DirectXModel
+    - Hickory.ModelLoading.Parsing
+    - Hickory.ModelLoading.Wavefront
+    - Hickory.Platform
     - Hickory.Resources
+    - Hickory.Serialize
+    - Hickory.Text.Font
+    - Hickory.Text.Text
+    - Hickory.Types
+    - Hickory.Utils.Projection
+    - Hickory.Utils.Utils
 
 tests:
     hickory-test:

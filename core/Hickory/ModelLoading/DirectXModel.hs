@@ -1,4 +1,4 @@
-module Hickory.Graphics.DirectXModel
+module Hickory.ModelLoading.DirectXModel
   ( loadModelFromX, ThreeDModel(..), animModelVAO, animatedMats )
   where
 
@@ -6,7 +6,7 @@ import Hickory.Math.Matrix
 import Data.List
 import Data.Maybe
 import Hickory.Graphics.GLSupport
-import qualified Hickory.Utils.DirectX as DX
+import qualified Hickory.ModelLoading.DirectX as DX
 import Data.Text (Text)
 import Linear (V3(..), V4(..), identity, (!*!), (!*), inv44)
 import qualified Data.Vector as V

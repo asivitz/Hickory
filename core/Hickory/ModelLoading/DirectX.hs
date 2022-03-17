@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
-module Hickory.Utils.DirectX where
+module Hickory.ModelLoading.DirectX where
 
 import Control.Monad (void, when)
 import Text.Megaparsec
@@ -11,7 +11,7 @@ import Text.Megaparsec.Char
 import Data.Maybe
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
-import Hickory.Utils.Parsing
+import Hickory.ModelLoading.Parsing
 import qualified Data.Vector.Unboxed as Vector
 import Control.Applicative hiding (many)
 import Hickory.Color
@@ -34,9 +34,9 @@ identifier = lexeme $ pack <$> ((:) <$> letterChar <*> many (alphaNumChar <|> ch
 
 anySignedNumber :: Parser Double
 anySignedNumber = do
-        n <- signed anyNumber
-        optional (satisfy (== ' '))
-        return n
+  n <- signed anyNumber
+  _ <- optional (satisfy (== ' '))
+  return n
 
 number :: Parser Double
 number = lexeme (signed anyNumber)
