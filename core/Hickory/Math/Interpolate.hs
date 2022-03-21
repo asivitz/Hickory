@@ -22,6 +22,9 @@ instance Interpolatable (V2 Double) where glerp fr = flip (lerp fr)
 instance Interpolatable (V3 Double) where glerp fr = flip (lerp fr)
 instance Interpolatable (V4 Double) where glerp fr = flip (lerp fr)
 
+instance (Interpolatable a, Interpolatable b) => Interpolatable (a, b)
+  where glerp fr a b = (glerp fr (fst a) (fst b), glerp fr (snd a) (snd b))
+
 {-instance Interpolatable V4 where-}
         {-glerp = lerp-}
 

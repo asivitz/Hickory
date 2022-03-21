@@ -19,6 +19,8 @@ import Hickory.Camera
 import Hickory.Color
 import Hickory.FRP.Combinators (unionFirst)
 import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
+import Hickory.FRP.Game (timeStep)
+import Hickory.FRP.Historical (historical)
 import qualified Hickory.Graphics as H
 import Hickory.Input
 import Hickory.Math (Mat44, vnull, mkTranslation, mkScale)
@@ -48,16 +50,18 @@ data Model = Model
   }
 
 -- All the possible inputs
-data Msg = Fire | AddMove Vec | SubMove Vec | Tick NominalDiffTime | Noop
+data Msg = Fire | AddMove Vec | SubMove Vec | Noop
 
 -- By default, our firingDirection is to the right
 newGame :: Model
 newGame = Model zero zero (V2 1 0) []
 
+stepF :: (NominalDiffTime, [Msg]) -> Model -> Model
+stepF (delta, msgs) mdl = foldr stepMsg (physics delta mdl) msgs
+
 -- Change the game model by processing some input
-gameStep :: Msg -> Model -> Model
-gameStep msg model@Model { playerPos, firingDirection, missiles } = case msg of
-  Tick time -> physics time model
+stepMsg :: Msg -> Model -> Model
+stepMsg msg model@Model { playerPos, firingDirection, missiles } = case msg of
   Fire -> model { missiles = (playerPos, firingDirection) : missiles }
   AddMove dir -> adjustMoveDir dir model
   SubMove dir -> adjustMoveDir (- dir) model
@@ -164,6 +168,9 @@ procKeyUp k =
   then SubMove (moveKeyVec k)
   else Noop
 
+physicsTimeStep :: NominalDiffTime
+physicsTimeStep = 1/60
+
 -- Build the FRP network
 buildNetwork :: IORef Resources -> CoreEventGenerators -> IO ()
 buildNetwork resRef evGens = do
@@ -173,13 +180,15 @@ buildNetwork resRef evGens = do
     -- currentTime isn't currently used, but it's useful for things like animation
     currentTime <- B.accumB 0 ((+) <$> eTime coreEvents)
 
-    let evs = unionFirst [ Tick        <$> eTime coreEvents -- step the physics
-                         , procKeyDown <$> keyDown coreEvents
+    let evs = unionFirst [ procKeyDown <$> keyDown coreEvents
                          , procKeyUp   <$> keyUp coreEvents
                          ]
 
+    (_frameFraction, eInput) <- timeStep physicsTimeStep (pure <$> evs) (eTime coreEvents)
+
     -- Step the game model forward every time we get a new event
-    mdl <- B.accumB newGame (gameStep <$> evs)
+    mdlPair <- historical newGame (stepF <$> eInput) B.never
+    let mdl = snd <$> mdlPair
 
     -- every time we get a 'render' event tick, draw the screen
     B.reactimate $ readerFromIORef resRef <$>
