@@ -39,3 +39,5 @@ library:
     - Hickory.FRP.Combinators
     - Hickory.FRP.Historical
     - Hickory.FRP.CoreEvents
+    - Hickory.FRP.Game
+    - Hickory.FRP

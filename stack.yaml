@@ -15,7 +15,7 @@ allow-newer: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-  [ reactive-banana-1.2.1.0
+  [ reactive-banana-1.2.2.0
   , wavefront-0.7.1.4
   ]
 
