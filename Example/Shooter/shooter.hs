@@ -180,14 +180,16 @@ buildNetwork resRef evGens = do
     -- currentTime isn't currently used, but it's useful for things like animation
     currentTime <- B.accumB 0 ((+) <$> eTime coreEvents)
 
-    let evs = unionFirst [ procKeyDown <$> keyDown coreEvents
-                         , procKeyUp   <$> keyUp coreEvents
-                         ]
+    -- Player inputs
+    let inputs = unionFirst [ procKeyDown <$> keyDown coreEvents
+                            , procKeyUp   <$> keyUp coreEvents
+                            ]
 
-    (_frameFraction, eInput) <- timeStep physicsTimeStep (pure <$> evs) (eTime coreEvents)
+    -- Collect a frame of input
+    (_frameFraction, eFrame) <- timeStep physicsTimeStep (pure <$> inputs) (eTime coreEvents)
 
-    -- Step the game model forward every time we get a new event
-    mdlPair <- historical newGame (stepF <$> eInput) B.never
+    -- Step the game model forward every frame
+    mdlPair <- historical newGame (stepF <$> eFrame) B.never
     let mdl = snd <$> mdlPair
 
     -- every time we get a 'render' event tick, draw the screen
