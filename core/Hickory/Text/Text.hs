@@ -36,8 +36,13 @@ makeVerts bottomleft@(V2 leftx bottomy) width height =
                 V2 rightx topy]
 
 makeGlyph :: Real a => FontInfo a -> GlyphSpec a -> Glyph a
-makeGlyph FontInfo { lineHeight, base } spec@GlyphSpec { x, y, width, height, xoffset, yoffset} = Glyph spec (GlyphVerts verts tcverts)
-    where [tcx, tcy, tcw, tch] = map ((/512) . realToFrac) [x, y, width, height]
+makeGlyph FontInfo { lineHeight, base, scaleW, scaleH } spec@GlyphSpec { x, y, width, height, xoffset, yoffset} = Glyph spec (GlyphVerts verts tcverts)
+    where [tcx, tcy, tcw, tch] :: [Scalar] =
+              [ realToFrac x / realToFrac scaleW
+              , realToFrac y / realToFrac scaleH
+              , realToFrac width / realToFrac scaleW
+              , realToFrac height / realToFrac scaleH
+              ]
           centerPoint = V2 (realToFrac xoffset) (realToFrac (lineHeight - yoffset - base))
           verts = makeVerts centerPoint (realToFrac width) (realToFrac height)
           tcverts = [V2 tcx tcy,
