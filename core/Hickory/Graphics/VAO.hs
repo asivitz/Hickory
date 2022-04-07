@@ -85,7 +85,7 @@ createIndexedVAO shader vgroups (verts,indices) drawType = do
   pure $ VAO vc (V.length indices) drawType
 
 createDirectVAO :: Shader -> [VertexGroup] -> (V.Vector GLfloat, Int) -> DrawType -> IO VAO
-createDirectVAO shader vgroups (verts, numTris) drawType = do
+createDirectVAO shader vgroups (verts, numVerts) drawType = do
   vc <- createDirectVAOConfig shader vgroups
   loadVerticesIntoDirectVAOConfig vc verts
-  pure $ VAO vc numTris drawType
+  pure $ VAO vc numVerts drawType

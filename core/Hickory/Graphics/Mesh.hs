@@ -5,7 +5,7 @@ module Hickory.Graphics.Mesh where
 import Data.Foldable (toList)
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.GLSupport
-import Hickory.Graphics.VAO (createIndexedVAO, VAO(..))
+import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), createDirectVAO)
 import Hickory.Math.Vector
 import Linear (V3(..))
 import qualified Data.Vector.Storable as SV
@@ -79,3 +79,11 @@ mkUntexturedSquareVAO shader =
             h, l,
             h, h]
   indices = [0,1,2,3]
+
+mkPolygonVAO :: Shader -> DrawType -> [V3 GLfloat] -> IO VAO
+mkPolygonVAO shader dt points = do
+  let v = SV.concat (map (\(V3 x y z) -> SV.fromList [x,y,z]) points)
+  createDirectVAO shader
+    [VertexGroup [Attachment "position" 3]]
+    (v, length points)
+    dt
