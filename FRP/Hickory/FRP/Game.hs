@@ -1,12 +1,9 @@
 module Hickory.FRP.Game where
 
-import Hickory.Math.Interpolate (Interpolatable)
 import Hickory.FRP.Combinators (unionFirst)
 import Data.Time (NominalDiffTime)
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import Reactive.Banana ((<@>))
-import Data.Tuple (swap)
 
 -- Queue up events and release in a batch
 -- For example, to collect a frame's worth of input events and process at

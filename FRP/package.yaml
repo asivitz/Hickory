@@ -33,6 +33,7 @@ dependencies:
     - unordered-containers
     - hashable
     - Hickory
+    - lens
 
 library:
   exposed-modules:
@@ -40,4 +41,5 @@ library:
     - Hickory.FRP.Historical
     - Hickory.FRP.CoreEvents
     - Hickory.FRP.Game
+    - Hickory.FRP.UI
     - Hickory.FRP
