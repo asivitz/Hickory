@@ -59,17 +59,15 @@ instance Show VertexGroup where show _ = "Vertex Group"
 alloc1 :: (Integral i, Storable b) => (i -> Ptr b -> IO a) -> IO b
 alloc1 f = alloca \p -> f 1 p >> peek p
 
-data BufDataType = BufFloat | BufUShort
-
 bufferVertices :: VBOId -> V.Vector GLfloat -> IO ()
 bufferVertices vbo floats = do
   glBindBuffer GL_ARRAY_BUFFER vbo
-  bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW BufFloat
+  bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW
 
 bufferIndices :: VBOId -> V.Vector GLushort -> IO ()
 bufferIndices vbo ints = do
   glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
-  bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW BufUShort
+  bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW
 
 -- VAO / VBO
 
@@ -127,8 +125,8 @@ drawElements a b c = glDrawElements a b c nullPtr
 vertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
 vertexAttribPointer a b c d e f = glVertexAttribPointer (fromIntegral a) b c d e (plusPtr nullPtr (fromIntegral f))
 
-bufferData :: Storable a => GLenum -> V.Vector a -> GLenum -> p -> IO ()
-bufferData bufType vec usageType _ =
+bufferData :: Storable a => GLenum -> V.Vector a -> GLenum -> IO ()
+bufferData bufType vec usageType =
   V.unsafeWith vec \ptr ->
     glBufferData
       bufType

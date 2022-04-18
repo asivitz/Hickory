@@ -27,6 +27,8 @@ type CDrawInit = CInt -> CInt -> IO (StablePtr (IO (), TouchData))
 
 type RenderInit resources
   =  [Char] -- Path to resources folder
+  -> Int
+  -> Int
   -> IO resources
 
 type DrawInit resources gamedata
@@ -43,7 +45,7 @@ mkDrawInit
 mkDrawInit ri di w h = do
   rp        <- resourcesPath
   resources <- newIORef
-           =<< ri rp
+           =<< ri rp (fromIntegral w) (fromIntegral h)
 
   td          <- initTouchData
   inputPoller <- makeInputPoller (touchFunc td)
