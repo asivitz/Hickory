@@ -30,6 +30,8 @@ Hickory could be considered a game engine, but really it's a collection of tools
 
 ## Getting started
 
+The Examples/ directory has a simple action game example.
+
 ```
 $ stack run shooter
 ```
