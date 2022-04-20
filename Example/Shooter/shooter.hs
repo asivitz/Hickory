@@ -11,31 +11,33 @@
 
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, unless, (<=<))
-import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.IO.Class (MonadIO)
-import Data.IORef (IORef, newIORef)
+import Control.Monad.Reader (MonadReader, asks)
 import Data.Foldable (for_)
+import Data.IORef (IORef, newIORef)
+import Data.Maybe (maybeToList, fromJust)
+import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
 import Hickory.Color
-import Hickory.FRP.Combinators (unionFirst)
 import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
 import Hickory.FRP.Game (timeStep)
+import Hickory.FRP.UI (topLeft)
 import Hickory.FRP.Historical (historical)
-import qualified Hickory.Graphics as H
 import Hickory.Input
-import Hickory.Math (Mat44, vnull, mkTranslation, mkScale)
+import Hickory.Math (vnull, mkTranslation, mkScale)
 import Hickory.Resources (pull, readerFromIORef)
-import Linear (zero, V2(..), V3(..), (^*), (!*!))
 import Hickory.Types
+import Linear (zero, V2(..), V3(..), (^*), (!*!))
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Platforms.GLFW.Utils
 import Reactive.Banana ((<@))
+import qualified Data.HashMap.Strict as Map
 import qualified Graphics.UI.GLFW as GLFW
+import qualified Hickory.Graphics as H
+import qualified Hickory.Text.Text as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import qualified Data.HashMap.Strict as Map
-import Data.Time.Clock (NominalDiffTime)
 
 -- ** GAMEPLAY **
 
@@ -50,7 +52,7 @@ data Model = Model
   }
 
 -- All the possible inputs
-data Msg = Fire | AddMove Vec | SubMove Vec | Noop
+data Msg = Fire | AddMove Vec | SubMove Vec
 
 -- By default, our firingDirection is to the right
 newGame :: Model
@@ -65,7 +67,6 @@ stepMsg msg model@Model { playerPos, firingDirection, missiles } = case msg of
   Fire -> model { missiles = (playerPos, firingDirection) : missiles }
   AddMove dir -> adjustMoveDir dir model
   SubMove dir -> adjustMoveDir (- dir) model
-  Noop -> model
 
 -- Step the world forward by some small delta
 physics :: NominalDiffTime -> Model -> Model
@@ -97,8 +98,9 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 
 -- The resources used by our rendering function
 data Resources = Resources
-  { missileTex     :: H.TexID
-  , vaoCache       :: H.VAOCache
+  { missileTex  :: H.TexID
+  , vaoCache    :: H.VAOCache -- Holds geometry, e.g. simple squares or complex 3d models
+  , printer     :: H.Printer Int -- For text rendering
   }
 
 -- Set up our scene, load assets, etc.
@@ -109,36 +111,52 @@ loadResources path = do
   -- textures, and the actual missile texture
   solid    <- H.loadSolidShader shaderVersion
   textured <- H.loadTexturedShader shaderVersion
+
+  -- A shader for drawing text
+  pvcshader <- H.loadPVCShader shaderVersion
+
+  -- Our missile texture
   missiletex <- H.loadTexture' path ("circle.png", H.texLoadDefaults)
+
+  -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
+  -- generated using the bmGlyph program for Mac
+  pr <- H.loadPrinter path pvcshader "gidolinya"
 
   -- We'll use some square geometry and draw our texture on top
   vaoCache <- Map.fromList <$> traverse sequence
-    [("square", H.mkSquareVAOObj 0.5 solid)
-    ,("squaretex", H.mkSquareVAOObj 0.5 textured)]
+    [("square",    H.mkSquareVAOObj 0.5 solid)     -- for solid color squares
+    ,("squaretex", H.mkSquareVAOObj 0.5 textured)] -- for textured squares
 
-  pure $ Resources missiletex vaoCache
-
--- This function calculates a view matrix, used during rendering
-calcCameraMatrix :: Size Int -> Mat44
-calcCameraMatrix size@(Size w _h) =
-  let proj = Ortho (realToFrac w) 1 100 True
-      camera = Camera proj (V3 0 0 10) zero (V3 0 1 0)
-  in viewProjectionMatrix camera (aspectRatio size)
+  pure $ Resources missiletex vaoCache (fromJust pr)
 
 -- Our render function
-renderGame :: (MonadIO m, MonadReader Resources m) => Size Int -> Model -> NominalDiffTime -> m ()
+renderGame :: (MonadIO m, MonadReader Resources m, H.DynamicVAOMonad m, H.PrinterMonad m) => Size Double-> Model -> NominalDiffTime -> m ()
 renderGame scrSize Model { playerPos, missiles } _gameTime = do
-  H.runMatrixT . H.xform (calcCameraMatrix scrSize) $ do
+  H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
     missileTex <- asks missileTex
     tex <- pull vaoCache "squaretex"
     for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
-      H.drawVAO tex do
+      H.drawVAO tex do -- within a draw command, we can bind inputs to our shader
         H.bindTextures [missileTex]
         H.bindUniform "color" red
         H.bindMatrix "modelMat"
     pull vaoCache "square" >>= flip H.drawVAO do
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) $ H.bindMatrix "modelMat"
       H.bindUniform "color" white
+
+  H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
+    H.xform (mkTranslation (topLeft 20 20 scrSize)) do
+      H.drawText $ H.textcommand { H.color = white, H.text = "Arrow keys move, Space shoots", H.align = H.AlignLeft, H.fontSize = 5 }
+
+  where
+  gameCameraMatrix size@(Size w _h) =
+    let proj = Ortho w 1 100 True
+        camera = Camera proj (V3 0 0 10) zero (V3 0 1 0)
+    in viewProjectionMatrix camera (aspectRatio size)
+  uiCameraMatrix size@(Size w _h) =
+    let proj = Ortho w (-20) 1 False
+        camera = Camera proj zero (V3 0 0 (-1)) (V3 0 1 0)
+    in viewProjectionMatrix camera (aspectRatio size)
 
 -- ** INPUT **
 
@@ -154,19 +172,19 @@ moveKeyVec key = case key of
   Key'Right -> V2 1 0
   _ -> zero
 
-procKeyDown :: Key -> Msg
+procKeyDown :: Key -> Maybe Msg
 procKeyDown k =
   if isMoveKey k
-  then AddMove (moveKeyVec k)
+  then Just $ AddMove (moveKeyVec k)
   else case k of
-    Key'Space -> Fire
-    _ -> Noop
+    Key'Space -> Just Fire
+    _ -> Nothing
 
-procKeyUp :: Key -> Msg
+procKeyUp :: Key -> Maybe Msg
 procKeyUp k =
   if isMoveKey k
-  then SubMove (moveKeyVec k)
-  else Noop
+  then Just $ SubMove (moveKeyVec k)
+  else Nothing
 
 physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
@@ -181,20 +199,20 @@ buildNetwork resRef evGens = do
     currentTime <- B.accumB 0 ((+) <$> eTime coreEvents)
 
     -- Player inputs
-    let inputs = unionFirst [ procKeyDown <$> keyDown coreEvents
-                            , procKeyUp   <$> keyUp coreEvents
-                            ]
+    let inputs = mconcat [ maybeToList . procKeyDown <$> keyDown coreEvents
+                         , maybeToList . procKeyUp   <$> keyUp coreEvents
+                         ]
 
     -- Collect a frame of input
-    (_frameFraction, eFrame) <- timeStep physicsTimeStep (pure <$> inputs) (eTime coreEvents)
+    (_frameFraction, eFrame) <- timeStep physicsTimeStep inputs (eTime coreEvents)
 
     -- Step the game model forward every frame
     mdlPair <- historical newGame (stepF <$> eFrame) B.never
     let mdl = snd <$> mdlPair
 
     -- every time we get a 'render' event tick, draw the screen
-    B.reactimate $ readerFromIORef resRef <$>
-      (renderGame <$> scrSizeB coreEvents <*> mdl <*> currentTime)
+    B.reactimate $ readerFromIORef resRef . H.withDynamicVAOs . H.withPrinting printer <$>
+      (renderGame <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <*> currentTime)
       <@ eRender coreEvents
 
 main :: IO ()

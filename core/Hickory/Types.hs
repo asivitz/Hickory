@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveFunctor #-}
+
 module Hickory.Types
    (
    Size(..),
@@ -29,7 +31,7 @@ module Hickory.Types
 import Hickory.Math.Vector
 import Linear (V2(..), V3(..), V4(..), (^*))
 
-data Size a = Size a a deriving (Show, Read)
+data Size a = Size a a deriving (Show, Read, Functor)
 
 instance Num a => Num (Size a) where
   Size w h + Size w' h' = Size (w + w') (h + h')
@@ -53,6 +55,7 @@ nullSize = Size 0 0
 mkSize :: a -> Size a
 mkSize a = Size a a
 
+v2ToSize :: V2 a -> Size a
 v2ToSize (V2 x y) = Size x y
 
 aspectRatio :: (Real a, Fractional b) => Size a -> b
