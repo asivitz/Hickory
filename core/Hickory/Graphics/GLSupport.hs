@@ -104,9 +104,8 @@ attachVertexGroup shader vbo (VertexGroup attachments) = do
     Fold.foldlM
       ( \offset (Attachment a l) -> do
           loc <- getAttribLocation (program shader) a
-          when (loc < 0) do
-            print $ "Cannot find attribute " ++ a ++ " in shader"
-          attachVertexArray loc l stride offset
+          when (loc >= 0) do
+            attachVertexArray loc l stride offset
           return (offset + l)
       )
       0

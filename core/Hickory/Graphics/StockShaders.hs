@@ -43,6 +43,20 @@ void main()
 }
 |]
 
+solidVertexShader :: String -> Text
+solidVertexShader version = [qt|
+#version ${version}
+
+in vec4 position;
+
+uniform mat4 modelMat;
+
+void main()
+{
+    gl_Position = modelMat * position;
+}
+|]
+
 solidColorFragmentShader :: String -> Text
 solidColorFragmentShader version = [qt|
 #version ${version}
@@ -254,7 +268,7 @@ loadPVCShader version =
 
 loadSolidShader :: String -> IO Shader
 loadSolidShader version =
-  loadShader (texturedVertexShader version) Nothing (solidColorFragmentShader version) ["modelMat", "color"]
+  loadShader (solidVertexShader version) Nothing (solidColorFragmentShader version) ["modelMat", "color"]
 
 loadTexturedShader :: String -> IO Shader
 loadTexturedShader version =
