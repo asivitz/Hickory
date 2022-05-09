@@ -32,6 +32,12 @@ topRight x y (Size w h) = V2 (realToFrac w - x) (realToFrac h - y)
 topLeft :: (Real a1, Fractional a2) => a2 -> a2 -> Size a1 -> V2 a2
 topLeft x y (Size _w h) = V2 x (realToFrac h - y)
 
+topMiddle :: (Fractional a1, Real a2) => a1 -> Size a2 -> V2 a1
+topMiddle y (Size w h) = V2 (realToFrac w/2) (realToFrac h - y)
+
+bottomMiddle :: (Fractional a1, Real a2) => a1 -> Size a2 -> V2 a1
+bottomMiddle y (Size w _h) = V2 (realToFrac w/2) y
+
 middle :: (Fractional b, Real a) => Size a -> V2 b
 middle (Size w h) = V2 (realToFrac w/2) (realToFrac h/2)
 
