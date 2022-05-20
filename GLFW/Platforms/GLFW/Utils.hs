@@ -1,6 +1,6 @@
 {-# LANGUAGE NamedFieldPuns, BlockArguments #-}
 
-module Platforms.GLFW.Utils (buildWindow, withWindow, createGBufferRef) where
+module Platforms.GLFW.Utils (buildWindow, withWindow, createGBufferRef, onFramebufferSize) where
 
 import qualified Graphics.UI.GLFW          as GLFW
 import Control.Monad
@@ -8,7 +8,7 @@ import qualified Graphics.GL.Compatibility41 as GL
 import Data.IORef (newIORef, writeIORef, readIORef, IORef)
 import Hickory.Types (Size(..))
 import Hickory.Graphics (GBuffer(..), createGBuffer, getTexID)
-import Hickory.Utils.Utils (withArrayLen)
+import Hickory.Graphics.GLSupport (withArrayLen)
 
 buildWindow :: Int -> Int -> String -> IO (Maybe GLFW.Window)
 buildWindow width height title = do
@@ -33,6 +33,12 @@ buildWindow width height title = do
     simpleErrorCallback e s =
         putStrLn $ unwords [show e, show s]
 
+onFramebufferSize :: GLFW.Window -> (Size Int -> IO ()) -> IO ()
+onFramebufferSize win f = GLFW.setFramebufferSizeCallback win . Just $ \_ w h -> do
+  f (Size w h)
+
+  GL.glViewport 0 0 (fromIntegral w) (fromIntegral h)
+
 withWindow :: Int -> Int -> String -> (GLFW.Window -> IO ()) -> IO ()
 withWindow width height title f = do
     GLFW.setErrorCallback $ Just simpleErrorCallback
@@ -48,8 +54,7 @@ withWindow width height title f = do
               GLFW.makeContextCurrent m
               GLFW.setErrorCallback $ Just simpleErrorCallback
 
-              GLFW.setFramebufferSizeCallback win . Just $ \_ w h -> do
-                GL.glViewport 0 0 (fromIntegral w) (fromIntegral h)
+              onFramebufferSize win (const $ pure ())
 
               f win
 

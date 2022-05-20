@@ -3,7 +3,7 @@
 {-# LANGUAGE ViewPatterns, BlockArguments #-}
 
 module Hickory.Graphics.Textures
-  (loadTexture, loadTexture', loadTextures, texLoadDefaults, TexLoadOptions(..), TexID(..) ) where
+  (loadTexture, loadTexture', loadTextures, texLoadDefaults, TexLoadOptions(..), TexID(..), mkTextureWith ) where
 
 import Data.Vector.Storable(unsafeWith)
 import Hickory.Utils.Utils
@@ -26,11 +26,16 @@ data TexLoadOptions = TexLoadOptions
   , flipY :: Bool
   }
 
-loadGLTex :: Word32 -> Int -> Int -> TexLoadOptions -> Ptr a -> IO (Maybe TexID)
-loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = do
+mkTextureWith :: (GLuint -> IO ()) -> IO TexID
+mkTextureWith f = do
   tex <- alloc1 glGenTextures
   glBindTexture GL_TEXTURE_2D tex
+  f tex
+  pure $ TexID tex
 
+
+loadGLTex :: Word32 -> Int -> Int -> TexLoadOptions -> Ptr a -> IO TexID
+loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = mkTextureWith \_tex -> do
   glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
       (fromIntegral w) (fromIntegral h)
       0 format GL_UNSIGNED_BYTE ptr
@@ -43,21 +48,19 @@ loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = do
   glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S (fromIntegral wrap)
   glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T (fromIntegral wrap)
 
-  return $ Just $ TexID (fromIntegral tex)
-
 loadTextureFromPath :: String -> TexLoadOptions -> IO (Maybe TexID)
 loadTextureFromPath path loadOpts = do
   res <- readPng path
 
   case res of
-      Left s -> print s >> return Nothing
-      Right image -> case image of
-          -- TODO: Refactor and handle more cases
-          ImageRGBA8 (doFlip -> Image w h dat) ->
-              unsafeWith dat $ \ptr -> loadGLTex GL_RGBA w h loadOpts ptr
-          ImageRGB8 (doFlip -> Image w h dat) ->
-              unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h loadOpts ptr
-          _ -> error "Error loading texture: Unknown image format"
+    Left s -> print s >> pure Nothing
+    Right image -> Just <$> case image of
+        -- TODO: Refactor and handle more cases
+        ImageRGBA8 (doFlip -> Image w h dat) ->
+            unsafeWith dat $ \ptr -> loadGLTex GL_RGBA w h loadOpts ptr
+        ImageRGB8 (doFlip -> Image w h dat) ->
+            unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h loadOpts ptr
+        _ -> error "Error loading texture: Unknown image format"
   where
   doFlip img = if flipY loadOpts then flipVertically img else img
 
@@ -78,7 +81,8 @@ loadTexture' path (image, opts) = do
 
 loadTextures :: String -> [(String, TexLoadOptions)] -> IO (HashMap.HashMap Text.Text TexID)
 loadTextures path images = do
-        loaded <- mapM (loadTexture' path) images
-        return $ HashMap.fromList $ zip (map (Text.pack . fst) images) loaded
+  loaded <- mapM (loadTexture' path) images
+  pure $ HashMap.fromList $ zip (map (Text.pack . fst) images) loaded
 
+texLoadDefaults :: TexLoadOptions
 texLoadDefaults = TexLoadOptions { wrap = GL_REPEAT, minFilter = GL_LINEAR_MIPMAP_LINEAR, magFilter = GL_LINEAR, flipY = True }

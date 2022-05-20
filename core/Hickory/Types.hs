@@ -3,35 +3,33 @@
 module Hickory.Types
    (
    Size(..),
-   FSize,
    nullSize,
    mkSize,
    v2ToSize,
    aspectRatio,
-   screenPos,
-   RelativeScalar(..),
-   RelativeVec(..),
-   beg, end, center,
    fracSize,
    viewportFromSize,
    Rect(..),
    posInRect,
-   transform,
-   transform2,
-   RelativeRect(..),
-   transformRect,
    convertSize,
    screenCenter,
-   addConst,
    relativePosInRect,
    rectExtents,
    rectFromExtents
    ) where
 
 import Hickory.Math.Vector
-import Linear (V2(..), V3(..), V4(..), (^*))
+import Linear (V2(..), V4(..), (^*))
 
-data Size a = Size a a deriving (Show, Read, Functor)
+data Size a = Size
+  { width  :: a
+  , height :: a
+  } deriving (Show, Read, Functor)
+
+data Rect = Rect
+  { center :: V2 Scalar
+  , size   :: Size Scalar
+  } deriving (Show, Read)
 
 instance Num a => Num (Size a) where
   Size w h + Size w' h' = Size (w + w') (h + h')
@@ -43,8 +41,6 @@ instance Num a => Num (Size a) where
 
 convertSize :: (Real a, Fractional b) => Size a -> Size b
 convertSize (Size a b) = Size (realToFrac a) (realToFrac b)
-
-type FSize = Size Float
 
 screenCenter :: Real a => Size a -> V2 Scalar
 screenCenter (Size w h) = V2 (realToFrac w / 2) (realToFrac h / 2)
@@ -68,15 +64,6 @@ viewportFromSize (Size w h) = V4 0 0 (fromIntegral w) (fromIntegral h)
 fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
-data Rect = Rect (V2 Scalar) (Size Scalar) deriving (Show, Read)
-
-data RelativeRect a b = RRect (RelativeVec a b) (RelativeVec a b)
-
-data RelativeVec a b = RVec (RelativeScalar a b) (RelativeScalar a b)
-
-transformRect :: (Real b, Real a) => RelativeRect Scalar b -> Size a -> Rect
-transformRect (RRect (RVec rx ry) (RVec rw rh)) (Size w h) =
-        Rect (V2 (transform rx w) (transform ry h)) (Size (transform rw w) (transform rh h))
 
 posInRect :: V2 Scalar -> Rect -> Bool
 posInRect (V2 px py) (Rect (V2 ox oy) (Size w h)) =
@@ -98,24 +85,3 @@ rectFromExtents :: (V2 Scalar, V2 Scalar) -> Rect
 rectFromExtents (ll, ur) = Rect cen (Size (abs w) (abs h))
   where siz@(V2 w h) = ur - ll
         cen = ll + siz ^* 0.5
-
-data RelativeScalar fract offset = RScal fract offset
-
-transform :: (Fractional a, Real b, Real c) => RelativeScalar a b -> c -> a
-transform (RScal fract offset) val = fract * realToFrac val + realToFrac offset
-
-beg :: Num b => a -> RelativeScalar b a
-beg = RScal 0
-end :: (Num b, Num a) => a -> RelativeScalar b a
-end a = RScal 1 (negate a)
-center :: Fractional b => a -> RelativeScalar b a
-center = RScal 0.5
-
-addConst :: Num a => RelativeScalar b a -> a -> RelativeScalar b a
-addConst (RScal fr con) plusConst = RScal fr (con + plusConst)
-
-screenPos :: (Real a) => Size a -> RelativeVec Scalar Scalar -> V3 Scalar
-screenPos (Size w h) (RVec xl yl) = V3 (transform xl w) (transform yl h) 0
-
-transform2 :: (Real a) => Size a -> RelativeVec Scalar Scalar -> V2 Scalar
-transform2 (Size w h) (RVec xl yl) = V2 (transform xl w) (transform yl h)

@@ -12,6 +12,7 @@ module Hickory.Graphics
   , module Hickory.Graphics.SSAO
   , module Hickory.Graphics.MatrixMonad
   , module Hickory.Graphics.ShaderMonad
+  , module Hickory.Graphics.Framebuffer
   ) where
 
 import Hickory.Graphics.Mesh
@@ -27,3 +28,4 @@ import Hickory.Graphics.Uniforms
 import Hickory.Graphics.SSAO
 import Hickory.Graphics.MatrixMonad
 import Hickory.Graphics.ShaderMonad
+import Hickory.Graphics.Framebuffer

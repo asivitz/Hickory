@@ -95,6 +95,3 @@ makeFPSTicker = do
 
 readFileAsText :: FilePath -> IO Text
 readFileAsText = TextIO.readFile
-
-withArrayLen :: (Storable a, Integral i) => [a] -> (i -> Ptr a -> IO b) -> IO b
-withArrayLen l f = FMA.withArrayLen l $ f . fromIntegral

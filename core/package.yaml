@@ -74,6 +74,7 @@ library:
     - Hickory.Graphics.Textures
     - Hickory.Graphics.Uniforms
     - Hickory.Graphics.VAO
+    - Hickory.Graphics.Framebuffer
     - Hickory.Input
     - Hickory.Math
     - Hickory.Math.Interpolate

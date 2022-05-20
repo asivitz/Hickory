@@ -20,7 +20,8 @@ module Hickory.Graphics.GLSupport
     alloc1,
     DrawType(..),
     VertexGroup(..),
-    Attachment(..)
+    Attachment(..),
+    withArrayLen
   )
 where
 
@@ -35,6 +36,7 @@ import Foreign.Storable (Storable, peek, sizeOf)
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.Shader
 import Foreign.Marshal.Alloc (alloca)
+import qualified Foreign.Marshal as FM
 
 -- Types
 
@@ -58,6 +60,9 @@ instance Show VertexGroup where show _ = "Vertex Group"
 
 alloc1 :: (Integral i, Storable b) => (i -> Ptr b -> IO a) -> IO b
 alloc1 f = alloca \p -> f 1 p >> peek p
+
+withArrayLen :: (Storable a, Integral i) => [a] -> (i -> Ptr a -> IO b) -> IO b
+withArrayLen l f = FM.withArrayLen l $ f . fromIntegral
 
 bufferVertices :: VBOId -> V.Vector GLfloat -> IO ()
 bufferVertices vbo floats = do

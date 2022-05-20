@@ -6,15 +6,15 @@ import Hickory.Types (Size(..))
 import Graphics.GL.Compatibility41
 import Foreign.Marshal.Array (withArray)
 import Foreign.Ptr (nullPtr)
-import Control.Monad (when)
 import Data.String.QM (qt)
 import Hickory.Graphics.Shader (loadShader, Shader)
 import Hickory.Graphics.GLSupport (alloc1)
-import Hickory.Graphics.Textures (TexID(..))
+import Hickory.Graphics.Textures (TexID(..), mkTextureWith)
 import Data.IORef (IORef, readIORef)
 import Control.Monad.Reader (MonadReader, asks)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Bits ((.|.))
+import Hickory.Graphics.Framebuffer (mkFramebufferWith)
 
 data GBuffer = GBuffer
   { frameBuffer :: GLuint
@@ -24,10 +24,7 @@ data GBuffer = GBuffer
   }
 
 createGBuffer :: Size Int -> IO GBuffer
-createGBuffer (Size (fromIntegral -> w) (fromIntegral -> h)) = do
-  frameBuffer <- alloc1 glGenFramebuffers
-  glBindFramebuffer GL_FRAMEBUFFER frameBuffer
-
+createGBuffer (Size (fromIntegral -> w) (fromIntegral -> h)) = mkFramebufferWith \frameBuffer -> do
   position   <- mkTex GL_RGBA16F GL_FLOAT GL_COLOR_ATTACHMENT0
   normal     <- mkTex GL_RGBA16F GL_FLOAT GL_COLOR_ATTACHMENT1
   albedo     <- mkTex GL_RGBA GL_UNSIGNED_BYTE GL_COLOR_ATTACHMENT2
@@ -40,22 +37,14 @@ createGBuffer (Size (fromIntegral -> w) (fromIntegral -> h)) = do
   glRenderbufferStorage GL_RENDERBUFFER GL_DEPTH_COMPONENT w h
   glFramebufferRenderbuffer GL_FRAMEBUFFER GL_DEPTH_ATTACHMENT GL_RENDERBUFFER depthRb
 
-  glCheckFramebufferStatus GL_FRAMEBUFFER >>= \status -> when ( status /= GL_FRAMEBUFFER_COMPLETE) $
-    print "Warning: Framebuffer not complete!"
-
-  glBindFramebuffer GL_FRAMEBUFFER 0
-
   pure $ GBuffer {..}
 
   where
-  mkTex internalFormat typ attachment = do
-    tex <- alloc1 glGenTextures
-    glBindTexture GL_TEXTURE_2D tex
+  mkTex internalFormat typ attachment = mkTextureWith \tex -> do
     glTexImage2D GL_TEXTURE_2D 0 (fromIntegral internalFormat) w h 0 GL_RGBA typ nullPtr
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MIN_FILTER (fromIntegral GL_NEAREST)
     glTexParameteri GL_TEXTURE_2D GL_TEXTURE_MAG_FILTER (fromIntegral GL_NEAREST)
     glFramebufferTexture2D GL_FRAMEBUFFER attachment GL_TEXTURE_2D tex 0
-    pure $ TexID tex
 
 withGBufferBound :: (MonadReader r m, MonadIO m) => (r -> IORef GBuffer) -> m a -> m a
 withGBufferBound getter f = do
