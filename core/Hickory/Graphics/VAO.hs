@@ -65,7 +65,7 @@ deleteVAOConfigs vcs = do
   V.unsafeWith vaosv $ glDeleteVertexArrays (fromIntegral $ V.length vaosv)
   V.unsafeWith vbosv $ glDeleteBuffers (fromIntegral $ V.length vbosv)
 
-loadVerticesIntoIndexedVAOConfig :: VAOConfig -> V.Vector GLfloat -> V.Vector GLushort -> IO ()
+loadVerticesIntoIndexedVAOConfig :: VAOConfig -> V.Vector GLfloat -> V.Vector GLuint -> IO ()
 loadVerticesIntoIndexedVAOConfig VAOConfig { vaoId, indexVBO = Just ivbo, vertices = (vbo:_) } vs indices = do
   glBindVertexArray vaoId
   bufferVertices vbo vs
@@ -78,7 +78,7 @@ loadVerticesIntoDirectVAOConfig VAOConfig { vaoId, indexVBO = Nothing, vertices 
   bufferVertices vbo vs
 loadVerticesIntoDirectVAOConfig _ _ = error "Can't load into direct vao config"
 
-createIndexedVAO :: Shader -> [VertexGroup] -> (V.Vector GLfloat, V.Vector GLushort) -> DrawType -> IO VAO
+createIndexedVAO :: Shader -> [VertexGroup] -> (V.Vector GLfloat, V.Vector GLuint) -> DrawType -> IO VAO
 createIndexedVAO shader vgroups (verts,indices) drawType = do
   vc <- createIndexedVAOConfig shader vgroups
   loadVerticesIntoIndexedVAOConfig vc verts indices

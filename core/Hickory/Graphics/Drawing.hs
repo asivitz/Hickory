@@ -24,7 +24,7 @@ drawCommand VAOConfig { vaoId, indexVBO } numitems drawType = do
   glBindVertexArray vaoId
 
   case indexVBO of
-    Just _ -> drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_SHORT
+    Just _ -> drawElements (glenumForDrawType drawType) numitems GL_UNSIGNED_INT
     Nothing -> glDrawArrays (glenumForDrawType drawType) 0 numitems
 
 drawVAO :: MonadIO m =>  VAO -> ShaderT m () -> m ()

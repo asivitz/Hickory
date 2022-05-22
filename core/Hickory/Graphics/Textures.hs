@@ -62,6 +62,7 @@ loadTextureFromPath path loadOpts = do
             unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h loadOpts ptr
         _ -> error "Error loading texture: Unknown image format"
   where
+  doFlip :: forall a. Pixel a => Image a -> Image a
   doFlip img = if flipY loadOpts then flipVertically img else img
 
 loadTexture :: String -> String -> TexLoadOptions -> IO (Maybe TexID)

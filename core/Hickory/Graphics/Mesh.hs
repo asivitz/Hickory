@@ -27,7 +27,7 @@ cubeFloats = SV.fromList . concatMap toList $ verts
   p8    = V3 l h h
   verts = [p1, p2, p3, p4, p5, p6, p7, p8]
 
-cubeIndices :: SV.Vector GLushort
+cubeIndices :: SV.Vector GLuint
 cubeIndices = SV.fromList [6, 7, 5, 4, 0, 7, 3, 6, 2, 5, 1, 0, 2, 3]
 
 mkCubeVAOObj :: Shader -> IO VAO

@@ -69,7 +69,7 @@ bufferVertices vbo floats = do
   glBindBuffer GL_ARRAY_BUFFER vbo
   bufferData GL_ARRAY_BUFFER floats GL_STREAM_DRAW
 
-bufferIndices :: VBOId -> V.Vector GLushort -> IO ()
+bufferIndices :: VBOId -> V.Vector GLuint -> IO ()
 bufferIndices vbo ints = do
   glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
   bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW

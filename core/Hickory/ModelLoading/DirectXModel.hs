@@ -15,8 +15,14 @@ import qualified Data.Vector.Unboxed as UV
 
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.VAO (createIndexedVAO, VAO(..))
+import Hickory.ModelLoading.DirectX (MeshTextureCoords(..))
 
-data ThreeDModel = ThreeDModel VAO (Maybe DX.Frame) DX.Mesh (V3 Double, V3 Double)
+data ThreeDModel = ThreeDModel
+  { vao     :: VAO
+  , frame   :: Maybe DX.Frame
+  , mesh    :: DX.Mesh
+  , extents :: (V3 Double, V3 Double)
+  }
   deriving (Show)
 
 animModelVAO :: ThreeDModel -> VAO
@@ -33,19 +39,19 @@ boneMatUniform (ThreeDModel _ (Just frame) mesh _) actionName time = [bindUnifor
 pullMesh :: DX.Frame -> DX.Mesh
 pullMesh fr = case go fr of
   Nothing                             -> error "Could not grab mesh from X structure"
-  Just (m@DX.Mesh { DX.skinWeights }) -> m { DX.skinWeights = sortWeights skinWeights fr }
+  Just m@DX.Mesh { DX.skinWeights } -> m { DX.skinWeights = sortWeights skinWeights fr }
  where
   go (DX.Frame _ _   children Nothing     _) = listToMaybe $ mapMaybe go children
   go (DX.Frame _ mat _        (Just mesh) _) = Just (transformMesh mat mesh)
   -- Put weights, and therefore bones, in order from root to leaf
   sortWeights :: [DX.SkinWeights] -> DX.Frame -> [DX.SkinWeights]
   sortWeights weights (DX.Frame name _ children _ _) =
-    case find (\DX.SkinWeights { DX.transformNodeName } -> transformNodeName == name) weights of
-      Just w  -> [w] ++ concatMap (sortWeights weights) children
+    case find (\DX.SkinWeights { DX.transformNodeName } -> Just transformNodeName == name) weights of
+      Just w  -> w : concatMap (sortWeights weights) children
       Nothing -> concatMap (sortWeights weights) children
   transformMesh :: Mat44 -> DX.Mesh -> DX.Mesh
   transformMesh m msh@DX.Mesh { DX.vertices } =
-    msh { DX.vertices = UV.map (\(x, y, z) -> let V4 x' y' z' _ = m !* (V4 x y z 1) in (x', y', z')) vertices }
+    msh { DX.vertices = UV.map (\(x, y, z) -> let V4 x' y' z' _ = m !* V4 x y z 1 in (x', y', z')) vertices }
 
 loadModelFromX :: Shader -> String -> IO ThreeDModel
 loadModelFromX shader path = do
@@ -70,11 +76,11 @@ loadModelFromX shader path = do
 
       return $ ThreeDModel vo (Just frame) mesh extents
     else do
-      vo <- createIndexedVAO shader [VertexGroup [Attachment "position" 3, Attachment "materialIndex" 1]]
+      vo <- createIndexedVAO shader [VertexGroup [Attachment "position" 3, Attachment "materialIndex" 1, Attachment "texCoords" 2]]
         (packXMesh mesh) Triangles
       return $ ThreeDModel vo Nothing mesh extents
 
-packAnimatedXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLushort)
+packAnimatedXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLuint)
 packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeights, DX.meshMaterialList } =
   (SV.fromList dat, indices)
  where
@@ -93,12 +99,13 @@ packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeight
   dat     = interleave [verts, normals, assignments, material_indices] [3, 3, 1, 1]
   indices = V.convert $ UV.map fromIntegral faces
 
-packXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLushort)
-packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList } = (SV.fromList dat, indices)
+packXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLuint)
+packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshTextureCoords } = (SV.fromList dat, indices)
  where
   verts            = packVertices vertices
   material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
-  dat              = interleave [verts, material_indices] [3, 1]
+  texture_coords   = fmap realToFrac . UV.toList $ textureCoords meshTextureCoords
+  dat              = interleave [verts, material_indices, texture_coords] [3, 1, 2]
   indices          = V.convert (UV.map fromIntegral faces)
 
 isAnimated :: DX.Mesh -> Bool
@@ -155,8 +162,11 @@ retrieveActionMat (actionName, time) actionMats = (\kf -> kf !! (floor (time * 2
 
 buildAnimatedMats :: Mat44 -> Mat44 -> (Text, Double) -> DX.Frame -> [(Text, Mat44)]
 buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.children, DX.actionMats, DX.mat } =
-  (frameName, m) : concatMap (buildAnimatedMats bindPose animMat animSel) children
+  case frameName of
+    Just fn -> (fn, m) : rest
+    Nothing -> rest
  where
+  rest      = concatMap (buildAnimatedMats bindPose animMat animSel) children
   m         = animMat !*! inv44 bindPose
   bindPose  = bindParent !*! mat
   animMat   = animParent !*! actionMat

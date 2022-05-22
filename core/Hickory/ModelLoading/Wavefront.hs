@@ -18,7 +18,7 @@ import Data.Hashable (Hashable(..))
 
 -- Pack a WavefrontOBJ into vertices and indices
 -- Configurable for different data (positions, normals, etc.)
-packOBJIndexed :: WavefrontOBJ -> [WavefrontOBJ -> FaceIndex -> V.Vector GLfloat] -> (SV.Vector GLfloat, SV.Vector GLushort)
+packOBJIndexed :: WavefrontOBJ -> [WavefrontOBJ -> FaceIndex -> V.Vector GLfloat] -> (SV.Vector GLfloat, SV.Vector GLuint)
 packOBJIndexed obj@WavefrontOBJ { objFaces } fs = (SV.convert verts, SV.convert indices)
   where
   indices = V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
