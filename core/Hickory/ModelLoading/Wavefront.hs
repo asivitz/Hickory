@@ -15,9 +15,35 @@ import Hickory.Graphics.VAO (createIndexedVAO, createDirectVAO, VAO(..))
 import qualified Data.HashMap.Strict as Map
 import Control.Monad.State.Strict (State, execState, modify, gets)
 import Data.Hashable (Hashable(..))
+import Hickory.ModelLoading.Packed (ModelData(..), buildModelVAO)
+
+loadWavefront :: FilePath -> IO WavefrontOBJ
+loadWavefront path = Wavefront.fromFile path >>= \case
+  Left err -> error err
+  Right obj -> pure obj
+
+wavefrontToModelData :: WavefrontOBJ -> ModelData
+wavefrontToModelData obj@WavefrontOBJ {..} = ModelData {..}
+  where
+  vertices         = SV.convert $ V.concatMap (packLocations obj) allFaceIndices
+  normals          = SV.convert $ V.concatMap (packNormals obj) allFaceIndices
+  uvs              = SV.convert $ V.concatMap (packTexCoords obj) allFaceIndices
+  bone_indices     = SV.replicate (V.length allFaceIndices) 0
+  material_indices = SV.replicate (V.length allFaceIndices) 0
+  face_indices     = SV.convert $ V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
+
+  faces = fmap elValue objFaces
+  allFaceIndices :: V.Vector FaceIndex
+  allFaceIndices = V.fromList . nub . concat $ faces <&> \(Face one two three xtras) -> one : two : three : xtras
+
+loadWavefrontAsVAO :: Shader -> FilePath -> IO VAO
+loadWavefrontAsVAO shader filePath = loadWavefront filePath >>= buildModelVAO shader . wavefrontToModelData
+
+--
 
 -- Pack a WavefrontOBJ into vertices and indices
 -- Configurable for different data (positions, normals, etc.)
+{-# DEPRECATED #-}
 packOBJIndexed :: WavefrontOBJ -> [WavefrontOBJ -> FaceIndex -> V.Vector GLfloat] -> (SV.Vector GLfloat, SV.Vector GLuint)
 packOBJIndexed obj@WavefrontOBJ { objFaces } fs = (SV.convert verts, SV.convert indices)
   where
@@ -61,6 +87,9 @@ packLocations obj fi = convertV3 $ grabLocation obj fi
 
 packTexCoords :: WavefrontOBJ -> FaceIndex -> V.Vector GLfloat
 packTexCoords obj fi = convertV2 . fromMaybe zero $ grabTexCoords obj fi
+
+
+{- HERE BE DRAGONS -}
 
 -- The basic idea is
 --     (1,0,0)
@@ -139,12 +168,8 @@ colorObj WavefrontOBJ { objNormals = _, objFaces } = execState (V.mapM (foo . el
   setColorOfIndex :: FaceIndex -> ObjColor -> State (Map.HashMap FaceIndex ObjColor) ()
   setColorOfIndex k = modify . Map.insert k
 
-loadWavefront :: String -> IO WavefrontOBJ
-loadWavefront path = Wavefront.fromFile path >>= \case
-  Left err -> error err
-  Right obj -> pure obj
-
 -- Standard config of positions, tex coords, and normals
+{-# DEPRECATED #-}
 vaoFromWavefront :: Shader -> WavefrontOBJ -> IO VAO
 vaoFromWavefront shader obj =
   createIndexedVAO

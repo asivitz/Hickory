@@ -50,6 +50,8 @@ dependencies:
     - unordered-containers
     - vector
     - wavefront
+    - binary
+    - vector-binary-instances
 
 when:
     - condition: os(osx)
@@ -87,6 +89,7 @@ library:
     - Hickory.ModelLoading.DirectXModel
     - Hickory.ModelLoading.Parsing
     - Hickory.ModelLoading.Wavefront
+    - Hickory.ModelLoading.Packed
     - Hickory.Platform
     - Hickory.Resources
     - Hickory.Serialize
