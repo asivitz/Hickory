@@ -99,13 +99,13 @@ void main()
 
     /* Lighting */
     normal_adj = normalize(normalMat * normal);
-    lightPos = vec3(100, 100, 3000);
+    lightPos = vec3(1000, 1000, 3000);
     surfaceToLight = lightPos - vec3(justModelMat * position);
 
     brightness = dot(normal_adj, surfaceToLight) / (length(surfaceToLight) * length(normal_adj));
     brightness = clamp(brightness, 0.0, 1.0);
 
-    vcolor = vec4((0.6 + brightness * 0.4) * color.rgb, color.a);
+    vcolor = vec4((0.7 + brightness * 0.3) * color.rgb, color.a);
 }
 |]
 

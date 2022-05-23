@@ -76,7 +76,7 @@ loadModelFromX shader path = do
 
       return $ ThreeDModel vo (Just frame) mesh extents
     else do
-      vo <- createIndexedVAO shader [VertexGroup [Attachment "position" 3, Attachment "materialIndex" 1, Attachment "texCoords" 2]]
+      vo <- createIndexedVAO shader [VertexGroup [Attachment "position" 3, Attachment "normal" 3, Attachment "materialIndex" 1, Attachment "texCoords" 2]]
         (packXMesh mesh) Triangles
       return $ ThreeDModel vo Nothing mesh extents
 
@@ -100,12 +100,13 @@ packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeight
   indices = V.convert $ UV.map fromIntegral faces
 
 packXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLuint)
-packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshTextureCoords } = (SV.fromList dat, indices)
+packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshNormals, DX.meshTextureCoords } = (SV.fromList dat, indices)
  where
   verts            = packVertices vertices
   material_indices = packMaterialIndices faces (DX.faceIndexes meshMaterialList)
+  normals          = map realToFrac $ packNormals faces (DX.normals meshNormals)
   texture_coords   = fmap realToFrac . UV.toList $ textureCoords meshTextureCoords
-  dat              = interleave [verts, material_indices, texture_coords] [3, 1, 2]
+  dat              = interleave [verts, normals, material_indices, texture_coords] [3, 3, 1, 2]
   indices          = V.convert (UV.map fromIntegral faces)
 
 isAnimated :: DX.Mesh -> Bool
