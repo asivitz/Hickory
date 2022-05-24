@@ -99,6 +99,15 @@ library:
     - Hickory.Utils.Projection
     - Hickory.Utils.Utils
 
+executables:
+  pack-model:
+    source-dirs:
+      - pack-model/
+    main: main.hs
+    dependencies:
+      - Hickory
+      - filepath
+
 tests:
     hickory-test:
         main:            Main.hs
