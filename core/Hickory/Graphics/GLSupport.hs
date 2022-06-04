@@ -6,37 +6,30 @@ import Graphics.GL.ARB.ES2Compatibility
 -}
 
 module Hickory.Graphics.GLSupport
-  ( Shader (..),
-    bufferVertices,
+  ( bufferVertices,
     bufferIndices,
     configGLState,
     clearScreen,
     clearDepth,
-    buildVertexGroup,
-    drawElements,
-    glenumForDrawType,
     VAOId,
     VBOId,
     alloc1,
     DrawType(..),
-    VertexGroup(..),
-    Attachment(..),
-    withArrayLen
+    withArrayLen,
+    checkForErrors
   )
 where
 
-import Control.Monad (when)
 import Data.Bits
-import qualified Data.Foldable as Fold
-import Data.Int (Int32)
 import qualified Data.Vector.Storable as V
 import Data.Word (Word32)
-import Foreign.Ptr (Ptr, nullPtr, plusPtr)
+import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable, peek, sizeOf)
-import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.Shader
+import Graphics.GL.Compatibility32 as GL
 import Foreign.Marshal.Alloc (alloca)
 import qualified Foreign.Marshal as FM
+import GHC.Stack (HasCallStack)
+import Text.Printf (printf)
 
 -- Types
 
@@ -49,12 +42,6 @@ data DrawType
   | TriangleStrip
   | Triangles
   deriving (Show, Eq)
-
-data Attachment = Attachment String Int32
-
-newtype VertexGroup = VertexGroup [Attachment]
-
-instance Show VertexGroup where show _ = "Vertex Group"
 
 -- Utilities
 
@@ -74,60 +61,6 @@ bufferIndices vbo ints = do
   glBindBuffer GL_ELEMENT_ARRAY_BUFFER vbo
   bufferData GL_ELEMENT_ARRAY_BUFFER ints GL_STREAM_DRAW
 
--- VAO / VBO
-
-glenumForDrawType :: DrawType -> GLenum
-glenumForDrawType dt = case dt of
-  TriangleStrip -> GL_TRIANGLE_STRIP
-  TriangleFan -> GL_TRIANGLE_FAN
-  Triangles -> GL_TRIANGLES
-
-attachVertexArray :: GLint -> GLint -> GLint -> GLint -> IO ()
-attachVertexArray attrLoc len stride offset =
-  if attrLoc < 0
-    then print ("Can't attach vertex array: Bad attribute location" :: String)
-    else do
-      enableVertexAttribArray attrLoc
-      vertexAttribPointer attrLoc len GL_FLOAT GL_FALSE (stride * fsize) (fromIntegral $ offset * fsize)
-  where
-    fsize :: GLint
-    fsize = fromIntegral $ sizeOf (0 :: GLfloat)
-
-buildVertexGroup :: Shader -> VertexGroup -> IO VBOId
-buildVertexGroup shader group = do
-  vbo <- alloc1 glGenBuffers
-  attachVertexGroup shader vbo group
-  pure vbo
-
-attachVertexGroup :: Shader -> VBOId -> VertexGroup -> IO ()
-attachVertexGroup shader vbo (VertexGroup attachments) = do
-  glBindBuffer GL_ARRAY_BUFFER vbo
-
-  let stride = sum $ map (\(Attachment _a l) -> l) attachments
-
-  _ <-
-    Fold.foldlM
-      ( \offset (Attachment a l) -> do
-          loc <- getAttribLocation (program shader) a
-          when (loc >= 0) do
-            attachVertexArray loc l stride offset
-          return (offset + l)
-      )
-      0
-      attachments
-  pure ()
-
-enableVertexAttribArray :: GLint -> IO ()
-enableVertexAttribArray = glEnableVertexAttribArray . fromIntegral
-
-disableVertexAttribArray :: GLint -> IO ()
-disableVertexAttribArray = glDisableVertexAttribArray . fromIntegral
-
-drawElements :: GLenum -> GLsizei -> GLenum -> IO ()
-drawElements a b c = glDrawElements a b c nullPtr
-
-vertexAttribPointer :: GLint -> GLint -> GLenum -> GLboolean -> GLsizei -> GLint -> IO ()
-vertexAttribPointer a b c d e f = glVertexAttribPointer (fromIntegral a) b c d e (plusPtr nullPtr (fromIntegral f))
 
 bufferData :: Storable a => GLenum -> V.Vector a -> GLenum -> IO ()
 bufferData bufType vec usageType =
@@ -147,10 +80,12 @@ configGLState r g b = do
   glDisable GL_DITHER
   glDisable GL_STENCIL_TEST
 
-  glEnable GL_PROGRAM_POINT_SIZE -- for OSX
+  -- glEnable GL_PROGRAM_POINT_SIZE -- for OSX
   glEnable GL_DEPTH_TEST
 
   glEnable GL_BLEND
+
+  checkForErrors
 
 clearScreen :: IO ()
 clearScreen = do
@@ -159,3 +94,22 @@ clearScreen = do
 clearDepth :: IO ()
 clearDepth = do
   glClear GL_DEPTH_BUFFER_BIT
+
+checkForErrors :: HasCallStack => IO ()
+checkForErrors = glGetError >>= \case
+  GL_INVALID_ENUM                      -> err "GL_INVALID_ENUM"
+  GL_INVALID_FRAMEBUFFER_OPERATION     -> err "GL_INVALID_FRAMEBUFFER_OPERATION"
+  -- GL_INVALID_FRAMEBUFFER_OPERATION_EXT -> err "GL_INVALID_FRAMEBUFFER_OPERATION_EXT"
+  -- GL_INVALID_FRAMEBUFFER_OPERATION_OES -> err "GL_INVALID_FRAMEBUFFER_OPERATION_OES"
+  GL_INVALID_OPERATION                 -> err "GL_INVALID_OPERATION"
+  GL_INVALID_VALUE                     -> err "GL_INVALID_VALUE"
+  GL_NO_ERROR                          -> pure ()
+  GL_OUT_OF_MEMORY                     -> err "GL_OUT_OF_MEMORY"
+  GL_STACK_OVERFLOW                    -> err "GL_STACK_OVERFLOW"
+  GL_STACK_UNDERFLOW                   -> err "GL_STACK_UNDERFLOW"
+  -- GL_TABLE_TOO_LARGE                   -> err "GL_TABLE_TOO_LARGE"
+  -- GL_TABLE_TOO_LARGE_EXT               -> err "GL_TABLE_TOO_LARGE_EXT"
+  -- GL_TEXTURE_TOO_LARGE_EXT             -> err "GL_TEXTURE_TOO_LARGE_EXT"
+  other -> err $ printf "Unknown error %d" other
+  where
+  err s = error $ "GL Error: " ++ s

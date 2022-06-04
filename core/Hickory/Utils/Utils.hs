@@ -9,13 +9,6 @@ import Data.IORef
 import Data.Time
 import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
-import qualified Debug.Trace
-import qualified Foreign.Marshal.Array as FMA
-import Foreign.Storable (Storable)
-import GHC.Ptr (Ptr)
-
-tracer :: (Show a, Show b) => b -> a -> a
-tracer label a = Debug.Trace.traceShow (label, a) a
 
 clamp :: Ord a => a -> a -> a -> a
 clamp a low high = min (max a low) high

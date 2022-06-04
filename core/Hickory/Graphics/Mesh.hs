@@ -5,10 +5,11 @@ module Hickory.Graphics.Mesh where
 import Data.Foldable (toList)
 import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.GLSupport
-import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), createDirectVAO)
+import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), createDirectVAO, VertexGroup (..), Attachment (..))
 import Hickory.Math.Vector
 import Linear (V3(..))
 import qualified Data.Vector.Storable as SV
+import Hickory.Graphics.Shader (Shader)
 
 -- Stock cube mesh
 

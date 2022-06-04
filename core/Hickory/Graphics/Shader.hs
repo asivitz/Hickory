@@ -1,6 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 
 module Hickory.Graphics.Shader
   ( loadShader,
@@ -26,9 +25,10 @@ import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 import Foreign.Ptr
 import Foreign.Storable
-import Graphics.GL.Compatibility41 as GL
+import Graphics.GL.Compatibility32 as GL
 import Hickory.Utils.Utils
 import Data.Maybe (catMaybes, fromMaybe)
+import Hickory.Graphics.GLSupport (checkForErrors)
 
 data Shader = Shader
   { program :: ProgramID,
@@ -66,8 +66,8 @@ retrieveLog lenFun infoFun = do
 
 compileShader :: Text -> GLenum -> IO (Maybe GLuint)
 compileShader source shaderType = do
-  compileSupported <- glGetBoolean GL_SHADER_COMPILER
-  unless compileSupported (error "ERROR: Shader compilation not supported.")
+  -- compileSupported <- glGetBoolean GL_SHADER_COMPILER
+  -- unless compileSupported (error "ERROR: Shader compilation not supported.")
 
   shaderId <- glCreateShader shaderType
 
@@ -80,9 +80,7 @@ compileShader source shaderType = do
   glCompileShader shaderId
   compiled <- glGetShaderi shaderId GL_COMPILE_STATUS
 
-  let didCompile = compiled /= 0
-
-  if didCompile
+  if compiled /= 0
     then return $ Just shaderId
     else do
       infoLog <- retrieveLog (glGetShaderi shaderId) (glGetShaderInfoLog shaderId)
@@ -142,6 +140,7 @@ loadShader vert mgeom frag uniforms = do
       compileShader source typ
 
   prog <- buildShaderProgram shIds uniforms
+  checkForErrors
   case prog of
     Just pr -> return pr
     Nothing -> do

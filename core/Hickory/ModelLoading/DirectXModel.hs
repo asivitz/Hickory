@@ -14,8 +14,26 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
 
 import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (createIndexedVAO, VAO(..))
+import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), VertexGroup (..), Attachment (..))
 import Hickory.ModelLoading.DirectX (MeshTextureCoords(..))
+import Hickory.Graphics.Shader (Shader)
+
+{-
+directxToModelData :: WavefrontOBJ -> ModelData
+directxToModelData obj@WavefrontOBJ {..} = ModelData {..}
+  where
+  vertices         = SV.convert $ V.concatMap (packLocations obj) allFaceIndices
+  normals          = SV.convert $ V.concatMap (packNormals obj) allFaceIndices
+  uvs              = SV.convert $ V.concatMap (packTexCoords obj) allFaceIndices
+  bone_indices     = SV.replicate (V.length allFaceIndices) 0
+  material_indices = SV.replicate (V.length allFaceIndices) 0
+  face_indices     = SV.convert $ V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
+
+  faces = fmap elValue objFaces
+  allFaceIndices :: V.Vector FaceIndex
+  allFaceIndices = V.fromList . nub . concat $ faces <&> \(Face one two three xtras) -> one : two : three : xtras
+
+-}
 
 data ThreeDModel = ThreeDModel
   { vao     :: VAO

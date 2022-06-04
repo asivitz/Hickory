@@ -14,8 +14,9 @@ import qualified Data.Text as Text
 import Data.Word (Word32)
 import GHC.Ptr (Ptr)
 
-import Hickory.Graphics.GLSupport (alloc1)
-import Graphics.GL.Compatibility41 as GL
+import Hickory.Graphics.GLSupport (alloc1, checkForErrors)
+import Graphics.GL.Compatibility30 as GL
+import GHC.Stack (HasCallStack)
 
 newtype TexID = TexID { getTexID :: Word32 } deriving (Show)
 
@@ -26,17 +27,18 @@ data TexLoadOptions = TexLoadOptions
   , flipY :: Bool
   }
 
-mkTextureWith :: (GLuint -> IO ()) -> IO TexID
+mkTextureWith :: HasCallStack => (GLuint -> IO ()) -> IO TexID
 mkTextureWith f = do
   tex <- alloc1 glGenTextures
   glBindTexture GL_TEXTURE_2D tex
   f tex
+  checkForErrors
   pure $ TexID tex
 
 
-loadGLTex :: Word32 -> Int -> Int -> TexLoadOptions -> Ptr a -> IO TexID
-loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = mkTextureWith \_tex -> do
-  glTexImage2D GL_TEXTURE_2D 0 (fromIntegral format)
+loadGLTex :: HasCallStack => Word32 -> GLenum -> Int -> Int -> TexLoadOptions -> Ptr a -> IO TexID
+loadGLTex internalFormat format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = mkTextureWith \_tex -> do
+  glTexImage2D GL_TEXTURE_2D 0 (fromIntegral internalFormat)
       (fromIntegral w) (fromIntegral h)
       0 format GL_UNSIGNED_BYTE ptr
 
@@ -48,7 +50,7 @@ loadGLTex format w h TexLoadOptions { wrap, magFilter, minFilter } ptr = mkTextu
   glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_S (fromIntegral wrap)
   glTexParameteri GL_TEXTURE_2D GL_TEXTURE_WRAP_T (fromIntegral wrap)
 
-loadTextureFromPath :: String -> TexLoadOptions -> IO (Maybe TexID)
+loadTextureFromPath :: HasCallStack => String -> TexLoadOptions -> IO (Maybe TexID)
 loadTextureFromPath path loadOpts = do
   res <- readPng path
 
@@ -57,9 +59,9 @@ loadTextureFromPath path loadOpts = do
     Right image -> Just <$> case image of
         -- TODO: Refactor and handle more cases
         ImageRGBA8 (doFlip -> Image w h dat) ->
-            unsafeWith dat $ \ptr -> loadGLTex GL_RGBA w h loadOpts ptr
+            unsafeWith dat $ \ptr -> loadGLTex GL_RGBA8 GL_RGBA w h loadOpts ptr
         ImageRGB8 (doFlip -> Image w h dat) ->
-            unsafeWith dat $ \ptr -> loadGLTex GL_RGB w h loadOpts ptr
+            unsafeWith dat $ \ptr -> loadGLTex GL_RGB8 GL_RGB w h loadOpts ptr
         _ -> error "Error loading texture: Unknown image format"
   where
   doFlip :: forall a. Pixel a => Image a -> Image a

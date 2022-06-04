@@ -15,6 +15,7 @@ import Hickory.Types
 import Hickory.Platform
 import Linear.V2 (V2(V2))
 import Hickory.FRP.CoreEvents (CoreEventGenerators, coreEventGenerators)
+import Hickory.Graphics (checkForErrors)
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 

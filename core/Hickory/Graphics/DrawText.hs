@@ -34,7 +34,7 @@ import Control.Monad.Trans (MonadTrans)
 import Hickory.Color
 import Hickory.Graphics.GLSupport
 import Hickory.Text.Text
-import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), deleteVAOConfigs)
+import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), deleteVAOConfigs, VertexGroup (..), Attachment (..))
 import Hickory.Graphics.Drawing (drawVAO, bindTextures)
 import Hickory.Graphics.ShaderMonad (bindMatrix)
 import Hickory.Graphics.MatrixMonad (MatrixMonad, MatrixT)
@@ -43,6 +43,7 @@ import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
 import Linear (zero)
 import qualified Data.Vector.Storable as V
+import Hickory.Graphics.Shader (Shader)
 
 data Printer a = Printer (Font a) TexID Shader
 

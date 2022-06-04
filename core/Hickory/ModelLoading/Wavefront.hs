@@ -11,11 +11,12 @@ import Codec.Wavefront (WavefrontOBJ(..), Location(..), TexCoord(..), Normal(..)
 import qualified Codec.Wavefront as Wavefront
 
 import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (createIndexedVAO, createDirectVAO, VAO(..))
+import Hickory.Graphics.VAO (createIndexedVAO, createDirectVAO, VAO(..), VertexGroup (..), Attachment (..))
 import qualified Data.HashMap.Strict as Map
 import Control.Monad.State.Strict (State, execState, modify, gets)
 import Data.Hashable (Hashable(..))
 import Hickory.ModelLoading.Packed (ModelData(..), buildModelVAO)
+import Hickory.Graphics.Shader (Shader)
 
 loadWavefront :: FilePath -> IO WavefrontOBJ
 loadWavefront path = Wavefront.fromFile path >>= \case

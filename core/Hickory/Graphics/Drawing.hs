@@ -9,8 +9,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Graphics.GL.Compatibility41
 import Hickory.Graphics.Shader (useShader)
 import Hickory.Graphics.Textures (TexID(..))
-import Hickory.Graphics.GLSupport (DrawType, drawElements, glenumForDrawType)
-import Hickory.Graphics.VAO (VAOConfig(..), VAO(..))
+import Hickory.Graphics.GLSupport (DrawType)
+import Hickory.Graphics.VAO (VAOConfig(..), VAO(..),drawElements, glenumForDrawType)
 import Hickory.Graphics.ShaderMonad (runShaderT, ShaderT)
 
 bindTextures :: MonadIO m => [TexID] -> m ()
