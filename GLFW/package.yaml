@@ -1,0 +1,36 @@
+name:                Hickory-GLFW
+version:             0.1.0.0
+homepage:            https://github.com/asivitz/Hickory
+license:             MIT
+license-file:        LICENSE
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2022 Axis Sivitz
+
+ghc-options:
+    - -Wall
+
+default-extensions:
+  - NamedFieldPuns
+  - TemplateHaskell
+  - Rank2Types
+  - BangPatterns
+  - OverloadedStrings
+  - BlockArguments
+
+dependencies:
+  - base
+  - OpenGLRaw
+  - GLFW-b
+  - time
+  - unordered-containers
+  - Hickory
+  - Hickory-FRP
+  - linear
+
+library:
+  exposed-modules:
+    - Platforms.GLFW.Utils
+    - Platforms.GLFW.Bridge
+    - Platforms.GLFW.FRP
+    - Platforms.GLFW
