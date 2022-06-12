@@ -55,6 +55,7 @@ dependencies:
     - managed
     - vulkan
     - vulkan-utils
+    - VulkanMemoryAllocator
 
 when:
     - condition: os(osx)

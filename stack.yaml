@@ -19,6 +19,7 @@ extra-deps:
   , wavefront-0.7.1.4
   , vulkan-3.17
   , vulkan-utils-0.5.7
+  , VulkanMemoryAllocator-0.10
   ]
 
 # Override default flag values for local packages and extra-deps

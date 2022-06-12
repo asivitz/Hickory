@@ -82,6 +82,10 @@ import Vulkan
   , Fence
   , Image
   , CommandPool
+  , physicalDeviceHandle
+  , deviceHandle
+  , instanceHandle
+  , pattern API_VERSION_1_0
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -95,6 +99,7 @@ import Vulkan.CStruct.Extends (SomeStruct(..))
 import Data.List (nub)
 import Control.Applicative ((<|>))
 import Data.Traversable (for)
+import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
 
 data Bag = Bag
   { deviceContext  :: DeviceContext
@@ -359,3 +364,13 @@ createFramebuffer dev renderPass swapchainExtent imageView =
         , layers      = 1
         }
   in withFramebuffer dev framebufferCreateInfo Nothing allocate
+
+withStandardAllocator :: Instance -> PhysicalDevice -> Device -> Managed Allocator
+withStandardAllocator inst physicalDevice device = withAllocator allocInfo allocate
+  where
+  allocInfo = zero
+    { physicalDevice   = physicalDeviceHandle physicalDevice
+    , device           = deviceHandle device
+    , instance'        = instanceHandle inst
+    , vulkanApiVersion = API_VERSION_1_0
+    }
