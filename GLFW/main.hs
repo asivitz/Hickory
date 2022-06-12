@@ -86,7 +86,7 @@ import Vulkan
   , RenderPassBeginInfo(..), useCommandBuffer, ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (..), cmdBindPipeline, cmdDraw, withSemaphore, withFence, waitForFences, resetFences
   , FenceCreateInfo(..), FenceCreateFlagBits (..), acquireNextImageKHR, CommandBuffer(..), resetCommandBuffer
   , SubmitInfo(..)
-  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Semaphore, Fence
+  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Semaphore, Fence, Image
   )
 import qualified Vulkan
 import Foreign (alloca, nullPtr, peek, Bits ((.|.)))
@@ -113,22 +113,34 @@ data Bag = Bag
   , commandBuffers :: V.Vector CommandBuffer
   , framebuffers   :: V.Vector Framebuffer
   , deviceContext  :: DeviceContext
+  , swapchain      :: Swapchain
   }
 
 data DeviceContext = DeviceContext
   { device            :: Device
-  , swapchain         :: SwapchainKHR
-  , format            :: Format
-  , swapchainExtent   :: Extent2D
+  , surfaceFormat     :: SurfaceFormatKHR
   , graphicsQueue     :: Queue
   , presentQueue      :: Queue
   , graphicsFamilyIdx :: Word32
   , presentFamilyIdx  :: Word32
+  , physicalDevice    :: PhysicalDevice
+  , presentMode       :: PresentModeKHR
+  }
+
+data Swapchain = Swapchain
+  { imageFormat       :: SurfaceFormatKHR
+  , maxFramesInFlight :: Int
+  , swapchainHandle   :: SwapchainKHR
+  , imageCount        :: Int
+  , images            :: V.Vector Image
+  , imageViews        :: V.Vector ImageView
+  , extent            :: Extent2D
   }
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" $ \win Bag{..} -> do
   let DeviceContext {..} = deviceContext
+      Swapchain {..} = swapchain
   runManaged do
     imageAvailableSemaphore <- withSemaphore device zero Nothing allocate
     renderFinishedSemaphore <- withSemaphore device zero Nothing allocate
@@ -140,7 +152,7 @@ main = withWindow 800 800 "Vulkan Test" $ \win Bag{..} -> do
       _ <- waitForFences device [ inFlightFence ] True maxBound
       resetFences device [ inFlightFence ]
 
-      (_, imageIndex) <- acquireNextImageKHR device swapchain maxBound imageAvailableSemaphore zero
+      (_, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
 
       for_ commandBuffers $ \x -> resetCommandBuffer x zero
 
@@ -148,7 +160,7 @@ main = withWindow 800 800 "Vulkan Test" $ \win Bag{..} -> do
         let renderPassBeginInfo = zero
               { renderPass  = renderpass
               , framebuffer = framebuffer
-              , renderArea  = Rect2D { offset = zero , extent = swapchainExtent }
+              , renderArea  = Rect2D { offset = zero , extent = extent }
               , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
               }
         cmdUseRenderPass cmdBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
@@ -164,7 +176,7 @@ main = withWindow 800 800 "Vulkan Test" $ \win Bag{..} -> do
       queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
       _ <- queuePresentKHR presentQueue $ zero
         { waitSemaphores = [renderFinishedSemaphore]
-        , swapchains     = [swapchain]
+        , swapchains     = [swapchainHandle]
         , imageIndices   = [imageIndex]
         }
       pure ()
@@ -199,31 +211,12 @@ withWindow width height title f = do
           runManaged do
             inst    <- withStandardInstance $ glfwReqExts V.++ [ "VK_EXT_debug_utils",  KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ]
             surface <- withWindowSurface inst win
-            deviceContext@DeviceContext {..} <- withLogicalDevice inst surface framebufferSize
+            deviceContext@DeviceContext {..} <- withLogicalDevice inst surface
+            swapchain@Swapchain {..} <- withSwapchain deviceContext surface framebufferSize
 
-            (_, images) <- getSwapchainImagesKHR device swapchain
-            imageViews <- for images \x ->
-              let imageViewCreateInfo = zero
-                    { image            = x
-                    , viewType         = IMAGE_VIEW_TYPE_2D
-                    , format           = format
-                    , components       = zero { r = COMPONENT_SWIZZLE_IDENTITY
-                                              , g = COMPONENT_SWIZZLE_IDENTITY
-                                              , b = COMPONENT_SWIZZLE_IDENTITY
-                                              , a = COMPONENT_SWIZZLE_IDENTITY
-                                              }
-                    , subresourceRange = zero { aspectMask     = IMAGE_ASPECT_COLOR_BIT
-                                              , baseMipLevel   = 0
-                                              , levelCount     = 1
-                                              , baseArrayLayer = 0
-                                              , layerCount     = 1
-                                              }
-                    }
-              in withImageView device imageViewCreateInfo Nothing allocate
-
-            renderpass   <- withStandardRenderPass' device format
-            pipeline     <- withGraphicsPipeline device renderpass swapchainExtent
-            framebuffers <- for imageViews $ createFramebuffer device renderpass swapchainExtent
+            renderpass   <- withStandardRenderPass' device (format (surfaceFormat :: SurfaceFormatKHR))
+            pipeline     <- withGraphicsPipeline device renderpass extent
+            framebuffers <- for imageViews $ createFramebuffer device renderpass extent
 
             commandPool <-
               let commandPoolCreateInfo :: CommandPoolCreateInfo
@@ -332,8 +325,8 @@ selectPhysicalDevice inst surface = do
       <|> vheadMay formats
 
 
-withLogicalDevice :: Instance -> SurfaceKHR -> (Int, Int) -> Managed DeviceContext
-withLogicalDevice inst surface (fbWidth, fbHeight) = do
+withLogicalDevice :: Instance -> SurfaceKHR -> Managed DeviceContext
+withLogicalDevice inst surface = do
   (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx) <- selectPhysicalDevice inst surface
 
   (_, extensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
@@ -355,6 +348,10 @@ withLogicalDevice inst surface (fbWidth, fbHeight) = do
   graphicsQueue <- getDeviceQueue device graphicsFamilyIdx 0
   presentQueue  <- getDeviceQueue device presentFamilyIdx 0
 
+  pure $ DeviceContext {..}
+
+withSwapchain :: DeviceContext -> SurfaceKHR -> (Int, Int) -> Managed Swapchain
+withSwapchain DeviceContext{..} surface (fbWidth, fbHeight) = do
   capabilities <- getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
 
   let
@@ -365,7 +362,7 @@ withLogicalDevice inst surface (fbWidth, fbHeight) = do
         SurfaceCapabilitiesKHR {..} -> if maxImageCount > 0 then min maxImageCount (minImageCount + 1) else minImageCount + 1
       , imageFormat        = format (surfaceFormat :: SurfaceFormatKHR)
       , imageColorSpace    = colorSpace surfaceFormat
-      , imageExtent        = swapchainExtent
+      , imageExtent        = extent
       , imageArrayLayers   = 1
       , imageUsage         = IMAGE_USAGE_COLOR_ATTACHMENT_BIT
       , imageSharingMode   = imageSharingMode
@@ -381,17 +378,37 @@ withLogicalDevice inst surface (fbWidth, fbHeight) = do
       else ( SHARING_MODE_CONCURRENT, [graphicsFamilyIdx, presentFamilyIdx]
       )
     clamp x min' max' = max (min x max') min'
-    swapchainExtent = case capabilities of
+    extent = case capabilities of
       SurfaceCapabilitiesKHR {..} ->
         if width (currentExtent :: Extent2D) /= maxBound
         then currentExtent
         else Extent2D (clamp (fromIntegral fbWidth) (width (minImageExtent :: Extent2D)) (width (maxImageExtent :: Extent2D)))
                       (clamp (fromIntegral fbHeight) (height (minImageExtent :: Extent2D)) (height (maxImageExtent :: Extent2D)))
 
-  swapchain <- withSwapchainKHR device swapchainCreateInfo Nothing allocate
-  let format = Vulkan.format (surfaceFormat :: SurfaceFormatKHR)
+  swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing allocate
+  let imageFormat = surfaceFormat
 
-  pure $ DeviceContext {..}
+  (_, images) <- getSwapchainImagesKHR device swapchainHandle
+  imageViews <- for images \x ->
+    let imageViewCreateInfo = zero
+          { image            = x
+          , viewType         = IMAGE_VIEW_TYPE_2D
+          , format           = Vulkan.format (surfaceFormat :: SurfaceFormatKHR)
+          , components       = zero { r = COMPONENT_SWIZZLE_IDENTITY
+                                    , g = COMPONENT_SWIZZLE_IDENTITY
+                                    , b = COMPONENT_SWIZZLE_IDENTITY
+                                    , a = COMPONENT_SWIZZLE_IDENTITY
+                                    }
+          , subresourceRange = zero { aspectMask     = IMAGE_ASPECT_COLOR_BIT
+                                    , baseMipLevel   = 0
+                                    , levelCount     = 1
+                                    , baseArrayLayer = 0
+                                    , layerCount     = 1
+                                    }
+          }
+    in withImageView device imageViewCreateInfo Nothing allocate
+
+  pure $ Swapchain {..}
 
 {- GRAPHICS PIPELINE -}
 
