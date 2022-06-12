@@ -45,3 +45,4 @@ executables:
       - bytestring
       - vulkan-utils
       - monad-loops
+      - extra

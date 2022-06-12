@@ -86,7 +86,7 @@ import Vulkan
   , RenderPassBeginInfo(..), useCommandBuffer, ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (..), cmdBindPipeline, cmdDraw, withSemaphore, withFence, waitForFences, resetFences
   , FenceCreateInfo(..), FenceCreateFlagBits (..), acquireNextImageKHR, CommandBuffer(..), resetCommandBuffer
   , SubmitInfo(..)
-  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Semaphore, Fence, Image
+  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Semaphore, Fence, Image, CommandPool
   )
 import qualified Vulkan
 import Foreign (alloca, nullPtr, peek, Bits ((.|.)))
@@ -104,16 +104,24 @@ import Data.List (nub)
 import Control.Applicative ((<|>))
 import Data.Traversable (for)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
-import Data.Foldable (for_)
-import Control.Monad.Loops (whileM_)
+import Control.Monad.Extra (whenM)
 
 data Bag = Bag
   { renderpass     :: RenderPass
   , pipeline       :: Pipeline
-  , commandBuffers :: V.Vector CommandBuffer
   , framebuffers   :: V.Vector Framebuffer
   , deviceContext  :: DeviceContext
   , swapchain      :: Swapchain
+  , frames         :: V.Vector Frame
+  }
+
+-- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
+data Frame = Frame
+  { imageAvailableSemaphore :: Semaphore
+  , renderFinishedSemaphore :: Semaphore
+  , inFlightFence           :: Fence
+  , commandPool             :: CommandPool
+  , commandBuffer           :: CommandBuffer
   }
 
 data DeviceContext = DeviceContext
@@ -129,65 +137,92 @@ data DeviceContext = DeviceContext
 
 data Swapchain = Swapchain
   { imageFormat       :: SurfaceFormatKHR
-  , maxFramesInFlight :: Int
   , swapchainHandle   :: SwapchainKHR
-  , imageCount        :: Int
+  -- , imageCount        :: Int
   , images            :: V.Vector Image
   , imageViews        :: V.Vector ImageView
   , extent            :: Extent2D
   }
 
 main :: IO ()
-main = withWindow 800 800 "Vulkan Test" $ \win Bag{..} -> do
-  let DeviceContext {..} = deviceContext
-      Swapchain {..} = swapchain
-  runManaged do
-    imageAvailableSemaphore <- withSemaphore device zero Nothing allocate
-    renderFinishedSemaphore <- withSemaphore device zero Nothing allocate
-    inFlightFence           <- withFence device zero { flags = FENCE_CREATE_SIGNALED_BIT } Nothing allocate
+main = withWindow 800 800 "Vulkan Test" $ \win bag -> do
+  let loop frameNumber = do
+        GLFW.pollEvents
+        drawFrame frameNumber bag
 
-    whileM_ (not <$> liftIO (GLFW.windowShouldClose win)) do
-      liftIO GLFW.pollEvents
+        whenM (not <$> GLFW.windowShouldClose win) $ loop (frameNumber + 1)
+  loop 0
 
-      _ <- waitForFences device [ inFlightFence ] True maxBound
-      resetFences device [ inFlightFence ]
+  deviceWaitIdle (device . deviceContext $ bag)
 
-      (_, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
+drawFrame :: MonadIO m => Int -> Bag -> m ()
+drawFrame frameNumber Bag {..} = do
+  let Swapchain {..} = swapchain
+      DeviceContext {..} = deviceContext
+      Frame {..} = frames V.! (frameNumber `mod` V.length frames)
 
-      for_ commandBuffers $ \x -> resetCommandBuffer x zero
+  _ <- waitForFences device [ inFlightFence ] True maxBound
+  resetFences device [ inFlightFence ]
 
-      liftIO . for_ (V.zip framebuffers commandBuffers) $ \(framebuffer, cmdBuffer) -> useCommandBuffer cmdBuffer zero do
-        let renderPassBeginInfo = zero
-              { renderPass  = renderpass
-              , framebuffer = framebuffer
-              , renderArea  = Rect2D { offset = zero , extent = extent }
-              , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
-              }
-        cmdUseRenderPass cmdBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-          cmdBindPipeline cmdBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-          cmdDraw cmdBuffer 3 1 0 0
+  (_, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
 
-      let submitInfo = zero
-            { waitSemaphores   = [imageAvailableSemaphore]
-            , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-            , commandBuffers   = [commandBufferHandle $ commandBuffers V.! fromIntegral imageIndex]
-            , signalSemaphores = [renderFinishedSemaphore]
-            }
-      queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
-      _ <- queuePresentKHR presentQueue $ zero
-        { waitSemaphores = [renderFinishedSemaphore]
-        , swapchains     = [swapchainHandle]
-        , imageIndices   = [imageIndex]
+  let framebuffer = framebuffers V.! fromIntegral imageIndex
+
+  resetCommandBuffer commandBuffer zero
+
+  useCommandBuffer commandBuffer zero do
+    let renderPassBeginInfo = zero
+          { renderPass  = renderpass
+          , framebuffer = framebuffer
+          , renderArea  = Rect2D { offset = zero , extent = extent }
+          , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
+          }
+    cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
+      cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
+      cmdDraw commandBuffer 3 1 0 0
+
+  let submitInfo = zero
+        { waitSemaphores   = [imageAvailableSemaphore]
+        , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+        , commandBuffers   = [commandBufferHandle  commandBuffer]
+        , signalSemaphores = [renderFinishedSemaphore]
         }
-      pure ()
-
-    deviceWaitIdle device
+  queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
+  void $ queuePresentKHR presentQueue $ zero
+    { waitSemaphores = [renderFinishedSemaphore]
+    , swapchains     = [swapchainHandle]
+    , imageIndices   = [imageIndex]
+    }
 
 validationLayers :: V.Vector B.ByteString
 validationLayers = V.fromList ["VK_LAYER_KHRONOS_validation"]
 
 allocate :: IO a -> (a -> IO ()) -> Managed a
 allocate c d = managed (bracket c d)
+
+{- FRAME -}
+
+withFrame :: DeviceContext -> Managed Frame
+withFrame DeviceContext {..} = do
+  commandPool <-
+    let commandPoolCreateInfo :: CommandPoolCreateInfo
+        commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT }
+    in withCommandPool device commandPoolCreateInfo Nothing allocate
+
+  commandBuffer <- V.head <$>
+    let commandBufferAllocateInfo :: CommandBufferAllocateInfo
+        commandBufferAllocateInfo = zero
+          { commandPool        = commandPool
+          , level              = COMMAND_BUFFER_LEVEL_PRIMARY
+          , commandBufferCount = 1
+          }
+    in withCommandBuffers device commandBufferAllocateInfo allocate
+
+  imageAvailableSemaphore <- withSemaphore device zero Nothing allocate
+  renderFinishedSemaphore <- withSemaphore device zero Nothing allocate
+  inFlightFence           <- withFence device zero { flags = FENCE_CREATE_SIGNALED_BIT } Nothing allocate
+
+  pure Frame {..}
 
 {- GLFW -}
 
@@ -218,19 +253,8 @@ withWindow width height title f = do
             pipeline     <- withGraphicsPipeline device renderpass extent
             framebuffers <- for imageViews $ createFramebuffer device renderpass extent
 
-            commandPool <-
-              let commandPoolCreateInfo :: CommandPoolCreateInfo
-                  commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT }
-              in withCommandPool device commandPoolCreateInfo Nothing allocate
-
-            commandBuffers <-
-              let commandBufferAllocateInfo :: CommandBufferAllocateInfo
-                  commandBufferAllocateInfo = zero
-                    { commandPool        = commandPool
-                    , level              = COMMAND_BUFFER_LEVEL_PRIMARY
-                    , commandBufferCount = fromIntegral $ V.length framebuffers
-                    }
-              in withCommandBuffers device commandBufferAllocateInfo allocate
+            -- Need 2 frames for double buffering
+            frames <- V.replicateM 2 $ withFrame deviceContext
 
             liftIO $ f win Bag {..}
 
