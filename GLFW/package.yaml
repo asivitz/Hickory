@@ -27,21 +27,24 @@ dependencies:
   - Hickory
   - Hickory-FRP
   - linear
-
+  - vector
+  - bytestring
+  - managed
+  - vulkan
+  
 library:
   exposed-modules:
     - Platforms.GLFW.Utils
     - Platforms.GLFW.Bridge
     - Platforms.GLFW.FRP
+    - Platforms.GLFW.Vulkan
     - Platforms.GLFW
 
 executables:
   vulkan:
     main: main.hs
     dependencies:
-      - managed
-      - vulkan
-      - vector
+      - Hickory-GLFW
       - bytestring
       - vulkan-utils
       - monad-loops

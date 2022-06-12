@@ -52,6 +52,9 @@ dependencies:
     - wavefront
     - binary
     - vector-binary-instances
+    - managed
+    - vulkan
+    - vulkan-utils
 
 when:
     - condition: os(osx)
@@ -98,6 +101,7 @@ library:
     - Hickory.Types
     - Hickory.Utils.Projection
     - Hickory.Utils.Utils
+    - Hickory.Vulkan.Vulkan
 
 executables:
   pack-model:
