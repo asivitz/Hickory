@@ -54,6 +54,8 @@ withWindow width height title f = do
             deviceContext@DeviceContext {..} <- withLogicalDevice inst surface
             swapchain@Swapchain {..} <- withSwapchain deviceContext surface framebufferSize
 
+            allocator <- withStandardAllocator inst physicalDevice device
+
             renderpass   <- withStandardRenderPass' device (format (surfaceFormat :: SurfaceFormatKHR))
             framebuffers <- for imageViews $ createFramebuffer device renderpass extent
 

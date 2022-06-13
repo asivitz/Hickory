@@ -103,6 +103,7 @@ library:
     - Hickory.Utils.Projection
     - Hickory.Utils.Utils
     - Hickory.Vulkan.Vulkan
+    - Hickory.Vulkan.Mesh
 
 executables:
   pack-model:

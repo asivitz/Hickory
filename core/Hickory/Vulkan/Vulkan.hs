@@ -13,7 +13,7 @@ import Vulkan
   , ComponentMapping(..)
   , ComponentSwizzle (..)
   , CompositeAlphaFlagBitsKHR (..)
-  , Device
+  , Device (..)
   , DeviceCreateInfo(..)
   , DeviceQueueCreateInfo(..)
   , ExtensionProperties (..)
@@ -24,7 +24,7 @@ import Vulkan
   , ImageUsageFlagBits (..)
   , ImageViewCreateInfo(..)
   , ImageViewType (IMAGE_VIEW_TYPE_2D)
-  , Instance
+  , Instance (..)
   , PhysicalDevice
   , PhysicalDeviceProperties (..)
   , PhysicalDeviceType (..)
@@ -85,7 +85,7 @@ import Vulkan
   , physicalDeviceHandle
   , deviceHandle
   , instanceHandle
-  , pattern API_VERSION_1_0
+  , pattern API_VERSION_1_0, getInstanceProcAddr
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -100,6 +100,8 @@ import Data.List (nub)
 import Control.Applicative ((<|>))
 import Data.Traversable (for)
 import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
+import qualified Vulkan.Dynamic as VD
+import Foreign (castFunPtr)
 
 data Bag = Bag
   { deviceContext  :: DeviceContext
@@ -107,6 +109,7 @@ data Bag = Bag
   , renderpass     :: RenderPass
   , framebuffers   :: V.Vector Framebuffer
   , frames         :: V.Vector Frame
+  , allocator      :: Allocator
   }
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
@@ -373,4 +376,11 @@ withStandardAllocator inst physicalDevice device = withAllocator allocInfo alloc
     , device           = deviceHandle device
     , instance'        = instanceHandle inst
     , vulkanApiVersion = API_VERSION_1_0
+    , vulkanFunctions  = Just $ vmaVulkanFunctions inst device
     }
+
+vmaVulkanFunctions :: Instance -> Device -> VulkanFunctions
+vmaVulkanFunctions Instance { instanceCmds } Device { deviceCmds } = zero
+  { vkGetInstanceProcAddr = castFunPtr $ VD.pVkGetInstanceProcAddr instanceCmds
+  , vkGetDeviceProcAddr   = castFunPtr $ VD.pVkGetDeviceProcAddr deviceCmds
+  }

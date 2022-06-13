@@ -28,7 +28,9 @@ import Vulkan
   , RenderPassBeginInfo(..), useCommandBuffer, ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (..), cmdBindPipeline, cmdDraw, waitForFences, resetFences
   , acquireNextImageKHR, CommandBuffer(..), resetCommandBuffer
   , SubmitInfo(..)
-  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle
+  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Buffer
+  , cmdBindVertexBuffers
+  , PipelineVertexInputStateCreateInfo(..), VertexInputBindingDescription, VertexInputAttributeDescription
   )
 import Foreign (Bits ((.|.)))
 import Vulkan.Zero
@@ -41,25 +43,43 @@ import Control.Monad.Extra (whenM)
 
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
+import qualified Hickory.Vulkan.Mesh as H
+
+data Resources = Resources
+  { pipeline :: Pipeline
+  , meshBuf  :: Buffer
+  , mesh     :: H.Mesh
+  }
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
   runManaged do
-    pipeline <- withGraphicsPipeline device renderpass extent
+    let mesh = [ (H.Position, [ 0.0, -0.5, 0.0
+                              , 0.5, 0.5, 0.0
+                              , -0.5, 0.5, 0.0
+                              ])
+               , (H.Color, [ 1.0, 0.0, 0.0
+                           , 0.0, 1.0, 0.0
+                           , 0.0, 0.0, 1.0
+                           ])]
+
+    pipeline <- withGraphicsPipeline device renderpass extent [H.meshBindingDescription mesh] (H.meshAttributeDescriptions mesh)
+
+    meshBuf <- H.withMeshBuffer allocator mesh
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
-          drawFrame frameNumber bag pipeline
+          drawFrame frameNumber bag Resources {..}
 
           whenM (not <$> liftIO (GLFW.windowShouldClose win)) $ loop (frameNumber + 1)
     loop 0
 
     deviceWaitIdle device
 
-drawFrame :: MonadIO m => Int -> Bag -> Pipeline -> m ()
-drawFrame frameNumber Bag {..} pipeline = do
+drawFrame :: MonadIO m => Int -> Bag -> Resources -> m ()
+drawFrame frameNumber Bag {..} Resources {..} = do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
       Frame {..} = frames V.! (frameNumber `mod` V.length frames)
@@ -82,7 +102,8 @@ drawFrame frameNumber Bag {..} pipeline = do
           }
     cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
       cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-      cmdDraw commandBuffer 3 1 0 0
+      cmdBindVertexBuffers commandBuffer 0 [meshBuf] [0]
+      cmdDraw commandBuffer (fromIntegral $ H.numVerts mesh) 1 0 0
 
   let submitInfo = zero
         { waitSemaphores   = [imageAvailableSemaphore]
@@ -100,8 +121,8 @@ drawFrame frameNumber Bag {..} pipeline = do
 
 {- GRAPHICS PIPELINE -}
 
-withGraphicsPipeline :: Device -> RenderPass -> Extent2D -> Managed Pipeline
-withGraphicsPipeline dev renderPass swapchainExtent = do
+withGraphicsPipeline :: Device -> RenderPass -> Extent2D -> V.Vector VertexInputBindingDescription -> V.Vector VertexInputAttributeDescription -> Managed Pipeline
+withGraphicsPipeline dev renderPass swapchainExtent vertexBindingDescription vertexAttributeDescriptions = do
   shaderStages   <- sequence [ createVertShader dev vertShader, createFragShader dev fragShader ]
   pipelineLayout <- withPipelineLayout dev zero Nothing allocate
 
@@ -109,7 +130,10 @@ withGraphicsPipeline dev renderPass swapchainExtent = do
     pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
     pipelineCreateInfo = zero
       { stages             = shaderStages
-      , vertexInputState   = Just zero
+      , vertexInputState   = Just . SomeStruct $ zero
+        { vertexBindingDescriptions   = vertexBindingDescription
+        , vertexAttributeDescriptions = vertexAttributeDescriptions
+        }
       , inputAssemblyState = Just zero
           { topology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
           , primitiveRestartEnable = False
@@ -184,23 +208,13 @@ vertShader :: B.ByteString
 vertShader = [vert|
   #version 450
 
+  layout(location = 0) in vec3 inPosition;
+  layout(location = 1) in vec3 inColor;
   layout(location = 0) out vec3 fragColor;
 
-  vec3 colors[3] = vec3[](
-      vec3(1.0, 0.0, 0.0),
-      vec3(0.0, 1.0, 0.0),
-      vec3(0.0, 0.0, 1.0)
-  );
-
-  vec2 positions[3] = vec2[](
-      vec2(0.0, -0.5),
-      vec2(0.5, 0.5),
-      vec2(-0.5, 0.5)
-  );
-
   void main() {
-      gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-      fragColor = colors[gl_VertexIndex];
+      gl_Position = vec4(inPosition, 1.0);
+      fragColor = inColor;
   }
 
 |]
