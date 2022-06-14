@@ -5,7 +5,7 @@ module Main where
 
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Monad
-import Control.Monad.Managed
+import Control.Monad.Managed (Managed, runManaged)
 import Vulkan
   ( Device
   , Extent2D (..)
@@ -31,8 +31,10 @@ import Vulkan
   , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Buffer
   , cmdBindVertexBuffers
   , PipelineVertexInputStateCreateInfo(..), VertexInputBindingDescription, VertexInputAttributeDescription
+  , PipelineLayoutCreateInfo(..)
+  , PushConstantRange(..), cmdPushConstants, PipelineLayout
   )
-import Foreign (Bits ((.|.)))
+import Foreign ( Bits((.|.)), sizeOf, castPtr, with )
 import Vulkan.Zero
 import qualified Data.Vector as V
 
@@ -44,11 +46,15 @@ import Control.Monad.Extra (whenM)
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
+import Linear.Matrix (identity)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Linear (M44)
 
 data Resources = Resources
-  { pipeline :: Pipeline
-  , meshBuf  :: Buffer
-  , mesh     :: H.Mesh
+  { pipeline       :: Pipeline
+  , pipelineLayout :: PipelineLayout
+  , meshBuf        :: Buffer
+  , mesh           :: H.Mesh
   }
 
 main :: IO ()
@@ -65,7 +71,18 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
                            , 0.0, 0.0, 1.0
                            ])]
 
-    pipeline <- withGraphicsPipeline device renderpass extent [H.meshBindingDescription mesh] (H.meshAttributeDescriptions mesh)
+
+    let
+      pipelineLayoutCreateInfo = zero
+        { pushConstantRanges = [
+            zero
+              { size = fromIntegral $ sizeOf (undefined :: M44 Float)
+              , stageFlags = SHADER_STAGE_VERTEX_BIT
+              }
+          ]
+        }
+    pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
+    pipeline <- withGraphicsPipeline device renderpass extent pipelineLayout [H.meshBindingDescription mesh] (H.meshAttributeDescriptions mesh)
 
     meshBuf <- H.withMeshBuffer allocator mesh
 
@@ -103,6 +120,9 @@ drawFrame frameNumber Bag {..} Resources {..} = do
     cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
       cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
       cmdBindVertexBuffers commandBuffer 0 [meshBuf] [0]
+      let mat = identity :: M44 Float
+      liftIO . with mat $
+        cmdPushConstants commandBuffer pipelineLayout SHADER_STAGE_VERTEX_BIT 0 (fromIntegral $ sizeOf mat) . castPtr
       cmdDraw commandBuffer (fromIntegral $ H.numVerts mesh) 1 0 0
 
   let submitInfo = zero
@@ -121,10 +141,9 @@ drawFrame frameNumber Bag {..} Resources {..} = do
 
 {- GRAPHICS PIPELINE -}
 
-withGraphicsPipeline :: Device -> RenderPass -> Extent2D -> V.Vector VertexInputBindingDescription -> V.Vector VertexInputAttributeDescription -> Managed Pipeline
-withGraphicsPipeline dev renderPass swapchainExtent vertexBindingDescription vertexAttributeDescriptions = do
+withGraphicsPipeline :: Device -> RenderPass -> Extent2D -> PipelineLayout -> V.Vector VertexInputBindingDescription -> V.Vector VertexInputAttributeDescription -> Managed Pipeline
+withGraphicsPipeline dev renderPass swapchainExtent pipelineLayout vertexBindingDescription vertexAttributeDescriptions = do
   shaderStages   <- sequence [ createVertShader dev vertShader, createFragShader dev fragShader ]
-  pipelineLayout <- withPipelineLayout dev zero Nothing allocate
 
   let
     pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
@@ -212,8 +231,13 @@ vertShader = [vert|
   layout(location = 1) in vec3 inColor;
   layout(location = 0) out vec3 fragColor;
 
+  layout( push_constant ) uniform constants
+  {
+    mat4 modelViewMatrix;
+  } PushConstants;
+
   void main() {
-      gl_Position = vec4(inPosition, 1.0);
+      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
       fragColor = inColor;
   }
 
