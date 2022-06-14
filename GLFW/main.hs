@@ -84,7 +84,7 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
     pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
     pipeline <- withGraphicsPipeline device renderpass extent pipelineLayout [H.meshBindingDescription mesh] (H.meshAttributeDescriptions mesh)
 
-    meshBuf <- H.withMeshBuffer allocator mesh
+    meshBuf <- H.withVertexBuffer bag mesh
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents

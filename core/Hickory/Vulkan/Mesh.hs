@@ -1,23 +1,29 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE DuplicateRecordFields  #-}
+{-# LANGUAGE DataKinds, PatternSynonyms  #-}
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Hickory.Vulkan.Mesh where
 
+import Control.Monad.Managed ( runManaged, Managed, liftIO )
 import Data.Binary
 import Data.Vector.Binary ()
 import Data.Vector.Storable as SV
 import Data.Vector as V
 import Data.Functor ((<&>))
-import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..))
+import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle)
 import Foreign (sizeOf, (.|.), castPtr)
 import qualified Data.List as List
 import GHC.Generics (Generic)
-import Hickory.Vulkan.Vulkan (allocate)
+import Hickory.Vulkan.Vulkan (allocate, Bag (..), DeviceContext (..))
 import Vulkan.Zero (zero)
 import VulkanMemoryAllocator (AllocationCreateInfo(requiredFlags), Allocator, Allocation, AllocationInfo, withMappedMemory)
 import qualified VulkanMemoryAllocator as VMA
-import Control.Monad.Managed (Managed, liftIO)
 import Control.Exception (bracket)
 import Foreign.Marshal.Array (copyArray)
+import Control.Monad.IO.Class (MonadIO)
+import Vulkan.CStruct.Extends (SomeStruct(..))
 
 type Mesh = [(Attribute, SV.Vector Float)]
 
@@ -92,16 +98,56 @@ withBuffer allocator usageFlags requiredFlags size = VMA.withBuffer allocator bu
     }
   allocInfo = zero { requiredFlags = requiredFlags }
 
-
-withMeshBuffer :: Allocator -> Mesh -> Managed Buffer
-withMeshBuffer allocator mesh = do
+withVertexBuffer :: Bag -> Mesh -> Managed Buffer
+withVertexBuffer bag@Bag {..} mesh = do
   let packed = pack mesh
       bufferSize = fromIntegral $ SV.length packed * sizeOf (SV.head packed)
-      memFlags = MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT
-  (buffer, alloc, _) <- withBuffer allocator BUFFER_USAGE_VERTEX_BUFFER_BIT memFlags bufferSize
+  -- Rather than copying directly from CPU to GPU, we want the buffer to
+  -- live in memory only accesible from GPU for better peformance.
+  -- So we set up a staging buffer on the GPU, transfer from CPU to staging,
+  -- and then go from staging to optimized memory.
 
-  liftIO $ withMappedMemory allocator alloc bracket \bptr -> do
+  -- Set up the staging buffer
+  (stagingBuffer, stagingAlloc, _) <- withBuffer allocator
+    BUFFER_USAGE_TRANSFER_SRC_BIT
+    (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    bufferSize
+
+  liftIO $ withMappedMemory allocator stagingAlloc bracket \bptr -> do
     SV.unsafeWith packed \vptr ->
       copyArray (castPtr bptr) vptr (SV.length packed)
 
+  -- Set up the real buffer on the GPU and copy from the staging buffer
+  (buffer, _, _) <- withBuffer allocator
+    (BUFFER_USAGE_TRANSFER_DST_BIT .|. BUFFER_USAGE_VERTEX_BUFFER_BIT)
+    MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    bufferSize
+
+  copyBuffer bag stagingBuffer buffer bufferSize
+
   pure buffer
+
+copyBuffer :: MonadIO m => Bag -> Buffer -> Buffer -> DeviceSize -> m ()
+copyBuffer Bag {..} srcBuf dstBuf bufferSize = liftIO $ runManaged do
+  let DeviceContext {..} = deviceContext
+
+  -- Need a temporary command buffer for copy commands
+  commandBuffer <- V.head <$>
+    let commandBufferAllocateInfo :: CommandBufferAllocateInfo
+        commandBufferAllocateInfo = zero
+          { commandPool        = shortLivedCommandPool
+          , level              = COMMAND_BUFFER_LEVEL_PRIMARY
+          , commandBufferCount = 1
+          }
+    in withCommandBuffers device commandBufferAllocateInfo allocate
+
+  let beginInfo :: CommandBufferBeginInfo '[]
+      beginInfo = zero { flags = COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT }
+  useCommandBuffer commandBuffer beginInfo do
+    let copyInfo :: BufferCopy
+        copyInfo = zero { size = bufferSize }
+    cmdCopyBuffer commandBuffer srcBuf dstBuf [copyInfo]
+
+  let submitInfo = zero { commandBuffers = [commandBufferHandle commandBuffer] }
+  queueSubmit graphicsQueue [SomeStruct submitInfo] zero
+  queueWaitIdle graphicsQueue

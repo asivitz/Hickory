@@ -20,7 +20,7 @@ import Vulkan
   , destroySurfaceKHR
   , instanceHandle
   , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-  , withInstance
+  , withInstance, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
   )
 import Foreign (alloca, nullPtr, peek)
 import Vulkan.Zero
@@ -61,6 +61,10 @@ withWindow width height title f = do
 
             -- Need 2 frames for double buffering
             frames <- V.replicateM 2 $ withFrame deviceContext
+            shortLivedCommandPool <-
+              let commandPoolCreateInfo :: CommandPoolCreateInfo
+                  commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_TRANSIENT_BIT }
+              in withCommandPool device commandPoolCreateInfo Nothing allocate
 
             liftIO $ f win Bag {..}
 

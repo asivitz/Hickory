@@ -104,12 +104,13 @@ import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr)
 
 data Bag = Bag
-  { deviceContext  :: DeviceContext
-  , swapchain      :: Swapchain
-  , renderpass     :: RenderPass
-  , framebuffers   :: V.Vector Framebuffer
-  , frames         :: V.Vector Frame
-  , allocator      :: Allocator
+  { deviceContext         :: DeviceContext
+  , swapchain             :: Swapchain
+  , renderpass            :: RenderPass
+  , framebuffers          :: V.Vector Framebuffer
+  , frames                :: V.Vector Frame
+  , allocator             :: Allocator
+  , shortLivedCommandPool :: CommandPool -- For, e.g., mem copy commands
   }
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
