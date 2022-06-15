@@ -29,14 +29,16 @@ import Vulkan
   , acquireNextImageKHR, CommandBuffer(..), resetCommandBuffer
   , SubmitInfo(..)
   , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Buffer
-  , cmdBindVertexBuffers
+  , cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed
   , PipelineVertexInputStateCreateInfo(..), VertexInputBindingDescription, VertexInputAttributeDescription
   , PipelineLayoutCreateInfo(..)
   , PushConstantRange(..), cmdPushConstants, PipelineLayout
+  , pattern INDEX_TYPE_UINT32
   )
 import Foreign ( Bits((.|.)), sizeOf, castPtr, with )
 import Vulkan.Zero
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 
 import qualified Data.ByteString as B
 import Vulkan.CStruct.Extends (SomeStruct(..))
@@ -54,6 +56,7 @@ data Resources = Resources
   { pipeline       :: Pipeline
   , pipelineLayout :: PipelineLayout
   , meshBuf        :: Buffer
+  , indexBuf       :: Buffer
   , mesh           :: H.Mesh
   }
 
@@ -62,15 +65,20 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
   runManaged do
-    let mesh = [ (H.Position, [ 0.0, -0.5, 0.0
-                              , 0.5, 0.5, 0.0
-                              , -0.5, 0.5, 0.0
+    let mesh = H.Mesh
+          { vertices =
+               [ (H.Position, [ -0.5, -0.5, 0.0
+                              ,  0.5, -0.5, 0.0
+                              ,  0.5,  0.5, 0.0
+                              , -0.5,  0.5, 0.0
                               ])
                , (H.Color, [ 1.0, 0.0, 0.0
                            , 0.0, 1.0, 0.0
                            , 0.0, 0.0, 1.0
+                           , 1.0, 1.0, 1.0
                            ])]
-
+          , indices = [0, 1, 2, 2, 3, 0]
+          }
 
     let
       pipelineLayoutCreateInfo = zero
@@ -84,7 +92,8 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
     pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
     pipeline <- withGraphicsPipeline device renderpass extent pipelineLayout [H.meshBindingDescription mesh] (H.meshAttributeDescriptions mesh)
 
-    meshBuf <- H.withVertexBuffer bag mesh
+    meshBuf  <- H.withVertexBuffer bag (H.pack mesh)
+    indexBuf <- H.withIndexBuffer bag (H.indices mesh)
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
@@ -120,10 +129,12 @@ drawFrame frameNumber Bag {..} Resources {..} = do
     cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
       cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
       cmdBindVertexBuffers commandBuffer 0 [meshBuf] [0]
+      cmdBindIndexBuffer commandBuffer indexBuf 0 INDEX_TYPE_UINT32
       let mat = identity :: M44 Float
       liftIO . with mat $
         cmdPushConstants commandBuffer pipelineLayout SHADER_STAGE_VERTEX_BIT 0 (fromIntegral $ sizeOf mat) . castPtr
-      cmdDraw commandBuffer (fromIntegral $ H.numVerts mesh) 1 0 0
+      -- cmdDraw commandBuffer (fromIntegral $ H.numVerts mesh) 1 0 0
+      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ H.indices mesh) 1 0 0 0
 
   let submitInfo = zero
         { waitSemaphores   = [imageAvailableSemaphore]
