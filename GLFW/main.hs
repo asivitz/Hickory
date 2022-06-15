@@ -55,9 +55,7 @@ import Linear (M44)
 data Resources = Resources
   { pipeline       :: Pipeline
   , pipelineLayout :: PipelineLayout
-  , meshBuf        :: Buffer
-  , indexBuf       :: Buffer
-  , mesh           :: H.Mesh
+  , square         :: H.BufferedMesh
   }
 
 main :: IO ()
@@ -65,20 +63,20 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
   runManaged do
-    let mesh = H.Mesh
-          { vertices =
-               [ (H.Position, [ -0.5, -0.5, 0.0
-                              ,  0.5, -0.5, 0.0
-                              ,  0.5,  0.5, 0.0
-                              , -0.5,  0.5, 0.0
-                              ])
-               , (H.Color, [ 1.0, 0.0, 0.0
-                           , 0.0, 1.0, 0.0
-                           , 0.0, 0.0, 1.0
-                           , 1.0, 1.0, 1.0
-                           ])]
-          , indices = [0, 1, 2, 2, 3, 0]
-          }
+    square <- H.withBufferedMesh bag $ H.Mesh
+      { vertices =
+            [ (H.Position, [ -0.5, -0.5, 0.0
+                          ,  0.5, -0.5, 0.0
+                          ,  0.5,  0.5, 0.0
+                          , -0.5,  0.5, 0.0
+                          ])
+            , (H.Color, [ 1.0, 0.0, 0.0
+                        , 0.0, 1.0, 0.0
+                        , 0.0, 0.0, 1.0
+                        , 1.0, 1.0, 1.0
+                        ])]
+      , indices = Just [0, 1, 2, 2, 3, 0]
+      }
 
     let
       pipelineLayoutCreateInfo = zero
@@ -90,10 +88,7 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
           ]
         }
     pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
-    pipeline <- withGraphicsPipeline device renderpass extent pipelineLayout [H.meshBindingDescription mesh] (H.meshAttributeDescriptions mesh)
-
-    meshBuf  <- H.withVertexBuffer bag (H.pack mesh)
-    indexBuf <- H.withIndexBuffer bag (H.indices mesh)
+    pipeline <- withGraphicsPipeline device renderpass extent pipelineLayout [H.meshBindingDescription (H.mesh square)] (H.meshAttributeDescriptions (H.mesh square))
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
@@ -128,13 +123,10 @@ drawFrame frameNumber Bag {..} Resources {..} = do
           }
     cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
       cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-      cmdBindVertexBuffers commandBuffer 0 [meshBuf] [0]
-      cmdBindIndexBuffer commandBuffer indexBuf 0 INDEX_TYPE_UINT32
       let mat = identity :: M44 Float
       liftIO . with mat $
         cmdPushConstants commandBuffer pipelineLayout SHADER_STAGE_VERTEX_BIT 0 (fromIntegral $ sizeOf mat) . castPtr
-      -- cmdDraw commandBuffer (fromIntegral $ H.numVerts mesh) 1 0 0
-      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ H.indices mesh) 1 0 0 0
+      H.cmdDrawBufferedMesh commandBuffer square
 
   let submitInfo = zero
         { waitSemaphores   = [imageAvailableSemaphore]

@@ -12,7 +12,7 @@ import Data.Vector.Binary ()
 import Data.Vector.Storable as SV
 import Data.Vector as V
 import Data.Functor ((<&>))
-import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle)
+import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle, CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed, cmdDraw, pattern INDEX_TYPE_UINT32)
 import Foreign (sizeOf, (.|.), castPtr)
 import qualified Data.List as List
 import GHC.Generics (Generic)
@@ -27,8 +27,14 @@ import Vulkan.CStruct.Extends (SomeStruct(..))
 
 data Mesh = Mesh
   { vertices :: [(Attribute, SV.Vector Float)]
-  , indices :: SV.Vector Word32
+  , indices :: Maybe (SV.Vector Word32)
   } deriving Generic
+
+data BufferedMesh = BufferedMesh
+  { mesh         :: Mesh
+  , vertexBuffer :: Buffer
+  , indexBuffer  :: Maybe Buffer
+  }
 
 writeToFile :: FilePath -> Mesh -> IO ()
 writeToFile = encodeFile
@@ -91,6 +97,23 @@ meshAttributeDescriptions = V.fromList . snd . List.mapAccumL mk 0 . vertices
       , offset = fromIntegral $ stride' * sizeOf (0 :: Float)
       }
     )
+
+withBufferedMesh :: Bag -> Mesh -> Managed BufferedMesh
+withBufferedMesh bag mesh@Mesh {..} = do
+  vertexBuffer <- withVertexBuffer bag (pack mesh)
+  indexBuffer  <- traverse (withIndexBuffer bag) indices
+  pure BufferedMesh {..}
+
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> BufferedMesh -> m ()
+cmdDrawBufferedMesh commandBuffer BufferedMesh {..} = do
+  cmdBindVertexBuffers commandBuffer 0 [vertexBuffer] [0]
+  case (indices mesh, indexBuffer) of
+    (Just is, Just ibuf) -> do
+      cmdBindIndexBuffer commandBuffer ibuf 0 INDEX_TYPE_UINT32
+      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ is) 1 0 0 0
+    (Nothing, Nothing) -> do
+      cmdDraw commandBuffer (fromIntegral $ numVerts mesh) 1 0 0
+    _ -> error "Mesh has indices but they aren't buffered."
 
 {- Buffer Utils -}
 
