@@ -1,44 +1,22 @@
 {-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE DataKinds, OverloadedLists, QuasiQuotes #-}
+{-# LANGUAGE DataKinds, OverloadedLists, QuasiQuotes, TypeApplications #-}
 
 module Main where
 
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Monad
-import Control.Monad.Managed (Managed, runManaged)
+import Control.Monad.Managed (runManaged)
 import Vulkan
-  ( Device
-  , Extent2D (..)
-  , GraphicsPipelineCreateInfo(..)
-  , Pipeline
-  , PipelineInputAssemblyStateCreateInfo(..)
-  , PipelineShaderStageCreateInfo(..)
-  , RenderPass
-  , ShaderModuleCreateInfo(..)
-  , ShaderStageFlagBits (..)
-  , withShaderModule
-  , Viewport (..)
-  , PipelineViewportStateCreateInfo(..), Rect2D (..)
-  , PipelineRasterizationStateCreateInfo(..)
-  , PipelineMultisampleStateCreateInfo(..)
-  , PipelineColorBlendAttachmentState(..)
-  , PipelineColorBlendStateCreateInfo(..), PrimitiveTopology (..), Offset2D (..), withPipelineLayout, PolygonMode (..), CullModeFlagBits (..), FrontFace (..), SampleCountFlagBits (..), ColorComponentFlagBits (..), withGraphicsPipelines
-  , PipelineBindPoint (..)
+  ( ShaderStageFlagBits (..)
+  , Rect2D (..)
   , PipelineStageFlagBits (..)
-  , RenderPassBeginInfo(..), useCommandBuffer, ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (..), cmdBindPipeline, cmdDraw, waitForFences, resetFences
+  , RenderPassBeginInfo(..), useCommandBuffer, ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (..), waitForFences, resetFences
   , acquireNextImageKHR, CommandBuffer(..), resetCommandBuffer
   , SubmitInfo(..)
-  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle, Buffer
-  , cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed
-  , PipelineVertexInputStateCreateInfo(..), VertexInputBindingDescription, VertexInputAttributeDescription
-  , PipelineLayoutCreateInfo(..)
-  , PushConstantRange(..), cmdPushConstants, PipelineLayout
-  , pattern INDEX_TYPE_UINT32
+  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle
   )
-import Foreign ( Bits((.|.)), sizeOf, castPtr, with )
 import Vulkan.Zero
 import qualified Data.Vector as V
-import qualified Data.Vector.Storable as SV
 
 import qualified Data.ByteString as B
 import Vulkan.CStruct.Extends (SomeStruct(..))
@@ -51,17 +29,17 @@ import qualified Hickory.Vulkan.Mesh as H
 import Linear.Matrix (identity)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Linear (M44)
+import Data.Proxy (Proxy(..))
 
 data Resources = Resources
-  { pipeline       :: Pipeline
-  , pipelineLayout :: PipelineLayout
-  , square         :: H.BufferedMesh
+  { square             :: H.BufferedMesh
+  , solidColorMaterial :: H.Material
+  , texturedMaterial   :: H.Material
   }
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
-  let Swapchain {..} = swapchain
-      DeviceContext {..} = deviceContext
+  let DeviceContext {..} = deviceContext
   runManaged do
     square <- H.withBufferedMesh bag $ H.Mesh
       { vertices =
@@ -83,18 +61,8 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
             ]
       , indices = Just [0, 1, 2, 2, 3, 0]
       }
-
-    let
-      pipelineLayoutCreateInfo = zero
-        { pushConstantRanges = [
-            zero
-              { size = fromIntegral $ sizeOf (undefined :: M44 Float)
-              , stageFlags = SHADER_STAGE_VERTEX_BIT
-              }
-          ]
-        }
-    pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
-    pipeline <- withGraphicsPipeline device renderpass extent pipelineLayout [H.meshBindingDescription (H.mesh square)] (H.meshAttributeDescriptions (H.mesh square))
+    solidColorMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader
+    texturedMaterial   <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
@@ -128,10 +96,8 @@ drawFrame frameNumber Bag {..} Resources {..} = do
           , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
           }
     cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-      cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-      let mat = identity :: M44 Float
-      liftIO . with mat $
-        cmdPushConstants commandBuffer pipelineLayout SHADER_STAGE_VERTEX_BIT 0 (fromIntegral $ sizeOf mat) . castPtr
+      H.cmdBindMaterial commandBuffer solidColorMaterial
+      H.cmdPushMaterialConstants commandBuffer solidColorMaterial SHADER_STAGE_VERTEX_BIT (identity :: M44 Float)
       H.cmdDrawBufferedMesh commandBuffer square
 
   let submitInfo = zero
@@ -147,90 +113,7 @@ drawFrame frameNumber Bag {..} Resources {..} = do
     , imageIndices   = [imageIndex]
     }
 
-
-{- GRAPHICS PIPELINE -}
-
-withGraphicsPipeline :: Device -> RenderPass -> Extent2D -> PipelineLayout -> V.Vector VertexInputBindingDescription -> V.Vector VertexInputAttributeDescription -> Managed Pipeline
-withGraphicsPipeline dev renderPass swapchainExtent pipelineLayout vertexBindingDescription vertexAttributeDescriptions = do
-  shaderStages   <- sequence [ createVertShader dev vertShader, createFragShader dev fragShader ]
-
-  let
-    pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
-    pipelineCreateInfo = zero
-      { stages             = shaderStages
-      , vertexInputState   = Just . SomeStruct $ zero
-        { vertexBindingDescriptions   = vertexBindingDescription
-        , vertexAttributeDescriptions = vertexAttributeDescriptions
-        }
-      , inputAssemblyState = Just zero
-          { topology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
-          , primitiveRestartEnable = False
-          }
-      , viewportState = Just . SomeStruct $ zero
-        { viewports =
-          [ Viewport
-              { x        = 0
-              , y        = 0
-              , width    = realToFrac $ width  (swapchainExtent :: Extent2D)
-              , height   = realToFrac $ height (swapchainExtent :: Extent2D)
-              , minDepth = 0
-              , maxDepth = 1
-              }
-          ]
-        , scissors  = [ Rect2D { offset = Offset2D 0 0, extent = swapchainExtent } ]
-        }
-      , rasterizationState = Just . SomeStruct $ zero
-          { depthClampEnable        = False
-          , rasterizerDiscardEnable = False
-          , polygonMode             = POLYGON_MODE_FILL
-          , lineWidth               = 1
-          , cullMode                = CULL_MODE_BACK_BIT
-          , frontFace               = FRONT_FACE_CLOCKWISE
-          , depthBiasEnable         = False
-          }
-      , multisampleState = Just . SomeStruct $ zero
-          { sampleShadingEnable  = False
-          , rasterizationSamples = SAMPLE_COUNT_1_BIT
-          }
-      , depthStencilState = Nothing
-      , colorBlendState = Just . SomeStruct $ zero
-          { logicOpEnable = False
-          , attachments =
-            [ zero
-              { colorWriteMask
-                =   COLOR_COMPONENT_R_BIT
-                .|. COLOR_COMPONENT_G_BIT
-                .|. COLOR_COMPONENT_B_BIT
-                .|. COLOR_COMPONENT_A_BIT
-              , blendEnable = False
-              }
-            ]
-          }
-      , dynamicState       = Nothing
-      , layout             = pipelineLayout
-      , renderPass         = renderPass
-      , subpass            = 0
-      , basePipelineHandle = zero
-      }
-  V.head . snd
-    <$> withGraphicsPipelines dev zero [SomeStruct pipelineCreateInfo] Nothing allocate
-
 {-- SHADERS --}
-
-createVertShader :: Device -> B.ByteString -> Managed (SomeStruct PipelineShaderStageCreateInfo)
-createVertShader = createShader SHADER_STAGE_VERTEX_BIT
-
-createFragShader :: Device -> B.ByteString -> Managed (SomeStruct PipelineShaderStageCreateInfo)
-createFragShader = createShader SHADER_STAGE_FRAGMENT_BIT
-
-createShader :: ShaderStageFlagBits -> Device -> B.ByteString -> Managed (SomeStruct PipelineShaderStageCreateInfo)
-createShader stage dev source = do
-  shaderModule <- withShaderModule dev zero { code = source } Nothing allocate
-  pure . SomeStruct $ zero
-    { stage = stage
-    , module' = shaderModule
-    , name = "main"
-    }
 
 vertShader :: B.ByteString
 vertShader = [vert|

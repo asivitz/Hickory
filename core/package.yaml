@@ -56,6 +56,7 @@ dependencies:
     - vulkan
     - vulkan-utils
     - VulkanMemoryAllocator
+    - bytestring
 
 when:
     - condition: os(osx)
