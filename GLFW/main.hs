@@ -74,7 +74,13 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
                         , 0.0, 1.0, 0.0
                         , 0.0, 0.0, 1.0
                         , 1.0, 1.0, 1.0
-                        ])]
+                        ])
+            , (H.TextureCoord, [ 0.0, 0.0
+                               , 1.0, 0.0
+                               , 1.0, 1.0
+                               , 0.0, 1.0
+                               ])
+            ]
       , indices = Just [0, 1, 2, 2, 3, 0]
       }
 
@@ -232,7 +238,10 @@ vertShader = [vert|
 
   layout(location = 0) in vec3 inPosition;
   layout(location = 1) in vec3 inColor;
+  layout(location = 3) in vec2 inTexCoord;
+
   layout(location = 0) out vec3 fragColor;
+  layout(location = 1) out vec2 texCoord;
 
   layout( push_constant ) uniform constants
   {
@@ -242,6 +251,7 @@ vertShader = [vert|
   void main() {
       gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
       fragColor = inColor;
+      texCoord = inTexCoord;
   }
 
 |]
@@ -251,6 +261,8 @@ fragShader = [frag|
   #version 450
 
   layout(location = 0) in vec3 fragColor;
+  layout(location = 1) in vec2 texCoord;
+
   layout(location = 0) out vec4 outColor;
 
   void main() {

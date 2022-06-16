@@ -10,8 +10,6 @@ import Control.Monad
 import Control.Monad.Managed
 import Vulkan
   ( ColorSpaceKHR (COLOR_SPACE_SRGB_NONLINEAR_KHR)
-  , ComponentMapping(..)
-  , ComponentSwizzle (..)
   , CompositeAlphaFlagBitsKHR (..)
   , Device (..)
   , DeviceCreateInfo(..)
@@ -85,7 +83,7 @@ import Vulkan
   , physicalDeviceHandle
   , deviceHandle
   , instanceHandle
-  , pattern API_VERSION_1_0, getInstanceProcAddr
+  , pattern API_VERSION_1_0
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -259,7 +257,7 @@ withLogicalDevice inst surface = do
   pure $ DeviceContext {..}
 
 withSwapchain :: DeviceContext -> SurfaceKHR -> (Int, Int) -> Managed Swapchain
-withSwapchain DeviceContext{..} surface (fbWidth, fbHeight) = do
+withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
   capabilities <- getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
 
   let
@@ -297,24 +295,7 @@ withSwapchain DeviceContext{..} surface (fbWidth, fbHeight) = do
   let imageFormat = surfaceFormat
 
   (_, images) <- getSwapchainImagesKHR device swapchainHandle
-  imageViews <- for images \x ->
-    let imageViewCreateInfo = zero
-          { image            = x
-          , viewType         = IMAGE_VIEW_TYPE_2D
-          , format           = Vulkan.format (surfaceFormat :: SurfaceFormatKHR)
-          , components       = zero { r = COMPONENT_SWIZZLE_IDENTITY
-                                    , g = COMPONENT_SWIZZLE_IDENTITY
-                                    , b = COMPONENT_SWIZZLE_IDENTITY
-                                    , a = COMPONENT_SWIZZLE_IDENTITY
-                                    }
-          , subresourceRange = zero { aspectMask     = IMAGE_ASPECT_COLOR_BIT
-                                    , baseMipLevel   = 0
-                                    , levelCount     = 1
-                                    , baseArrayLayer = 0
-                                    , layerCount     = 1
-                                    }
-          }
-    in withImageView device imageViewCreateInfo Nothing allocate
+  imageViews <- for images $ with2DImageView dc (Vulkan.format (surfaceFormat :: SurfaceFormatKHR))
 
   pure $ Swapchain {..}
 
@@ -385,3 +366,21 @@ vmaVulkanFunctions Instance { instanceCmds } Device { deviceCmds } = zero
   { vkGetInstanceProcAddr = castFunPtr $ VD.pVkGetInstanceProcAddr instanceCmds
   , vkGetDeviceProcAddr   = castFunPtr $ VD.pVkGetDeviceProcAddr deviceCmds
   }
+
+with2DImageView :: DeviceContext -> Format -> Image -> Managed ImageView
+with2DImageView DeviceContext { device } format image =
+  withImageView device imageViewCreateInfo Nothing allocate
+  where
+  imageViewCreateInfo = zero
+    { image      = image
+    , viewType   = IMAGE_VIEW_TYPE_2D
+    , format     = format
+    , components = zero
+    , subresourceRange = zero
+      { aspectMask     = IMAGE_ASPECT_COLOR_BIT
+      , baseMipLevel   = 0
+      , levelCount     = 1
+      , baseArrayLayer = 0
+      , layerCount     = 1
+      }
+    }

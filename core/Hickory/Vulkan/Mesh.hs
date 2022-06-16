@@ -166,7 +166,13 @@ withBuffer bag@Bag {..} usageFlags dat = do
   pure buffer
 
 copyBuffer :: MonadIO m => Bag -> Buffer -> Buffer -> DeviceSize -> m ()
-copyBuffer Bag {..} srcBuf dstBuf bufferSize = liftIO $ runManaged do
+copyBuffer bag srcBuf dstBuf bufferSize = withSingleTimeCommands bag \commandBuffer -> do
+    let copyInfo :: BufferCopy
+        copyInfo = zero { size = bufferSize }
+    cmdCopyBuffer commandBuffer srcBuf dstBuf [copyInfo]
+
+withSingleTimeCommands :: MonadIO m => Bag -> (CommandBuffer -> IO ()) -> m ()
+withSingleTimeCommands Bag {..} f = liftIO $ runManaged do
   let DeviceContext {..} = deviceContext
 
   -- Need a temporary command buffer for copy commands
@@ -182,9 +188,7 @@ copyBuffer Bag {..} srcBuf dstBuf bufferSize = liftIO $ runManaged do
   let beginInfo :: CommandBufferBeginInfo '[]
       beginInfo = zero { flags = COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT }
   useCommandBuffer commandBuffer beginInfo do
-    let copyInfo :: BufferCopy
-        copyInfo = zero { size = bufferSize }
-    cmdCopyBuffer commandBuffer srcBuf dstBuf [copyInfo]
+    liftIO $ f commandBuffer
 
   let submitInfo = zero { commandBuffers = [commandBufferHandle commandBuffer] }
   queueSubmit graphicsQueue [SomeStruct submitInfo] zero
