@@ -29,8 +29,9 @@ import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
 import Linear.Matrix (identity)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Linear (M44)
+import Linear (M44, V3 (..))
 import Data.Proxy (Proxy(..))
+import Hickory.Math (mkTranslation)
 
 data Resources = Resources
   { square             :: H.BufferedMesh
@@ -62,8 +63,8 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
             ]
       , indices = Just [0, 1, 2, 2, 3, 0]
       }
-    solidColorMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader "star.png"
-    texturedMaterial   <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader "star.png"
+    solidColorMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader []
+    texturedMaterial   <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader texFragShader ["star.png"]
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
@@ -99,6 +100,10 @@ drawFrame frameNumber Bag {..} Resources {..} = do
     cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
       H.cmdBindMaterial commandBuffer solidColorMaterial
       H.cmdPushMaterialConstants commandBuffer solidColorMaterial SHADER_STAGE_VERTEX_BIT (identity :: M44 Float)
+      H.cmdDrawBufferedMesh commandBuffer square
+
+      H.cmdBindMaterial commandBuffer texturedMaterial
+      H.cmdPushMaterialConstants commandBuffer solidColorMaterial SHADER_STAGE_VERTEX_BIT (mkTranslation (V3 0.7 0.0 0.0) :: M44 Float)
       H.cmdDrawBufferedMesh commandBuffer square
 
   let submitInfo = zero
@@ -142,6 +147,21 @@ vertShader = [vert|
 
 fragShader :: B.ByteString
 fragShader = [frag|
+  #version 450
+
+  layout(location = 0) in vec3 fragColor;
+  layout(location = 1) in vec2 texCoord;
+
+  layout(location = 0) out vec4 outColor;
+
+  void main() {
+    outColor = vec4(fragColor, 1.0);
+  }
+
+|]
+
+texFragShader :: B.ByteString
+texFragShader = [frag|
   #version 450
 
   layout(location = 0) in vec3 fragColor;
