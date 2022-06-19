@@ -26,6 +26,7 @@ import Control.Monad.Extra (whenM)
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
+import qualified Hickory.Vulkan.Material as H
 import Linear.Matrix (identity)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Linear (M44)
@@ -61,8 +62,8 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
             ]
       , indices = Just [0, 1, 2, 2, 3, 0]
       }
-    solidColorMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader
-    texturedMaterial   <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader
+    solidColorMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader "star.png"
+    texturedMaterial   <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader "star.png"
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
@@ -146,10 +147,12 @@ fragShader = [frag|
   layout(location = 0) in vec3 fragColor;
   layout(location = 1) in vec2 texCoord;
 
+  layout(binding = 0) uniform sampler2D texSampler;
+
   layout(location = 0) out vec4 outColor;
 
   void main() {
-    outColor = vec4(fragColor, 1.0);
+    outColor = vec4(fragColor, 1.0) * texture(texSampler, texCoord);
   }
 
 |]

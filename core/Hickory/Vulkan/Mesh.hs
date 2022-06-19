@@ -12,17 +12,12 @@ import Data.Vector.Binary ()
 import Data.Vector.Storable as SV
 import Data.Vector as V
 import Data.Functor ((<&>))
-import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle, CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed, cmdDraw, pattern INDEX_TYPE_UINT32, PipelineLayoutCreateInfo(..), Pipeline, PipelineLayout
-  , PushConstantRange(..), PipelineLayout, ShaderStageFlagBits
-  , withPipelineLayout
-  , cmdPushConstants
-  , cmdBindPipeline
-  , pattern PIPELINE_BIND_POINT_GRAPHICS
+import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle, CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed, cmdDraw, pattern INDEX_TYPE_UINT32
   )
-import Foreign (sizeOf, (.|.), castPtr, with)
+import Foreign (sizeOf, (.|.), castPtr)
 import qualified Data.List as List
 import GHC.Generics (Generic)
-import Hickory.Vulkan.Vulkan (allocate, Bag (..), DeviceContext (..), withGraphicsPipeline)
+import Hickory.Vulkan.Vulkan (allocate, Bag (..), DeviceContext (..))
 import Vulkan.Zero (zero)
 import VulkanMemoryAllocator (AllocationCreateInfo(requiredFlags), Allocator, Allocation, AllocationInfo, withMappedMemory)
 import qualified VulkanMemoryAllocator as VMA
@@ -30,8 +25,6 @@ import Control.Exception (bracket)
 import Foreign.Marshal.Array (copyArray)
 import Control.Monad.IO.Class (MonadIO)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Data.Proxy (Proxy (..))
-import qualified Data.ByteString as B
 
 data Mesh = Mesh
   { vertices :: [(Attribute, SV.Vector Float)]
@@ -42,11 +35,6 @@ data BufferedMesh = BufferedMesh
   { mesh         :: Mesh
   , vertexBuffer :: Buffer
   , indexBuffer  :: Maybe Buffer
-  }
-
-data Material = Material
-  { pipeline       :: Pipeline
-  , pipelineLayout :: PipelineLayout
   }
 
 writeToFile :: FilePath -> Mesh -> IO ()
@@ -209,29 +197,3 @@ withSingleTimeCommands Bag {..} f = liftIO $ runManaged do
   let submitInfo = zero { commandBuffers = [commandBufferHandle commandBuffer] }
   queueSubmit graphicsQueue [SomeStruct submitInfo] zero
   queueWaitIdle graphicsQueue
-
-{- Materials -}
-
-withMaterial :: Storable a => Bag -> [(Proxy a, ShaderStageFlagBits)] -> [Attribute] -> B.ByteString -> B.ByteString -> Managed Material
-withMaterial bag@Bag {..} pushConstants attrs vertShader fragShader = do
-  let
-    DeviceContext {..} = deviceContext
-    pipelineLayoutCreateInfo = zero
-      { pushConstantRanges = V.fromList $ pushConstants <&> \case
-        (Proxy :: Proxy b, stageFlags) -> zero
-          { size = fromIntegral $ sizeOf (undefined :: b)
-          , stageFlags = stageFlags
-          }
-      }
-  pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
-  pipeline <- withGraphicsPipeline bag vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
-  pure Material {..}
-
-cmdBindMaterial :: MonadIO m => CommandBuffer -> Material -> m ()
-cmdBindMaterial commandBuffer Material {..} =
-  cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-
-
-cmdPushMaterialConstants :: (MonadIO m, Storable a) => CommandBuffer -> Material -> ShaderStageFlagBits -> a -> m ()
-cmdPushMaterialConstants commandBuffer Material {..} flagBits a =
-  liftIO $ with a $ cmdPushConstants commandBuffer pipelineLayout flagBits 0 (fromIntegral $ sizeOf a) . castPtr

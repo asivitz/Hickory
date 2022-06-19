@@ -105,6 +105,8 @@ library:
     - Hickory.Utils.Utils
     - Hickory.Vulkan.Vulkan
     - Hickory.Vulkan.Mesh
+    - Hickory.Vulkan.Material
+    - Hickory.Vulkan.Textures
 
 executables:
   pack-model:
