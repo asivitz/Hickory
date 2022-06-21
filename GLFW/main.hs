@@ -4,22 +4,13 @@
 module Main where
 
 import qualified Graphics.UI.GLFW as GLFW
-import Control.Monad
 import Control.Monad.Managed (runManaged)
 import Vulkan
   ( ShaderStageFlagBits (..)
-  , Rect2D (..)
-  , PipelineStageFlagBits (..)
-  , RenderPassBeginInfo(..), useCommandBuffer, ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (..), waitForFences, resetFences
-  , acquireNextImageKHR, CommandBuffer(..), resetCommandBuffer
-  , SubmitInfo(..)
-  , PresentInfoKHR(..), queueSubmit, queuePresentKHR, deviceWaitIdle
+  , deviceWaitIdle
   )
-import Vulkan.Zero
-import qualified Data.Vector as V
 
 import qualified Data.ByteString as B
-import Vulkan.CStruct.Extends (SomeStruct(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 import Control.Monad.Extra (whenM)
 
@@ -27,11 +18,12 @@ import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
-import Linear.Matrix (identity)
+import Linear.Matrix ((!*!))
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Linear (M44, V3 (..))
+import Linear ( M44, V3(..), transpose )
 import Data.Proxy (Proxy(..))
-import Hickory.Math (mkTranslation)
+import Hickory.Math (perspectiveProjection)
+import Hickory.Math.Matrix (mkRotation)
 
 data Resources = Resources
   { square             :: H.BufferedMesh
@@ -45,11 +37,11 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
   runManaged do
     square <- H.withBufferedMesh bag $ H.Mesh
       { vertices =
-            [ (H.Position, [ -0.5, -0.5, 0.0
-                          ,  0.5, -0.5, 0.0
-                          ,  0.5,  0.5, 0.0
-                          , -0.5,  0.5, 0.0
-                          ])
+            [ (H.Position, [ -0.5, -0.5, 1.0
+                           ,  0.5, -0.5, 1.0
+                           ,  0.5,  0.5, 1.0
+                           , -0.5,  0.5, 1.0
+                           ])
             , (H.Color, [ 1.0, 0.0, 0.0
                         , 0.0, 1.0, 0.0
                         , 0.0, 0.0, 1.0
@@ -68,56 +60,28 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
-          drawFrame frameNumber bag Resources {..}
+          drawFrame frameNumber bag \commandBuffer -> do
+
+            let
+              screenRatio = 1
+
+              mat :: M44 Float
+              mat = perspectiveProjection screenRatio (pi / 2) 10 0.1
+                !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
+
+
+            H.cmdBindMaterial commandBuffer solidColorMaterial
+            H.cmdPushMaterialConstants commandBuffer solidColorMaterial SHADER_STAGE_VERTEX_BIT (transpose mat)
+            H.cmdDrawBufferedMesh commandBuffer square
+
+            -- H.cmdBindMaterial commandBuffer texturedMaterial
+            -- H.cmdPushMaterialConstants commandBuffer texturedMaterial SHADER_STAGE_VERTEX_BIT (mkTranslation (V3 1.0 0.0 0.0) :: M44 Float)
+            -- H.cmdDrawBufferedMesh commandBuffer square
 
           whenM (not <$> liftIO (GLFW.windowShouldClose win)) $ loop (frameNumber + 1)
     loop 0
 
     deviceWaitIdle device
-
-drawFrame :: MonadIO m => Int -> Bag -> Resources -> m ()
-drawFrame frameNumber Bag {..} Resources {..} = do
-  let Swapchain {..} = swapchain
-      DeviceContext {..} = deviceContext
-      Frame {..} = frames V.! (frameNumber `mod` V.length frames)
-
-  _ <- waitForFences device [ inFlightFence ] True maxBound
-  resetFences device [ inFlightFence ]
-
-  (_, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
-
-  let framebuffer = framebuffers V.! fromIntegral imageIndex
-
-  resetCommandBuffer commandBuffer zero
-
-  useCommandBuffer commandBuffer zero do
-    let renderPassBeginInfo = zero
-          { renderPass  = renderpass
-          , framebuffer = framebuffer
-          , renderArea  = Rect2D { offset = zero , extent = extent }
-          , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
-          }
-    cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-      H.cmdBindMaterial commandBuffer solidColorMaterial
-      H.cmdPushMaterialConstants commandBuffer solidColorMaterial SHADER_STAGE_VERTEX_BIT (identity :: M44 Float)
-      H.cmdDrawBufferedMesh commandBuffer square
-
-      H.cmdBindMaterial commandBuffer texturedMaterial
-      H.cmdPushMaterialConstants commandBuffer solidColorMaterial SHADER_STAGE_VERTEX_BIT (mkTranslation (V3 0.7 0.0 0.0) :: M44 Float)
-      H.cmdDrawBufferedMesh commandBuffer square
-
-  let submitInfo = zero
-        { waitSemaphores   = [imageAvailableSemaphore]
-        , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-        , commandBuffers   = [commandBufferHandle  commandBuffer]
-        , signalSemaphores = [renderFinishedSemaphore]
-        }
-  queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
-  void $ queuePresentKHR presentQueue $ zero
-    { waitSemaphores = [renderFinishedSemaphore]
-    , swapchains     = [swapchainHandle]
-    , imageIndices   = [imageIndex]
-    }
 
 {-- SHADERS --}
 

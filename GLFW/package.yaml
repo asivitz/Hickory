@@ -31,6 +31,7 @@ dependencies:
   - bytestring
   - managed
   - vulkan
+  - lens
   
 library:
   exposed-modules:

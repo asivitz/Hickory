@@ -112,8 +112,9 @@ withMaterial bag@Bag {..} pushConstants attrs vertShader fragShader texturePaths
   let
     pipelineLayoutCreateInfo = zero
       { pushConstantRanges = V.fromList $ pushConstants <&> \case
-        (Proxy :: Proxy b, stageFlags) -> zero
+        (Proxy :: Proxy b, stageFlags) -> PushConstantRange
           { size = fromIntegral $ sizeOf (undefined :: b)
+          , offset = 0
           , stageFlags = stageFlags
           }
       , setLayouts = V.fromList . maybeToList . fmap descriptorSetLayout $ materialDescriptor

@@ -99,6 +99,9 @@ import Vulkan
   , ShaderStageFlagBits (..)
   , withShaderModule
   , PipelineShaderStageCreateInfo(..)
+  , RenderPassBeginInfo(..)
+  , SubmitInfo(..)
+  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -492,4 +495,43 @@ createShader stage dev source = do
     { stage = stage
     , module' = shaderModule
     , name = "main"
+    }
+
+{- Drawing a frame -}
+drawFrame :: MonadIO m => Int -> Bag -> (CommandBuffer -> IO ()) -> m ()
+drawFrame frameNumber Bag {..} f = do
+  let Swapchain {..} = swapchain
+      DeviceContext {..} = deviceContext
+      Frame {..} = frames V.! (frameNumber `mod` V.length frames)
+
+  _ <- waitForFences device [ inFlightFence ] True maxBound
+  resetFences device [ inFlightFence ]
+
+  (_, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
+
+  let framebuffer = framebuffers V.! fromIntegral imageIndex
+
+  resetCommandBuffer commandBuffer zero
+
+  useCommandBuffer commandBuffer zero do
+    let renderPassBeginInfo = zero
+          { renderPass  = renderpass
+          , framebuffer = framebuffer
+          , renderArea  = Rect2D { offset = zero , extent = extent }
+          , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
+          }
+    cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
+      liftIO $ f commandBuffer
+
+  let submitInfo = zero
+        { waitSemaphores   = [imageAvailableSemaphore]
+        , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+        , commandBuffers   = [commandBufferHandle  commandBuffer]
+        , signalSemaphores = [renderFinishedSemaphore]
+        }
+  queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
+  void $ queuePresentKHR presentQueue $ zero
+    { waitSemaphores = [renderFinishedSemaphore]
+    , swapchains     = [swapchainHandle]
+    , imageIndices   = [imageIndex]
     }

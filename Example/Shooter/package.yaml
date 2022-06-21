@@ -28,6 +28,11 @@ dependencies:
     - generic-lens
     - containers
     - mtl
+    - vector
+    - managed
+    - vulkan
+    - vulkan-utils
+    - extra
 
 default-extensions:
     - LambdaCase

@@ -9,7 +9,7 @@ import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
 import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper)
-import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll)
+import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll, MonadIO (..), mapEventIO)
 import qualified Data.HashMap.Strict as HashMap
 import Linear (V2(..))
 import Data.Time (NominalDiffTime)
@@ -51,7 +51,7 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
   pure (ePointDown, ePointUp, ePointLoc)
 
 
-concatTouchEvents :: CoreEvents -> Event [TouchEvent]
+concatTouchEvents :: CoreEvents a -> Event [TouchEvent]
 concatTouchEvents CoreEvents {..} = mconcat
   [ map (\(v,i)   -> Down i v) <$> eTouchesDown
   , map (\(_,v,i) -> Up i v)   <$> eTouchesUp
@@ -73,8 +73,8 @@ mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
       -- keyUp k = filterE (==k) eKeyUp
   pure (eKey, keyDownOrHeld, eKeyUp)
 
-data CoreEventGenerators = CoreEventGenerators
-  { renderEvent :: HandlerPair Scalar
+data CoreEventGenerators a = CoreEventGenerators
+  { renderEvent :: HandlerPair a
   , touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
                    , HandlerPair [(Double, V2 Scalar, Int)]
                    , HandlerPair [(V2 Scalar, Int)])
@@ -83,8 +83,8 @@ data CoreEventGenerators = CoreEventGenerators
   , windowSize  :: IORef (Size Int)
   }
 
-data CoreEvents = CoreEvents
-  { eRender       :: Event Scalar
+data CoreEvents a = CoreEvents
+  { eRender       :: Event a
   , eTime         :: Event NominalDiffTime
   , keyDown       :: Event Key
   , keyDownOrHeld :: Key -> Event Key
@@ -98,7 +98,7 @@ data CoreEvents = CoreEvents
   , eNewTime      :: Event NominalDiffTime
   }
 
-coreEventGenerators :: IO [RawInput] -> IO NominalDiffTime -> IORef (Size Int) -> IO (IO (), CoreEventGenerators)
+coreEventGenerators :: IO [RawInput] -> IO NominalDiffTime -> IORef (Size Int) -> IO (a -> IO (), CoreEventGenerators a)
 coreEventGenerators inputPoller timePoller wSizeRef = do
 
   touchPairs <- touchHandlers
@@ -106,11 +106,8 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
   timePair   <- newAddHandler
   renderPair <- newAddHandler
 
-  fpsTicker  <- makeFPSTicker
-
-  let processor = do
-        fps <- fpsTicker
-        fire renderPair fps
+  let processor x = do
+        fire renderPair x
 
         (inputPoller >>=) . mapM_ $ \case
           InputKeyDown k -> fire (_1 keyPairs) k
@@ -124,7 +121,7 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
 
   pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef)
 
-mkCoreEvents :: CoreEventGenerators -> MomentIO CoreEvents
+mkCoreEvents :: CoreEventGenerators a -> MomentIO (CoreEvents a)
 mkCoreEvents coreEvGens = do
   (eTouchesDown, eTouchesUp, eTouchesLoc) <- mkTouchEvents . touchEvents $ coreEvGens
   (keyDown, keyDownOrHeld, keyUp)         <- mkKeyEvents   . keyEvents $ coreEvGens
@@ -132,7 +129,10 @@ mkCoreEvents coreEvGens = do
   eRender <- mkEvent . renderEvent $ coreEvGens
 
   scrSizeB <- fromPoll . readIORef . windowSize $ coreEvGens
-  fpsB     <- stepper 0 eRender
+
+  fpsTicker <- liftIO makeFPSTicker
+  eFPS <- mapEventIO (const fpsTicker) eRender
+  fpsB <- stepper 0 eFPS
 
   (eNewTime, currentTimeB) <- mapAccum 0 $ (\timeDelt x -> (timeDelt + x, timeDelt + x)) <$> eTime
 

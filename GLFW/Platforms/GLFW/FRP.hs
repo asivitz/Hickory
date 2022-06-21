@@ -5,9 +5,9 @@ import Hickory.Platform (makeTimePoller)
 import Platforms.GLFW (getGLFWWindowSizeRef, makeGLFWInputPoller)
 import qualified Graphics.UI.GLFW as GLFW
 
-glfwCoreEventGenerators :: GLFW.Window -> IO (IO (), CoreEventGenerators)
+glfwCoreEventGenerators :: GLFW.Window -> IO (a -> IO (), CoreEventGenerators a)
 glfwCoreEventGenerators win = do
-  wSizeRef   <- getGLFWWindowSizeRef win
+  wSizeRef    <- getGLFWWindowSizeRef win
   inputPoller <- makeGLFWInputPoller win wSizeRef
-  timePoller <- makeTimePoller
+  timePoller  <- makeTimePoller
   coreEventGenerators inputPoller timePoller wSizeRef

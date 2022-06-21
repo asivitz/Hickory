@@ -251,7 +251,7 @@ quaternionFromList [a,b,c,d] = Quaternion (negate a) (V3 b c d)
 quaternionFromList _ = error "Can't build quaternion. Wrong size list."
 
 parseMatrix4x4 :: Parser Mat44
-parseMatrix4x4 = mat44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
+parseMatrix4x4 = m44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
 
 memberItems :: [Parser b] -> Parser [b]
 memberItems = mapM terminate

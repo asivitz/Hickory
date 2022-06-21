@@ -6,38 +6,56 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever, unless, (<=<))
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader (MonadReader, asks)
-import Data.Foldable (for_)
-import Data.IORef (IORef, newIORef)
-import Data.Maybe (maybeToList, fromJust)
+import Control.Monad.IO.Class ( MonadIO, MonadIO(liftIO) )
+import Control.Monad.Reader (MonadReader, runReaderT, ask)
+import Data.Maybe (maybeToList)
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
-import Hickory.Color
 import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
 import Hickory.FRP.Game (timeStep)
 import Hickory.FRP.UI (topLeft)
 import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale)
-import Hickory.Resources (pull, readerFromIORef)
 import Hickory.Types
-import Linear (zero, V2(..), V3(..), (^*), (!*!))
+import Linear ( V2(..), V3(..), (^*), M44, V3(..), (!*!), transpose )
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
-import Platforms.GLFW.Utils
-import Reactive.Banana ((<@))
-import qualified Data.HashMap.Strict as Map
+import Reactive.Banana ((<@>))
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Hickory.Graphics as H
-import qualified Hickory.Text.Text as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
+
+import qualified Platforms.GLFW.Vulkan as GLFWV
+import qualified Hickory.Vulkan.Vulkan as H
+
+import Control.Monad
+import Control.Monad.Managed (Managed, runManaged)
+import Vulkan
+  ( ShaderStageFlagBits (..)
+  , CommandBuffer(..)
+  , deviceWaitIdle
+  )
+
+import qualified Data.ByteString as B
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
+import Control.Monad.Extra (whenM)
+
+import Hickory.Vulkan.Vulkan
+import qualified Hickory.Vulkan.Mesh as H
+import qualified Hickory.Vulkan.Material as H
+import Data.Proxy (Proxy(..))
+import Data.Foldable (for_)
 
 -- ** GAMEPLAY **
 
@@ -56,7 +74,7 @@ data Msg = Fire | AddMove Vec | SubMove Vec
 
 -- By default, our firingDirection is to the right
 newGame :: Model
-newGame = Model zero zero (V2 1 0) []
+newGame = Model (V2 0 0) (V2 0 0) (V2 1 0) []
 
 stepF :: (NominalDiffTime, [Msg]) -> Model -> Model
 stepF (delta, msgs) mdl = foldr stepMsg (physics delta mdl) msgs
@@ -98,79 +116,88 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 
 -- The resources used by our rendering function
 data Resources = Resources
-  { missileTex  :: H.TexID
-  , vaoCache    :: H.VAOCache -- Holds geometry, e.g. simple squares or complex 3d models
-  , printer     :: H.Printer Int -- For text rendering
+  { square         :: H.BufferedMesh
+  , solidMaterial  :: H.Material
+  , circleMaterial :: H.Material
+  -- , printer     :: H.Printer Int -- For text rendering
   }
 
 -- Set up our scene, load assets, etc.
-loadResources :: String -> IO Resources
-loadResources path = do
-  let shaderVersion = "410"
-  -- To draw the missiles, we also need a shader that can draw
-  -- textures, and the actual missile texture
-  solid    <- H.loadSolidShader shaderVersion
-  textured <- H.loadTexturedShader shaderVersion
+loadResources :: Bag -> String -> Managed Resources
+loadResources bag path = do
+  square <- H.withBufferedMesh bag $ H.Mesh
+    { vertices =
+          [ (H.Position, [ -0.5, -0.5, 0.0
+                        ,  0.5, -0.5, 0.0
+                        ,  0.5,  0.5, 0.0
+                        , -0.5,  0.5, 0.0
+                        ])
+          , (H.TextureCoord, [ 0.0, 0.0
+                              , 1.0, 0.0
+                              , 1.0, 1.0
+                              , 0.0, 1.0
+                              ])
+          ]
+    , indices = Just [0, 1, 2, 2, 3, 0]
+    }
+  solidMaterial  <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader []
+  circleMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader texFragShader [path ++ "/images/circle.png"]
 
+  {-
   -- A shader for drawing text
   pvcshader <- H.loadPVCShader shaderVersion
-
-  -- Our missile texture
-  missiletex <- H.loadTexture' path ("circle.png", H.texLoadDefaults)
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
   -- generated using the bmGlyph program for Mac
   pr <- H.loadPrinter path pvcshader "gidolinya"
+  -}
 
-  -- We'll use some square geometry and draw our texture on top
-  vaoCache <- Map.fromList <$> traverse sequence
-    [("square",    H.mkSquareVAOObj 0.5 solid)     -- for solid color squares
-    ,("squaretex", H.mkSquareVAOObj 0.5 textured)] -- for textured squares
-
-  pure $ Resources missiletex vaoCache (fromJust pr)
+  pure $ Resources {..}
 
 -- Our render function
-renderGame :: (MonadIO m, MonadReader Resources m, H.DynamicVAOMonad m, H.PrinterMonad m) => Size Double-> Model -> NominalDiffTime -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime = do
+renderGame :: (MonadIO m, MonadReader Resources m) => Size Double -> Model -> NominalDiffTime -> CommandBuffer -> m ()
+renderGame scrSize Model { playerPos, missiles } _gameTime commandBuffer = do
+  Resources {..} <- ask
   H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
-    missileTex <- asks missileTex
-    tex <- pull vaoCache "squaretex"
     for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
-      H.drawVAO tex do -- within a draw command, we can bind inputs to our shader
-        H.bindTextures [missileTex]
-        H.bindUniform "color" red
-        H.bindMatrix "modelMat"
-    pull vaoCache "square" >>= flip H.drawVAO do
-      H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) $ H.bindMatrix "modelMat"
-      H.bindUniform "color" white
+      mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+      H.cmdBindMaterial commandBuffer circleMaterial
+      H.cmdPushMaterialConstants commandBuffer circleMaterial SHADER_STAGE_VERTEX_BIT mat
+      H.cmdDrawBufferedMesh commandBuffer square
+    H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
+      mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+      H.cmdBindMaterial commandBuffer solidMaterial
+      H.cmdPushMaterialConstants commandBuffer solidMaterial SHADER_STAGE_VERTEX_BIT mat
+      H.cmdDrawBufferedMesh commandBuffer square
 
   H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
     H.xform (mkTranslation (topLeft 20 20 scrSize)) do
-      H.drawText $ H.textcommand { H.color = white, H.text = "Arrow keys move, Space shoots", H.align = H.AlignLeft, H.fontSize = 5 }
+      pure ()
+      -- H.drawText $ H.textcommand { H.color = white, H.text = "Arrow keys move, Space shoots", H.align = H.AlignLeft, H.fontSize = 5 }
 
   where
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
-        camera = Camera proj (V3 0 0 10) zero (V3 0 1 0)
+        camera = Camera proj (V3 0 0 10) (V3 0 0 0) (V3 0 1 0)
     in viewProjectionMatrix camera (aspectRatio size)
   uiCameraMatrix size@(Size w _h) =
     let proj = Ortho w (-20) 1 False
-        camera = Camera proj zero (V3 0 0 (-1)) (V3 0 1 0)
+        camera = Camera proj (V3 0 0 0) (V3 0 0 (-1)) (V3 0 1 0)
     in viewProjectionMatrix camera (aspectRatio size)
 
 -- ** INPUT **
 
 -- Translating raw input to game input
 isMoveKey :: Key -> Bool
-isMoveKey key = key `elem` [Key'Up, Key'Down, Key'Left, Key'Right]
+isMoveKey key = key `elem` ([Key'Up, Key'Down, Key'Left, Key'Right] :: [Key])
 
 moveKeyVec :: Key -> Vec
 moveKeyVec key = case key of
-  Key'Up    -> V2 0 1
-  Key'Down  -> V2 0 (-1)
+  Key'Up    -> V2 0 (-1)
+  Key'Down  -> V2 0 1
   Key'Left  -> V2 (-1) 0
   Key'Right -> V2 1 0
-  _ -> zero
+  _ -> V2 0 0
 
 procKeyDown :: Key -> Maybe Msg
 procKeyDown k =
@@ -190,8 +217,8 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
 
 -- Build the FRP network
-buildNetwork :: IORef Resources -> CoreEventGenerators -> IO ()
-buildNetwork resRef evGens = do
+buildNetwork :: Resources -> CoreEventGenerators CommandBuffer -> IO ()
+buildNetwork resources evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
 
@@ -211,30 +238,80 @@ buildNetwork resRef evGens = do
     let mdl = snd <$> mdlPair
 
     -- every time we get a 'render' event tick, draw the screen
-    B.reactimate $ readerFromIORef resRef . H.withDynamicVAOs . H.withPrinting printer <$>
-      (renderGame <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <*> currentTime)
-      <@ eRender coreEvents
+    B.reactimate $ flip runReaderT resources <$>
+      (renderGame <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <*> currentTime <@> eRender coreEvents)
 
 main :: IO ()
-main = withWindow 750 750 "Demo" $ \win -> do
-  H.configGLState 0.125 0.125 0.125
-  resources <- newIORef
-           =<< loadResources "Example/Shooter/assets"
+main = GLFWV.withWindow 750 750 "Demo" $ \win bag@H.Bag {..} -> do
+  let H.DeviceContext {..} = deviceContext
+  runManaged do
+    resources <- loadResources bag "Example/Shooter/assets"
+    liftIO do
+      -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
+      (coreEvProc, evGens) <- glfwCoreEventGenerators win
 
-  -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
-  (coreEvProc, evGens) <- glfwCoreEventGenerators win
+      -- build and run the FRP network
+      buildNetwork resources evGens
 
-  -- build and run the FRP network
-  buildNetwork resources evGens
+      let loop frameNumber = do
+            -- check the input buffers and generate FRP events
+            H.drawFrame frameNumber bag coreEvProc
 
-  forever $ do
-    coreEvProc -- check the input buffers and generate FRP events
+            focused <- GLFW.getWindowFocused win
 
-    GLFW.swapBuffers win -- present latest drawn frame
-    H.clearDepth
-    H.clearScreen
+            -- don't consume CPU when the window isn't focused
+            unless focused (threadDelay 100000)
+            whenM (not <$> GLFW.windowShouldClose win) $ loop (frameNumber + 1)
+      loop 0
+      deviceWaitIdle device
 
-    focused <- GLFW.getWindowFocused win
+vertShader :: B.ByteString
+vertShader = [vert|
+  #version 450
 
-    -- don't consume CPU when the window isn't focused
-    unless focused (threadDelay 100000)
+  layout(location = 0) in vec3 inPosition;
+  layout(location = 3) in vec2 inTexCoord;
+
+  layout(location = 1) out vec2 texCoord;
+
+  layout( push_constant ) uniform constants
+  {
+    mat4 modelViewMatrix;
+  } PushConstants;
+
+  void main() {
+      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
+      texCoord = inTexCoord;
+  }
+
+|]
+
+fragShader :: B.ByteString
+fragShader = [frag|
+  #version 450
+
+  layout(location = 1) in vec2 texCoord;
+
+  layout(location = 0) out vec4 outColor;
+
+  void main() {
+    outColor = vec4(1.0);
+  }
+
+|]
+
+texFragShader :: B.ByteString
+texFragShader = [frag|
+  #version 450
+
+  layout(location = 1) in vec2 texCoord;
+
+  layout(binding = 0) uniform sampler2D texSampler;
+
+  layout(location = 0) out vec4 outColor;
+
+  void main() {
+    outColor = texture(texSampler, texCoord);
+  }
+
+|]

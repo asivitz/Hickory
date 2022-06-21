@@ -4,7 +4,7 @@ module Hickory.Camera where
 
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
-import Linear (V3, lerp, (!*!), perspective, lookAt, ortho)
+import Linear (V3, lerp, (!*!))
 
 data Projection = Perspective
   { fov :: Scalar
@@ -27,17 +27,17 @@ data Camera = Camera
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
-  perspective fov (realToFrac screenRatio) nearPlane farPlane
+  perspectiveProjection fov (realToFrac screenRatio) nearPlane farPlane
 shotMatrix Ortho { width, near, far, shouldCenter } screenRatio = if shouldCenter
-  then ortho (-(width / 2)) (width / 2) (-(height / 2)) (height / 2) near far
-  else ortho 0 width 0 height near far
+  then orthographicProjection (-(width / 2)) (width / 2) (-(height / 2)) (height / 2) near far
+  else orthographicProjection 0 width 0 height near far
   where height = width / realToFrac screenRatio
 
 viewProjectionMatrix :: Camera -> Scalar -> Mat44
 viewProjectionMatrix camera screenRatio = projectionMatrix camera screenRatio !*! viewMatrix camera
 
 viewMatrix :: Camera -> Mat44
-viewMatrix (Camera _ center target up) = lookAt center target up
+viewMatrix (Camera _ center target up) = viewTarget center target up
 
 projectionMatrix :: Camera -> Scalar -> Mat44
 projectionMatrix (Camera proj _ _ _) = shotMatrix proj
