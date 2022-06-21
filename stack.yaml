@@ -20,6 +20,7 @@ extra-deps:
   , vulkan-3.17
   , vulkan-utils-0.5.7
   , VulkanMemoryAllocator-0.10
+  , derive-storable-0.3.1.0
   ]
 
 # Override default flag values for local packages and extra-deps

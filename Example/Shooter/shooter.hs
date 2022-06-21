@@ -13,7 +13,11 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
+import GHC.Generics (Generic)
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, MonadIO(liftIO) )
 import Control.Monad.Reader (MonadReader, runReaderT, ask)
@@ -27,7 +31,7 @@ import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale)
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), M44, V3(..), (!*!), transpose )
+import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!), transpose )
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
@@ -42,8 +46,7 @@ import qualified Hickory.Vulkan.Vulkan as H
 import Control.Monad
 import Control.Monad.Managed (Managed, runManaged)
 import Vulkan
-  ( ShaderStageFlagBits (..)
-  , CommandBuffer(..)
+  ( CommandBuffer(..)
   , deviceWaitIdle
   )
 
@@ -54,8 +57,8 @@ import Control.Monad.Extra (whenM)
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
-import Data.Proxy (Proxy(..))
 import Data.Foldable (for_)
+import Foreign.Storable.Generic
 
 -- ** GAMEPLAY **
 
@@ -117,10 +120,16 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 -- The resources used by our rendering function
 data Resources = Resources
   { square         :: H.BufferedMesh
-  , solidMaterial  :: H.Material (M44 Float)
+  , solidMaterial  :: H.Material SolidColorPushConstant
   , circleMaterial :: H.Material (M44 Float)
   -- , printer     :: H.Printer Int -- For text rendering
   }
+
+data SolidColorPushConstant = SolidColorPushConstant
+  { mat   :: M44 Float
+  , color :: V4 Float
+  } deriving Generic
+    deriving anyclass GStorable
 
 -- Set up our scene, load assets, etc.
 loadResources :: Bag -> String -> Managed Resources
@@ -140,8 +149,10 @@ loadResources bag path = do
           ]
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
-  solidMaterial  <- H.withMaterial @(M44 Float) bag [H.Position, H.TextureCoord] vertShader fragShader []
-  circleMaterial <- H.withMaterial @(M44 Float) bag [H.Position, H.TextureCoord] vertShader texFragShader [path ++ "/images/circle.png"]
+  solidMaterial  <- H.withMaterial @SolidColorPushConstant bag
+    [H.Position, H.TextureCoord] vertShader fragShader []
+  circleMaterial <- H.withMaterial @(M44 Float) bag
+    [H.Position, H.TextureCoord] texVertShader texFragShader [path ++ "/images/circle.png"]
 
   {-
   -- A shader for drawing text
@@ -167,7 +178,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime commandBuffer = do
     H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
       mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
       H.cmdBindMaterial commandBuffer solidMaterial
-      H.cmdPushMaterialConstants commandBuffer solidMaterial mat
+      H.cmdPushMaterialConstants commandBuffer solidMaterial (SolidColorPushConstant mat (V4 1 0 0 1))
       H.cmdDrawBufferedMesh commandBuffer square
 
   H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
@@ -270,6 +281,42 @@ vertShader = [vert|
   #version 450
 
   layout(location = 0) in vec3 inPosition;
+
+  layout( push_constant ) uniform constants
+  {
+    mat4 modelViewMatrix;
+    vec4 color;
+  } PushConstants;
+
+  void main() {
+      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
+  }
+
+|]
+
+fragShader :: B.ByteString
+fragShader = [frag|
+  #version 450
+
+  layout(location = 0) out vec4 outColor;
+
+  layout( push_constant ) uniform constants
+  {
+    mat4 modelViewMatrix;
+    vec4 color;
+  } PushConstants;
+
+  void main() {
+    outColor = PushConstants.color;
+  }
+
+|]
+
+texVertShader :: B.ByteString
+texVertShader = [vert|
+  #version 450
+
+  layout(location = 0) in vec3 inPosition;
   layout(location = 3) in vec2 inTexCoord;
 
   layout(location = 1) out vec2 texCoord;
@@ -282,20 +329,6 @@ vertShader = [vert|
   void main() {
       gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
       texCoord = inTexCoord;
-  }
-
-|]
-
-fragShader :: B.ByteString
-fragShader = [frag|
-  #version 450
-
-  layout(location = 1) in vec2 texCoord;
-
-  layout(location = 0) out vec4 outColor;
-
-  void main() {
-    outColor = vec4(1.0);
   }
 
 |]

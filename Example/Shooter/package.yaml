@@ -33,6 +33,7 @@ dependencies:
     - vulkan
     - vulkan-utils
     - extra
+    - derive-storable
 
 default-extensions:
     - LambdaCase
