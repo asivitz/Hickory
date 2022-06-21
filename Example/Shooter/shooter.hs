@@ -117,8 +117,8 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 -- The resources used by our rendering function
 data Resources = Resources
   { square         :: H.BufferedMesh
-  , solidMaterial  :: H.Material
-  , circleMaterial :: H.Material
+  , solidMaterial  :: H.Material (M44 Float)
+  , circleMaterial :: H.Material (M44 Float)
   -- , printer     :: H.Printer Int -- For text rendering
   }
 
@@ -140,8 +140,8 @@ loadResources bag path = do
           ]
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
-  solidMaterial  <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader []
-  circleMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader texFragShader [path ++ "/images/circle.png"]
+  solidMaterial  <- H.withMaterial @(M44 Float) bag [H.Position, H.TextureCoord] vertShader fragShader []
+  circleMaterial <- H.withMaterial @(M44 Float) bag [H.Position, H.TextureCoord] vertShader texFragShader [path ++ "/images/circle.png"]
 
   {-
   -- A shader for drawing text
@@ -162,12 +162,12 @@ renderGame scrSize Model { playerPos, missiles } _gameTime commandBuffer = do
     for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
       mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
       H.cmdBindMaterial commandBuffer circleMaterial
-      H.cmdPushMaterialConstants commandBuffer circleMaterial SHADER_STAGE_VERTEX_BIT mat
+      H.cmdPushMaterialConstants commandBuffer circleMaterial mat
       H.cmdDrawBufferedMesh commandBuffer square
     H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
       mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
       H.cmdBindMaterial commandBuffer solidMaterial
-      H.cmdPushMaterialConstants commandBuffer solidMaterial SHADER_STAGE_VERTEX_BIT mat
+      H.cmdPushMaterialConstants commandBuffer solidMaterial mat
       H.cmdDrawBufferedMesh commandBuffer square
 
   H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do

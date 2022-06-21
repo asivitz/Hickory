@@ -27,8 +27,8 @@ import Hickory.Math.Matrix (mkRotation)
 
 data Resources = Resources
   { square             :: H.BufferedMesh
-  , solidColorMaterial :: H.Material
-  , texturedMaterial   :: H.Material
+  , solidColorMaterial :: H.Material (M44 Float)
+  , texturedMaterial   :: H.Material (M44 Float)
   }
 
 main :: IO ()
@@ -55,8 +55,8 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
             ]
       , indices = Just [0, 1, 2, 2, 3, 0]
       }
-    solidColorMaterial <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader fragShader []
-    texturedMaterial   <- H.withMaterial bag [(Proxy @(M44 Float), SHADER_STAGE_VERTEX_BIT)] (H.meshAttributes . H.mesh $ square) vertShader texFragShader ["star.png"]
+    solidColorMaterial <- H.withMaterial @(M44 Float) bag [H.Position, H.Color, H.TextureCoord] vertShader fragShader []
+    texturedMaterial   <- H.withMaterial @(M44 Float) bag [H.Position, H.Color, H.TextureCoord] vertShader texFragShader ["star.png"]
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
@@ -71,7 +71,7 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
 
 
             H.cmdBindMaterial commandBuffer solidColorMaterial
-            H.cmdPushMaterialConstants commandBuffer solidColorMaterial SHADER_STAGE_VERTEX_BIT (transpose mat)
+            H.cmdPushMaterialConstants commandBuffer solidColorMaterial (transpose mat)
             H.cmdDrawBufferedMesh commandBuffer square
 
             -- H.cmdBindMaterial commandBuffer texturedMaterial

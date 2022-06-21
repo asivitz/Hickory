@@ -6,9 +6,8 @@ module Hickory.Vulkan.Material where
 
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Mesh (Attribute(..), bindingDescription, attributeDescriptions)
-import Data.Proxy (Proxy (..))
 import qualified Data.ByteString as B
-import Foreign (sizeOf, castPtr, with, Storable)
+import Foreign (sizeOf, castPtr, with, Storable, (.|.))
 import Vulkan
   ( CommandBuffer
   , PipelineLayoutCreateInfo(..)
@@ -33,7 +32,7 @@ import Control.Monad.Managed (Managed)
 import Hickory.Vulkan.Vulkan (Bag(..), DeviceContext (..), allocate, withGraphicsPipeline, with2DImageView)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Functor ((<&>), ($>))
+import Data.Functor (($>))
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Textures (withImageSampler, withTextureImage)
 import Data.Traversable (for)
@@ -46,7 +45,7 @@ data MaterialDescriptor = MaterialDescriptor
   , descriptorSets      :: V.Vector DescriptorSet
   }
 
-data Material = Material
+data Material pushConstant = Material
   { pipeline            :: Pipeline
   , pipelineLayout      :: PipelineLayout
   , materialDescriptor  :: Maybe MaterialDescriptor
@@ -103,20 +102,19 @@ withMaterialDescriptor bag@Bag{..} texturePaths = do
 
   pure . Just $ MaterialDescriptor {..}
 
-withMaterial :: Storable a => Bag -> [(Proxy a, ShaderStageFlagBits)] -> [Attribute] -> B.ByteString -> B.ByteString -> [FilePath] -> Managed Material
-withMaterial bag@Bag {..} pushConstants attrs vertShader fragShader texturePaths = do
+withMaterial :: forall pushConstant. Storable pushConstant => Bag -> [Attribute] -> B.ByteString -> B.ByteString -> [FilePath] -> Managed (Material pushConstant)
+withMaterial bag@Bag {..} attrs vertShader fragShader texturePaths = do
   let DeviceContext {..} = deviceContext
 
   materialDescriptor <- withMaterialDescriptor bag texturePaths
 
   let
     pipelineLayoutCreateInfo = zero
-      { pushConstantRanges = V.fromList $ pushConstants <&> \case
-        (Proxy :: Proxy b, stageFlags) -> PushConstantRange
-          { size = fromIntegral $ sizeOf (undefined :: b)
+      { pushConstantRanges = [ PushConstantRange
+          { size = fromIntegral $ sizeOf (undefined :: pushConstant)
           , offset = 0
-          , stageFlags = stageFlags
-          }
+          , stageFlags = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
+          }]
       , setLayouts = V.fromList . maybeToList . fmap descriptorSetLayout $ materialDescriptor
       }
 
@@ -125,12 +123,12 @@ withMaterial bag@Bag {..} pushConstants attrs vertShader fragShader texturePaths
 
   pure Material {..}
 
-cmdBindMaterial :: MonadIO m => CommandBuffer -> Material -> m ()
+cmdBindMaterial :: MonadIO m => CommandBuffer -> Material pushConstant -> m ()
 cmdBindMaterial commandBuffer Material {..} = do
   cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
   for_ materialDescriptor \MaterialDescriptor {..} ->
     cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 descriptorSets []
 
-cmdPushMaterialConstants :: (MonadIO m, Storable a) => CommandBuffer -> Material -> ShaderStageFlagBits -> a -> m ()
-cmdPushMaterialConstants commandBuffer Material {..} flagBits a =
-  liftIO $ with a $ cmdPushConstants commandBuffer pipelineLayout flagBits 0 (fromIntegral $ sizeOf a) . castPtr
+cmdPushMaterialConstants :: (MonadIO m, Storable pushConstant) => CommandBuffer -> Material pushConstant -> pushConstant -> m ()
+cmdPushMaterialConstants commandBuffer Material {..} a =
+  liftIO $ with a $ cmdPushConstants commandBuffer pipelineLayout (SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT) 0 (fromIntegral $ sizeOf a) . castPtr
