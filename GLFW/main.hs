@@ -25,6 +25,8 @@ import Data.Proxy (Proxy(..))
 import Hickory.Math (perspectiveProjection)
 import Hickory.Math.Matrix (mkRotation)
 
+import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, pushConstant, draw)
+
 data Resources = Resources
   { square             :: H.BufferedMesh
   , solidColorMaterial :: H.Material (M44 Float)
@@ -60,7 +62,7 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
-          drawFrame frameNumber bag \commandBuffer -> do
+          drawFrame frameNumber bag . flip targetCommandBuffer $ do
 
             let
               screenRatio = 1
@@ -69,10 +71,9 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
               mat = perspectiveProjection screenRatio (pi / 2) 10 0.1
                 !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-
-            H.cmdBindMaterial commandBuffer solidColorMaterial
-            H.cmdPushMaterialConstants commandBuffer solidColorMaterial (transpose mat)
-            H.cmdDrawBufferedMesh commandBuffer square
+            useMaterial solidColorMaterial do
+              pushConstant (transpose mat)
+              draw square
 
             -- H.cmdBindMaterial commandBuffer texturedMaterial
             -- H.cmdPushMaterialConstants commandBuffer texturedMaterial SHADER_STAGE_VERTEX_BIT (mkTranslation (V3 1.0 0.0 0.0) :: M44 Float)

@@ -57,6 +57,7 @@ import Control.Monad.Extra (whenM)
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
+import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, pushConstant, draw)
 import Data.Foldable (for_)
 import Foreign.Storable.Generic
 
@@ -137,15 +138,15 @@ loadResources bag path = do
   square <- H.withBufferedMesh bag $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 0.0
-                        ,  0.5, -0.5, 0.0
-                        ,  0.5,  0.5, 0.0
-                        , -0.5,  0.5, 0.0
-                        ])
+                         ,  0.5, -0.5, 0.0
+                         ,  0.5,  0.5, 0.0
+                         , -0.5,  0.5, 0.0
+                         ])
           , (H.TextureCoord, [ 0.0, 0.0
-                              , 1.0, 0.0
-                              , 1.0, 1.0
-                              , 0.0, 1.0
-                              ])
+                             , 1.0, 0.0
+                             , 1.0, 1.0
+                             , 0.0, 1.0
+                             ])
           ]
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
@@ -167,19 +168,20 @@ loadResources bag path = do
 
 -- Our render function
 renderGame :: (MonadIO m, MonadReader Resources m) => Size Double -> Model -> NominalDiffTime -> CommandBuffer -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime commandBuffer = do
+renderGame scrSize Model { playerPos, missiles } _gameTime = flip targetCommandBuffer do
   Resources {..} <- ask
   H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
-    for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
-      mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
-      H.cmdBindMaterial commandBuffer circleMaterial
-      H.cmdPushMaterialConstants commandBuffer circleMaterial mat
-      H.cmdDrawBufferedMesh commandBuffer square
-    H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
-      mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
-      H.cmdBindMaterial commandBuffer solidMaterial
-      H.cmdPushMaterialConstants commandBuffer solidMaterial (SolidColorPushConstant mat (V4 1 0 0 1))
-      H.cmdDrawBufferedMesh commandBuffer square
+    useMaterial circleMaterial do
+      for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
+        mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+        pushConstant mat
+        draw square
+
+    useMaterial solidMaterial do
+      H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
+        mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+        pushConstant (SolidColorPushConstant mat (V4 1 0 0 1))
+        draw square
 
   H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
     H.xform (mkTranslation (topLeft 20 20 scrSize)) do

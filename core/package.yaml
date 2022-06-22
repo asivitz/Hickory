@@ -107,6 +107,7 @@ library:
     - Hickory.Vulkan.Mesh
     - Hickory.Vulkan.Material
     - Hickory.Vulkan.Textures
+    - Hickory.Vulkan.Monad
 
 executables:
   pack-model:
