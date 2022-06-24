@@ -26,7 +26,7 @@ import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
 import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
 import Hickory.FRP.Game (timeStep)
-import Hickory.FRP.UI (topLeft)
+import Hickory.FRP.UI (topLeft, middle)
 import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale)
@@ -39,15 +39,17 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Hickory.Graphics as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
+import qualified Data.Vector as V
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Vulkan as H
+import qualified Hickory.Vulkan.Text as H
 
 import Control.Monad
 import Control.Monad.Managed (Managed, runManaged)
 import Vulkan
   ( CommandBuffer(..)
-  , deviceWaitIdle
+  , deviceWaitIdle, PrimitiveTopology (..)
   )
 
 import qualified Data.ByteString as B
@@ -57,9 +59,14 @@ import Control.Monad.Extra (whenM)
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
-import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, pushConstant, draw)
+import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, pushConstant, draw, useDynamicMesh, drawText)
 import Data.Foldable (for_)
 import Foreign.Storable.Generic
+import Hickory.Graphics.DrawText (textcommand)
+import Hickory.Text.Text (TextCommand(..), Font, makeFont, XAlign (..))
+import Hickory.Utils.Utils (readFileAsText)
+import Data.Either (fromRight)
+import Hickory.Color (white)
 
 -- ** GAMEPLAY **
 
@@ -123,7 +130,8 @@ data Resources = Resources
   { square         :: H.BufferedMesh
   , solidMaterial  :: H.Material SolidColorPushConstant
   , circleMaterial :: H.Material (M44 Float)
-  -- , printer     :: H.Printer Int -- For text rendering
+  , textMaterial   :: H.Material (M44 Float)
+  , font           :: Font Int
   }
 
 data SolidColorPushConstant = SolidColorPushConstant
@@ -151,51 +159,53 @@ loadResources bag path = do
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
   solidMaterial  <- H.withMaterial @SolidColorPushConstant bag
-    [H.Position, H.TextureCoord] vertShader fragShader []
+    [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader []
   circleMaterial <- H.withMaterial @(M44 Float) bag
-    [H.Position, H.TextureCoord] texVertShader texFragShader [path ++ "/images/circle.png"]
-
-  {-
-  -- A shader for drawing text
-  pvcshader <- H.loadPVCShader shaderVersion
+    [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader [path ++ "/images/circle.png"]
+  textMaterial <- H.withMaterial @(M44 Float) bag
+    [H.Position, H.TextureCoord, H.Color] PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP textVertShader textFragShader [path ++ "/images/gidolinya.png"]
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
   -- generated using the bmGlyph program for Mac
-  pr <- H.loadPrinter path pvcshader "gidolinya"
-  -}
+  text <- liftIO $ readFileAsText $ path ++ "/fonts/gidolinya.fnt"
+  let font :: Font Int = fromRight (error "Can't parse font") $ makeFont text "gidolinya"
 
   pure $ Resources {..}
 
 -- Our render function
-renderGame :: (MonadIO m, MonadReader Resources m) => Size Double -> Model -> NominalDiffTime -> CommandBuffer -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime = flip targetCommandBuffer do
-  Resources {..} <- ask
-  H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
-    useMaterial circleMaterial do
-      for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
-        mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
-        pushConstant mat
-        draw square
+renderGame :: (MonadIO m, MonadReader Resources m) => Size Double -> Model -> NominalDiffTime -> (H.DynamicBufferedMesh, CommandBuffer) -> m ()
+renderGame scrSize Model { playerPos, missiles } _gameTime (textBuffer, commandBuffer) =
+  targetCommandBuffer commandBuffer . useDynamicMesh textBuffer $ do
+    Resources {..} <- ask
 
-    useMaterial solidMaterial do
-      H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
-        mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
-        pushConstant (SolidColorPushConstant mat (V4 1 0 0 1))
-        draw square
+    H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
+      useMaterial circleMaterial do
+        for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
+          mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+          pushConstant mat
+          draw square
 
-  H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
-    H.xform (mkTranslation (topLeft 20 20 scrSize)) do
-      pure ()
-      -- H.drawText $ H.textcommand { H.color = white, H.text = "Arrow keys move, Space shoots", H.align = H.AlignLeft, H.fontSize = 5 }
+      useMaterial solidMaterial do
+        H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
+          mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+          pushConstant (SolidColorPushConstant mat (V4 1 0 0 1))
+          draw square
+
+    H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
+      H.xform (mkTranslation (topLeft 20 20 scrSize)) do
+        useMaterial textMaterial do
+          mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+          pushConstant mat
+          drawText font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
 
   where
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
-        camera = Camera proj (V3 0 0 10) (V3 0 0 0) (V3 0 1 0)
+        camera = Camera proj (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
     in viewProjectionMatrix camera (aspectRatio size)
   uiCameraMatrix size@(Size w _h) =
-    let proj = Ortho w (-20) 1 False
-        camera = Camera proj (V3 0 0 0) (V3 0 0 (-1)) (V3 0 1 0)
+    let proj = Ortho w 1 100 False
+        camera = Camera proj (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
     in viewProjectionMatrix camera (aspectRatio size)
 
 -- ** INPUT **
@@ -230,7 +240,7 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
 
 -- Build the FRP network
-buildNetwork :: Resources -> CoreEventGenerators CommandBuffer -> IO ()
+buildNetwork :: Resources -> CoreEventGenerators (H.DynamicBufferedMesh, CommandBuffer) -> IO ()
 buildNetwork resources evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
@@ -259,6 +269,9 @@ main = GLFWV.withWindow 750 750 "Demo" $ \win bag@H.Bag {..} -> do
   let H.DeviceContext {..} = deviceContext
   runManaged do
     resources <- loadResources bag "Example/Shooter/assets"
+
+    textBuffers <- V.replicateM 2 $ H.withDynamicBufferedMesh bag 1000
+
     liftIO do
       -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
       (coreEvProc, evGens) <- glfwCoreEventGenerators win
@@ -267,8 +280,9 @@ main = GLFWV.withWindow 750 750 "Demo" $ \win bag@H.Bag {..} -> do
       buildNetwork resources evGens
 
       let loop frameNumber = do
+            let textBuffer = textBuffers V.! (frameNumber `mod` 2)
             -- check the input buffers and generate FRP events
-            H.drawFrame frameNumber bag coreEvProc
+            H.drawFrame frameNumber bag (coreEvProc . (textBuffer,))
 
             focused <- GLFW.getWindowFocused win
 
@@ -347,6 +361,47 @@ texFragShader = [frag|
 
   void main() {
     outColor = texture(texSampler, texCoord);
+  }
+
+|]
+
+textVertShader :: B.ByteString
+textVertShader = [vert|
+  #version 450
+
+  layout(location = 0) in vec3 inPosition;
+  layout(location = 1) in vec4 inColor;
+  layout(location = 3) in vec2 inTexCoord;
+
+  layout(location = 0) out vec4 fragColor;
+  layout(location = 1) out vec2 texCoord;
+
+  layout( push_constant ) uniform constants
+  {
+    mat4 modelViewMatrix;
+  } PushConstants;
+
+  void main() {
+      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
+      texCoord = inTexCoord;
+      fragColor = inColor;
+  }
+
+|]
+
+textFragShader :: B.ByteString
+textFragShader = [frag|
+  #version 450
+
+  layout(location = 0) in vec4 fragColor;
+  layout(location = 1) in vec2 texCoord;
+
+  layout(binding = 0) uniform sampler2D texSampler;
+
+  layout(location = 0) out vec4 outColor;
+
+  void main() {
+    outColor = texture(texSampler, texCoord) * fragColor;
   }
 
 |]

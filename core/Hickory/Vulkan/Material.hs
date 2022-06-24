@@ -38,6 +38,7 @@ import Hickory.Vulkan.Textures (withImageSampler, withTextureImage)
 import Data.Traversable (for)
 import Data.Maybe (maybeToList)
 import Data.Foldable (for_)
+import Vulkan.Core10 (PrimitiveTopology)
 
 data MaterialDescriptor = MaterialDescriptor
   { descriptorPool      :: DescriptorPool
@@ -102,8 +103,8 @@ withMaterialDescriptor bag@Bag{..} texturePaths = do
 
   pure . Just $ MaterialDescriptor {..}
 
-withMaterial :: forall pushConstant. Storable pushConstant => Bag -> [Attribute] -> B.ByteString -> B.ByteString -> [FilePath] -> Managed (Material pushConstant)
-withMaterial bag@Bag {..} attrs vertShader fragShader texturePaths = do
+withMaterial :: forall pushConstant. Storable pushConstant => Bag -> [Attribute] -> PrimitiveTopology -> B.ByteString -> B.ByteString -> [FilePath] -> Managed (Material pushConstant)
+withMaterial bag@Bag {..} attrs topology vertShader fragShader texturePaths = do
   let DeviceContext {..} = deviceContext
 
   materialDescriptor <- withMaterialDescriptor bag texturePaths
@@ -119,7 +120,7 @@ withMaterial bag@Bag {..} attrs vertShader fragShader texturePaths = do
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
-  pipeline <- withGraphicsPipeline bag vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
+  pipeline <- withGraphicsPipeline bag topology vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
 
   pure Material {..}
 

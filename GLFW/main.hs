@@ -8,6 +8,7 @@ import Control.Monad.Managed (runManaged)
 import Vulkan
   ( ShaderStageFlagBits (..)
   , deviceWaitIdle
+  , pattern PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
   )
 
 import qualified Data.ByteString as B
@@ -44,10 +45,10 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
                            ,  0.5,  0.5, 1.0
                            , -0.5,  0.5, 1.0
                            ])
-            , (H.Color, [ 1.0, 0.0, 0.0
-                        , 0.0, 1.0, 0.0
-                        , 0.0, 0.0, 1.0
-                        , 1.0, 1.0, 1.0
+            , (H.Color, [ 1.0, 0.0, 0.0, 0.0
+                        , 0.0, 1.0, 0.0, 0.0
+                        , 0.0, 0.0, 1.0, 0.0
+                        , 1.0, 1.0, 1.0, 0.0
                         ])
             , (H.TextureCoord, [ 0.0, 0.0
                                , 1.0, 0.0
@@ -57,8 +58,8 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
             ]
       , indices = Just [0, 1, 2, 2, 3, 0]
       }
-    solidColorMaterial <- H.withMaterial @(M44 Float) bag [H.Position, H.Color, H.TextureCoord] vertShader fragShader []
-    texturedMaterial   <- H.withMaterial @(M44 Float) bag [H.Position, H.Color, H.TextureCoord] vertShader texFragShader ["star.png"]
+    solidColorMaterial <- H.withMaterial @(M44 Float) bag [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader []
+    texturedMaterial   <- H.withMaterial @(M44 Float) bag [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader ["star.png"]
 
     let loop frameNumber = do
           liftIO GLFW.pollEvents
@@ -68,16 +69,12 @@ main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
               screenRatio = 1
 
               mat :: M44 Float
-              mat = perspectiveProjection screenRatio (pi / 2) 10 0.1
+              mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
                 !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
             useMaterial solidColorMaterial do
               pushConstant (transpose mat)
               draw square
-
-            -- H.cmdBindMaterial commandBuffer texturedMaterial
-            -- H.cmdPushMaterialConstants commandBuffer texturedMaterial SHADER_STAGE_VERTEX_BIT (mkTranslation (V3 1.0 0.0 0.0) :: M44 Float)
-            -- H.cmdDrawBufferedMesh commandBuffer square
 
           whenM (not <$> liftIO (GLFW.windowShouldClose win)) $ loop (frameNumber + 1)
     loop 0

@@ -14,6 +14,7 @@ module Hickory.Math.Matrix
   , viewTarget
   , orthographicProjection
   , perspectiveProjection
+  , prettyPrint
   ) where
 
 import Linear.Vector
@@ -27,6 +28,7 @@ import Linear.Metric
 import Control.Lens
 import Hickory.Types
 import Hickory.Math.Vector
+import Text.Printf (printf)
 
 type Mat44 = M44 Double
 type Mat33 = M33 Double
@@ -118,3 +120,16 @@ viewDirection position direction up = orthoNormalBasis u v w    -- Rotate to ali
 
 viewTarget :: (Floating a, Epsilon a) => V3 a -> V3 a -> V3 a -> M44 a
 viewTarget position target = viewDirection position (target - position)
+
+prettyPrint :: M44 Float -> IO ()
+prettyPrint (V4
+  (V4 a1 a2 a3 a4)
+  (V4 b1 b2 b3 b4)
+  (V4 c1 c2 c3 c4)
+  (V4 d1 d2 d3 d4)
+  )
+  = do
+    printf "[%.2f %.2f %.2f %.2f]\n" a1 a2 a3 a4
+    printf "[%.2f %.2f %.2f %.2f]\n" b1 b2 b3 b4
+    printf "[%.2f %.2f %.2f %.2f]\n" c1 c2 c3 c4
+    printf "[%.2f %.2f %.2f %.2f]\n" d1 d2 d3 d4

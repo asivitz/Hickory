@@ -408,13 +408,14 @@ with2DImageView DeviceContext { device } format image =
 
 withGraphicsPipeline
   :: Bag
+  -> PrimitiveTopology
   -> B.ByteString
   -> B.ByteString
   -> PipelineLayout
   -> VertexInputBindingDescription
   -> V.Vector VertexInputAttributeDescription
   -> Managed Pipeline
-withGraphicsPipeline Bag {..} vertShader fragShader pipelineLayout vertexBindingDescription vertexAttributeDescriptions = do
+withGraphicsPipeline Bag {..} topology vertShader fragShader pipelineLayout vertexBindingDescription vertexAttributeDescriptions = do
   let DeviceContext {..} = deviceContext
   let Swapchain {..} = swapchain
   shaderStages   <- sequence [ createVertShader device vertShader, createFragShader device fragShader ]
@@ -428,7 +429,7 @@ withGraphicsPipeline Bag {..} vertShader fragShader pipelineLayout vertexBinding
         , vertexAttributeDescriptions = vertexAttributeDescriptions
         }
       , inputAssemblyState = Just zero
-          { topology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+          { topology = topology
           , primitiveRestartEnable = False
           }
       , viewportState = Just . SomeStruct $ zero

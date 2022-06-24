@@ -25,6 +25,7 @@ module Hickory.Graphics.DrawText
   , withDynamicVAOs
   , withPrinting
   , drawText
+  , squareIndices
   ) where
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -48,10 +49,10 @@ import Hickory.Graphics.Shader (Shader)
 data Printer a = Printer (Font a) TexID Shader
 
 instance Eq (Printer a) where
-  Printer fa _tid _ == Printer fb _tidb _ = fontName fa == fontName fb
+  Printer fa _tid _ == Printer fb _tidb _ = name fa == name fb
 
 instance Show (Printer a) where
-  show (Printer font tid _) = "Printer:" ++ fontName font ++ "/" ++ show tid
+  show (Printer font tid _) = "Printer:" ++ name font ++ "/" ++ show tid
 
 loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
 loadPrinter resPath shader name = do

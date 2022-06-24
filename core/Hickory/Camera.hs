@@ -29,8 +29,9 @@ shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =
   perspectiveProjection fov (realToFrac screenRatio) nearPlane farPlane
 shotMatrix Ortho { width, near, far, shouldCenter } screenRatio = if shouldCenter
-  then orthographicProjection (-(width / 2)) (width / 2) (-(height / 2)) (height / 2) near far
-  else orthographicProjection 0 width 0 height near far
+  -- As per Vulkan convention, the top of the screen toward -Y
+  then orthographicProjection (-(width / 2)) (width / 2) (height / 2) (-(height / 2)) near far
+  else orthographicProjection 0 width height 0 near far
   where height = width / realToFrac screenRatio
 
 viewProjectionMatrix :: Camera -> Scalar -> Mat44

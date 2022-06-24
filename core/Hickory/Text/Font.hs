@@ -7,14 +7,15 @@ import Data.Hashable
 import Control.Applicative
 import qualified Data.Text as Text
 
-data FontInfo a = FontInfo {
-              lineHeight :: a,
-              base :: a,
-              scaleW :: a,
-              scaleH :: a } deriving Show
+data FontInfo a = FontInfo
+  { lineHeight :: a
+  , base       :: a
+  , scaleW     :: a
+  , scaleH     :: a
+  } deriving Show
 
 emptyFontInfo :: Integral a => FontInfo a
-emptyFontInfo = (FontInfo 0 0 0 0)
+emptyFontInfo = FontInfo 0 0 0 0
 
 data KerningPair = KerningPair CharIdent CharIdent deriving (Show, Eq)
 
@@ -26,33 +27,35 @@ newtype CharIdent = CharIdent Int deriving (Eq, Show)
 instance Data.Hashable.Hashable CharIdent where
       hashWithSalt s (CharIdent a) = hashWithSalt s a
 
-data GlyphSpec a = GlyphSpec {
-                ident :: CharIdent,
-                x :: a,
-                y :: a,
-                width :: a,
-                height :: a,
-                xoffset :: a,
-                yoffset :: a,
-                xadvance :: a } deriving (Show)
+data GlyphSpec a = GlyphSpec
+  { ident    :: CharIdent
+  , x        :: a
+  , y        :: a
+  , width    :: a
+  , height   :: a
+  , xoffset  :: a
+  , yoffset  :: a
+  , xadvance :: a
+  } deriving (Show)
 
 data KerningSpec a = KerningSpec KerningPair a deriving Show
 
 -- common lineHeight=117 base=95 scaleW=512 scaleH=512 pages=1 packed=0
 
-isInlineSpace c =
-        c == ' '     ||
-        c == '\t'
+isInlineSpace :: Char -> Bool
+isInlineSpace c
+   = c == ' '
+  || c == '\t'
 
 inlineSpace :: Parser Char
 inlineSpace = satisfy isInlineSpace <?> "inlineSpace"
 
 quotedString :: Parser Text.Text
 quotedString = do
-        char '"'
-        prop <- takeTill (== '"')
-        char '"'
-        return prop
+  _ <- char '"'
+  prop <- takeTill (== '"')
+  _ <- char '"'
+  return prop
 
 data Value a = StringVal String | CommaSepValue [a] deriving Show
 

@@ -45,7 +45,7 @@ data Attribute
   | Normal
   | TextureCoord
   | Color
-  deriving Generic
+  deriving (Bounded, Enum, Generic)
 
 instance Binary Attribute
 instance Binary Mesh
@@ -54,7 +54,7 @@ attrStride :: Attribute -> Int
 attrStride Position     = 3
 attrStride Normal       = 3
 attrStride TextureCoord = 2
-attrStride Color        = 3
+attrStride Color        = 4
 
 attrLocation :: Attribute -> Word32
 attrLocation Position     = 0
@@ -66,7 +66,7 @@ attrFormat :: Attribute -> Format
 attrFormat Position     = FORMAT_R32G32B32_SFLOAT
 attrFormat Normal       = FORMAT_R32G32B32_SFLOAT
 attrFormat TextureCoord = FORMAT_R32G32_SFLOAT
-attrFormat Color        = FORMAT_R32G32B32_SFLOAT
+attrFormat Color        = FORMAT_R32G32B32A32_SFLOAT
 
 pack :: Mesh -> SV.Vector Float
 pack mesh@Mesh {..} = SV.concat $ packVert <$> [0..(numVerts mesh - 1)]
