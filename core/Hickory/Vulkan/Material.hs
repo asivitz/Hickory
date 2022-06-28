@@ -36,7 +36,7 @@ import Data.Functor (($>))
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Textures (withImageSampler, withTextureImage)
 import Data.Traversable (for)
-import Data.Maybe (maybeToList)
+import Data.Maybe (maybeToList, listToMaybe)
 import Data.Foldable (for_)
 import Vulkan.Core10 (PrimitiveTopology)
 
@@ -56,10 +56,12 @@ withMaterialDescriptor :: Bag -> [FilePath] -> Managed (Maybe MaterialDescriptor
 withMaterialDescriptor _ [] = pure Nothing
 withMaterialDescriptor bag@Bag{..} texturePaths = do
   let DeviceContext {..} = deviceContext
+      numImages = fromIntegral $ Prelude.length texturePaths
   descriptorSetLayout <- withDescriptorSetLayout device zero
-    { bindings = V.fromList $ texturePaths $> zero
+    -- bind textures as an array of sampled images
+    { bindings = V.fromList . maybeToList $ listToMaybe texturePaths $> zero
         { binding         = 0
-        , descriptorCount = 1
+        , descriptorCount = numImages
         , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
         , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
         }
@@ -68,7 +70,7 @@ withMaterialDescriptor bag@Bag{..} texturePaths = do
 
   descriptorPool <- withDescriptorPool device zero
     { maxSets   = 1
-    , poolSizes = V.fromList $ texturePaths $> DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER 1
+    , poolSizes = V.fromList $ texturePaths $> DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages
     }
     Nothing
     allocate
@@ -80,26 +82,25 @@ withMaterialDescriptor bag@Bag{..} texturePaths = do
     , setLayouts     = [ descriptorSetLayout ]
     }
 
-  sampler <- withImageSampler bag
-  writes <- for texturePaths \path -> do
-    image   <- withTextureImage bag path
-    imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB image
-    pure zero
-      { dstSet          = V.head descriptorSets
-      , dstBinding      = 0
-      , dstArrayElement = 0
-      , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-      , descriptorCount = 1
-      , imageInfo       =
-        [ zero
-          { sampler     = sampler
-          , imageView   = imageView
-          , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+  for_ (listToMaybe texturePaths) . const $ do
+    sampler <- withImageSampler bag
+    imageInfos <- for texturePaths \path -> do
+      image   <- withTextureImage bag path
+      imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB image
+      pure zero
+        { sampler     = sampler
+        , imageView   = imageView
+        , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        }
+    let write = zero
+          { dstSet          = V.head descriptorSets
+          , dstBinding      = 0
+          , dstArrayElement = 0
+          , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+          , descriptorCount = numImages
+          , imageInfo       = V.fromList imageInfos
           }
-        ]
-      }
-
-  updateDescriptorSets device (V.fromList $ SomeStruct <$> writes) []
+    updateDescriptorSets device [SomeStruct write] []
 
   pure . Just $ MaterialDescriptor {..}
 
