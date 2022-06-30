@@ -101,7 +101,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , RenderPassBeginInfo(..)
   , SubmitInfo(..)
-  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences
+  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..)
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -120,14 +120,16 @@ import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr, Bits ((.|.)))
 import qualified Data.ByteString as B
 
-data Bag = Bag
+data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
-  , swapchain             :: Swapchain
-  , renderpass            :: RenderPass
-  , framebuffers          :: V.Vector Framebuffer
-  , frames                :: V.Vector Frame
   , allocator             :: Allocator
   , shortLivedCommandPool :: CommandPool -- For, e.g., mem copy commands
+  }
+
+data SwapchainContext = SwapchainContext
+  { swapchain    :: Swapchain
+  , renderpass   :: RenderPass
+  , framebuffers :: V.Vector Framebuffer
   }
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
@@ -407,7 +409,8 @@ with2DImageView DeviceContext { device } format image =
 {- GRAPHICS PIPELINE -}
 
 withGraphicsPipeline
-  :: Bag
+  :: VulkanResources
+  -> SwapchainContext
   -> PrimitiveTopology
   -> B.ByteString
   -> B.ByteString
@@ -415,7 +418,7 @@ withGraphicsPipeline
   -> VertexInputBindingDescription
   -> V.Vector VertexInputAttributeDescription
   -> Managed Pipeline
-withGraphicsPipeline Bag {..} topology vertShader fragShader pipelineLayout vertexBindingDescription vertexAttributeDescriptions = do
+withGraphicsPipeline VulkanResources {..} SwapchainContext{..} topology vertShader fragShader pipelineLayout vertexBindingDescription vertexAttributeDescriptions = do
   let DeviceContext {..} = deviceContext
   let Swapchain {..} = swapchain
   shaderStages   <- sequence [ createVertShader device vertShader, createFragShader device fragShader ]
@@ -499,40 +502,43 @@ createShader stage dev source = do
     }
 
 {- Drawing a frame -}
-drawFrame :: MonadIO m => Int -> Bag -> (CommandBuffer -> IO ()) -> m ()
-drawFrame frameNumber Bag {..} f = do
+drawFrame :: MonadIO m => Frame -> VulkanResources -> SwapchainContext -> (CommandBuffer -> IO ()) -> m Bool
+drawFrame Frame {..} VulkanResources {..} SwapchainContext {..} f = do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
-      Frame {..} = frames V.! (frameNumber `mod` V.length frames)
 
   _ <- waitForFences device [ inFlightFence ] True maxBound
-  resetFences device [ inFlightFence ]
 
-  (_, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
+  (res, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
+  case res of
+    r | r == ERROR_OUT_OF_DATE_KHR || r == SUBOPTIMAL_KHR -> pure False
+    _ -> do
+      resetFences device [ inFlightFence ]
 
-  let framebuffer = framebuffers V.! fromIntegral imageIndex
+      let framebuffer = framebuffers V.! fromIntegral imageIndex
 
-  resetCommandBuffer commandBuffer zero
+      resetCommandBuffer commandBuffer zero
 
-  useCommandBuffer commandBuffer zero do
-    let renderPassBeginInfo = zero
-          { renderPass  = renderpass
-          , framebuffer = framebuffer
-          , renderArea  = Rect2D { offset = zero , extent = extent }
-          , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
-          }
-    cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-      liftIO $ f commandBuffer
+      useCommandBuffer commandBuffer zero do
+        let renderPassBeginInfo = zero
+              { renderPass  = renderpass
+              , framebuffer = framebuffer
+              , renderArea  = Rect2D { offset = zero , extent = extent }
+              , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
+              }
+        cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
+          liftIO $ f commandBuffer
 
-  let submitInfo = zero
-        { waitSemaphores   = [imageAvailableSemaphore]
-        , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-        , commandBuffers   = [commandBufferHandle  commandBuffer]
-        , signalSemaphores = [renderFinishedSemaphore]
+      let submitInfo = zero
+            { waitSemaphores   = [imageAvailableSemaphore]
+            , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+            , commandBuffers   = [commandBufferHandle  commandBuffer]
+            , signalSemaphores = [renderFinishedSemaphore]
+            }
+      queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
+      void $ queuePresentKHR presentQueue $ zero
+        { waitSemaphores = [renderFinishedSemaphore]
+        , swapchains     = [swapchainHandle]
+        , imageIndices   = [imageIndex]
         }
-  queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
-  void $ queuePresentKHR presentQueue $ zero
-    { waitSemaphores = [renderFinishedSemaphore]
-    , swapchains     = [swapchainHandle]
-    , imageIndices   = [imageIndex]
-    }
+      pure True

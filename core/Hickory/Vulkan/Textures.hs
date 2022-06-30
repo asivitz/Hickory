@@ -4,7 +4,7 @@ module Hickory.Vulkan.Textures where
 
 import Vulkan (Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..))
 import Control.Monad.Managed (Managed, runManaged)
-import Hickory.Vulkan.Vulkan (Bag(..), allocate, DeviceContext (..))
+import Hickory.Vulkan.Vulkan (VulkanResources(..), allocate, DeviceContext (..))
 import qualified Codec.Picture as Png
 import Data.Word (Word8, Word32)
 import qualified Data.Vector.Storable as SV
@@ -17,8 +17,8 @@ import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 
-withTextureImage :: Bag -> FilePath -> Managed Image
-withTextureImage bag@Bag { allocator } path = do
+withTextureImage :: VulkanResources -> FilePath -> Managed Image
+withTextureImage bag@VulkanResources { allocator } path = do
   Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
     Left s -> error $ printf "Can't load image at path %s: %s" path s
     Right dynImage -> pure $ Png.convertRGBA8 dynImage
@@ -60,7 +60,7 @@ withTextureImage bag@Bag { allocator } path = do
 
   pure image
 
-copyBufferToImage :: MonadIO m => Bag -> Buffer -> Image -> Word32 -> Word32 -> m ()
+copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> m ()
 copyBufferToImage bag buffer image width height = withSingleTimeCommands bag \commandBuffer -> do
     let region :: BufferImageCopy
         region = zero
@@ -79,7 +79,7 @@ copyBufferToImage bag buffer image width height = withSingleTimeCommands bag \co
 
     cmdCopyBufferToImage commandBuffer buffer image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
 
-transitionImageLayout :: MonadIO m => Bag -> Image -> ImageLayout -> ImageLayout -> m ()
+transitionImageLayout :: MonadIO m => VulkanResources -> Image -> ImageLayout -> ImageLayout -> m ()
 transitionImageLayout bag image oldLayout newLayout = withSingleTimeCommands bag \commandBuffer -> do
   let (srcAccessMask, dstAccessMask, sourceStage, destinationStage) = case (oldLayout, newLayout) of
         (IMAGE_LAYOUT_UNDEFINED, IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) ->
@@ -119,8 +119,8 @@ transitionImageLayout bag image oldLayout newLayout = withSingleTimeCommands bag
 
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
 
-withImageSampler :: Bag -> Managed Sampler
-withImageSampler Bag { deviceContext = DeviceContext {..} } =
+withImageSampler :: VulkanResources -> Managed Sampler
+withImageSampler VulkanResources { deviceContext = DeviceContext {..} } =
   withSampler device samplerInfo Nothing allocate
   where
   samplerInfo = zero

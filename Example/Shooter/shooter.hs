@@ -20,13 +20,12 @@
 import GHC.Generics (Generic)
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, MonadIO(liftIO) )
-import Control.Monad.Reader (MonadReader, runReaderT, ask)
 import Data.Maybe (maybeToList)
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
 import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
 import Hickory.FRP.Game (timeStep)
-import Hickory.FRP.UI (topLeft, middle)
+import Hickory.FRP.UI (topLeft)
 import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale)
@@ -39,22 +38,19 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Hickory.Graphics as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import qualified Data.Vector as V
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
-import qualified Hickory.Vulkan.Vulkan as H
 import qualified Hickory.Vulkan.Text as H
 
 import Control.Monad
-import Control.Monad.Managed (Managed, runManaged)
+import Control.Monad.Managed (Managed)
 import Vulkan
   ( CommandBuffer(..)
-  , deviceWaitIdle, PrimitiveTopology (..)
+  , PrimitiveTopology (..)
   )
 
 import qualified Data.ByteString as B
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
-import Control.Monad.Extra (whenM)
 
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
@@ -140,10 +136,10 @@ data SolidColorPushConstant = SolidColorPushConstant
   } deriving Generic
     deriving anyclass GStorable
 
--- Set up our scene, load assets, etc.
-loadResources :: Bag -> String -> Managed Resources
-loadResources bag path = do
-  square <- H.withBufferedMesh bag $ H.Mesh
+-- Load meshes, textures, materials, fonts, etc.
+loadResources :: String -> VulkanResources -> SwapchainContext -> Managed Resources
+loadResources path vulkanResources swapchainContext = do
+  square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 0.0
                          ,  0.5, -0.5, 0.0
@@ -158,11 +154,11 @@ loadResources bag path = do
           ]
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
-  solidMaterial  <- H.withMaterial @SolidColorPushConstant bag
+  solidMaterial  <- H.withMaterial @SolidColorPushConstant vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader []
-  circleMaterial <- H.withMaterial @(M44 Float) bag
+  circleMaterial <- H.withMaterial @(M44 Float) vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader [path ++ "/images/circle.png"]
-  textMaterial <- H.withMaterial @(M44 Float) bag
+  textMaterial <- H.withMaterial @(M44 Float) vulkanResources swapchainContext
     [H.Position, H.TextureCoord, H.Color] PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP textVertShader textFragShader [path ++ "/images/gidolinya.png"]
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
@@ -172,12 +168,14 @@ loadResources bag path = do
 
   pure $ Resources {..}
 
--- Our render function
-renderGame :: (MonadIO m, MonadReader Resources m) => Size Double -> Model -> NominalDiffTime -> (H.DynamicBufferedMesh, CommandBuffer) -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime (textBuffer, commandBuffer) =
-  targetCommandBuffer commandBuffer . useDynamicMesh textBuffer $ do
-    Resources {..} <- ask
+-- We need a dynamic buffer per frame to write text mesh data
+loadPerFrameResources :: VulkanResources -> SwapchainContext -> Managed H.DynamicBufferedMesh
+loadPerFrameResources vr _sc = H.withDynamicBufferedMesh vr 1000
 
+-- Our render function
+renderGame :: MonadIO m => Size Double -> Model -> NominalDiffTime -> (Resources, H.DynamicBufferedMesh, CommandBuffer) -> m ()
+renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, textBuffer, commandBuffer) =
+  targetCommandBuffer commandBuffer . useDynamicMesh textBuffer $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       useMaterial circleMaterial do
         for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
@@ -240,8 +238,8 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
 
 -- Build the FRP network
-buildNetwork :: Resources -> CoreEventGenerators (H.DynamicBufferedMesh, CommandBuffer) -> IO ()
-buildNetwork resources evGens = do
+buildNetwork :: CoreEventGenerators (Resources, H.DynamicBufferedMesh, CommandBuffer) -> IO ()
+buildNetwork evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
 
@@ -261,36 +259,23 @@ buildNetwork resources evGens = do
     let mdl = snd <$> mdlPair
 
     -- every time we get a 'render' event tick, draw the screen
-    B.reactimate $ flip runReaderT resources <$>
+    B.reactimate
       (renderGame <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <*> currentTime <@> eRender coreEvents)
 
 main :: IO ()
-main = GLFWV.withWindow 750 750 "Demo" $ \win bag@H.Bag {..} -> do
-  let H.DeviceContext {..} = deviceContext
-  runManaged do
-    resources <- loadResources bag "Example/Shooter/assets"
+main = GLFWV.withWindow 750 750 "Demo" \win -> do
+  -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
+  (coreEvProc, evGens) <- glfwCoreEventGenerators win
 
-    textBuffers <- V.replicateM 2 $ H.withDynamicBufferedMesh bag 1000
+  -- build and run the FRP network
+  buildNetwork evGens
 
-    liftIO do
-      -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
-      (coreEvProc, evGens) <- glfwCoreEventGenerators win
+  GLFWV.runFrames win (loadResources "Example/Shooter/assets") loadPerFrameResources \resources textBuffer commandBuffer -> do
+    coreEvProc (resources, textBuffer, commandBuffer)
 
-      -- build and run the FRP network
-      buildNetwork resources evGens
-
-      let loop frameNumber = do
-            let textBuffer = textBuffers V.! (frameNumber `mod` 2)
-            -- check the input buffers and generate FRP events
-            H.drawFrame frameNumber bag (coreEvProc . (textBuffer,))
-
-            focused <- GLFW.getWindowFocused win
-
-            -- don't consume CPU when the window isn't focused
-            unless focused (threadDelay 100000)
-            whenM (not <$> GLFW.windowShouldClose win) $ loop (frameNumber + 1)
-      loop 0
-      deviceWaitIdle device
+    focused <- GLFW.getWindowFocused win
+    -- don't consume CPU when the window isn't focused
+    unless focused (threadDelay 100000)
 
 vertShader :: B.ByteString
 vertShader = [vert|

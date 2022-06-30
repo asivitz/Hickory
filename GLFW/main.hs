@@ -4,37 +4,32 @@
 
 module Main where
 
-import qualified Graphics.UI.GLFW as GLFW
-import Control.Monad.Managed (runManaged)
+import Control.Monad.Managed (Managed)
 import Vulkan
-  ( deviceWaitIdle
-  , pattern PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+  ( pattern PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
   )
 
 import qualified Data.ByteString as B
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
-import Control.Monad.Extra (whenM)
 
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
 import Linear.Matrix ((!*!))
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Linear ( M44, V3(..), transpose, V2 (..) )
+import Linear ( M44, transpose, V2 (..) )
 import Hickory.Math (perspectiveProjection, mkTranslation)
-import Hickory.Math.Matrix ( mkRotation, orthographicProjection, mkScale )
+import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 
 import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, pushConstant, draw)
 import Data.Word (Word32)
-import Foreign (Storable)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
 
 data Resources = Resources
   { square             :: H.BufferedMesh
-  , solidColorMaterial :: H.Material (M44 Float)
-  , texturedMaterial   :: H.Material (M44 Float)
+  , solidColorMaterial :: H.Material PushConstants
+  , texturedMaterial   :: H.Material PushConstants
   }
 
 data PushConstants = PushConstants
@@ -43,59 +38,53 @@ data PushConstants = PushConstants
   } deriving Generic
     deriving anyclass GStorable
 
+acquireResources :: VulkanResources -> SwapchainContext -> Managed Resources
+acquireResources vulkanResources swapchainContext = do
+  square <- H.withBufferedMesh vulkanResources $ H.Mesh
+    { vertices =
+          [ (H.Position, [ -0.5, -0.5, 1.0
+                          ,  0.5, -0.5, 1.0
+                          ,  0.5,  0.5, 1.0
+                          , -0.5,  0.5, 1.0
+                          ])
+          , (H.Color, [ 1.0, 0.0, 0.0, 0.0
+                      , 0.0, 1.0, 0.0, 0.0
+                      , 0.0, 0.0, 1.0, 0.0
+                      , 1.0, 1.0, 1.0, 0.0
+                      ])
+          , (H.TextureCoord, [ 0.0, 0.0
+                              , 1.0, 0.0
+                              , 1.0, 1.0
+                              , 0.0, 1.0
+                              ])
+          ]
+    , indices = Just [0, 1, 2, 2, 3, 0]
+    }
+  solidColorMaterial <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader []
+  texturedMaterial   <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader ["star.png", "x.png"]
+  pure Resources {..}
+
 main :: IO ()
-main = withWindow 800 800 "Vulkan Test" $ \win bag@Bag {..} -> do
-  let DeviceContext {..} = deviceContext
-  runManaged do
-    square <- H.withBufferedMesh bag $ H.Mesh
-      { vertices =
-            [ (H.Position, [ -0.5, -0.5, 1.0
-                           ,  0.5, -0.5, 1.0
-                           ,  0.5,  0.5, 1.0
-                           , -0.5,  0.5, 1.0
-                           ])
-            , (H.Color, [ 1.0, 0.0, 0.0, 0.0
-                        , 0.0, 1.0, 0.0, 0.0
-                        , 0.0, 0.0, 1.0, 0.0
-                        , 1.0, 1.0, 1.0, 0.0
-                        ])
-            , (H.TextureCoord, [ 0.0, 0.0
-                               , 1.0, 0.0
-                               , 1.0, 1.0
-                               , 0.0, 1.0
-                               ])
-            ]
-      , indices = Just [0, 1, 2, 2, 3, 0]
-      }
-    solidColorMaterial <- H.withMaterial @PushConstants bag [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader []
-    texturedMaterial   <- H.withMaterial @PushConstants bag [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader ["star.png", "x.png"]
+main = withWindow 800 800 "Vulkan Test" \win ->
+  runFrames win acquireResources (\_ _ -> pure ()) \Resources {..} _ commandBuffer -> do
+    targetCommandBuffer commandBuffer do
+      let
+        screenRatio = 1
 
-    let loop frameNumber = do
-          liftIO GLFW.pollEvents
-          drawFrame frameNumber bag . flip targetCommandBuffer $ do
+        mat :: M44 Float
+        mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
+          -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-            let
-              screenRatio = 1
+      useMaterial solidColorMaterial do
+        pushConstant (PushConstants (transpose mat) 0)
+        draw square
 
-              mat :: M44 Float
-              mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
-                !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
+      useMaterial texturedMaterial do
+        pushConstant (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) 0)
+        draw square
 
-            useMaterial solidColorMaterial do
-              pushConstant (PushConstants (transpose mat) 0)
-              draw square
-
-            useMaterial texturedMaterial do
-              pushConstant (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) 0)
-              draw square
-
-              pushConstant (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) 1)
-              draw square
-
-          whenM (not <$> liftIO (GLFW.windowShouldClose win)) $ loop (frameNumber + 1)
-    loop 0
-
-    deviceWaitIdle device
+        pushConstant (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) 1)
+        draw square
 
 {-- SHADERS --}
 

@@ -17,7 +17,7 @@ import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexI
 import Foreign (sizeOf, (.|.), castPtr)
 import qualified Data.List as List
 import GHC.Generics (Generic)
-import Hickory.Vulkan.Vulkan (allocate, Bag (..), DeviceContext (..))
+import Hickory.Vulkan.Vulkan (allocate, VulkanResources (..), DeviceContext (..))
 import Vulkan.Zero (zero)
 import VulkanMemoryAllocator (AllocationCreateInfo(requiredFlags), Allocator, Allocation, AllocationInfo, withMappedMemory)
 import qualified VulkanMemoryAllocator as VMA
@@ -102,7 +102,7 @@ attributeDescriptions = V.fromList . snd . List.mapAccumL mk 0
       }
     )
 
-withBufferedMesh :: Bag -> Mesh -> Managed BufferedMesh
+withBufferedMesh :: VulkanResources -> Mesh -> Managed BufferedMesh
 withBufferedMesh bag mesh@Mesh {..} = do
   vertexBuffer <- withVertexBuffer bag (pack mesh)
   indexBuffer  <- traverse (withIndexBuffer bag) indices
@@ -132,17 +132,17 @@ withBuffer' allocator usageFlags requiredFlags size = VMA.withBuffer allocator b
   allocInfo = zero { requiredFlags = requiredFlags }
 
 
-withVertexBuffer :: Storable a => Bag -> SV.Vector a -> Managed Buffer
+withVertexBuffer :: Storable a => VulkanResources -> SV.Vector a -> Managed Buffer
 withVertexBuffer bag = withBuffer bag BUFFER_USAGE_VERTEX_BUFFER_BIT
 
-withIndexBuffer :: Storable a => Bag -> SV.Vector a -> Managed Buffer
+withIndexBuffer :: Storable a => VulkanResources -> SV.Vector a -> Managed Buffer
 withIndexBuffer bag = withBuffer bag BUFFER_USAGE_INDEX_BUFFER_BIT
 
 vsizeOf :: Storable a => SV.Vector a -> Word32
 vsizeOf v = fromIntegral $ SV.length v * sizeOf (SV.head v)
 
-withBuffer :: Storable a => Bag -> BufferUsageFlags -> SV.Vector a -> Managed Buffer
-withBuffer bag@Bag {..} usageFlags dat = do
+withBuffer :: Storable a => VulkanResources -> BufferUsageFlags -> SV.Vector a -> Managed Buffer
+withBuffer bag@VulkanResources {..} usageFlags dat = do
   let bufferSize = fromIntegral $ vsizeOf dat
   -- Rather than copying directly from CPU to GPU, we want the buffer to
   -- live in memory only accesible from GPU for better peformance.
@@ -169,14 +169,14 @@ withBuffer bag@Bag {..} usageFlags dat = do
 
   pure buffer
 
-copyBuffer :: MonadIO m => Bag -> Buffer -> Buffer -> DeviceSize -> m ()
+copyBuffer :: MonadIO m => VulkanResources -> Buffer -> Buffer -> DeviceSize -> m ()
 copyBuffer bag srcBuf dstBuf bufferSize = withSingleTimeCommands bag \commandBuffer -> do
     let copyInfo :: BufferCopy
         copyInfo = zero { size = bufferSize }
     cmdCopyBuffer commandBuffer srcBuf dstBuf [copyInfo]
 
-withSingleTimeCommands :: MonadIO m => Bag -> (CommandBuffer -> IO ()) -> m ()
-withSingleTimeCommands Bag {..} f = liftIO $ runManaged do
+withSingleTimeCommands :: MonadIO m => VulkanResources -> (CommandBuffer -> IO ()) -> m ()
+withSingleTimeCommands VulkanResources {..} f = liftIO $ runManaged do
   let DeviceContext {..} = deviceContext
 
   -- Need a temporary command buffer for copy commands

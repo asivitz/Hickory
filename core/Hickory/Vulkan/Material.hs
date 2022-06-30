@@ -29,7 +29,7 @@ import Vulkan
   , WriteDescriptorSet(..), Format (..), ImageLayout (..), cmdBindDescriptorSets, allocateDescriptorSets
   )
 import Control.Monad.Managed (Managed)
-import Hickory.Vulkan.Vulkan (Bag(..), DeviceContext (..), allocate, withGraphicsPipeline, with2DImageView)
+import Hickory.Vulkan.Vulkan (VulkanResources(..), SwapchainContext(..), DeviceContext (..), allocate, withGraphicsPipeline, with2DImageView)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Functor (($>))
@@ -52,9 +52,9 @@ data Material pushConstant = Material
   , materialDescriptor  :: Maybe MaterialDescriptor
   }
 
-withMaterialDescriptor :: Bag -> [FilePath] -> Managed (Maybe MaterialDescriptor)
+withMaterialDescriptor :: VulkanResources -> [FilePath] -> Managed (Maybe MaterialDescriptor)
 withMaterialDescriptor _ [] = pure Nothing
-withMaterialDescriptor bag@Bag{..} texturePaths = do
+withMaterialDescriptor bag@VulkanResources{..} texturePaths = do
   let DeviceContext {..} = deviceContext
       numImages = fromIntegral $ Prelude.length texturePaths
   descriptorSetLayout <- withDescriptorSetLayout device zero
@@ -104,8 +104,8 @@ withMaterialDescriptor bag@Bag{..} texturePaths = do
 
   pure . Just $ MaterialDescriptor {..}
 
-withMaterial :: forall pushConstant. Storable pushConstant => Bag -> [Attribute] -> PrimitiveTopology -> B.ByteString -> B.ByteString -> [FilePath] -> Managed (Material pushConstant)
-withMaterial bag@Bag {..} attrs topology vertShader fragShader texturePaths = do
+withMaterial :: forall pushConstant. Storable pushConstant => VulkanResources -> SwapchainContext -> [Attribute] -> PrimitiveTopology -> B.ByteString -> B.ByteString -> [FilePath] -> Managed (Material pushConstant)
+withMaterial bag@VulkanResources {..} swapchainContext attrs topology vertShader fragShader texturePaths = do
   let DeviceContext {..} = deviceContext
 
   materialDescriptor <- withMaterialDescriptor bag texturePaths
@@ -121,7 +121,7 @@ withMaterial bag@Bag {..} attrs topology vertShader fragShader texturePaths = do
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
-  pipeline <- withGraphicsPipeline bag topology vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
+  pipeline <- withGraphicsPipeline bag swapchainContext topology vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
 
   pure Material {..}
 

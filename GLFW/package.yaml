@@ -33,6 +33,7 @@ dependencies:
   - vulkan
   - lens
   - derive-storable
+  - extra
   
 library:
   exposed-modules:
