@@ -39,6 +39,8 @@ import Data.Traversable (for)
 import Data.Maybe (maybeToList, listToMaybe)
 import Data.Foldable (for_)
 import Vulkan.Core10 (PrimitiveTopology)
+import Control.Lens (view)
+import System.FilePath.Lens (basename)
 
 data MaterialDescriptor = MaterialDescriptor
   { descriptorPool      :: DescriptorPool
@@ -50,6 +52,7 @@ data Material pushConstant = Material
   { pipeline            :: Pipeline
   , pipelineLayout      :: PipelineLayout
   , materialDescriptor  :: Maybe MaterialDescriptor
+  , textureNames        :: V.Vector FilePath
   }
 
 withMaterialDescriptor :: VulkanResources -> [FilePath] -> Managed (Maybe MaterialDescriptor)
@@ -122,6 +125,8 @@ withMaterial bag@VulkanResources {..} swapchainContext attrs topology vertShader
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
   pipeline <- withGraphicsPipeline bag swapchainContext topology vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
+
+  let textureNames = V.fromList $ view basename <$> texturePaths
 
   pure Material {..}
 

@@ -28,6 +28,7 @@ import Vulkan.Zero
 import qualified Data.Vector as V
 import qualified Data.ByteString as B
 import Data.Traversable (for)
+import Hickory.Types (Size (..))
 
 {- GLFW -}
 
@@ -95,8 +96,8 @@ validationLayers = V.fromList ["VK_LAYER_KHRONOS_validation"]
 
 runFrames
   :: GLFW.Window
-  -> (VulkanResources -> SwapchainContext -> Managed userRes) -- ^ Acquire user resources
-  -> (VulkanResources -> SwapchainContext -> Managed perFrameUserRes) -- ^ Acquire user resources that are needed 1 copy per frame (e.g. for double buffering)
+  -> (Size Int -> VulkanResources -> SwapchainContext -> Managed userRes) -- ^ Acquire user resources
+  -> (Size Int -> VulkanResources -> SwapchainContext -> Managed perFrameUserRes) -- ^ Acquire user resources that are needed 1 copy per frame (e.g. for double buffering)
   -> (userRes -> perFrameUserRes -> CommandBuffer -> IO ()) -- ^ Execute a frame
   -> IO ()
 runFrames win acquireUserResources acquirePerFrameUserResources f = do
@@ -112,10 +113,11 @@ runFrames win acquireUserResources acquirePerFrameUserResources f = do
     -- When the window is resized, we have to rebuild the swapchain
     -- Any resources that depend on the swapchain need to be rebuilt as well
     let acquireDynamicResources = do
-          framebufferSize       <- liftIO $ GLFW.getFramebufferSize win
-          swapchainContext      <- withSwapchainContext surface vulkanResources framebufferSize
-          userResources         <- acquireUserResources vulkanResources swapchainContext
-          perFrameUserResources <- V.replicateM numFrames $ acquirePerFrameUserResources vulkanResources swapchainContext
+          (w,h) <- liftIO $ GLFW.getFramebufferSize win
+          let fbSize = Size w h
+          swapchainContext      <- withSwapchainContext surface vulkanResources (w,h)
+          userResources         <- acquireUserResources fbSize vulkanResources swapchainContext
+          perFrameUserResources <- V.replicateM numFrames $ acquirePerFrameUserResources fbSize vulkanResources swapchainContext
           pure (swapchainContext, userResources, perFrameUserResources)
 
     liftIO $ loopWithResourceRefresh acquireDynamicResources \frameNumber (swapchainContext, userResources, perFrameUserResources) -> do

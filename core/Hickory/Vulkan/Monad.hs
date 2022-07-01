@@ -1,29 +1,31 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Hickory.Vulkan.Monad where
 
 import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..))
 import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (MonadTrans, lift)
-import Hickory.Vulkan.Material (Material, cmdPushMaterialConstants, cmdBindMaterial)
+import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial)
 import Hickory.Vulkan.Mesh (cmdDrawBufferedMesh, BufferedMesh)
 import Foreign (Storable, sizeOf)
 import Hickory.Graphics.MatrixMonad (MatrixT, MatrixMonad, xform, askMatrix)
 import Hickory.Vulkan.Text (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Control.Monad.State.Strict (StateT (..), evalStateT, get)
 import qualified Data.Vector.Storable as SV
+import qualified Data.Vector as V
 import Data.Word (Word32)
 import Control.Monad.State.Class (modify)
 import Hickory.Text.Text (TextCommand, Font, PositionedTextCommand (..), transformTextCommandsToVerts)
 import Hickory.Graphics.DrawText (squareIndices)
 import Linear (V3(..))
+import Data.Maybe (fromMaybe)
 
 {- Command Monad -}
 
@@ -44,7 +46,7 @@ mapCommandT f = CommandT . mapReaderT f . unCommandT
 
 {- Material Monad -}
 
-class Monad m => MaterialMonad material m where
+class Monad m => MaterialMonad material m | m -> material where
   askMaterial :: m (Material material)
 
 useMaterial :: (CommandMonad m, MonadIO m) => Material material -> MaterialT material m a -> m a
@@ -140,6 +142,11 @@ draw :: (CommandMonad m, MonadIO m) => BufferedMesh -> m ()
 draw mesh = do
   commandBuffer <- askCommandBuffer
   cmdDrawBufferedMesh commandBuffer mesh
+
+getTexIdx :: MaterialMonad pushConst m => FilePath -> m Word32
+getTexIdx name = do
+  Material {..} <- askMaterial
+  pure . fromIntegral $ fromMaybe (error $ "Can't find texture " ++ name ++ " in material") $ V.elemIndex name textureNames
 
 drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m) => Font Int -> TextCommand -> m ()
 drawText font tc = do
