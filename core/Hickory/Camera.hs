@@ -49,15 +49,15 @@ data Route = Route (V3 Scalar) (Maybe Target) deriving Show
 
 data Target = Target
   { tpos :: V3 Scalar
-  , moveTime :: Double
-  , moveDuration :: Double
+  , moveTime :: Scalar
+  , moveDuration :: Scalar
   } deriving Show
 
 cameraCenter :: Route -> V3 Scalar
 cameraCenter (Route pos Nothing ) = pos
 cameraCenter (Route pos (Just (Target tarpos time duration))) = lerp (realToFrac (time / duration)) tarpos pos
 
-checkTarget :: Route -> Double -> Route
+checkTarget :: Route -> Scalar -> Route
 checkTarget r@(Route _pos Nothing) _ = r
 checkTarget (Route pos (Just (Target tpos moveTime moveDuration))) delta =
   let time' = (moveTime + delta)

@@ -11,16 +11,17 @@ import Hickory.Utils.Utils
 import Data.Text (Text)
 import Data.Void
 import Linear (V2(..), V3(..))
+import Hickory.Math.Vector (Scalar)
 
 type Parser = Parsec Void Text
 
 parseFromFile :: Parsec e Text a -> String -> IO (Either (ParseErrorBundle Text e) a)
 parseFromFile p file = runParser p file <$> readFileAsText file
 
-anyNumber :: (MonadParsec e s m, Token s ~ Char) => m Double
+anyNumber :: (MonadParsec e s m, Token s ~ Char) => m Scalar
 anyNumber = toRealFloat <$> L.scientific
 
-floating :: (MonadParsec e s m, Token s ~ Char) => m Double
+floating :: (MonadParsec e s m, Token s ~ Char) => m Scalar
 floating = label "floating" (read <$> f)
         where front = do
                 chars <- many C.digitChar

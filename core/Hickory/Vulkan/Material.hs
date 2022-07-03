@@ -46,13 +46,13 @@ data MaterialDescriptor = MaterialDescriptor
   { descriptorPool      :: DescriptorPool
   , descriptorSetLayout :: DescriptorSetLayout
   , descriptorSets      :: V.Vector DescriptorSet
+  , textureNames        :: V.Vector FilePath -- TODO: Use Text instead of String
   }
 
 data Material pushConstant = Material
   { pipeline            :: Pipeline
   , pipelineLayout      :: PipelineLayout
   , materialDescriptor  :: Maybe MaterialDescriptor
-  , textureNames        :: V.Vector FilePath
   }
 
 withMaterialDescriptor :: VulkanResources -> [FilePath] -> Managed (Maybe MaterialDescriptor)
@@ -105,6 +105,8 @@ withMaterialDescriptor bag@VulkanResources{..} texturePaths = do
           }
     updateDescriptorSets device [SomeStruct write] []
 
+  let textureNames = V.fromList $ view basename <$> texturePaths
+
   pure . Just $ MaterialDescriptor {..}
 
 withMaterial :: forall pushConstant. Storable pushConstant => VulkanResources -> SwapchainContext -> [Attribute] -> PrimitiveTopology -> B.ByteString -> B.ByteString -> [FilePath] -> Managed (Material pushConstant)
@@ -125,8 +127,6 @@ withMaterial bag@VulkanResources {..} swapchainContext attrs topology vertShader
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
   pipeline <- withGraphicsPipeline bag swapchainContext topology vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
-
-  let textureNames = V.fromList $ view basename <$> texturePaths
 
   pure Material {..}
 

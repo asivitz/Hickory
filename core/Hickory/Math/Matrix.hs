@@ -30,8 +30,8 @@ import Hickory.Types
 import Hickory.Math.Vector
 import Text.Printf (printf)
 
-type Mat44 = M44 Double
-type Mat33 = M33 Double
+type Mat44 = M44 Scalar
+type Mat33 = M33 Scalar
 
 class MakeMat44 v where
   mkScale       :: Num a => v a -> M44 a
@@ -51,7 +51,7 @@ mkRotation v ang = mkTransformation (axisAngle v ang) zero
 mkTranslation3 :: (Num a) => V3 a -> M44 a
 mkTranslation3 v = identity & translation .~ v
 
-mat44Lerp :: Double -> Mat44 -> Mat44 -> Mat44
+mat44Lerp :: Scalar -> Mat44 -> Mat44 -> Mat44
 mat44Lerp x = liftI2 (lerp x)
 
 sizePosMat :: Size Scalar -> V3 Scalar -> Mat44

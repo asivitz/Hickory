@@ -76,9 +76,9 @@ mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
 data CoreEventGenerators a = CoreEventGenerators
   { renderEvent :: HandlerPair a
   , touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
-                   , HandlerPair [(Double, V2 Scalar, Int)]
+                   , HandlerPair [(Scalar, V2 Scalar, Int)]
                    , HandlerPair [(V2 Scalar, Int)])
-  , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Double), HandlerPair Key)
+  , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Scalar), HandlerPair Key)
   , timeEvents  :: HandlerPair NominalDiffTime
   , windowSize  :: IORef (Size Int)
   }

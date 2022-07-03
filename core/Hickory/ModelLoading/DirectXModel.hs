@@ -17,6 +17,7 @@ import Graphics.GL.Compatibility41 as GL
 import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), VertexGroup (..), Attachment (..))
 import Hickory.ModelLoading.DirectX (MeshTextureCoords(..))
 import Hickory.Graphics.Shader (Shader)
+import Hickory.Math.Vector (Scalar)
 
 {-
 directxToModelData :: WavefrontOBJ -> ModelData
@@ -39,7 +40,7 @@ data ThreeDModel = ThreeDModel
   { vao     :: VAO
   , frame   :: Maybe DX.Frame
   , mesh    :: DX.Mesh
-  , extents :: (V3 Double, V3 Double)
+  , extents :: (V3 Scalar, V3 Scalar)
   }
   deriving (Show)
 
@@ -130,7 +131,7 @@ packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshNormals, 
 isAnimated :: DX.Mesh -> Bool
 isAnimated DX.Mesh { DX.skinWeights } = (not . null) skinWeights
 
-meshExtents :: DX.Mesh -> (V3 Double, V3 Double)
+meshExtents :: DX.Mesh -> (V3 Scalar, V3 Scalar)
 meshExtents DX.Mesh { DX.vertices } = (V3 mnx mny mnz, V3 mxx mxy mxz)
  where
   Just (mnx, mny, mnz) = f min
@@ -163,7 +164,7 @@ packVertices :: (UV.Unbox a, UV.Unbox a1, UV.Unbox a2, Real a, Real a1, Real a2,
 packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFrac z]) (UV.toList verts)
 
 faceNumForFaceIdx :: Int -> Int
-faceNumForFaceIdx x = floor $ (realToFrac x :: Double) / 3
+faceNumForFaceIdx x = floor $ (realToFrac x :: Scalar) / 3
 
 -- interleaves arrays based on an array of counts
 -- interleave [[1,2,3,4,5,6],[40,50,60]] [2,1] ~> [1,2,40,3,4,50,5,6,60]
@@ -175,11 +176,11 @@ interleave vals counts            = pull counts vals ++ interleave (sub counts v
   sub ns vs = map (\(n, v) -> drop n v) (zip ns vs)
 
 --TODO: Read animation FPS from directx file
-retrieveActionMat :: (Text, Double) -> [(Text, [Mat44])] -> Maybe Mat44
+retrieveActionMat :: (Text, Scalar) -> [(Text, [Mat44])] -> Maybe Mat44
 retrieveActionMat (actionName, time) actionMats = (\kf -> kf !! (floor (time * 25) `mod` length kf)) <$> keyFrames
         where keyFrames = lookup actionName actionMats
 
-buildAnimatedMats :: Mat44 -> Mat44 -> (Text, Double) -> DX.Frame -> [(Text, Mat44)]
+buildAnimatedMats :: Mat44 -> Mat44 -> (Text, Scalar) -> DX.Frame -> [(Text, Mat44)]
 buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.children, DX.actionMats, DX.mat } =
   case frameName of
     Just fn -> (fn, m) : rest
@@ -191,7 +192,7 @@ buildAnimatedMats bindParent animParent animSel DX.Frame { DX.frameName, DX.chil
   animMat   = animParent !*! actionMat
   actionMat = fromMaybe mat $ retrieveActionMat animSel actionMats
 
-animatedMats :: DX.Frame -> DX.Mesh -> (Text, Double) -> [Mat44]
+animatedMats :: DX.Frame -> DX.Mesh -> (Text, Scalar) -> [Mat44]
 animatedMats f DX.Mesh { DX.skinWeights } animSel = (sortem . buildAnimatedMats identity identity animSel) f
         where sortem :: [(Text, Mat44)] -> [Mat44]
               sortem pairs = reverse $ foldl' (\lst sw -> maybe lst (\x -> snd x : lst) $ find (\(name, _) -> name == DX.transformNodeName sw) pairs) [] skinWeights

@@ -18,12 +18,12 @@ data Frame a
 
 data Animation a = Animation
   { numFrames :: Integer
-  , frameTime :: Double
-  , boundingBox :: (V3 Double, V3 Double)
-  , frames :: [(Frame a, (V3 Double, V3 Double))]
+  , frameTime :: Scalar
+  , boundingBox :: (V3 Scalar, V3 Scalar)
+  , frames :: [(Frame a, (V3 Scalar, V3 Scalar))]
   } deriving (Show)
 
-degToRad :: Double -> Double
+degToRad :: Scalar -> Scalar
 degToRad = (*(pi/180))
 
 vmax :: V3 Scalar -> V3 Scalar -> V3 Scalar
@@ -38,7 +38,7 @@ vminimum = foldl' vmin 10000
 vmaximum :: [V3 Scalar] -> V3 Scalar
 vmaximum = foldl' vmax (-10000)
 
-findJointLimits :: Frame Double -> (V3 Double, V3 Double)
+findJointLimits :: Frame Scalar -> (V3 Scalar, V3 Scalar)
 findJointLimits j = case j of
   (Joint _ mat children) -> f mat children
   (End mat) -> f mat []
@@ -47,22 +47,22 @@ findJointLimits j = case j of
                 limits = map findJointLimits chdn
                 (mn, mx) = (vminimum (map fst limits), vmaximum (map snd limits))
 
-bvhToAnimation :: BVH.BVH -> Animation Double
+bvhToAnimation :: BVH.BVH -> Animation Scalar
 bvhToAnimation (BVH.BVH joint (BVH.Motion nFrames fTime fs)) =
         Animation nFrames fTime bbox framelist
     where {-modelUp = unit _y-}
           {-worldUp = unit _z-}
           {-axis = cross modelUp worldUp-}
           {-angle = vabsangle worldUp modelUp-}
-          {-upVectorRot = mkRotation axis angle :: M44 Double-}
+          {-upVectorRot = mkRotation axis angle :: M44 Scalar-}
           rot = identity
           framelist = (map (\f -> let ([], frame) = animateJoint rot f joint in (frame, findJointLimits frame)) fs)
           bbox = (vminimum (map (fst . snd) framelist), vmaximum (map (snd . snd) framelist))
 
-consumeChanData :: [Text] -> [Double] -> (Double, Double, Double) -> (M44 Double, [Double])
+consumeChanData :: [Text] -> [Scalar] -> (Scalar, Scalar, Scalar) -> (M44 Scalar, [Scalar])
 consumeChanData chanNames chanData (x, y, z) = (mkTransformation quat (v + V3 x y z), drop (length chanNames) chanData)
-    where (v, quat) = foldl' f (zero :: V3 Double, axisAngle (unit _x) 0 :: Quaternion Double) (zip chanNames chanData :: [(Text, Double)])
-          f :: (V3 Double, Quaternion Double) -> (Text, Double) -> (V3 Double, Quaternion Double)
+    where (v, quat) = foldl' f (zero :: V3 Scalar, axisAngle (unit _x) 0 :: Quaternion Scalar) (zip chanNames chanData :: [(Text, Scalar)])
+          f :: (V3 Scalar, Quaternion Scalar) -> (Text, Scalar) -> (V3 Scalar, Quaternion Scalar)
           f (v', quat') (name, val) = case name of
                                           "Xposition" -> (v' + unit _x ^* val, quat')
                                           "Yposition" -> (v' + unit _y ^* val, quat')
@@ -72,7 +72,7 @@ consumeChanData chanNames chanData (x, y, z) = (mkTransformation quat (v + V3 x 
                                           "Zrotation" -> (v', quat' * axisAngle (unit _z) (degToRad val))
                                           _ -> error "Unrecognized rotation axis"
 
-animateJoint :: M44 Double -> [Double] -> BVH.Joint -> ([Double], Frame Double)
+animateJoint :: M44 Scalar -> [Scalar] -> BVH.Joint -> ([Scalar], Frame Scalar)
 animateJoint parentMat chanData (BVH.Joint chanNames name offset children) = (leftOverChannels, Joint name mat childJoints)
     where (leftOverChannels, childJoints) = mapAccumL (animateJoint mat) rest children
           mat = parentMat !*! jointMat

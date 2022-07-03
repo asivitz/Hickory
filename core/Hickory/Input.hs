@@ -7,11 +7,11 @@ import Data.Hashable
 
 -- key is the type used by your platform to represent a key. e.g. GLFW's Key type
 data RawInput = InputTouchesDown [(V2 Scalar,Int)]
-              | InputTouchesUp [(Double,V2 Scalar,Int)]
+              | InputTouchesUp [(Scalar,V2 Scalar,Int)]
               | InputTouchesLoc [(V2 Scalar,Int)]
               | InputKeyDown Key
               | InputKeyUp Key Scalar
-              | InputKeysHeld (HashMap.HashMap Key Double)
+              | InputKeysHeld (HashMap.HashMap Key Scalar)
               deriving (Show)
 
 data Key =

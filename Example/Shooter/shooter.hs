@@ -63,10 +63,11 @@ import Hickory.Text.Text (TextCommand(..), Font, makeFont, XAlign (..))
 import Hickory.Utils.Utils (readFileAsText)
 import Data.Either (fromRight)
 import Hickory.Color (white)
+import Hickory.Math.Vector (Scalar)
 
 -- ** GAMEPLAY **
 
-type Vec = V2 Double
+type Vec = V2 Scalar
 
 -- Our game data
 data Model = Model
@@ -102,10 +103,10 @@ physics (realToFrac -> delta) model@Model { playerPos, playerMoveDir, missiles }
   }
 
 -- Some gameplay constants
-playerMovementSpeed :: Double
+playerMovementSpeed :: Scalar
 playerMovementSpeed = 100
 
-missileMovementSpeed :: Double
+missileMovementSpeed :: Scalar
 missileMovementSpeed = 200
 
 -- Pure utilities
@@ -125,20 +126,20 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 data Resources = Resources
   { square         :: H.BufferedMesh
   , solidMaterial  :: H.Material SolidColorPushConstant
-  , circleMaterial :: H.Material (M44 Float)
-  , textMaterial   :: H.Material (M44 Float)
+  , circleMaterial :: H.Material (M44 Scalar)
+  , textMaterial   :: H.Material (M44 Scalar)
   , font           :: Font Int
   }
 
 data SolidColorPushConstant = SolidColorPushConstant
-  { mat   :: M44 Float
-  , color :: V4 Float
+  { mat   :: M44 Scalar
+  , color :: V4 Scalar
   } deriving Generic
     deriving anyclass GStorable
 
 -- Load meshes, textures, materials, fonts, etc.
-loadResources :: String -> VulkanResources -> SwapchainContext -> Managed Resources
-loadResources path vulkanResources swapchainContext = do
+loadResources :: String -> Size Int -> VulkanResources -> SwapchainContext -> Managed Resources
+loadResources path _size vulkanResources swapchainContext = do
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 0.0
@@ -156,9 +157,9 @@ loadResources path vulkanResources swapchainContext = do
     }
   solidMaterial  <- H.withMaterial @SolidColorPushConstant vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader []
-  circleMaterial <- H.withMaterial @(M44 Float) vulkanResources swapchainContext
+  circleMaterial <- H.withMaterial @(M44 Scalar) vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader [path ++ "/images/circle.png"]
-  textMaterial <- H.withMaterial @(M44 Float) vulkanResources swapchainContext
+  textMaterial <- H.withMaterial @(M44 Scalar) vulkanResources swapchainContext
     [H.Position, H.TextureCoord, H.Color] PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP textVertShader textFragShader [path ++ "/images/gidolinya.png"]
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
@@ -169,30 +170,30 @@ loadResources path vulkanResources swapchainContext = do
   pure $ Resources {..}
 
 -- We need a dynamic buffer per frame to write text mesh data
-loadPerFrameResources :: VulkanResources -> SwapchainContext -> Managed H.DynamicBufferedMesh
-loadPerFrameResources vr _sc = H.withDynamicBufferedMesh vr 1000
+loadPerFrameResources :: Size Int -> VulkanResources -> SwapchainContext -> Managed H.DynamicBufferedMesh
+loadPerFrameResources _ vr _sc = H.withDynamicBufferedMesh vr 1000
 
 -- Our render function
-renderGame :: MonadIO m => Size Double -> Model -> NominalDiffTime -> (Resources, H.DynamicBufferedMesh, CommandBuffer) -> m ()
+renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, H.DynamicBufferedMesh, CommandBuffer) -> m ()
 renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, textBuffer, commandBuffer) =
   targetCommandBuffer commandBuffer . useDynamicMesh textBuffer $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       useMaterial circleMaterial do
         for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
-          mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+          mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
           pushConstant mat
           draw square
 
       useMaterial solidMaterial do
         H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
-          mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+          mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
           pushConstant (SolidColorPushConstant mat (V4 1 0 0 1))
           draw square
 
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
       H.xform (mkTranslation (topLeft 20 20 scrSize)) do
         useMaterial textMaterial do
-          mat :: M44 Float <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+          mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
           pushConstant mat
           drawText font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
 

@@ -4,6 +4,7 @@ import Hickory.FRP.Combinators (unionFirst)
 import Data.Time (NominalDiffTime)
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
+import Hickory.Math (Scalar)
 
 -- Queue up events and release in a batch
 -- For example, to collect a frame's worth of input events and process at
@@ -22,7 +23,7 @@ batchEvents accEv batchEv = do
 
   pure $ B.filterJust ev
 
-chunkTime :: NominalDiffTime -> B.Event NominalDiffTime -> B.MomentIO (B.Event NominalDiffTime, B.Behavior Double)
+chunkTime :: NominalDiffTime -> B.Event NominalDiffTime -> B.MomentIO (B.Event NominalDiffTime, B.Behavior Scalar)
 chunkTime chunkSize e = do
   (ev,b) <- B.mapAccum 0 $ (\chunk acc -> if chunk + acc > chunkSize
                                            then (Just chunkSize, acc + chunk - chunkSize)
@@ -30,7 +31,7 @@ chunkTime chunkSize e = do
                          <$> e
   pure (B.filterJust ev, realToFrac . (/chunkSize) <$> b)
 
-timeStep :: NominalDiffTime -> B.Event [input] -> B.Event NominalDiffTime -> B.MomentIO (B.Behavior Double, B.Event (NominalDiffTime, [input]))
+timeStep :: NominalDiffTime -> B.Event [input] -> B.Event NominalDiffTime -> B.MomentIO (B.Behavior Scalar, B.Event (NominalDiffTime, [input]))
 timeStep physicsTimeStep controlComs eInGameTime = do
   (   eGameTime -- ticks with a new chunk of game time whenever enough has been accumulated
     , frameFraction -- the fraction of a chunk we have progressed

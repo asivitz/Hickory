@@ -13,7 +13,7 @@ module Hickory.Graphics.MatrixMonad where
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (ReaderT(..), MonadReader, ask, local, lift, mapReaderT)
 import Hickory.Math
-import Linear ((!*!), identity)
+import Linear ((!*!), identity, transpose)
 import Control.Monad.Trans (MonadTrans)
 
 class Monad m => MatrixMonad m where
@@ -39,3 +39,6 @@ runMatrixT = flip runReaderT identity . unMatrixT
 instance Monad m => MatrixMonad (MatrixT m) where
   xform trans (MatrixT matf) = MatrixT $ local (!*! trans) matf
   askMatrix = MatrixT ask
+
+transposedMat :: MatrixMonad m => m Mat44
+transposedMat = fmap (fmap realToFrac) . transpose <$> askMatrix

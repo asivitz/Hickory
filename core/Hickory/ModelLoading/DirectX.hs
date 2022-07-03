@@ -33,7 +33,7 @@ data Frame = Frame
 
 data Mesh = Mesh
   { nVertices :: Int
-  , vertices :: Vector.Vector (Double, Double, Double)
+  , vertices :: Vector.Vector (Scalar, Scalar, Scalar)
   , nFaces :: Int
   , faces :: Vector.Vector Int
   , meshNormals :: MeshNormals
@@ -45,14 +45,14 @@ data Mesh = Mesh
 
 data MeshNormals = MeshNormals
   { nNormals :: Int
-  , normals :: Vector.Vector (Double, Double, Double)
+  , normals :: Vector.Vector (Scalar, Scalar, Scalar)
   , nFaceNormals :: Int
   , faceNormals :: Vector.Vector Int
   } deriving (Show)
 
 data MeshTextureCoords = MeshTextureCoords
   { nTextureCoords :: Int
-  , textureCoords :: Vector.Vector Double
+  , textureCoords :: Vector.Vector Scalar
   } deriving (Show)
 
 data MeshMaterialList = MeshMaterialList
@@ -62,7 +62,7 @@ data MeshMaterialList = MeshMaterialList
 
 data Material = Material
   { faceColor :: Color
-  , power :: Double
+  , power :: Scalar
   , specularColor :: Color
   , emissiveColor :: Color
   } deriving (Show)
@@ -76,7 +76,7 @@ data XSkinMeshHeader = XSkinMeshHeader
 data SkinWeights = SkinWeights
   { transformNodeName :: Text
   , vertexIndices :: Vector.Vector Int
-  , weights :: Vector.Vector Double
+  , weights :: Vector.Vector Scalar
   , matrixOffset :: Mat44
   } deriving (Show)
 
@@ -88,7 +88,7 @@ data Animation = Animation
 
 data BoneAnimation = BoneAnimation
   { boneName :: Text
-  , _transforms :: [M44 Double]
+  , _transforms :: [M44 Scalar]
   } deriving (Show)
 
 {- Lexing -}
@@ -105,7 +105,7 @@ reserved w = lexeme (string w *> notFollowedBy alphaNumChar)
 identifier :: Parser Text
 identifier = lexeme $ pack <$> ((:) <$> letterChar <*> many (alphaNumChar <|> char '.' <|> char '_'))
 
-anySignedNumber :: Parser Double
+anySignedNumber :: Parser Scalar
 anySignedNumber = L.signed sc anyNumber
 
 integer :: Parser Integer
@@ -153,13 +153,13 @@ parseVector x = Vector.fromList . concat <$> parseArray x
 parseVectorSize :: Vector.Unbox a => Int -> Parser [a] -> Parser (Vector.Vector a)
 parseVectorSize size x = Vector.fromList . concat <$> parseArraySize size x
 
-parseVectorArray :: Parser (Vector.Vector (Double, Double, Double))
+parseVectorArray :: Parser (Vector.Vector (Scalar, Scalar, Scalar))
 parseVectorArray = Vector.fromList . map (\[x,y,z] -> (x,y,z)) <$> parseArray (count 3 $ terminate anySignedNumber)
 
 parseMeshFaceArray :: Parser (Vector.Vector Int)
 parseMeshFaceArray = parseVector meshFace
 
-parseCoord2dArray :: Parser (Vector.Vector Double)
+parseCoord2dArray :: Parser (Vector.Vector Scalar)
 parseCoord2dArray = parseVector (count 2 $ terminate anySignedNumber)
 
 meshFace :: Parser [Int]
@@ -272,19 +272,19 @@ parseAnimationKey element = parseSection "AnimationKey" $ \_ -> do
     nkeys <- terminate int
     parseArraySize nkeys $ terminate element
 
-parseRotationKey :: Parser [Quaternion Double]
+parseRotationKey :: Parser [Quaternion Scalar]
 parseRotationKey = parseAnimationKey $ do
   _ <- terminate int
   _ <- terminate int
   quaternionFromList <$> parseArraySize 4 anySignedNumber
 
-parseScaleKey :: Parser [V3 Double]
+parseScaleKey :: Parser [V3 Scalar]
 parseScaleKey = parseAnimationKey $ do
   _ <- terminate int
   _ <- terminate int
   v3FromList <$> parseArraySize 3 anySignedNumber
 
-parsePositionKey :: Parser [V3 Double]
+parsePositionKey :: Parser [V3 Scalar]
 parsePositionKey = parseAnimationKey $ do
   _ <- terminate int
   _ <- terminate int

@@ -12,7 +12,7 @@ import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawI
 import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (MonadTrans, lift)
-import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial)
+import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial, MaterialDescriptor (..))
 import Hickory.Vulkan.Mesh (cmdDrawBufferedMesh, BufferedMesh)
 import Foreign (Storable, sizeOf)
 import Hickory.Graphics.MatrixMonad (MatrixT, MatrixMonad, xform, askMatrix)
@@ -146,7 +146,10 @@ draw mesh = do
 getTexIdx :: MaterialMonad pushConst m => FilePath -> m Word32
 getTexIdx name = do
   Material {..} <- askMaterial
-  pure . fromIntegral $ fromMaybe (error $ "Can't find texture " ++ name ++ " in material") $ V.elemIndex name textureNames
+  case materialDescriptor of
+    Just MaterialDescriptor {..} ->
+      pure . fromIntegral $ fromMaybe (error $ "Can't find texture " ++ name ++ " in material") $ V.elemIndex name textureNames
+    Nothing -> error "Material has no textures"
 
 drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m) => Font Int -> TextCommand -> m ()
 drawText font tc = do

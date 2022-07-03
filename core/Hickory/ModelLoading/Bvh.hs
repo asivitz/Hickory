@@ -11,6 +11,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 import Data.Maybe
 import Hickory.ModelLoading.Parsing
 import Data.Text (Text, pack)
+import Hickory.Math.Vector (Scalar)
 
 sc :: Parser ()
 sc = L.space (void spaceChar) empty empty
@@ -30,7 +31,7 @@ identifier = lexeme $ pack <$> ((:) <$> letterChar <*> many (alphaNumChar <|> ch
 bracket :: Parser a -> Parser a
 bracket = between (symbol "{") (symbol "}")
 
-number :: Parser Double
+number :: Parser Scalar
 number = lexeme (signed anyNumber)
 
 integer :: Parser Integer
@@ -49,7 +50,7 @@ signed p = do
         num <- p
         return $ if isJust n then negate num else num
 
-parseFrame :: Parser [Double]
+parseFrame :: Parser [Scalar]
 parseFrame = do
         let f = (do
                     n <- signed anyNumber
@@ -59,7 +60,7 @@ parseFrame = do
         eol
         return fs
 
-parseOffset :: Parser (Double,Double,Double)
+parseOffset :: Parser (Scalar,Scalar,Scalar)
 parseOffset = reserved "OFFSET" *>
     ((,,) <$> number <*> number <*> number)
 
@@ -98,12 +99,12 @@ data BVH = BVH Joint Motion
 
 data Motion = Motion {
             numFrames :: Integer,
-            frameTime :: Double,
-            frames :: [[Double]]
+            frameTime :: Scalar,
+            frames :: [[Scalar]]
             }
             deriving (Show)
 
-type Offset = (Double, Double, Double)
+type Offset = (Scalar, Scalar, Scalar)
 
 data Joint = Joint {
            channels :: [Text],

@@ -35,7 +35,7 @@ import Data.Foldable (toList)
 
 type Vector v a = (Metric v, Epsilon (v a), Additive v, Floating a, Real a, RealFloat a)
 
-type Scalar = Double
+type Scalar = Float
 
 v2tov3 :: V2 a -> a -> V3 a
 v2tov3 (V2 x y) = V3 x y
