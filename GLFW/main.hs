@@ -16,21 +16,23 @@ import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
+import qualified Hickory.Vulkan.DescriptorSet as H
 import Linear.Matrix ((!*!))
 import Linear ( M44, transpose, V2 (..) )
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 
-import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, pushConstant, draw, getTexIdx)
+import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, useGlobalDecriptorSet, pushConstant, draw, getTexIdx)
 import Data.Word (Word32)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
 import Hickory.Types (Size)
 
 data Resources = Resources
-  { square             :: H.BufferedMesh
-  , solidColorMaterial :: H.Material PushConstants
-  , texturedMaterial   :: H.Material PushConstants
+  { square              :: H.BufferedMesh
+  , solidColorMaterial  :: H.Material PushConstants
+  , texturedMaterial    :: H.Material PushConstants
+  , globalDescriptorSet :: H.TextureDescriptorSet
   }
 
 data PushConstants = PushConstants
@@ -44,10 +46,10 @@ acquireResources _ vulkanResources swapchainContext = do
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 1.0
-                          ,  0.5, -0.5, 1.0
-                          ,  0.5,  0.5, 1.0
-                          , -0.5,  0.5, 1.0
-                          ])
+                         ,  0.5, -0.5, 1.0
+                         ,  0.5,  0.5, 1.0
+                         , -0.5,  0.5, 1.0
+                         ])
           , (H.Color, [ 1.0, 0.0, 0.0, 0.0
                       , 0.0, 1.0, 0.0, 0.0
                       , 0.0, 0.0, 1.0, 0.0
@@ -61,14 +63,16 @@ acquireResources _ vulkanResources swapchainContext = do
           ]
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
-  solidColorMaterial <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader []
-  texturedMaterial   <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader ["star.png", "x.png"]
+
+  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources ["star.png", "x.png"]
+  solidColorMaterial <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader Nothing
+  texturedMaterial   <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader (Just globalDescriptorSet)
   pure Resources {..}
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
   runFrames win acquireResources (\_ _ _ -> pure ()) \Resources {..} _ commandBuffer -> do
-    targetCommandBuffer commandBuffer do
+    targetCommandBuffer commandBuffer . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
       let
         screenRatio = 1
 

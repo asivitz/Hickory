@@ -2,17 +2,19 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 {-# LANGUAGE FunctionalDependencies #-}
 
 module Hickory.Vulkan.Monad where
 
-import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..))
+import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), cmdBindDescriptorSets, pattern PIPELINE_BIND_POINT_GRAPHICS)
 import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (MonadTrans, lift)
-import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial, MaterialDescriptor (..))
+import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial)
+import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..))
 import Hickory.Vulkan.Mesh (cmdDrawBufferedMesh, BufferedMesh)
 import Foreign (Storable, sizeOf)
 import Hickory.Graphics.MatrixMonad (MatrixT, MatrixMonad, xform, askMatrix)
@@ -26,6 +28,7 @@ import Hickory.Text.Text (TextCommand, Font, PositionedTextCommand (..), transfo
 import Hickory.Graphics.DrawText (squareIndices)
 import Linear (V3(..))
 import Data.Maybe (fromMaybe)
+import Data.Text (Text, unpack)
 
 {- Command Monad -}
 
@@ -64,6 +67,27 @@ instance Monad m => MaterialMonad material (MaterialT material m) where
 mapMaterialT :: (m a -> n b) -> MaterialT material m a -> MaterialT material n b
 mapMaterialT f = MaterialT . mapReaderT f . unMaterialT
 
+{- Global Descriptor Monad -}
+
+class Monad m => GlobalDescriptorMonad m where
+  askDescriptorSet :: m TextureDescriptorSet
+
+-- |Need to supply some material with a pipeline compatible with the descriptor set
+useGlobalDecriptorSet :: (CommandMonad m, MonadIO m) => TextureDescriptorSet -> Material pushConst -> GlobalDescriptorT m a -> m a
+useGlobalDecriptorSet descriptorSet material f = flip runReaderT descriptorSet . unGlobalDescriptorT $ do
+  TextureDescriptorSet {..} <- askDescriptorSet
+  commandBuffer <- askCommandBuffer
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS (pipelineLayout material) 0 descriptorSets []
+  f
+
+newtype GlobalDescriptorT m a = GlobalDescriptorT { unGlobalDescriptorT :: ReaderT TextureDescriptorSet m a }
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
+
+instance Monad m => GlobalDescriptorMonad (GlobalDescriptorT m) where
+  askDescriptorSet = GlobalDescriptorT ask
+
+mapGlobalDescriptorT :: (m a -> n b) -> GlobalDescriptorT m a -> GlobalDescriptorT n b
+mapGlobalDescriptorT f = GlobalDescriptorT . mapReaderT f . unGlobalDescriptorT
 
 {- Dynamic Mesh Monad -}
 
@@ -100,8 +124,11 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 {- Transitive Instances -}
 
 instance CommandMonad m => CommandMonad (MaterialT material m) where askCommandBuffer = lift askCommandBuffer
-instance CommandMonad m => CommandMonad (MatrixT m) where askCommandBuffer = lift askCommandBuffer
-instance CommandMonad m => CommandMonad (DynamicMeshT m) where askCommandBuffer = lift askCommandBuffer
+instance CommandMonad m => CommandMonad (MatrixT m)            where askCommandBuffer = lift askCommandBuffer
+instance CommandMonad m => CommandMonad (DynamicMeshT m)       where askCommandBuffer = lift askCommandBuffer
+instance CommandMonad m => CommandMonad (GlobalDescriptorT m)  where askCommandBuffer = lift askCommandBuffer
+
+instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MaterialT material m) where askDescriptorSet = lift askDescriptorSet
 
 instance DynamicMeshMonad m => DynamicMeshMonad (MaterialT mat m) where
   askDynamicMesh = lift askDynamicMesh
@@ -143,13 +170,10 @@ draw mesh = do
   commandBuffer <- askCommandBuffer
   cmdDrawBufferedMesh commandBuffer mesh
 
-getTexIdx :: MaterialMonad pushConst m => FilePath -> m Word32
+getTexIdx :: GlobalDescriptorMonad m => Text -> m Word32
 getTexIdx name = do
-  Material {..} <- askMaterial
-  case materialDescriptor of
-    Just MaterialDescriptor {..} ->
-      pure . fromIntegral $ fromMaybe (error $ "Can't find texture " ++ name ++ " in material") $ V.elemIndex name textureNames
-    Nothing -> error "Material has no textures"
+  TextureDescriptorSet {..} <- askDescriptorSet
+  pure . fromIntegral $ fromMaybe (error $ "Can't find texture " ++ unpack name ++ " in material") $ V.elemIndex name textureNames
 
 drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m) => Font Int -> TextCommand -> m ()
 drawText font tc = do

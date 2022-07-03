@@ -106,6 +106,7 @@ library:
     - Hickory.Vulkan.Vulkan
     - Hickory.Vulkan.Mesh
     - Hickory.Vulkan.Material
+    - Hickory.Vulkan.DescriptorSet
     - Hickory.Vulkan.Textures
     - Hickory.Vulkan.Monad
     - Hickory.Vulkan.Text
