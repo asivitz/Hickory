@@ -26,11 +26,14 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Maybe (maybeToList)
 import Vulkan.Core10 (PrimitiveTopology)
 import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet, descriptorSetLayout)
+import Data.UUID (UUID)
+import Data.UUID.V4 (nextRandom)
 
 data Material pushConstant = Material
   { pipeline            :: Pipeline
   , pipelineLayout      :: PipelineLayout
   -- , materialDescriptor  :: Maybe MaterialDescriptor
+  , uuid                :: UUID
   }
 
 withMaterial :: forall pushConstant. Storable pushConstant => VulkanResources -> SwapchainContext -> [Attribute] -> PrimitiveTopology -> B.ByteString -> B.ByteString -> Maybe TextureDescriptorSet -> Managed (Material pushConstant)
@@ -51,6 +54,7 @@ withMaterial bag@VulkanResources {..} swapchainContext attrs topology vertShader
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
   pipeline <- withGraphicsPipeline bag swapchainContext topology vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
+  uuid <- liftIO nextRandom
 
   pure Material {..}
 

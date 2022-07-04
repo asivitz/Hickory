@@ -57,6 +57,7 @@ dependencies:
     - vulkan-utils
     - VulkanMemoryAllocator
     - bytestring
+    - uuid
 
 when:
     - condition: os(osx)

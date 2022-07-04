@@ -22,7 +22,7 @@ import Linear ( M44, transpose, V2 (..) )
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 
-import Hickory.Vulkan.Monad (targetCommandBuffer, useMaterial, useGlobalDecriptorSet, pushConstant, draw, getTexIdx)
+import Hickory.Vulkan.Monad (recordCommandBuffer, useGlobalDecriptorSet, getTexIdx, recordDrawCommand, drawMesh)
 import Data.Word (Word32)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
@@ -72,7 +72,7 @@ acquireResources _ vulkanResources swapchainContext = do
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
   runFrames win acquireResources (\_ _ _ -> pure ()) \Resources {..} _ commandBuffer -> do
-    targetCommandBuffer commandBuffer . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
+    recordCommandBuffer commandBuffer . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
       let
         screenRatio = 1
 
@@ -80,18 +80,13 @@ main = withWindow 800 800 "Vulkan Test" \win ->
         mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
           -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-      useMaterial solidColorMaterial do
-        pushConstant (PushConstants (transpose mat) 0)
-        draw square
+      drawMesh False solidColorMaterial (PushConstants (transpose mat) 0) square
 
-      useMaterial texturedMaterial do
-        texidx0 <- getTexIdx "star"
-        pushConstant (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0)
-        draw square
+      texidx0 <- getTexIdx "star"
+      drawMesh True texturedMaterial (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
 
-        texidx1 <- getTexIdx "x"
-        pushConstant (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1)
-        draw square
+      texidx1 <- getTexIdx "x"
+      drawMesh True texturedMaterial (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
 
 {-- SHADERS --}
 
