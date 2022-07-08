@@ -18,7 +18,7 @@ import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import Linear.Matrix ((!*!))
-import Linear ( M44, transpose, V2 (..) )
+import Linear ( M44, V2 (..) )
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 
@@ -38,9 +38,6 @@ data Resources = Resources
 data Uniform = Uniform
   { modelView :: M44 Float
   , texIdx    :: Word32
-  , unused1 :: Word32
-  , unused2 :: Word32
-  , unused3 :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -83,19 +80,20 @@ main = withWindow 800 800 "Vulkan Test" \win ->
         mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
           -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-      drawMesh False solidColorMaterial (Uniform (transpose mat) 0 0 0 0) square
+      drawMesh False solidColorMaterial (Uniform mat 0) square
 
       texidx0 <- getTexIdx "star"
-      drawMesh True texturedMaterial (Uniform (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0 0 0 0) square
+      drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
 
       texidx1 <- getTexIdx "x"
-      drawMesh True texturedMaterial (Uniform (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1 0 0 0) square
+      drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
 
 {-- SHADERS --}
 
 vertShader :: B.ByteString
 vertShader = [vert|
   #version 450
+  #extension GL_EXT_scalar_block_layout : require
 
   layout(location = 0) in vec3 inPosition;
   layout(location = 1) in vec3 inColor;
@@ -108,12 +106,9 @@ vertShader = [vert|
   {
     mat4 modelViewMatrix;
     int texIdx;
-    int unused1;
-    int unused2;
-    int unused3;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -149,6 +144,7 @@ fragShader = [frag|
 texFragShader :: B.ByteString
 texFragShader = [frag|
   #version 450
+  #extension GL_EXT_scalar_block_layout : require
 
   layout(location = 0) in vec3 fragColor;
   layout(location = 1) in vec2 texCoord;
@@ -161,12 +157,9 @@ texFragShader = [frag|
   {
     mat4 modelViewMatrix;
     int texIdx;
-    int unused1;
-    int unused2;
-    int unused3;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 

@@ -30,7 +30,7 @@ import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale)
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!), transpose )
+import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!))
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
@@ -191,17 +191,17 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, comm
   recordCommandBuffer commandInfo . useDynamicMesh (resourceForFrame frameNumber dynamicMesh) . useGlobalDecriptorSet globalDescriptorSet circleMaterial $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
-        mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+        mat <- H.askMatrix
         texId <- getTexIdx "circle"
         drawMesh True circleMaterial (TextureUniform mat texId) square
 
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
-        mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+        mat <- H.askMatrix
         drawMesh False solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square
 
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
       H.xform (mkTranslation (topLeft 20 20 scrSize)) do
-        mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
+        mat <- H.askMatrix
         texId <- getTexIdx "gidolinya"
         drawText textMaterial (TextureUniform mat texId) font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
   where
@@ -297,7 +297,7 @@ vertShader = [vert|
     vec4 color;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -325,7 +325,7 @@ fragShader = [frag|
     vec4 color;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -357,7 +357,7 @@ texVertShader = [vert|
     int texIdx;
   };
 
-  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -391,7 +391,7 @@ texFragShader = [frag|
     int texIdx;
   };
 
-  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -425,7 +425,7 @@ textVertShader = [vert|
     int texIdx;
   };
 
-  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -461,7 +461,7 @@ textFragShader = [frag|
     int texIdx;
   };
 
-  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
