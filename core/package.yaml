@@ -58,6 +58,7 @@ dependencies:
     - VulkanMemoryAllocator
     - bytestring
     - uuid
+    - generic-lens
 
 when:
     - condition: os(osx)
@@ -111,6 +112,7 @@ library:
     - Hickory.Vulkan.Textures
     - Hickory.Vulkan.Monad
     - Hickory.Vulkan.Text
+    - Hickory.Vulkan.Framing
 
 executables:
   pack-model:

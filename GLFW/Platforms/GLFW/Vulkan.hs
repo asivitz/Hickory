@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
+{-# LANGUAGE TupleSections #-}
 
 module Platforms.GLFW.Vulkan where
 
@@ -29,6 +30,7 @@ import qualified Data.Vector as V
 import qualified Data.ByteString as B
 import Data.Traversable (for)
 import Hickory.Types (Size (..))
+import Hickory.Vulkan.Framing (frameResource, resourceForFrame)
 
 {- GLFW -}
 
@@ -97,18 +99,16 @@ validationLayers = V.fromList ["VK_LAYER_KHRONOS_validation"]
 runFrames
   :: GLFW.Window
   -> (Size Int -> VulkanResources -> SwapchainContext -> Managed userRes) -- ^ Acquire user resources
-  -> (Size Int -> VulkanResources -> SwapchainContext -> Managed perFrameUserRes) -- ^ Acquire user resources that are needed 1 copy per frame (e.g. for double buffering)
-  -> (userRes -> perFrameUserRes -> CommandBuffer -> IO ()) -- ^ Execute a frame
+  -> (userRes -> (Int, CommandBuffer) -> IO ()) -- ^ Execute a frame
   -> IO ()
-runFrames win acquireUserResources acquirePerFrameUserResources f = do
+runFrames win acquireUserResources f = do
   glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= fmap V.fromList . mapM B.packCString
 
   runManaged do
-    let numFrames = 2
     inst            <- withStandardInstance $ glfwReqExts V.++ [ "VK_EXT_debug_utils",  KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ]
     surface         <- withWindowSurface inst win
     vulkanResources <- withVulkanResources inst surface
-    frames          <- V.replicateM numFrames $ withFrame (deviceContext vulkanResources)
+    frames          <- frameResource $ withFrame (deviceContext vulkanResources)
 
     -- When the window is resized, we have to rebuild the swapchain
     -- Any resources that depend on the swapchain need to be rebuilt as well
@@ -117,15 +117,13 @@ runFrames win acquireUserResources acquirePerFrameUserResources f = do
           let fbSize = Size w h
           swapchainContext      <- withSwapchainContext surface vulkanResources (w,h)
           userResources         <- acquireUserResources fbSize vulkanResources swapchainContext
-          perFrameUserResources <- V.replicateM numFrames $ acquirePerFrameUserResources fbSize vulkanResources swapchainContext
-          pure (swapchainContext, userResources, perFrameUserResources)
+          pure (swapchainContext, userResources)
 
-    liftIO $ loopWithResourceRefresh acquireDynamicResources \frameNumber (swapchainContext, userResources, perFrameUserResources) -> do
+    liftIO $ loopWithResourceRefresh acquireDynamicResources \frameNumber (swapchainContext, userResources) -> do
       GLFW.pollEvents
-      let frame = frames V.! (frameNumber `mod` V.length frames)
-          thisFrameUserResources = perFrameUserResources V.! (frameNumber `mod` V.length perFrameUserResources)
+      let frame = resourceForFrame frameNumber frames
 
-      drawRes <- drawFrame frame vulkanResources swapchainContext (f userResources thisFrameUserResources)
+      drawRes <- drawFrame frame vulkanResources swapchainContext (f userResources . (frameNumber,))
       shouldClose <- GLFW.windowShouldClose win
       when (drawRes || shouldClose) $ deviceWaitIdle (device (deviceContext vulkanResources))
       if shouldClose then pure Nothing else pure (Just drawRes)

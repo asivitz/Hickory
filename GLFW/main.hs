@@ -22,7 +22,7 @@ import Linear ( M44, transpose, V2 (..) )
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 
-import Hickory.Vulkan.Monad (recordCommandBuffer, useGlobalDecriptorSet, getTexIdx, recordDrawCommand, drawMesh)
+import Hickory.Vulkan.Monad (recordCommandBuffer, useGlobalDecriptorSet, getTexIdx, drawMesh)
 import Data.Word (Word32)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
@@ -30,14 +30,17 @@ import Hickory.Types (Size)
 
 data Resources = Resources
   { square              :: H.BufferedMesh
-  , solidColorMaterial  :: H.Material PushConstants
-  , texturedMaterial    :: H.Material PushConstants
+  , solidColorMaterial  :: H.Material Uniform
+  , texturedMaterial    :: H.Material Uniform
   , globalDescriptorSet :: H.TextureDescriptorSet
   }
 
-data PushConstants = PushConstants
+data Uniform = Uniform
   { modelView :: M44 Float
   , texIdx    :: Word32
+  , unused1 :: Word32
+  , unused2 :: Word32
+  , unused3 :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -65,14 +68,14 @@ acquireResources _ vulkanResources swapchainContext = do
     }
 
   globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources ["star.png", "x.png"]
-  solidColorMaterial <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader Nothing
-  texturedMaterial   <- H.withMaterial @PushConstants vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader (Just globalDescriptorSet)
+  solidColorMaterial <- H.withMaterial vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
+  texturedMaterial   <- H.withMaterial vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader (Just globalDescriptorSet)
   pure Resources {..}
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
-  runFrames win acquireResources (\_ _ _ -> pure ()) \Resources {..} _ commandBuffer -> do
-    recordCommandBuffer commandBuffer . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
+  runFrames win acquireResources \Resources {..} commandInfo -> do
+    recordCommandBuffer commandInfo . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
       let
         screenRatio = 1
 
@@ -80,13 +83,13 @@ main = withWindow 800 800 "Vulkan Test" \win ->
         mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
           -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-      drawMesh False solidColorMaterial (PushConstants (transpose mat) 0) square
+      drawMesh False solidColorMaterial (Uniform (transpose mat) 0 0 0 0) square
 
       texidx0 <- getTexIdx "star"
-      drawMesh True texturedMaterial (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
+      drawMesh True texturedMaterial (Uniform (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0 0 0 0) square
 
       texidx1 <- getTexIdx "x"
-      drawMesh True texturedMaterial (PushConstants (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
+      drawMesh True texturedMaterial (Uniform (transpose $ orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1 0 0 0) square
 
 {-- SHADERS --}
 
@@ -101,14 +104,27 @@ vertShader = [vert|
   layout(location = 0) out vec3 fragColor;
   layout(location = 1) out vec2 texCoord;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     int texIdx;
+    int unused1;
+    int unused2;
+    int unused3;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
+      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+      gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
       fragColor = inColor;
       texCoord = inTexCoord;
   }
@@ -137,18 +153,31 @@ texFragShader = [frag|
   layout(location = 0) in vec3 fragColor;
   layout(location = 1) in vec2 texCoord;
 
-  layout(binding = 0) uniform sampler2D texSampler[2];
+  layout(set = 0, binding = 0) uniform sampler2D texSampler[2];
 
   layout(location = 0) out vec4 outColor;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     int texIdx;
+    int unused1;
+    int unused2;
+    int unused3;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-    outColor = vec4(fragColor, 1.0) * texture(texSampler[PushConstants.texIdx], texCoord);
+    Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+    outColor = vec4(fragColor, 1.0) * texture(texSampler[ub.uniforms[PushConstants.uniformIdx].texIdx], texCoord);
   }
 
 |]

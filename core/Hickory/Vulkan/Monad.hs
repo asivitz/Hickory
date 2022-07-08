@@ -14,7 +14,7 @@ import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans (MonadTrans, lift)
 import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial)
-import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..))
+import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor)
 import Hickory.Vulkan.Mesh (cmdDrawBufferedMesh, BufferedMesh)
 import Foreign (sizeOf, Storable)
 import Hickory.Graphics.MatrixMonad (MatrixT)
@@ -30,27 +30,34 @@ import Linear (V3(..))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text, unpack)
 import Data.UUID (UUID)
-import Data.Map (Map, lookup, insert)
+import Data.Map (Map, lookup)
+import qualified Data.Map as Map
 import Data.Foldable (foldrM)
 import Data.List (sortOn)
 import Control.Monad (when, void)
+import Data.IORef (modifyIORef', readIORef)
+import Hickory.Vulkan.Framing (resourceForFrame)
 
 {- Command Monad -}
 
 class Monad m => CommandMonad m where
   askCommandBuffer  :: m CommandBuffer
+  askFrameNumber    :: m Int
   recordDrawCommand
-    :: Storable pushConst
+    :: Storable uniform
     => Bool -- True if blended
-    -> Material pushConst
-    -> pushConst
+    -> Material uniform
+    -> uniform
     -> (CommandBuffer -> IO ())
     -> m ()
 
-recordCommandBuffer :: MonadIO m => CommandBuffer -> CommandT m a -> m a
-recordCommandBuffer commandBuffer f = flip runReaderT commandBuffer . flip evalStateT (DrawCommands mempty mempty mempty) $ do
+recordCommandBuffer :: MonadIO m => (Int, CommandBuffer) -> CommandT m a -> m a
+recordCommandBuffer commandInfo f = flip runReaderT commandInfo . flip evalStateT (DrawCommands mempty mempty mempty (pure ())) $ do
   a <- unCommandT f
   DrawCommands {..} <- get
+
+  liftIO extraIO
+
   let allCommands = blendedCommands ++ sortOn fst opaqueCommands
       bindMat :: UUID -> IO ()
       bindMat matId = fromMaybe (error "Can't find material to bind") $ Data.Map.lookup matId materialBinds
@@ -61,38 +68,55 @@ recordCommandBuffer commandBuffer f = flip runReaderT commandBuffer . flip evalS
 -- screen, so the draws themselves can be sorted by material
 -- Blended draws (e.g. for e.g. transparency) are drawn in the order they are submitted
 data DrawCommands = DrawCommands
-  { opaqueCommands  :: [(UUID, IO ())] -- As they are opaque, we can sort them by material to minimize binds
-  , blendedCommands :: [(UUID, IO ())] -- We can't sort these, but if subsequent commands use the same material, we can avoid multiple binds
-  , materialBinds   :: Map UUID (IO ())
+  { opaqueCommands   :: [(UUID, IO ())] -- As they are opaque, we can sort them by material to minimize binds
+  , blendedCommands  :: [(UUID, IO ())] -- We can't sort these, but if subsequent commands use the same material, we can avoid multiple binds
+  , materialBinds    :: Map UUID (IO ())
+  , extraIO          :: IO ()
   }
 
-newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands (ReaderT CommandBuffer m) a }
+newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands (ReaderT (Int, CommandBuffer) m) a }
   deriving newtype (Functor, Applicative, Monad, MonadIO)
 
 instance MonadTrans CommandT where
   lift = CommandT . lift . lift
 
-instance Monad m => CommandMonad (CommandT m) where
-  askCommandBuffer = CommandT ask
-  recordDrawCommand shouldBlend material pushConst drawCommand = CommandT do
-    commandBuffer <- ask
+instance MonadIO m => CommandMonad (CommandT m) where
+  askCommandBuffer = snd <$> CommandT ask
+  askFrameNumber   = fst <$> CommandT ask
+  recordDrawCommand shouldBlend material uniform drawCommand = CommandT do
+    (frameNumber, commandBuffer) <- ask
     dcs@DrawCommands {..} <- get
+    let matDesc = resourceForFrame frameNumber $ materialDescriptor material
+    let uniformRef = queuedData matDesc
+    uniformIndex <- liftIO $ fromIntegral . length <$> readIORef uniformRef
+    liftIO $ modifyIORef' uniformRef (uniform:)
+
     let matId = uuid material
         doDraw = do
-          cmdPushMaterialConstants commandBuffer material pushConst
+          cmdPushMaterialConstants commandBuffer material uniformIndex
           drawCommand commandBuffer
-        newMatBinds = Data.Map.insert matId (cmdBindMaterial commandBuffer material) materialBinds
+        newMatBinds = Map.insert matId (cmdBindMaterial frameNumber commandBuffer material) materialBinds
+        newExtraIO = extraIO >> uploadBufferDescriptor matDesc
 
     if shouldBlend
-    then put $ dcs { materialBinds = newMatBinds, blendedCommands = (matId, doDraw) : blendedCommands }
-    else put $ dcs { materialBinds = newMatBinds, opaqueCommands  = (matId, doDraw) : opaqueCommands }
+    then put $ dcs { materialBinds = newMatBinds, extraIO = newExtraIO, blendedCommands = (matId, doDraw) : blendedCommands }
+    else put $ dcs { materialBinds = newMatBinds, extraIO = newExtraIO, opaqueCommands  = (matId, doDraw) : opaqueCommands }
+
+-- storableConvert :: (Storable a, Storable b) -> a -> IO b
+-- storableConvert
 
 mapCommandT :: forall m n a b. (Monad m, Monad n) => (m a -> n b) -> CommandT m a -> CommandT n b
 mapCommandT f = CommandT . mapStateT' (mapReaderT f) . unCommandT
 
-drawMesh :: (CommandMonad m, Storable pushConst) => Bool -> Material pushConst -> pushConst -> BufferedMesh -> m ()
-drawMesh shouldBlend material pushConst mesh = do
-  recordDrawCommand shouldBlend material pushConst $
+drawMesh
+  :: (CommandMonad m, Storable uniform)
+  => Bool
+  -> Material uniform
+  -> uniform
+  -> BufferedMesh
+  -> m ()
+drawMesh shouldBlend material uniform mesh = do
+  recordDrawCommand shouldBlend material uniform $
       flip cmdDrawBufferedMesh mesh
 
 {- Global Descriptor Monad -}
@@ -101,7 +125,7 @@ class Monad m => GlobalDescriptorMonad m where
   askDescriptorSet :: m TextureDescriptorSet
 
 -- |Need to supply some material with a pipeline compatible with the descriptor set
-useGlobalDecriptorSet :: (CommandMonad m, MonadIO m) => TextureDescriptorSet -> Material pushConst -> GlobalDescriptorT m a -> m a
+useGlobalDecriptorSet :: (CommandMonad m, MonadIO m) => TextureDescriptorSet -> Material uniform -> GlobalDescriptorT m a -> m a
 useGlobalDecriptorSet descriptorSet material f = flip runReaderT descriptorSet . unGlobalDescriptorT $ do
   TextureDescriptorSet {..} <- askDescriptorSet
   commandBuffer <- askCommandBuffer
@@ -154,12 +178,15 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 -- instance CommandMonad m => CommandMonad (MaterialT material m) where askCommandBuffer = lift askCommandBuffer
 instance CommandMonad m => CommandMonad (MatrixT m) where
   askCommandBuffer = lift askCommandBuffer
+  askFrameNumber   = lift askFrameNumber
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (DynamicMeshT m) where
   askCommandBuffer = lift askCommandBuffer
+  askFrameNumber   = lift askFrameNumber
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (GlobalDescriptorT m) where
   askCommandBuffer = lift askCommandBuffer
+  askFrameNumber   = lift askFrameNumber
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 
 instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MatrixT m) where askDescriptorSet = lift askDescriptorSet
@@ -185,18 +212,13 @@ instance MonadReader r m => MonadReader r (DynamicMeshT m) where
 
 {- Utilities -}
 
-draw :: (CommandMonad m, MonadIO m) => BufferedMesh -> m ()
-draw mesh = do
-  commandBuffer <- askCommandBuffer
-  cmdDrawBufferedMesh commandBuffer mesh
-
 getTexIdx :: GlobalDescriptorMonad m => Text -> m Word32
 getTexIdx name = do
   TextureDescriptorSet {..} <- askDescriptorSet
   pure . fromIntegral $ fromMaybe (error $ "Can't find texture " ++ unpack name ++ " in material") $ V.elemIndex name textureNames
 
-drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable pushConst) => Material pushConst -> pushConst -> Font Int -> TextCommand -> m ()
-drawText material pushConst font tc = do
+drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable uniform) => Material uniform -> uniform -> Font Int -> TextCommand -> m ()
+drawText material uniform font tc = do
   (oldFloats, oldIndices) <- getVectors
   let (numSquares, floats) = transformTextCommandsToVerts [PositionedTextCommand (V3 0 0 0) tc] font
       (indices, _numBlockIndices) = squareIndices (fromIntegral numSquares)
@@ -204,7 +226,7 @@ drawText material pushConst font tc = do
 
   DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
 
-  recordDrawCommand True material pushConst \commandBuffer -> do
+  recordDrawCommand True material uniform \commandBuffer -> do
 
     -- Offset vertex and index buffers by any data we've stored so far
     cmdBindVertexBuffers commandBuffer 0 [vertexBuffer] [fromIntegral $ SV.length oldFloats  * sizeOf (undefined :: Float)]

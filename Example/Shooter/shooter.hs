@@ -66,6 +66,7 @@ import Data.Either (fromRight)
 import Hickory.Color (white)
 import Hickory.Math.Vector (Scalar)
 import Data.Word (Word32)
+import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
 
 -- ** GAMEPLAY **
 
@@ -128,21 +129,25 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 data Resources = Resources
   { globalDescriptorSet :: H.TextureDescriptorSet
   , square              :: H.BufferedMesh
-  , solidMaterial       :: H.Material SolidColorPushConstant
-  , circleMaterial      :: H.Material TexturePushConstant
-  , textMaterial        :: H.Material TexturePushConstant
+  , solidMaterial       :: H.Material SolidColorUniform
+  , circleMaterial      :: H.Material TextureUniform
+  , textMaterial        :: H.Material TextureUniform
   , font                :: Font Int
+  , dynamicMesh         :: FramedResource H.DynamicBufferedMesh
   }
 
-data SolidColorPushConstant = SolidColorPushConstant
+data SolidColorUniform = SolidColorUniform
   { mat   :: M44 Scalar
   , color :: V4 Scalar
   } deriving Generic
     deriving anyclass GStorable
 
-data TexturePushConstant = TexturePushConstant
+data TextureUniform = TextureUniform
   { mat   :: M44 Scalar
   , texId :: Word32
+  , unused1 :: Word32
+  , unused2 :: Word32
+  , unused3 :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -167,7 +172,7 @@ loadResources path _size vulkanResources swapchainContext = do
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
   solidMaterial  <- H.withMaterial vulkanResources swapchainContext
-    [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader Nothing
+    [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
   circleMaterial <- H.withMaterial vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader (Just globalDescriptorSet)
   textMaterial <- H.withMaterial vulkanResources swapchainContext
@@ -178,31 +183,30 @@ loadResources path _size vulkanResources swapchainContext = do
   text <- liftIO $ readFileAsText $ path ++ "/fonts/gidolinya.fnt"
   let font :: Font Int = fromRight (error "Can't parse font") $ makeFont text "gidolinya"
 
+  -- We need a dynamic buffer per frame to write text mesh data
+  dynamicMesh <- frameResource $ H.withDynamicBufferedMesh vulkanResources 1000
+
   pure $ Resources {..}
 
--- We need a dynamic buffer per frame to write text mesh data
-loadPerFrameResources :: Size Int -> VulkanResources -> SwapchainContext -> Managed H.DynamicBufferedMesh
-loadPerFrameResources _ vr _sc = H.withDynamicBufferedMesh vr 1000
-
 -- Our render function
-renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, H.DynamicBufferedMesh, CommandBuffer) -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, textBuffer, commandBuffer) =
-  recordCommandBuffer commandBuffer . useDynamicMesh textBuffer . useGlobalDecriptorSet globalDescriptorSet circleMaterial $ do
+renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, (Int, CommandBuffer)) -> m ()
+renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, commandInfo@(frameNumber,_)) =
+  recordCommandBuffer commandInfo . useDynamicMesh (resourceForFrame frameNumber dynamicMesh) . useGlobalDecriptorSet globalDescriptorSet circleMaterial $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
         texId <- getTexIdx "circle"
-        drawMesh True circleMaterial (TexturePushConstant mat texId) square
+        drawMesh True circleMaterial (TextureUniform mat texId 0 0 0) square
 
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
         mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
-        drawMesh False solidMaterial (SolidColorPushConstant mat (V4 1 0 0 1)) square
+        drawMesh False solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square
 
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
       H.xform (mkTranslation (topLeft 20 20 scrSize)) do
         mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
         texId <- getTexIdx "gidolinya"
-        drawText textMaterial (TexturePushConstant mat texId) font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
+        drawText textMaterial (TextureUniform mat texId 0 0 0) font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
   where
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
@@ -245,7 +249,7 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
 
 -- Build the FRP network
-buildNetwork :: CoreEventGenerators (Resources, H.DynamicBufferedMesh, CommandBuffer) -> IO ()
+buildNetwork :: CoreEventGenerators (Resources, (Int, CommandBuffer)) -> IO ()
 buildNetwork evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
@@ -277,8 +281,8 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> do
   -- build and run the FRP network
   buildNetwork evGens
 
-  GLFWV.runFrames win (loadResources "Example/Shooter/assets/") loadPerFrameResources \resources textBuffer commandBuffer -> do
-    coreEvProc (resources, textBuffer, commandBuffer)
+  GLFWV.runFrames win (loadResources "Example/Shooter/assets/") \resources commandInfo -> do
+    coreEvProc (resources, commandInfo)
 
     focused <- GLFW.getWindowFocused win
     -- don't consume CPU when the window isn't focused
@@ -290,14 +294,24 @@ vertShader = [vert|
 
   layout(location = 0) in vec3 inPosition;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     vec4 color;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
+      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+      gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
   }
 
 |]
@@ -308,14 +322,24 @@ fragShader = [frag|
 
   layout(location = 0) out vec4 outColor;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     vec4 color;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-    outColor = PushConstants.color;
+    Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+    outColor = uniforms.color;
   }
 
 |]
@@ -329,14 +353,27 @@ texVertShader = [vert|
 
   layout(location = 1) out vec2 texCoord;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     int texIdx;
+    int unused1;
+    int unused2;
+    int unused3;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
+      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+      gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
       texCoord = inTexCoord;
   }
 
@@ -348,18 +385,31 @@ texFragShader = [frag|
 
   layout(location = 1) in vec2 texCoord;
 
-  layout(binding = 0) uniform sampler2D texSampler[2];
+  layout(set = 0, binding = 0) uniform sampler2D texSampler[2];
 
   layout(location = 0) out vec4 outColor;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     int texIdx;
+    int unused1;
+    int unused2;
+    int unused3;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-    outColor = texture(texSampler[PushConstants.texIdx], texCoord);
+    Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+    outColor = texture(texSampler[uniforms.texIdx], texCoord);
   }
 
 |]
@@ -375,14 +425,27 @@ textVertShader = [vert|
   layout(location = 0) out vec4 fragColor;
   layout(location = 1) out vec2 texCoord;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     int texIdx;
+    int unused1;
+    int unused2;
+    int unused3;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-      gl_Position = PushConstants.modelViewMatrix * vec4(inPosition, 1.0);
+      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+      gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
       texCoord = inTexCoord;
       fragColor = inColor;
   }
@@ -396,18 +459,31 @@ textFragShader = [frag|
   layout(location = 0) in vec4 fragColor;
   layout(location = 1) in vec2 texCoord;
 
-  layout(binding = 0) uniform sampler2D texSampler[2];
+  layout(set = 0, binding = 0) uniform sampler2D texSampler[2];
 
   layout(location = 0) out vec4 outColor;
 
-  layout( push_constant ) uniform constants
+  struct Uniforms
   {
     mat4 modelViewMatrix;
     int texIdx;
+    int unused1;
+    int unused2;
+    int unused3;
+  };
+
+  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+    Uniforms uniforms [128];
+  } ub;
+
+  layout( push_constant ) uniform constants
+  {
+    int uniformIdx;
   } PushConstants;
 
   void main() {
-    outColor = texture(texSampler[PushConstants.texIdx], texCoord) * fragColor;
+    Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+    outColor = texture(texSampler[uniforms.texIdx], texCoord) * fragColor;
   }
 
 |]
