@@ -145,9 +145,6 @@ data SolidColorUniform = SolidColorUniform
 data TextureUniform = TextureUniform
   { mat   :: M44 Scalar
   , texId :: Word32
-  , unused1 :: Word32
-  , unused2 :: Word32
-  , unused3 :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -196,7 +193,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, comm
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
         texId <- getTexIdx "circle"
-        drawMesh True circleMaterial (TextureUniform mat texId 0 0 0) square
+        drawMesh True circleMaterial (TextureUniform mat texId) square
 
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
         mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
@@ -206,7 +203,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, comm
       H.xform (mkTranslation (topLeft 20 20 scrSize)) do
         mat :: M44 Scalar <- fmap (fmap realToFrac) . transpose <$> H.askMatrix
         texId <- getTexIdx "gidolinya"
-        drawText textMaterial (TextureUniform mat texId 0 0 0) font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
+        drawText textMaterial (TextureUniform mat texId) font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
   where
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
@@ -347,6 +344,7 @@ fragShader = [frag|
 texVertShader :: B.ByteString
 texVertShader = [vert|
   #version 450
+  #extension GL_EXT_scalar_block_layout : require
 
   layout(location = 0) in vec3 inPosition;
   layout(location = 3) in vec2 inTexCoord;
@@ -357,12 +355,9 @@ texVertShader = [vert|
   {
     mat4 modelViewMatrix;
     int texIdx;
-    int unused1;
-    int unused2;
-    int unused3;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -382,6 +377,7 @@ texVertShader = [vert|
 texFragShader :: B.ByteString
 texFragShader = [frag|
   #version 450
+  #extension GL_EXT_scalar_block_layout : require
 
   layout(location = 1) in vec2 texCoord;
 
@@ -393,12 +389,9 @@ texFragShader = [frag|
   {
     mat4 modelViewMatrix;
     int texIdx;
-    int unused1;
-    int unused2;
-    int unused3;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -417,6 +410,7 @@ texFragShader = [frag|
 textVertShader :: B.ByteString
 textVertShader = [vert|
   #version 450
+  #extension GL_EXT_scalar_block_layout : require
 
   layout(location = 0) in vec3 inPosition;
   layout(location = 1) in vec4 inColor;
@@ -429,12 +423,9 @@ textVertShader = [vert|
   {
     mat4 modelViewMatrix;
     int texIdx;
-    int unused1;
-    int unused2;
-    int unused3;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -455,6 +446,7 @@ textVertShader = [vert|
 textFragShader :: B.ByteString
 textFragShader = [frag|
   #version 450
+  #extension GL_EXT_scalar_block_layout : require
 
   layout(location = 0) in vec4 fragColor;
   layout(location = 1) in vec2 texCoord;
@@ -467,12 +459,9 @@ textFragShader = [frag|
   {
     mat4 modelViewMatrix;
     int texIdx;
-    int unused1;
-    int unused2;
-    int unused3;
   };
 
-  layout (std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 

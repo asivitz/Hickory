@@ -101,7 +101,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , RenderPassBeginInfo(..)
   , SubmitInfo(..)
-  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..), BlendOp (..), BlendFactor (..)
+  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..), BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -257,17 +257,17 @@ withLogicalDevice :: Instance -> SurfaceKHR -> Managed DeviceContext
 withLogicalDevice inst surface = do
   (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx) <- selectPhysicalDevice inst surface
 
-  (_, extensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
+  -- (_, extensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
+
 
   let
+    requiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME, KHR_PORTABILITY_SUBSET_EXTENSION_NAME, KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME ]
+
     deviceCreateInfo :: DeviceCreateInfo '[]
     deviceCreateInfo = zero
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
-      , enabledExtensionNames = V.map extensionName
-                              $ V.filter (\ExtensionProperties {..} -> extensionName == KHR_SWAPCHAIN_EXTENSION_NAME
-                                                                    || extensionName == KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-                                         ) extensions
+      , enabledExtensionNames = requiredExtensions
       }
 
   device <- withDevice physicalDevice deviceCreateInfo Nothing allocate
