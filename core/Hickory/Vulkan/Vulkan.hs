@@ -101,7 +101,8 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , RenderPassBeginInfo(..)
   , SubmitInfo(..)
-  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..), BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
+  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..), BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
+  , PhysicalDeviceFeatures(..), PhysicalDeviceDescriptorIndexingFeatures (..)
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -259,15 +260,23 @@ withLogicalDevice inst surface = do
 
   -- (_, extensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
 
+  -- Needed for global texture array (b/c has unknown size)
+  let extra = zero { runtimeDescriptorArray = True }
 
   let
-    requiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME, KHR_PORTABILITY_SUBSET_EXTENSION_NAME, KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME ]
+    requiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME
+                         , KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+                         , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
+                         , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
+                         , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
+                         ]
 
-    deviceCreateInfo :: DeviceCreateInfo '[]
+    deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDescriptorIndexingFeatures]
     deviceCreateInfo = zero
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
       , enabledExtensionNames = requiredExtensions
+      , next = (extra, ())
       }
 
   device <- withDevice physicalDevice deviceCreateInfo Nothing allocate
@@ -418,7 +427,10 @@ withGraphicsPipeline
   -> VertexInputBindingDescription
   -> V.Vector VertexInputAttributeDescription
   -> Managed Pipeline
-withGraphicsPipeline VulkanResources {..} SwapchainContext{..} topology vertShader fragShader pipelineLayout vertexBindingDescription vertexAttributeDescriptions = do
+withGraphicsPipeline
+  VulkanResources {..} SwapchainContext{..}
+  topology vertShader fragShader pipelineLayout vertexBindingDescription vertexAttributeDescriptions
+  = do
   let DeviceContext {..} = deviceContext
   let Swapchain {..} = swapchain
   shaderStages   <- sequence [ createVertShader device vertShader, createFragShader device fragShader ]
@@ -501,6 +513,7 @@ createFragShader = createShader SHADER_STAGE_FRAGMENT_BIT
 createShader :: ShaderStageFlagBits -> Device -> B.ByteString -> Managed (SomeStruct PipelineShaderStageCreateInfo)
 createShader stage dev source = do
   shaderModule <- withShaderModule dev zero { code = source } Nothing allocate
+
   pure . SomeStruct $ zero
     { stage = stage
     , module' = shaderModule

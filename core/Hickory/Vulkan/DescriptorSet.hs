@@ -25,7 +25,7 @@ import Vulkan
   , WriteDescriptorSet(..), Format (..), ImageLayout (..), allocateDescriptorSets
   , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
   , DescriptorBufferInfo(..)
-  , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..)
+  , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), DescriptorPoolCreateFlagBits (..), DescriptorSetLayoutCreateFlagBits (..)
   )
 import Data.Maybe (maybeToList, listToMaybe)
 import Data.Functor (($>))
@@ -34,7 +34,7 @@ import Data.Foldable (for_)
 import Data.Traversable (for)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Control.Lens (view)
-import System.FilePath.Lens (basename)
+import System.FilePath.Lens (filename)
 import Data.Bits ((.|.))
 import VulkanMemoryAllocator (Allocation, Allocator, withMappedMemory)
 import Foreign (Storable, copyArray, castPtr, sizeOf, withArrayLen)
@@ -64,11 +64,15 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
         , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
         , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
         }
+      -- Needed for dynamic descriptor array sizing (e.g. global texture array)
+    , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
     }
     Nothing allocate
 
   descriptorPool <- withDescriptorPool device zero
     { maxSets   = 1
+      -- Needed for dynamic descriptor array sizing (e.g. global texture array)
+    , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
     , poolSizes = V.fromList $ texturePaths $> DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages
     }
     Nothing
@@ -101,7 +105,7 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
           }
     updateDescriptorSets device [SomeStruct write] []
 
-  let textureNames = V.fromList $ pack . view basename <$> texturePaths
+  let textureNames = V.fromList $ pack . view filename <$> texturePaths
 
   pure TextureDescriptorSet {..}
 

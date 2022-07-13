@@ -82,10 +82,10 @@ main = withWindow 800 800 "Vulkan Test" \win ->
 
       drawMesh False solidColorMaterial (Uniform mat 0) square
 
-      texidx0 <- getTexIdx "star"
+      texidx0 <- getTexIdx "star.png"
       drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
 
-      texidx1 <- getTexIdx "x"
+      texidx1 <- getTexIdx "x.png"
       drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
 
 {-- SHADERS --}
@@ -108,17 +108,11 @@ vertShader = [vert|
     int texIdx;
   };
 
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
-    Uniforms uniforms [128];
-  } ub;
-
-  layout( push_constant ) uniform constants
-  {
-    int uniformIdx;
-  } PushConstants;
+  layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 
   void main() {
-      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
+      Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
       gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
       fragColor = inColor;
       texCoord = inTexCoord;
@@ -145,11 +139,12 @@ texFragShader :: B.ByteString
 texFragShader = [frag|
   #version 450
   #extension GL_EXT_scalar_block_layout : require
+  #extension GL_EXT_nonuniform_qualifier : require
 
   layout(location = 0) in vec3 fragColor;
   layout(location = 1) in vec2 texCoord;
 
-  layout(set = 0, binding = 0) uniform sampler2D texSampler[2];
+  layout(set = 0, binding = 0) uniform sampler2D texSampler[];
 
   layout(location = 0) out vec4 outColor;
 

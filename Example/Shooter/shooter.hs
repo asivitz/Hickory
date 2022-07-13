@@ -173,7 +173,7 @@ loadResources path _size vulkanResources swapchainContext = do
   circleMaterial <- H.withMaterial vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader (Just globalDescriptorSet)
   textMaterial <- H.withMaterial vulkanResources swapchainContext
-    [H.Position, H.TextureCoord, H.Color] PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP textVertShader textFragShader (Just globalDescriptorSet)
+    [H.Position, H.TextureCoord, H.Color] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST textVertShader textFragShader (Just globalDescriptorSet)
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
   -- generated using the bmGlyph program for Mac
@@ -192,7 +192,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, comm
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat <- H.askMatrix
-        texId <- getTexIdx "circle"
+        texId <- getTexIdx "circle.png"
         drawMesh True circleMaterial (TextureUniform mat texId) square
 
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
@@ -202,7 +202,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, comm
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
       H.xform (mkTranslation (topLeft 20 20 scrSize)) do
         mat <- H.askMatrix
-        texId <- getTexIdx "gidolinya"
+        texId <- getTexIdx "gidolinya.png"
         drawText textMaterial (TextureUniform mat texId) font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
   where
   gameCameraMatrix size@(Size w _h) =
@@ -378,10 +378,11 @@ texFragShader :: B.ByteString
 texFragShader = [frag|
   #version 450
   #extension GL_EXT_scalar_block_layout : require
+  #extension GL_EXT_nonuniform_qualifier : require
 
   layout(location = 1) in vec2 texCoord;
 
-  layout(set = 0, binding = 0) uniform sampler2D texSampler[2];
+  layout(set = 0, binding = 0) uniform sampler2D texSampler[];
 
   layout(location = 0) out vec4 outColor;
 
@@ -447,11 +448,12 @@ textFragShader :: B.ByteString
 textFragShader = [frag|
   #version 450
   #extension GL_EXT_scalar_block_layout : require
+  #extension GL_EXT_nonuniform_qualifier : require
 
   layout(location = 0) in vec4 fragColor;
   layout(location = 1) in vec2 texCoord;
 
-  layout(set = 0, binding = 0) uniform sampler2D texSampler[2];
+  layout(set = 0, binding = 0) uniform sampler2D texSampler[];
 
   layout(location = 0) out vec4 outColor;
 

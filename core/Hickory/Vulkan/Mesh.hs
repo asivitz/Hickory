@@ -37,36 +37,47 @@ data BufferedMesh = BufferedMesh
   , indexBuffer  :: Maybe Buffer
   }
 
-writeToFile :: FilePath -> Mesh -> IO ()
-writeToFile = encodeFile
+writeMeshToFile :: FilePath -> Mesh -> IO ()
+writeMeshToFile = encodeFile
+
+loadMeshFromFile :: FilePath -> IO Mesh
+loadMeshFromFile = decodeFile
 
 data Attribute
   = Position
   | Normal
   | TextureCoord
   | Color
+  | BoneIndex
+  | MaterialIndex
   deriving (Bounded, Enum, Generic)
 
 instance Binary Attribute
 instance Binary Mesh
 
 attrStride :: Attribute -> Int
-attrStride Position     = 3
-attrStride Normal       = 3
-attrStride TextureCoord = 2
-attrStride Color        = 4
+attrStride Position      = 3
+attrStride Normal        = 3
+attrStride TextureCoord  = 2
+attrStride Color         = 4
+attrStride BoneIndex     = 1
+attrStride MaterialIndex = 1
 
 attrLocation :: Attribute -> Word32
-attrLocation Position     = 0
-attrLocation Color        = 1
-attrLocation Normal       = 2
-attrLocation TextureCoord = 3
+attrLocation Position      = 0
+attrLocation Color         = 1
+attrLocation Normal        = 2
+attrLocation TextureCoord  = 3
+attrLocation BoneIndex     = 4
+attrLocation MaterialIndex = 5
 
 attrFormat :: Attribute -> Format
-attrFormat Position     = FORMAT_R32G32B32_SFLOAT
-attrFormat Normal       = FORMAT_R32G32B32_SFLOAT
-attrFormat TextureCoord = FORMAT_R32G32_SFLOAT
-attrFormat Color        = FORMAT_R32G32B32A32_SFLOAT
+attrFormat Position      = FORMAT_R32G32B32_SFLOAT
+attrFormat Normal        = FORMAT_R32G32B32_SFLOAT
+attrFormat TextureCoord  = FORMAT_R32G32_SFLOAT
+attrFormat Color         = FORMAT_R32G32B32A32_SFLOAT
+attrFormat BoneIndex     = FORMAT_R32_SFLOAT
+attrFormat MaterialIndex = FORMAT_R32_SFLOAT
 
 pack :: Mesh -> SV.Vector Float
 pack mesh@Mesh {..} = SV.concat $ packVert <$> [0..(numVerts mesh - 1)]

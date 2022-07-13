@@ -95,16 +95,9 @@ printVAOObj (Printer font _ shader) textCommand = do
     else error "Tried to print empty text command"
 
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
-squareIndices numSquares = (indices, 4 * numSquares + 2 * (numSquares - 1))
+squareIndices numSquares = (indices, 6 * numSquares)
  where
-  indices = concatMap
-    ( \i ->
-      let items                       = [i * 4, i * 4 + 1, i * 4 + 2, i * 4 + 3]
-          -- We need to start and end degenerate squares if
-          -- we're not at the beginning/end
-          withStartOfDegenerateSquare = if i < numSquares - 1 then items ++ [i * 4 + 3] else items
-      in  if i > 0 then (i * 4) : withStartOfDegenerateSquare else withStartOfDegenerateSquare
-    )
+  indices = concatMap (\((*4) -> i) -> [i, i+1, i+2, i+2, i+1, i+3])
     [0 .. (numSquares - 1)]
 
 -- Creating new VAOs during render

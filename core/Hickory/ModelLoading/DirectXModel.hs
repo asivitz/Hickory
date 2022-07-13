@@ -1,22 +1,18 @@
 module Hickory.ModelLoading.DirectXModel
-  ( loadModelFromX, ThreeDModel(..), animModelVAO, animatedMats )
+  ( loadModelFromX, ThreeDModel(..), animatedMats )
   where
 
 import Hickory.Math.Matrix
 import Data.List
 import Data.Maybe
-import Hickory.Graphics.GLSupport
 import qualified Hickory.ModelLoading.DirectX as DX
 import Data.Text (Text)
 import Linear (V3(..), V4(..), identity, (!*!), (!*), inv44)
-import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
 
-import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), VertexGroup (..), Attachment (..))
 import Hickory.ModelLoading.DirectX (MeshTextureCoords(..))
-import Hickory.Graphics.Shader (Shader)
+import qualified Hickory.Vulkan.Mesh as HM
 import Hickory.Math.Vector (Scalar)
 
 {-
@@ -37,15 +33,14 @@ directxToModelData obj@WavefrontOBJ {..} = ModelData {..}
 -}
 
 data ThreeDModel = ThreeDModel
-  { vao     :: VAO
-  , frame   :: Maybe DX.Frame
-  , mesh    :: DX.Mesh
-  , extents :: (V3 Scalar, V3 Scalar)
+  { packedMesh :: HM.Mesh
+  , frame      :: Maybe DX.Frame
+  , mesh       :: DX.Mesh
+  , extents    :: (V3 Scalar, V3 Scalar)
   }
-  deriving (Show)
 
-animModelVAO :: ThreeDModel -> VAO
-animModelVAO (ThreeDModel v _ _ _) = v
+-- animModelVAO :: ThreeDModel -> VAO
+-- animModelVAO (ThreeDModel v _ _ _) = v
 
 {-
 boneMatUniform :: ThreeDModel -> Text -> Double -> [ShaderFunction]
@@ -72,33 +67,14 @@ pullMesh fr = case go fr of
   transformMesh m msh@DX.Mesh { DX.vertices } =
     msh { DX.vertices = UV.map (\(x, y, z) -> let V4 x' y' z' _ = m !* V4 x y z 1 in (x', y', z')) vertices }
 
-loadModelFromX :: Shader -> String -> IO ThreeDModel
-loadModelFromX shader path = do
+loadModelFromX :: String -> IO ThreeDModel
+loadModelFromX path = do
   frame <- DX.loadX path
   let mesh    = pullMesh frame
       extents = meshExtents mesh
+  pure $ ThreeDModel (xToMesh mesh) (Just frame) mesh extents
 
-  if isAnimated mesh
-    then do
-      vo <-
-        createIndexedVAO
-            shader
-            [ VertexGroup
-                [ Attachment "position" 3
-                , Attachment "normal" 3
-                , Attachment "boneIndex" 1
-                , Attachment "materialIndex" 1
-                ]
-            ]
-            (packAnimatedXMesh mesh)
-            Triangles
-
-      return $ ThreeDModel vo (Just frame) mesh extents
-    else do
-      vo <- createIndexedVAO shader [VertexGroup [Attachment "position" 3, Attachment "normal" 3, Attachment "materialIndex" 1, Attachment "texCoords" 2]]
-        (packXMesh mesh) Triangles
-      return $ ThreeDModel vo Nothing mesh extents
-
+{-
 packAnimatedXMesh :: DX.Mesh -> (SV.Vector GLfloat, SV.Vector GLuint)
 packAnimatedXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshNormals, DX.skinWeights, DX.meshMaterialList } =
   (SV.fromList dat, indices)
@@ -127,9 +103,23 @@ packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshNormals, 
   texture_coords   = fmap realToFrac . UV.toList $ textureCoords meshTextureCoords
   dat              = interleave [verts, normals, material_indices, texture_coords] [3, 3, 1, 2]
   indices          = V.convert (UV.map fromIntegral faces)
+  -}
 
-isAnimated :: DX.Mesh -> Bool
-isAnimated DX.Mesh { DX.skinWeights } = (not . null) skinWeights
+xToMesh :: DX.Mesh -> HM.Mesh
+xToMesh DX.Mesh {..} = HM.Mesh meshVerts (Just meshIndices)
+  where
+  positions     = (HM.Position, SV.fromList $ packVertices vertices)
+  normals       = (HM.Normal,   SV.fromList $ packNormals faces (DX.normals meshNormals))
+  uvs           = (HM.TextureCoord, SV.convert $ textureCoords meshTextureCoords)
+  material_idxs = (HM.MaterialIndex, SV.fromList $ packMaterialIndices faces (DX.faceIndexes meshMaterialList))
+  boneIndices   = (HM.BoneIndex,) . SV.fromList . reverse <$> traverse
+    (\i -> fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> UV.elem i vertexIndices) skinWeights)
+    [0 .. (UV.length vertices - 1)]
+  meshVerts     = catMaybes [Just positions, Just normals, Just uvs, boneIndices, Just material_idxs]
+  meshIndices   = SV.map fromIntegral $ SV.convert faces
+
+-- isAnimated :: DX.Mesh -> Bool
+-- isAnimated DX.Mesh { DX.skinWeights } = (not . null) skinWeights
 
 meshExtents :: DX.Mesh -> (V3 Scalar, V3 Scalar)
 meshExtents DX.Mesh { DX.vertices } = (V3 mnx mny mnz, V3 mxx mxy mxz)
@@ -166,6 +156,7 @@ packVertices verts = concatMap (\(x,y,z) -> [realToFrac x,realToFrac y,realToFra
 faceNumForFaceIdx :: Int -> Int
 faceNumForFaceIdx x = floor $ (realToFrac x :: Scalar) / 3
 
+{-
 -- interleaves arrays based on an array of counts
 -- interleave [[1,2,3,4,5,6],[40,50,60]] [2,1] ~> [1,2,40,3,4,50,5,6,60]
 interleave :: [[a]] -> [Int] -> [a]
@@ -174,6 +165,7 @@ interleave vals counts            = pull counts vals ++ interleave (sub counts v
  where
   pull ns vs = concatMap (\(n, v) -> take n v) (zip ns vs)
   sub ns vs = map (\(n, v) -> drop n v) (zip ns vs)
+  -}
 
 --TODO: Read animation FPS from directx file
 retrieveActionMat :: (Text, Scalar) -> [(Text, [Mat44])] -> Maybe Mat44

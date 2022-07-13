@@ -210,12 +210,16 @@ instance MonadReader r m => MonadReader r (DynamicMeshT m) where
   ask = lift ask
   local f = mapDynamicMeshT id . local f
 
+instance MonadReader r m => MonadReader r (GlobalDescriptorT m) where
+  ask = lift ask
+  local f = mapGlobalDescriptorT id . local f
+
 {- Utilities -}
 
 getTexIdx :: GlobalDescriptorMonad m => Text -> m Word32
 getTexIdx name = do
   TextureDescriptorSet {..} <- askDescriptorSet
-  pure . fromIntegral $ fromMaybe (error $ "Can't find texture " ++ unpack name ++ " in material") $ V.elemIndex name textureNames
+  pure . fromIntegral $ fromMaybe (error $ "Can't find texture '" ++ unpack name ++ "' in material") $ V.elemIndex name textureNames
 
 drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable uniform) => Material uniform -> uniform -> Font Int -> TextCommand -> m ()
 drawText material uniform font tc = do

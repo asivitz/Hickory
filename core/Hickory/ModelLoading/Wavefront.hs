@@ -15,30 +15,29 @@ import Hickory.Graphics.VAO (createIndexedVAO, createDirectVAO, VAO(..), VertexG
 import qualified Data.HashMap.Strict as Map
 import Control.Monad.State.Strict (State, execState, modify, gets)
 import Data.Hashable (Hashable(..))
-import Hickory.ModelLoading.Packed (ModelData(..), buildModelVAO)
 import Hickory.Graphics.Shader (Shader)
+import qualified Hickory.Vulkan.Mesh as HM
 
 loadWavefront :: FilePath -> IO WavefrontOBJ
 loadWavefront path = Wavefront.fromFile path >>= \case
   Left err -> error err
   Right obj -> pure obj
 
-wavefrontToModelData :: WavefrontOBJ -> ModelData
-wavefrontToModelData obj@WavefrontOBJ {..} = ModelData {..}
+wavefrontToMesh :: WavefrontOBJ -> HM.Mesh
+wavefrontToMesh obj@WavefrontOBJ {..} = HM.Mesh {..}
   where
-  vertices         = SV.convert $ V.concatMap (packLocations obj) allFaceIndices
-  normals          = SV.convert $ V.concatMap (packNormals obj) allFaceIndices
-  uvs              = SV.convert $ V.concatMap (packTexCoords obj) allFaceIndices
-  bone_indices     = SV.replicate (V.length allFaceIndices) 0
-  material_indices = SV.replicate (V.length allFaceIndices) 0
-  face_indices     = SV.convert $ V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
+  positions = (HM.Position, SV.convert $ V.concatMap (packLocations obj) allFaceIndices)
+  normals   = (HM.Normal, SV.convert $ V.concatMap (packNormals obj) allFaceIndices)
+  uvs       = (HM.TextureCoord, SV.convert $ V.concatMap (packTexCoords obj) allFaceIndices)
+  indices   = Just . SV.convert $ V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
+  vertices  = [positions, normals, uvs]
 
   faces = fmap elValue objFaces
   allFaceIndices :: V.Vector FaceIndex
   allFaceIndices = V.fromList . nub . concat $ faces <&> \(Face one two three xtras) -> one : two : three : xtras
 
-loadWavefrontAsVAO :: Shader -> FilePath -> IO VAO
-loadWavefrontAsVAO shader filePath = loadWavefront filePath >>= buildModelVAO shader . wavefrontToModelData
+loadWavefrontMesh :: FilePath -> IO HM.Mesh
+loadWavefrontMesh = fmap wavefrontToMesh . loadWavefront
 
 --
 

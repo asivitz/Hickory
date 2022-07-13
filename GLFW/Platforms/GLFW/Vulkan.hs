@@ -105,7 +105,9 @@ runFrames win acquireUserResources f = do
   glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= fmap V.fromList . mapM B.packCString
 
   runManaged do
-    inst            <- withStandardInstance $ glfwReqExts V.++ [ "VK_EXT_debug_utils",  KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME ]
+    inst            <- withStandardInstance $ glfwReqExts V.++ [ "VK_EXT_debug_utils"
+                                                               , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+                                                               ]
     surface         <- withWindowSurface inst win
     vulkanResources <- withVulkanResources inst surface
     frames          <- frameResource $ withFrame (deviceContext vulkanResources)
