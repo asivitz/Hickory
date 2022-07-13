@@ -165,7 +165,7 @@ transformTextCommandToVerts (PositionedTextCommand (V3 x y z) (TextCommand text 
                                                         (realToFrac linenum * fsize * realToFrac lineHeight * (-1) + y + fsize * (vy + yoffset))
                                                         z
                         new_verts = map dotransform gverts
-                        vert_set = foldr (\(v, w) lst -> vunpackFractional v ++ vunpackFractional w ++ color_verts ++ lst) [] (zip new_verts tc) in
+                        vert_set = foldr (\(v, w) lst -> vunpackFractional v ++ color_verts ++ vunpackFractional w ++ lst) [] (zip new_verts tc) in
                             (leftBump + realToFrac xadvance, linenum, numsquares + 1, vert_set ++ vertlst, color_verts)
         (_, _, num_squares, vert_result, _) = foldl' accum (xoffset, 0, 0, [], vunpackFractional color) glyphs
         in (num_squares, vert_result)

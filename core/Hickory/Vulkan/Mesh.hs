@@ -25,6 +25,7 @@ import Control.Exception (bracket)
 import Foreign.Marshal.Array (copyArray)
 import Control.Monad.IO.Class (MonadIO)
 import Vulkan.CStruct.Extends (SomeStruct(..))
+import Data.List (sortOn)
 
 data Mesh = Mesh
   { vertices :: [(Attribute, SV.Vector Float)]
@@ -82,7 +83,7 @@ attrFormat MaterialIndex = FORMAT_R32_SFLOAT
 pack :: Mesh -> SV.Vector Float
 pack mesh@Mesh {..} = SV.concat $ packVert <$> [0..(numVerts mesh - 1)]
   where
-  packVert i = SV.concat $ vertices <&> \(attr, v) -> let str = attrStride attr in SV.fromList $ [0..str - 1] <&> \idx -> v SV.! (i * str + idx)
+  packVert i = SV.concat $ sortOn (attrLocation . fst) vertices <&> \(attr, v) -> let str = attrStride attr in SV.fromList $ [0..str - 1] <&> \idx -> v SV.! (i * str + idx)
 
 numVerts :: Mesh -> Int
 numVerts Mesh { vertices = ((attr, vec):_) } =

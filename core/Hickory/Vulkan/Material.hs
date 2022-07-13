@@ -5,7 +5,7 @@
 module Hickory.Vulkan.Material where
 
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Mesh (Attribute(..), bindingDescription, attributeDescriptions)
+import Hickory.Vulkan.Mesh (Attribute(..), bindingDescription, attributeDescriptions, attrLocation)
 import qualified Data.ByteString as B
 import Foreign (sizeOf, castPtr, with, Storable, (.|.))
 import Vulkan
@@ -31,6 +31,7 @@ import Data.Generics.Labels ()
 import Control.Lens (view)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
+import Data.List (sortOn)
 
 data Material uniform = Material
   { pipeline            :: Pipeline
@@ -49,7 +50,7 @@ withMaterial
   -> B.ByteString
   -> Maybe TextureDescriptorSet
   -> Managed (Material uniform)
-withMaterial bag@VulkanResources {..} swapchainContext attrs topology vertShader fragShader descriptorSet = do
+withMaterial bag@VulkanResources {..} swapchainContext (sortOn attrLocation -> attrs) topology vertShader fragShader descriptorSet = do
   let DeviceContext {..} = deviceContext
 
   materialDescriptor <- frameResource $ withBufferDescriptorSet bag
