@@ -9,34 +9,34 @@
 
 module Hickory.Vulkan.Monad where
 
-import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), cmdBindDescriptorSets, pattern PIPELINE_BIND_POINT_GRAPHICS)
+import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), cmdBindDescriptorSets, pattern PIPELINE_BIND_POINT_GRAPHICS, Buffer)
 import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Trans (MonadTrans, lift)
 import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial)
 import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor)
-import Hickory.Vulkan.Mesh (cmdDrawBufferedMesh, BufferedMesh)
-import Foreign (sizeOf, Storable)
+import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(..))
+import Foreign (Storable)
 import Hickory.Graphics.MatrixMonad (MatrixT)
 import Hickory.Vulkan.Text (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Control.Monad.State.Strict (StateT (..), evalStateT, get, put)
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector as V
-import Data.Word (Word32)
+import Data.Word (Word32, Word64)
 import Control.Monad.State.Class (modify)
-import Hickory.Text.Text (TextCommand, Font, PositionedTextCommand (..), transformTextCommandsToVerts)
+import Hickory.Text.Text (TextCommand, Font, transformTextCommandToVerts)
 import Hickory.Graphics.DrawText (squareIndices)
-import Linear (V3(..))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text, unpack)
 import Data.UUID (UUID)
 import Data.Map (Map, lookup)
 import qualified Data.Map as Map
-import Data.Foldable (foldrM)
-import Data.List (sortOn)
+import Data.Foldable (foldrM, toList)
+import Data.List (sortOn, mapAccumL)
 import Control.Monad (when, void)
 import Data.IORef (modifyIORef', readIORef)
 import Hickory.Vulkan.Framing (resourceForFrame)
+import Data.Functor ((<&>))
 
 {- Command Monad -}
 
@@ -108,17 +108,6 @@ instance MonadIO m => CommandMonad (CommandT m) where
 mapCommandT :: forall m n a b. (Monad m, Monad n) => (m a -> n b) -> CommandT m a -> CommandT n b
 mapCommandT f = CommandT . mapStateT' (mapReaderT f) . unCommandT
 
-drawMesh
-  :: (CommandMonad m, Storable uniform)
-  => Bool
-  -> Material uniform
-  -> uniform
-  -> BufferedMesh
-  -> m ()
-drawMesh shouldBlend material uniform mesh = do
-  recordDrawCommand shouldBlend material uniform $
-      flip cmdDrawBufferedMesh mesh
-
 {- Global Descriptor Monad -}
 
 class Monad m => GlobalDescriptorMonad m where
@@ -145,17 +134,17 @@ mapGlobalDescriptorT f = GlobalDescriptorT . mapReaderT f . unGlobalDescriptorT
 
 class Monad m => DynamicMeshMonad m where
   askDynamicMesh :: m DynamicBufferedMesh
-  getVectors     :: m (SV.Vector Float, SV.Vector Word32)
-  addVectors     :: (SV.Vector Float, SV.Vector Word32) -> m ()
+  getMeshes      :: m [Mesh]
+  addMesh        :: Mesh -> m ()
 
 useDynamicMesh :: (CommandMonad m, MonadIO m) => DynamicBufferedMesh -> DynamicMeshT m a -> m a
-useDynamicMesh dynamicMesh f = flip runReaderT dynamicMesh . flip evalStateT (mempty, mempty) . unDynamicMeshT $ do
+useDynamicMesh dynamicMesh f = flip runReaderT dynamicMesh . flip evalStateT mempty . unDynamicMeshT $ do
   a <- f
-  (floats, indices) <- getVectors
-  uploadDynamicMesh dynamicMesh floats indices
+  meshes <- getMeshes
+  uploadDynamicMesh dynamicMesh (reverse meshes)
   pure a
 
-newtype DynamicMeshT m a = DynamicMeshT { unDynamicMeshT :: StateT (SV.Vector Float, SV.Vector Word32) (ReaderT DynamicBufferedMesh m) a }
+newtype DynamicMeshT m a = DynamicMeshT { unDynamicMeshT :: StateT [Mesh] (ReaderT DynamicBufferedMesh m) a }
   deriving newtype (Functor, Applicative, Monad, MonadIO)
 
 instance MonadTrans DynamicMeshT where
@@ -163,9 +152,8 @@ instance MonadTrans DynamicMeshT where
 
 instance Monad m => DynamicMeshMonad (DynamicMeshT m) where
   askDynamicMesh = DynamicMeshT ask
-  getVectors = DynamicMeshT get
-  addVectors (floats, indices) = DynamicMeshT do
-    modify \(floats', indices') -> (floats' SV.++ floats, indices' SV.++ indices)
+  getMeshes      = DynamicMeshT get
+  addMesh mesh   = DynamicMeshT $ modify (mesh:)
 
 mapStateT' :: (Functor m, Functor n) => (m a -> n b) -> StateT s m a -> StateT s n b
 mapStateT' f m = StateT $ \s -> (,s) <$> f (fst <$> runStateT m s)
@@ -193,13 +181,13 @@ instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MatrixT m) where askD
 
 instance DynamicMeshMonad m => DynamicMeshMonad (MatrixT m) where
   askDynamicMesh = lift askDynamicMesh
-  getVectors     = lift getVectors
-  addVectors v   = lift $ addVectors v
+  getMeshes      = lift getMeshes
+  addMesh m      = lift $ addMesh m
 
 instance DynamicMeshMonad m => DynamicMeshMonad (GlobalDescriptorT m) where
   askDynamicMesh = lift askDynamicMesh
-  getVectors     = lift getVectors
-  addVectors v   = lift $ addVectors v
+  getMeshes      = lift getMeshes
+  addMesh m      = lift $ addMesh m
 
 
 instance MonadReader r m => MonadReader r (CommandT m) where
@@ -221,19 +209,63 @@ getTexIdx name = do
   TextureDescriptorSet {..} <- askDescriptorSet
   pure . fromIntegral $ fromMaybe (error $ "Can't find texture '" ++ unpack name ++ "' in material") $ V.elemIndex name textureNames
 
+packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a
+packVecs = SV.fromList . concatMap toList
+
+textMesh :: Font Int -> TextCommand -> Mesh
+textMesh font tc = Mesh { indices = Just (SV.fromList indices), vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)] }
+  where
+  (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
+  (indices, _numBlockIndices) = squareIndices (fromIntegral numSquares)
+
 drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable uniform) => Material uniform -> uniform -> Font Int -> TextCommand -> m ()
-drawText material uniform font tc = do
-  (oldFloats, oldIndices) <- getVectors
-  let (numSquares, floats) = transformTextCommandsToVerts [PositionedTextCommand (V3 0 0 0) tc] font
-      (indices, _numBlockIndices) = squareIndices (fromIntegral numSquares)
-  addVectors (SV.fromList floats, SV.fromList indices)
+drawText material uniform font tc = drawDynamicMesh True material uniform (textMesh font tc)
+
+-- |The mesh needs to supply, at a minimum, all the attributes required by the material
+drawDynamicMesh
+  :: (CommandMonad m, Storable uniform, DynamicMeshMonad m)
+  => Bool
+  -> Material uniform
+  -> uniform
+  -> Mesh
+  -> m ()
+drawDynamicMesh shouldBlend material uniform mesh = do
+  meshes <- getMeshes
+  addMesh mesh
+
+  -- This is O(n)... Might want to cache this
+  let vertexSizeThusFar = sum $ map (sum . map (vsizeOf . snd) . vertices) meshes
+      indexSizeThusFar  = sum $ map (maybe 0 vsizeOf . indices) meshes
 
   DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
+  recordDrawCommand shouldBlend material uniform \commandBuffer -> do
+    cmdDrawBufferedMesh commandBuffer material mesh vertexSizeThusFar vertexBuffer (fromIntegral indexSizeThusFar) (Just indexBuffer)
 
-  recordDrawCommand True material uniform \commandBuffer -> do
+-- |The mesh needs to supply, at a minimum, all the attributes required by the material
+drawMesh
+  :: (CommandMonad m, Storable uniform)
+  => Bool
+  -> Material uniform
+  -> uniform
+  -> BufferedMesh
+  -> m ()
+drawMesh shouldBlend material uniform BufferedMesh {..} = do
+  recordDrawCommand shouldBlend material uniform $ \cb ->
+      cmdDrawBufferedMesh cb material mesh 0 vertexBuffer 0 indexBuffer
 
-    -- Offset vertex and index buffers by any data we've stored so far
-    cmdBindVertexBuffers commandBuffer 0 [vertexBuffer] [fromIntegral $ SV.length oldFloats  * sizeOf (undefined :: Float)]
-    cmdBindIndexBuffer   commandBuffer    indexBuffer   (fromIntegral $ SV.length oldIndices * sizeOf (undefined :: Word32)) INDEX_TYPE_UINT32
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material uniform -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
+cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer indexOffset mIndexBuffer = do
+  let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) vertexOffset (sortOn (attrLocation . fst) (vertices mesh))
+      bindOffsets = V.fromList $ attributes <&> \a -> fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in material")
+                                                    $ Prelude.lookup a meshOffsets
+      buffers = V.fromList $ vertexBuffer <$ attributes
 
-    cmdDrawIndexed commandBuffer (fromIntegral . length $ indices) 1 0 0 0
+  cmdBindVertexBuffers commandBuffer 0 buffers bindOffsets
+
+  case (indices mesh, mIndexBuffer) of
+    (Just is, Just ibuf) -> do
+      cmdBindIndexBuffer commandBuffer ibuf indexOffset INDEX_TYPE_UINT32
+      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ is) 1 0 0 0
+    (Nothing, Nothing) -> do
+      cmdDraw commandBuffer (fromIntegral $ numVerts mesh) 1 0 0
+    _ -> error "Mesh has indices but they aren't buffered."

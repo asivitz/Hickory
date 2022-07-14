@@ -14,7 +14,6 @@ module Hickory.Graphics.DrawText
   , loadPrinter
   , PositionedTextCommand(..)
   , textcommand
-  , printVAOObj
   , PrinterMonad(..)
   , PrinterT
   , runPrinterT
@@ -24,7 +23,6 @@ module Hickory.Graphics.DrawText
   , runDynamicVAOT
   , withDynamicVAOs
   , withPrinting
-  , drawText
   , squareIndices
   ) where
 
@@ -70,13 +68,12 @@ loadPrinter resPath shader name = do
 textcommand :: TextCommand
 textcommand = TextCommand
   { text = ""
-  , fontSize = 4
   , align = AlignCenter
   , valign = Middle
-  , color = black
   , leftBump = 0
   }
 
+{-
 printVAOObj :: Printer Int -> TextCommand -> IO VAO
 printVAOObj (Printer font _ shader) textCommand = do
   let command              = PositionedTextCommand zero textCommand
@@ -93,6 +90,7 @@ printVAOObj (Printer font _ shader) textCommand = do
         (V.fromList floats, V.fromList indices)
         TriangleStrip
     else error "Tried to print empty text command"
+    -}
 
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
 squareIndices numSquares = (indices, 6 * numSquares)
@@ -175,6 +173,7 @@ loadDynamicVAO create = do
   recordVAO vao
   pure vao
 
+{-
 drawText :: (DynamicVAOMonad m, PrinterMonad m, MatrixMonad m) => TextCommand -> m ()
 drawText tc = do
   printer@(Printer _ tex _) <- getPrinter
@@ -184,6 +183,7 @@ drawText tc = do
   drawVAO vao do
     bindTextures [tex]
     bindMatrix "modelMat"
+    -}
 
 withDynamicVAOs :: MonadIO m => DynamicVAOT m a -> m a
 withDynamicVAOs f = do

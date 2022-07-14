@@ -51,11 +51,10 @@ data YAlign
 
 data TextCommand = TextCommand
   { text     :: Text.Text
-  , fontSize :: Scalar
   , align    :: XAlign
   , valign   :: YAlign
-  , color    :: Color
-  , leftBump :: Scalar }
+  , leftBump :: Scalar
+  }
   deriving (Show, Eq, Generic)
   deriving anyclass Hashable
 
@@ -113,11 +112,11 @@ lineShiftX width AlignRight = negate width
 lineShiftX width AlignCenter = negate (width / 2)
 lineShiftX width AlignLeft = 0
 
-lineShiftY :: (Real a, Fractional b) => a -> b -> YAlign -> b
-lineShiftY fontSize _ Middle = 43 - realToFrac fontSize * 12
-lineShiftY fontSize _ LowerMiddle = 48 - realToFrac fontSize * 12
-lineShiftY _ height Bottom = height
-lineShiftY _ _ Top = 0
+lineShiftY :: (Fractional b) => b -> YAlign -> b
+lineShiftY _ Middle      = 43 - 12
+lineShiftY _ LowerMiddle = 48 - 12
+lineShiftY height Bottom = height
+lineShiftY _ Top = 0
 
 fontGlyphs :: Text.Text -> Font a -> [Glyph a]
 fontGlyphs text (Font _ _ chartable _) =
@@ -138,38 +137,36 @@ displayWidth kerningtable glyphs = fst $ foldl accum (0,Null) glyphs
   accum (width,prev) g@Null = (width,g)
 
 renderedTextSize :: Font Scalar -> TextCommand -> Size Scalar
-renderedTextSize font@(Font _ info chartable kerningtable) (TextCommand text fontSize align valign color commandBump) =
+renderedTextSize font@(Font _ info chartable kerningtable) (TextCommand text align valign commandBump) =
   let glyphs = fontGlyphs text font
       width = displayWidth kerningtable glyphs
-  in Size (width * fontSize) (10 * fontSize)
+  in Size width 10
 
-transformTextCommandToVerts :: (Real a, Fractional b) => PositionedTextCommand -> Font a -> (Int, [b])
-transformTextCommandToVerts (PositionedTextCommand (V3 x y z) (TextCommand text fontSize align valign color commandBump) )
-  font@(Font _ FontInfo { lineHeight } chartable kerningtable) =
-    let fsize = fontSize / 12
-        glyphs = fontGlyphs text font
-        width = displayWidth kerningtable glyphs
-        xoffset = commandBump + lineShiftX (realToFrac width) align
-        yoffset = lineShiftY fsize (realToFrac lineHeight) valign
-        accum :: (Real a, Fractional b) => (Scalar, Int, Int, [b], [b]) -> Glyph a -> (Scalar, Int, Int, [b], [b])
-        accum = \(leftBump, linenum, numsquares, vertlst, color_verts) glyph ->
-            case glyph of
-                Null -> (leftBump, linenum, numsquares, vertlst, color_verts)
-                (Control 9) -> (leftBump + fsize * 500, linenum, numsquares, vertlst, color_verts)
-                (Control 10) -> (0, linenum + 1, numsquares, vertlst, color_verts)
-                (Control 94) -> (leftBump, linenum, numsquares, vertlst, color_verts)
-                (Control _) -> (leftBump, linenum, numsquares, vertlst, color_verts)
-                Glyph GlyphSpec { xadvance } (GlyphVerts gverts tc) ->
-                    let dotransform :: V2 Scalar -> V3 Scalar
-                        dotransform = \(V2 vx vy) -> V3 (x + fsize * (vx + leftBump))
-                                                        (realToFrac linenum * fsize * realToFrac lineHeight * (-1) + y + fsize * (vy + yoffset))
-                                                        z
-                        new_verts = map dotransform gverts
-                        vert_set = foldr (\(v, w) lst -> vunpackFractional v ++ color_verts ++ vunpackFractional w ++ lst) [] (zip new_verts tc) in
-                            (leftBump + realToFrac xadvance, linenum, numsquares + 1, vert_set ++ vertlst, color_verts)
-        (_, _, num_squares, vert_result, _) = foldl' accum (xoffset, 0, 0, [], vunpackFractional color) glyphs
-        in (num_squares, vert_result)
+transformTextCommandToVerts :: forall a. (Real a) => TextCommand -> Font a -> (Int, [V3 Scalar], [V2 Scalar])
+transformTextCommandToVerts (TextCommand text align valign commandBump)
+  font@(Font _ FontInfo { lineHeight } chartable kerningtable) = (num_squares, posLstResult, tcLstResult)
+  where
+  glyphs = fontGlyphs text font
+  width = displayWidth kerningtable glyphs
+  xoffset = commandBump + lineShiftX (realToFrac width) align
+  yoffset = lineShiftY (realToFrac lineHeight) valign
+  accum :: (Scalar, Int, Int, [V3 Scalar], [V2 Scalar]) -> Glyph a -> (Scalar, Int, Int, [V3 Scalar], [V2 Scalar])
+  accum = \(leftBump, linenum, numsquares, posLst, tcLst) glyph -> case glyph of
+    Null -> (leftBump, linenum, numsquares, posLst, tcLst)
+    (Control 9)  -> (leftBump + 500, linenum, numsquares, posLst, tcLst)
+    (Control 10) -> (0, linenum + 1, numsquares, posLst, tcLst)
+    (Control 94) -> (leftBump, linenum, numsquares, posLst, tcLst)
+    (Control _)  -> (leftBump, linenum, numsquares, posLst, tcLst)
+    Glyph GlyphSpec { xadvance } (GlyphVerts glyphVerts glyphTCs) ->
+      let placeGlyph :: V2 Scalar -> V3 Scalar
+          placeGlyph = \(V2 vx vy) -> V3 (vx + leftBump)
+                                          (realToFrac linenum * realToFrac lineHeight * (-1) + (vy + yoffset))
+                                          0
+          new_verts = map placeGlyph glyphVerts
+          in (leftBump + realToFrac xadvance, linenum, numsquares + 1, new_verts ++ posLst, glyphTCs ++ tcLst)
+  (_, _, num_squares, posLstResult, tcLstResult) = foldl' accum (xoffset, 0, 0, [], []) glyphs
 
+{-
 transformTextCommandsToVerts :: (Real a, Fractional b) => [PositionedTextCommand] -> Font a -> (Int, [b])
 transformTextCommandsToVerts commands font = foldl processCommand (0, []) commands
   where
@@ -177,3 +174,4 @@ transformTextCommandsToVerts commands font = foldl processCommand (0, []) comman
   processCommand (numsquares, verts) command =
     let (num', verts') = transformTextCommandToVerts command font
     in (num' + numsquares, verts' ++ verts)
+    -}

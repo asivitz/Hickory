@@ -5,11 +5,12 @@ import Vulkan (Buffer, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..))
 import Hickory.Vulkan.Vulkan (VulkanResources (..))
 import Control.Monad.Managed (Managed)
 import Data.Word (Word32)
-import Hickory.Vulkan.Mesh (withBuffer', attrStride)
+import Hickory.Vulkan.Mesh (withBuffer', attrStride, Mesh, indices, pack)
 import Foreign ((.|.), sizeOf, copyArray, castPtr)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Vector.Storable as SV
 import Control.Exception (bracket)
+import Data.Maybe (mapMaybe)
 
 data DynamicBufferedMesh = DynamicBufferedMesh
   { vertexBufferPair :: (Buffer, Allocation)
@@ -34,10 +35,12 @@ withDynamicBufferedMesh VulkanResources{..} maxVertices = do
       indexBufferPair  = (indexBuffer, indexAlloc)
   pure DynamicBufferedMesh {..}
 
-uploadDynamicMesh :: MonadIO m => DynamicBufferedMesh -> SV.Vector Float -> SV.Vector Word32 -> m ()
-uploadDynamicMesh DynamicBufferedMesh {..} vertexData indexData = do
+uploadDynamicMesh :: MonadIO m => DynamicBufferedMesh -> [Mesh] -> m ()
+uploadDynamicMesh DynamicBufferedMesh {..} meshes = do
   let (_, vertexAlloc) = vertexBufferPair
       (_, indexAlloc)  = indexBufferPair
+      indexData  = SV.concat $ mapMaybe indices meshes
+      vertexData = SV.concat $ map pack meshes
 
   liftIO $ withMappedMemory allocator vertexAlloc bracket \bptr ->
     SV.unsafeWith vertexData \vptr -> copyArray (castPtr bptr) vptr (SV.length vertexData)

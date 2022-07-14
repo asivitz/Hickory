@@ -424,12 +424,12 @@ withGraphicsPipeline
   -> B.ByteString
   -> B.ByteString
   -> PipelineLayout
-  -> VertexInputBindingDescription
+  -> V.Vector VertexInputBindingDescription
   -> V.Vector VertexInputAttributeDescription
   -> Managed Pipeline
 withGraphicsPipeline
   VulkanResources {..} SwapchainContext{..}
-  topology vertShader fragShader pipelineLayout vertexBindingDescription vertexAttributeDescriptions
+  topology vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
   let Swapchain {..} = swapchain
@@ -440,7 +440,7 @@ withGraphicsPipeline
     pipelineCreateInfo = zero
       { stages             = shaderStages
       , vertexInputState   = Just . SomeStruct $ zero
-        { vertexBindingDescriptions   = [ vertexBindingDescription ]
+        { vertexBindingDescriptions   = vertexBindingDescriptions
         , vertexAttributeDescriptions = vertexAttributeDescriptions
         }
       , inputAssemblyState = Just zero

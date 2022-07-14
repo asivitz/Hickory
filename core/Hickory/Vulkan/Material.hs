@@ -5,7 +5,7 @@
 module Hickory.Vulkan.Material where
 
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Mesh (Attribute(..), bindingDescription, attributeDescriptions, attrLocation)
+import Hickory.Vulkan.Mesh (Attribute(..), bindingDescriptions, attributeDescriptions, attrLocation)
 import qualified Data.ByteString as B
 import Foreign (sizeOf, castPtr, with, Storable, (.|.))
 import Vulkan
@@ -38,6 +38,7 @@ data Material uniform = Material
   , pipelineLayout      :: PipelineLayout
   , materialDescriptor  :: FramedResource (BufferDescriptorSet uniform) -- ^Each frame has its own buffer to write uniform data for each draw call
   , uuid                :: UUID
+  , attributes          :: [Attribute]
   }
 
 withMaterial
@@ -50,7 +51,7 @@ withMaterial
   -> B.ByteString
   -> Maybe TextureDescriptorSet
   -> Managed (Material uniform)
-withMaterial bag@VulkanResources {..} swapchainContext (sortOn attrLocation -> attrs) topology vertShader fragShader descriptorSet = do
+withMaterial bag@VulkanResources {..} swapchainContext (sortOn attrLocation -> attributes) topology vertShader fragShader descriptorSet = do
   let DeviceContext {..} = deviceContext
 
   materialDescriptor <- frameResource $ withBufferDescriptorSet bag
@@ -67,7 +68,7 @@ withMaterial bag@VulkanResources {..} swapchainContext (sortOn attrLocation -> a
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
-  pipeline <- withGraphicsPipeline bag swapchainContext topology vertShader fragShader pipelineLayout (bindingDescription attrs) (attributeDescriptions attrs)
+  pipeline <- withGraphicsPipeline bag swapchainContext topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}

@@ -1,5 +1,5 @@
 {-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE DataKinds, OverloadedLists, QuasiQuotes, TypeApplications, DerivingStrategies, DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DataKinds, OverloadedLists, QuasiQuotes, TypeApplications, DerivingStrategies, DeriveGeneric, DeriveAnyClass, OverloadedLabels #-}
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Main where
@@ -18,7 +18,7 @@ import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import Linear.Matrix ((!*!))
-import Linear ( M44, V2 (..) )
+import Linear ( M44, V2 (..), V3 (..) )
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 

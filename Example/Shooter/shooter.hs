@@ -56,14 +56,13 @@ import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.DescriptorSet as H
-import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText, getTexIdx, useGlobalDecriptorSet)
+import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText, getTexIdx, useGlobalDecriptorSet, drawDynamicMesh)
 import Data.Foldable (for_)
 import Foreign.Storable.Generic
 import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text.Text (TextCommand(..), Font, makeFont, XAlign (..))
 import Hickory.Utils.Utils (readFileAsText)
 import Data.Either (fromRight)
-import Hickory.Color (white)
 import Hickory.Math.Vector (Scalar)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
@@ -130,8 +129,7 @@ data Resources = Resources
   { globalDescriptorSet :: H.TextureDescriptorSet
   , square              :: H.BufferedMesh
   , solidMaterial       :: H.Material SolidColorUniform
-  , circleMaterial      :: H.Material TextureUniform
-  , textMaterial        :: H.Material TextureUniform
+  , texturedMaterial    :: H.Material TextureUniform
   , font                :: Font Int
   , dynamicMesh         :: FramedResource H.DynamicBufferedMesh
   }
@@ -168,12 +166,10 @@ loadResources path _size vulkanResources swapchainContext = do
           ]
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
-  solidMaterial  <- H.withMaterial vulkanResources swapchainContext
+  solidMaterial    <- H.withMaterial vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
-  circleMaterial <- H.withMaterial vulkanResources swapchainContext
+  texturedMaterial <- H.withMaterial vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader (Just globalDescriptorSet)
-  textMaterial <- H.withMaterial vulkanResources swapchainContext
-    [H.Position, H.TextureCoord, H.Color] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST textVertShader textFragShader (Just globalDescriptorSet)
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
   -- generated using the bmGlyph program for Mac
@@ -188,22 +184,22 @@ loadResources path _size vulkanResources swapchainContext = do
 -- Our render function
 renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, (Int, CommandBuffer)) -> m ()
 renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, commandInfo@(frameNumber,_)) =
-  recordCommandBuffer commandInfo . useDynamicMesh (resourceForFrame frameNumber dynamicMesh) . useGlobalDecriptorSet globalDescriptorSet circleMaterial $ do
+  recordCommandBuffer commandInfo . useDynamicMesh (resourceForFrame frameNumber dynamicMesh) . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat <- H.askMatrix
         texId <- getTexIdx "circle.png"
-        drawMesh True circleMaterial (TextureUniform mat texId) square
+        drawMesh True texturedMaterial (TextureUniform mat texId) square
 
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
         mat <- H.askMatrix
         drawMesh False solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square
 
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
-      H.xform (mkTranslation (topLeft 20 20 scrSize)) do
+      H.xform (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (5/12) (5/12))) do
         mat <- H.askMatrix
         texId <- getTexIdx "gidolinya.png"
-        drawText textMaterial (TextureUniform mat texId) font (textcommand { color = white, text = "Arrow keys move, Space shoots", align = AlignLeft, fontSize = 5 } )
+        drawText texturedMaterial (TextureUniform mat texId) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } )
   where
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
@@ -404,77 +400,6 @@ texFragShader = [frag|
   void main() {
     Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
     outColor = texture(texSampler[uniforms.texIdx], texCoord);
-  }
-
-|]
-
-textVertShader :: B.ByteString
-textVertShader = [vert|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
-
-  layout(location = 0) in vec3 inPosition;
-  layout(location = 1) in vec4 inColor;
-  layout(location = 3) in vec2 inTexCoord;
-
-  layout(location = 0) out vec4 fragColor;
-  layout(location = 1) out vec2 texCoord;
-
-  struct Uniforms
-  {
-    mat4 modelViewMatrix;
-    int texIdx;
-  };
-
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
-    Uniforms uniforms [128];
-  } ub;
-
-  layout( push_constant ) uniform constants
-  {
-    int uniformIdx;
-  } PushConstants;
-
-  void main() {
-      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-      gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
-      texCoord = inTexCoord;
-      fragColor = inColor;
-  }
-
-|]
-
-textFragShader :: B.ByteString
-textFragShader = [frag|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
-  #extension GL_EXT_nonuniform_qualifier : require
-
-  layout(location = 0) in vec4 fragColor;
-  layout(location = 1) in vec2 texCoord;
-
-  layout(set = 0, binding = 0) uniform sampler2D texSampler[];
-
-  layout(location = 0) out vec4 outColor;
-
-  struct Uniforms
-  {
-    mat4 modelViewMatrix;
-    int texIdx;
-  };
-
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
-    Uniforms uniforms [128];
-  } ub;
-
-  layout( push_constant ) uniform constants
-  {
-    int uniformIdx;
-  } PushConstants;
-
-  void main() {
-    Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-    outColor = texture(texSampler[uniforms.texIdx], texCoord) * fragColor;
   }
 
 |]

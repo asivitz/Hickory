@@ -25,12 +25,12 @@ import Control.Exception (bracket)
 import Foreign.Marshal.Array (copyArray)
 import Control.Monad.IO.Class (MonadIO)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Data.List (sortOn)
+import Data.List (sortOn, elemIndex, mapAccumL)
 
 data Mesh = Mesh
   { vertices :: [(Attribute, SV.Vector Float)]
   , indices :: Maybe (SV.Vector Word32)
-  } deriving Generic
+  } deriving (Generic, Show)
 
 data BufferedMesh = BufferedMesh
   { mesh         :: Mesh
@@ -51,7 +51,7 @@ data Attribute
   | Color
   | BoneIndex
   | MaterialIndex
-  deriving (Bounded, Enum, Generic)
+  deriving (Bounded, Enum, Generic, Show, Eq)
 
 instance Binary Attribute
 instance Binary Mesh
@@ -81,9 +81,7 @@ attrFormat BoneIndex     = FORMAT_R32_SFLOAT
 attrFormat MaterialIndex = FORMAT_R32_SFLOAT
 
 pack :: Mesh -> SV.Vector Float
-pack mesh@Mesh {..} = SV.concat $ packVert <$> [0..(numVerts mesh - 1)]
-  where
-  packVert i = SV.concat $ sortOn (attrLocation . fst) vertices <&> \(attr, v) -> let str = attrStride attr in SV.fromList $ [0..str - 1] <&> \idx -> v SV.! (i * str + idx)
+pack Mesh {..} = SV.concat $ fmap snd . sortOn (attrLocation . fst) $ vertices
 
 numVerts :: Mesh -> Int
 numVerts Mesh { vertices = ((attr, vec):_) } =
@@ -94,42 +92,26 @@ numVerts _ = 0
 meshAttributes :: Mesh -> [Attribute]
 meshAttributes = fmap fst . vertices
 
-bindingDescription :: [Attribute] -> VertexInputBindingDescription
-bindingDescription attrs = VertexInputBindingDescription
-  { binding = 0
-  , stride = fromIntegral $ Prelude.sum (attrStride <$> attrs) * sizeOf (0 :: Float)
+bindingDescriptions :: [Attribute] -> V.Vector VertexInputBindingDescription
+bindingDescriptions attrs = V.fromList $ Prelude.zip [0..] attrs <&> \(i,a) -> VertexInputBindingDescription
+  { binding = i
+  , stride = fromIntegral $ attrStride a * sizeOf (0 :: Float)
   , inputRate = VERTEX_INPUT_RATE_VERTEX
   }
 
 attributeDescriptions :: [Attribute] -> V.Vector VertexInputAttributeDescription
-attributeDescriptions = V.fromList . snd . List.mapAccumL mk 0
-  where
-  mk stride' attr =
-    (stride' + attrStride attr
-    , VertexInputAttributeDescription
-      { binding = 0
-      , location = attrLocation attr
-      , format = attrFormat attr
-      , offset = fromIntegral $ stride' * sizeOf (0 :: Float)
-      }
-    )
+attributeDescriptions attrs = V.fromList $ Prelude.zip [0..] attrs <&> \(i,a) -> VertexInputAttributeDescription
+  { binding = i
+  , location = attrLocation a
+  , format = attrFormat a
+  , offset = 0
+  }
 
 withBufferedMesh :: VulkanResources -> Mesh -> Managed BufferedMesh
 withBufferedMesh bag mesh@Mesh {..} = do
   vertexBuffer <- withVertexBuffer bag (pack mesh)
   indexBuffer  <- traverse (withIndexBuffer bag) indices
   pure BufferedMesh {..}
-
-cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> BufferedMesh -> m ()
-cmdDrawBufferedMesh commandBuffer BufferedMesh {..} = do
-  cmdBindVertexBuffers commandBuffer 0 [vertexBuffer] [0]
-  case (indices mesh, indexBuffer) of
-    (Just is, Just ibuf) -> do
-      cmdBindIndexBuffer commandBuffer ibuf 0 INDEX_TYPE_UINT32
-      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ is) 1 0 0 0
-    (Nothing, Nothing) -> do
-      cmdDraw commandBuffer (fromIntegral $ numVerts mesh) 1 0 0
-    _ -> error "Mesh has indices but they aren't buffered."
 
 {- Buffer Utils -}
 
