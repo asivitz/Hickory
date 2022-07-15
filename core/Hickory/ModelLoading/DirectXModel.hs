@@ -112,7 +112,7 @@ xToMesh DX.Mesh {..} = HM.Mesh meshVerts (Just meshIndices)
   normals       = (HM.Normal,   SV.fromList $ packNormals faces (DX.normals meshNormals))
   uvs           = (HM.TextureCoord, SV.convert $ textureCoords meshTextureCoords)
   material_idxs = (HM.MaterialIndex, SV.fromList $ packMaterialIndices faces (DX.faceIndexes meshMaterialList))
-  boneIndices   = (HM.BoneIndex,) . SV.fromList . reverse <$> traverse
+  boneIndices   = (HM.BoneIndex,) . SV.fromList <$> traverse
     (\i -> fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> UV.elem i vertexIndices) skinWeights)
     [0 .. (UV.length vertices - 1)]
   meshVerts     = catMaybes [Just positions, Just normals, Just uvs, boneIndices, Just material_idxs]
