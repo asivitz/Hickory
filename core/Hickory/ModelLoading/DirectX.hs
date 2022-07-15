@@ -15,9 +15,9 @@ import qualified Data.Vector.Unboxed as Vector
 import Control.Applicative hiding (many)
 import Hickory.Color
 import Linear.Quaternion
-import Data.List
+import Data.List (find)
 import Data.Text (Text, pack)
-import Linear (V3(..), V4(..), scaled, M44, mkTransformation, (!*!))
+import Linear (V3(..), V4(..), scaled, M44, mkTransformation, (!*!), transpose)
 
 {- Types -}
 
@@ -251,7 +251,8 @@ quaternionFromList [a,b,c,d] = Quaternion (negate a) (V3 b c d)
 quaternionFromList _ = error "Can't build quaternion. Wrong size list."
 
 parseMatrix4x4 :: Parser Mat44
-parseMatrix4x4 = m44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
+parseMatrix4x4 = transpose -- DirectX matrices are column-major
+               . m44FromList <$> terminate (sepByCount anySignedNumber ',' 16)
 
 memberItems :: [Parser b] -> Parser [b]
 memberItems = mapM terminate
