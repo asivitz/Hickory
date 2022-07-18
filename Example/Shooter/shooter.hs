@@ -167,7 +167,7 @@ loadResources path _size vulkanResources swapchainContext = do
                              , 0.0, 1.0
                              ])
           ]
-    , indices = Just [0, 1, 2, 2, 3, 0]
+    , indices = Just [0, 2, 1, 2, 0, 3]
     }
   solidMaterial    <- H.withMaterial vulkanResources swapchainContext
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
@@ -277,7 +277,7 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> do
   -- build and run the FRP network
   buildNetwork evGens
 
-  GLFWV.runFrames win (loadResources "Example/Shooter/assets/") \resources commandInfo -> do
+  GLFWV.runFrames win (V4 0 0 0 1) (loadResources "Example/Shooter/assets/") \resources commandInfo -> do
     coreEvProc (resources, commandInfo)
 
     focused <- GLFW.getWindowFocused win

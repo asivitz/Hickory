@@ -31,6 +31,7 @@ import qualified Data.ByteString as B
 import Data.Traversable (for)
 import Hickory.Types (Size (..))
 import Hickory.Vulkan.Framing (frameResource, resourceForFrame)
+import Linear (V4)
 
 {- GLFW -}
 
@@ -98,10 +99,11 @@ validationLayers = V.fromList ["VK_LAYER_KHRONOS_validation"]
 
 runFrames
   :: GLFW.Window
+  -> V4 Float -- Clear color
   -> (Size Int -> VulkanResources -> SwapchainContext -> Managed userRes) -- ^ Acquire user resources
   -> (userRes -> (Int, CommandBuffer) -> IO ()) -- ^ Execute a frame
   -> IO ()
-runFrames win acquireUserResources f = do
+runFrames win color acquireUserResources f = do
   glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= fmap V.fromList . mapM B.packCString
 
   runManaged do
@@ -125,7 +127,7 @@ runFrames win acquireUserResources f = do
       GLFW.pollEvents
       let frame = resourceForFrame frameNumber frames
 
-      drawRes <- drawFrame frame vulkanResources swapchainContext (f userResources . (frameNumber,))
+      drawRes <- drawFrame frame vulkanResources swapchainContext color (f userResources . (frameNumber,))
       shouldClose <- GLFW.windowShouldClose win
       when (drawRes || shouldClose) $ deviceWaitIdle (device (deviceContext vulkanResources))
       if shouldClose then pure Nothing else pure (Just drawRes)

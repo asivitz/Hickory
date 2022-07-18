@@ -19,7 +19,7 @@ import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import Linear.Matrix ((!*!))
-import Linear ( M44, V2 (..), V3 (..) )
+import Linear ( M44, V2 (..), V4(..))
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 
@@ -62,7 +62,7 @@ acquireResources _ vulkanResources swapchainContext = do
                               , 0.0, 1.0
                               ])
           ]
-    , indices = Just [0, 1, 2, 2, 3, 0]
+    , indices = Just [0, 2, 1, 2, 0, 3]
     }
 
   globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR), ("x.png", FILTER_LINEAR)]
@@ -72,7 +72,7 @@ acquireResources _ vulkanResources swapchainContext = do
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
-  runFrames win acquireResources \Resources {..} commandInfo -> do
+  runFrames win (V4 0 0 0 1) acquireResources \Resources {..} commandInfo -> do
     recordCommandBuffer commandInfo . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
       let
         screenRatio = 1

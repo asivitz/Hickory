@@ -102,7 +102,7 @@ import Vulkan
   , RenderPassBeginInfo(..)
   , SubmitInfo(..)
   , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..), BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
-  , PhysicalDeviceFeatures(..), PhysicalDeviceDescriptorIndexingFeatures (..)
+  , PhysicalDeviceDescriptorIndexingFeatures (..)
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -120,6 +120,7 @@ import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
 import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr, Bits ((.|.)))
 import qualified Data.ByteString as B
+import Linear (V4(..))
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -466,7 +467,7 @@ withGraphicsPipeline
           , polygonMode             = POLYGON_MODE_FILL
           , lineWidth               = 1
           , cullMode                = CULL_MODE_BACK_BIT
-          , frontFace               = FRONT_FACE_CLOCKWISE
+          , frontFace               = FRONT_FACE_COUNTER_CLOCKWISE
           , depthBiasEnable         = False
           }
       , multisampleState = Just . SomeStruct $ zero
@@ -521,8 +522,8 @@ createShader stage dev source = do
     }
 
 {- Drawing a frame -}
-drawFrame :: MonadIO m => Frame -> VulkanResources -> SwapchainContext -> (CommandBuffer -> IO ()) -> m Bool
-drawFrame Frame {..} VulkanResources {..} SwapchainContext {..} f = do
+drawFrame :: MonadIO m => Frame -> VulkanResources -> SwapchainContext -> V4 Float -> (CommandBuffer -> IO ()) -> m Bool
+drawFrame Frame {..} VulkanResources {..} SwapchainContext {..} (V4 r g b a) f = do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
 
@@ -530,7 +531,7 @@ drawFrame Frame {..} VulkanResources {..} SwapchainContext {..} f = do
 
   (res, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
   case res of
-    r | r == ERROR_OUT_OF_DATE_KHR || r == SUBOPTIMAL_KHR -> pure False
+    res' | res' == ERROR_OUT_OF_DATE_KHR || res' == SUBOPTIMAL_KHR -> pure False
     _ -> do
       resetFences device [ inFlightFence ]
 
@@ -543,7 +544,7 @@ drawFrame Frame {..} VulkanResources {..} SwapchainContext {..} f = do
               { renderPass  = renderpass
               , framebuffer = framebuffer
               , renderArea  = Rect2D { offset = zero , extent = extent }
-              , clearValues = [ Color (Float32 0.0 0.0 0.0 1.0) ]
+              , clearValues = [ Color (Float32 r g b a) ]
               }
         cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
           liftIO $ f commandBuffer

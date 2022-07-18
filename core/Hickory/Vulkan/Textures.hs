@@ -16,14 +16,12 @@ import VulkanMemoryAllocator (withMappedMemory, withImage, AllocationCreateInfo(
 import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Codec.Picture.Extra (flipVertically)
-import Codec.Picture (dynamicPixelMap)
 
 withTextureImage :: VulkanResources -> FilePath -> Managed Image
 withTextureImage bag@VulkanResources { allocator } path = do
   Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
     Left s -> error $ printf "Can't load image at path %s: %s" path s
-    Right dynImage -> pure $ Png.convertRGBA8 (dynamicPixelMap flipVertically dynImage)
+    Right dynImage -> pure $ Png.convertRGBA8 dynImage
 
   let bufferSize = fromIntegral $ SV.length dat * sizeOf (undefined :: Word8)
 

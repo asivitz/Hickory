@@ -95,7 +95,7 @@ printVAOObj (Printer font _ shader) textCommand = do
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)
 squareIndices numSquares = (indices, 6 * numSquares)
  where
-  indices = concatMap (\((*4) -> i) -> [i, i+1, i+2, i+2, i+1, i+3])
+  indices = concatMap (\((*4) -> i) -> [i, i+2, i+1, i+2, i+3, i+1])
     [0 .. (numSquares - 1)]
 
 -- Creating new VAOs during render
