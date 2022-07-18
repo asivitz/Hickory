@@ -68,12 +68,12 @@ withVulkanResources inst surface = do
   pure VulkanResources {..}
 
 withSwapchainContext :: SurfaceKHR -> VulkanResources -> (Int, Int) -> Managed SwapchainContext
-withSwapchainContext surface VulkanResources {..} framebufferSize = do
+withSwapchainContext surface vr@VulkanResources {..} framebufferSize = do
   let DeviceContext {..} = deviceContext
-  swapchain@Swapchain {..} <- withSwapchain deviceContext surface framebufferSize
+  swapchain@Swapchain {..} <- withSwapchain vr surface framebufferSize
 
-  renderpass   <- withStandardRenderPass' device (format (surfaceFormat :: SurfaceFormatKHR))
-  framebuffers <- for imageViews $ createFramebuffer device renderpass extent
+  renderpass   <- withStandardRenderPass' device (format (surfaceFormat :: SurfaceFormatKHR)) depthFormat
+  framebuffers <- for imageViews $ createFramebuffer device renderpass extent depthImageView
   pure SwapchainContext {..}
 
 withStandardInstance :: V.Vector B.ByteString -> Managed Instance

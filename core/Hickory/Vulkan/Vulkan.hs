@@ -102,7 +102,8 @@ import Vulkan
   , RenderPassBeginInfo(..)
   , SubmitInfo(..)
   , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..), BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
-  , PhysicalDeviceDescriptorIndexingFeatures (..)
+  , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags, ClearDepthStencilValue (..)
+  , PipelineDepthStencilStateCreateInfo(..), CompareOp (..)
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -161,6 +162,8 @@ data Swapchain = Swapchain
   , images            :: V.Vector Image
   , imageViews        :: V.Vector ImageView
   , extent            :: Extent2D
+  , depthFormat       :: Format
+  , depthImageView    :: ImageView
   }
 
 allocate :: IO a -> (a -> IO ()) -> Managed a
@@ -287,8 +290,9 @@ withLogicalDevice inst surface = do
 
   pure $ DeviceContext {..}
 
-withSwapchain :: DeviceContext -> SurfaceKHR -> (Int, Int) -> Managed Swapchain
-withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
+withSwapchain :: VulkanResources -> SurfaceKHR -> (Int, Int) -> Managed Swapchain
+withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
+  let dc@DeviceContext{..} = deviceContext
   capabilities <- getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
 
   let
@@ -326,20 +330,47 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
   let imageFormat = surfaceFormat
 
   (_, images) <- getSwapchainImagesKHR device swapchainHandle
-  imageViews <- for images $ with2DImageView dc (Vulkan.format (surfaceFormat :: SurfaceFormatKHR))
+  imageViews <- for images $ with2DImageView dc (Vulkan.format (surfaceFormat :: SurfaceFormatKHR)) IMAGE_ASPECT_COLOR_BIT
+
+  let depthFormat = FORMAT_D32_SFLOAT
+  depthImage     <- withDepthImage vr extent depthFormat
+  depthImageView <- with2DImageView dc depthFormat IMAGE_ASPECT_DEPTH_BIT depthImage
 
   pure $ Swapchain {..}
 
-withStandardRenderPass' :: Device -> Format -> Managed RenderPass
-withStandardRenderPass' dev swapchainImageFormat =
+withDepthImage :: VulkanResources -> Extent2D -> Format -> Managed Image
+withDepthImage VulkanResources { allocator } (Extent2D width height) format = do
+
+  let imageCreateInfo :: ImageCreateInfo '[]
+      imageCreateInfo = zero
+        { imageType     = IMAGE_TYPE_2D
+        , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
+        , format        = format
+        , mipLevels     = 1
+        , arrayLayers   = 1
+        , tiling        = IMAGE_TILING_OPTIMAL
+        , samples       = SAMPLE_COUNT_1_BIT
+        , usage         = IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+        , sharingMode   = SHARING_MODE_EXCLUSIVE
+        , initialLayout = IMAGE_LAYOUT_UNDEFINED
+        }
+      allocationCreateInfo :: AllocationCreateInfo
+      allocationCreateInfo = zero { requiredFlags = MEMORY_PROPERTY_DEVICE_LOCAL_BIT }
+
+  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo allocate
+
+  pure image
+
+withStandardRenderPass' :: Device -> Format -> Format -> Managed RenderPass
+withStandardRenderPass' dev swapchainImageFormat depthFormat =
   withRenderPass dev zero
-    { attachments  = [attachmentDescription]
+    { attachments  = [colorAttachmentDescription, depthAttachmentDescription]
     , subpasses    = [subpass]
     , dependencies = [subpassDependency]
     } Nothing allocate
   where
-  attachmentDescription :: AttachmentDescription
-  attachmentDescription = zero
+  colorAttachmentDescription :: AttachmentDescription
+  colorAttachmentDescription = zero
     { format         = swapchainImageFormat
     , samples        = SAMPLE_COUNT_1_BIT
     , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
@@ -348,6 +379,17 @@ withStandardRenderPass' dev swapchainImageFormat =
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
     , finalLayout    = IMAGE_LAYOUT_PRESENT_SRC_KHR
+    }
+  depthAttachmentDescription :: AttachmentDescription
+  depthAttachmentDescription = zero
+    { format         = depthFormat
+    , samples        = SAMPLE_COUNT_1_BIT
+    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
+    , storeOp        = ATTACHMENT_STORE_OP_DONT_CARE
+    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
+    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
+    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
     }
   subpass :: SubpassDescription
   subpass = zero
@@ -358,23 +400,27 @@ withStandardRenderPass' dev swapchainImageFormat =
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
       ]
+    , depthStencilAttachment = Just $ zero
+      { attachment = 1
+      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+      }
     }
   subpassDependency :: SubpassDependency
   subpassDependency = zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
     , srcAccessMask = zero
-    , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-    , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+    , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
     }
 
-createFramebuffer :: Device -> RenderPass -> Extent2D -> ImageView -> Managed Framebuffer
-createFramebuffer dev renderPass swapchainExtent imageView =
+createFramebuffer :: Device -> RenderPass -> Extent2D -> ImageView -> ImageView -> Managed Framebuffer
+createFramebuffer dev renderPass swapchainExtent depthImageView imageView =
   let framebufferCreateInfo :: FramebufferCreateInfo '[]
       framebufferCreateInfo = zero
         { renderPass  = renderPass
-        , attachments = [imageView]
+        , attachments = [imageView, depthImageView]
         , width       = width (swapchainExtent :: Extent2D)
         , height      = height (swapchainExtent :: Extent2D)
         , layers      = 1
@@ -398,8 +444,8 @@ vmaVulkanFunctions Instance { instanceCmds } Device { deviceCmds } = zero
   , vkGetDeviceProcAddr   = castFunPtr $ VD.pVkGetDeviceProcAddr deviceCmds
   }
 
-with2DImageView :: DeviceContext -> Format -> Image -> Managed ImageView
-with2DImageView DeviceContext { device } format image =
+with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Managed ImageView
+with2DImageView DeviceContext { device } format flags image =
   withImageView device imageViewCreateInfo Nothing allocate
   where
   imageViewCreateInfo = zero
@@ -408,7 +454,7 @@ with2DImageView DeviceContext { device } format image =
     , format     = format
     , components = zero
     , subresourceRange = zero
-      { aspectMask     = IMAGE_ASPECT_COLOR_BIT
+      { aspectMask     = flags
       , baseMipLevel   = 0
       , levelCount     = 1
       , baseArrayLayer = 0
@@ -474,7 +520,13 @@ withGraphicsPipeline
           { sampleShadingEnable  = False
           , rasterizationSamples = SAMPLE_COUNT_1_BIT
           }
-      , depthStencilState = Nothing
+      , depthStencilState = Just $ zero
+        { depthTestEnable       = True
+        , depthWriteEnable      = True
+        , depthCompareOp        = COMPARE_OP_LESS
+        , depthBoundsTestEnable = False
+        , stencilTestEnable     = False
+        }
       , colorBlendState = Just . SomeStruct $ zero
           { logicOpEnable = False
           , attachments =
@@ -544,7 +596,7 @@ drawFrame Frame {..} VulkanResources {..} SwapchainContext {..} (V4 r g b a) f =
               { renderPass  = renderpass
               , framebuffer = framebuffer
               , renderArea  = Rect2D { offset = zero , extent = extent }
-              , clearValues = [ Color (Float32 r g b a) ]
+              , clearValues = [ Color (Float32 r g b a), DepthStencil (ClearDepthStencilValue 1 0) ]
               }
         cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
           liftIO $ f commandBuffer

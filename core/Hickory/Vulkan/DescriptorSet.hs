@@ -26,6 +26,7 @@ import Vulkan
   , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), DescriptorPoolCreateFlagBits (..), DescriptorSetLayoutCreateFlagBits (..), Filter
+  , pattern IMAGE_ASPECT_COLOR_BIT
   )
 import Data.Maybe (maybeToList, listToMaybe)
 import Data.Functor (($>))
@@ -89,7 +90,7 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
     imageInfos <- for texturePaths \(path, filt) -> do
       sampler <- withImageSampler bag filt
       image   <- withTextureImage bag path
-      imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB image
+      imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB IMAGE_ASPECT_COLOR_BIT image
       pure zero
         { sampler     = sampler
         , imageView   = imageView
