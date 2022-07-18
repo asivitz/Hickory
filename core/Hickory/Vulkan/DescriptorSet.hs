@@ -25,7 +25,7 @@ import Vulkan
   , WriteDescriptorSet(..), Format (..), ImageLayout (..), allocateDescriptorSets
   , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
   , DescriptorBufferInfo(..)
-  , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), DescriptorPoolCreateFlagBits (..), DescriptorSetLayoutCreateFlagBits (..)
+  , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), DescriptorPoolCreateFlagBits (..), DescriptorSetLayoutCreateFlagBits (..), Filter
   )
 import Data.Maybe (maybeToList, listToMaybe)
 import Data.Functor (($>))
@@ -51,7 +51,7 @@ data TextureDescriptorSet = TextureDescriptorSet
   , textureNames        :: Vector Text -- TODO: Use Text instead of String
   } deriving (Generic)
 
-withTextureDescriptorSet :: VulkanResources -> [FilePath] -> Managed TextureDescriptorSet
+withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter)] -> Managed TextureDescriptorSet
 withTextureDescriptorSet _ [] = error "No textures in descriptor set"
 withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
   let DeviceContext {..} = deviceContext
@@ -86,8 +86,8 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
     }
 
   for_ (listToMaybe texturePaths) . const $ do
-    sampler <- withImageSampler bag
-    imageInfos <- for texturePaths \path -> do
+    imageInfos <- for texturePaths \(path, filt) -> do
+      sampler <- withImageSampler bag filt
       image   <- withTextureImage bag path
       imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB image
       pure zero
@@ -105,7 +105,7 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
           }
     updateDescriptorSets device [SomeStruct write] []
 
-  let textureNames = V.fromList $ pack . view filename <$> texturePaths
+  let textureNames = V.fromList $ pack . view filename . fst <$> texturePaths
 
   pure TextureDescriptorSet {..}
 

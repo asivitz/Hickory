@@ -16,6 +16,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 import GHC.Generics (Generic)
 import Control.Concurrent (threadDelay)
@@ -38,6 +39,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Hickory.Graphics as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
+import Control.Lens (each, over, _1)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Text as H
@@ -47,6 +49,7 @@ import Control.Monad.Managed (Managed)
 import Vulkan
   ( CommandBuffer(..)
   , PrimitiveTopology (..)
+  , pattern FILTER_LINEAR
   )
 
 import qualified Data.ByteString as B
@@ -56,7 +59,7 @@ import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.DescriptorSet as H
-import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText, getTexIdx, useGlobalDecriptorSet, drawDynamicMesh)
+import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText, getTexIdx, useGlobalDecriptorSet)
 import Data.Foldable (for_)
 import Foreign.Storable.Generic
 import Hickory.Graphics.DrawText (textcommand)
@@ -149,7 +152,7 @@ data TextureUniform = TextureUniform
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> Size Int -> VulkanResources -> SwapchainContext -> Managed Resources
 loadResources path _size vulkanResources swapchainContext = do
-  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources $ (\n -> path ++ "images/" ++ n) <$> ["circle.png", "gidolinya.png"]
+  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources $ over (each . _1) (\n -> path ++ "images/" ++ n) [("circle.png", FILTER_LINEAR), ("gidolinya.png",FILTER_LINEAR) ]
 
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =

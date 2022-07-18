@@ -16,12 +16,14 @@ import VulkanMemoryAllocator (withMappedMemory, withImage, AllocationCreateInfo(
 import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
+import Codec.Picture.Extra (flipVertically)
+import Codec.Picture (dynamicPixelMap)
 
 withTextureImage :: VulkanResources -> FilePath -> Managed Image
 withTextureImage bag@VulkanResources { allocator } path = do
   Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
     Left s -> error $ printf "Can't load image at path %s: %s" path s
-    Right dynImage -> pure $ Png.convertRGBA8 dynImage
+    Right dynImage -> pure $ Png.convertRGBA8 (dynamicPixelMap flipVertically dynImage)
 
   let bufferSize = fromIntegral $ SV.length dat * sizeOf (undefined :: Word8)
 
@@ -119,13 +121,13 @@ transitionImageLayout bag image oldLayout newLayout = withSingleTimeCommands bag
 
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
 
-withImageSampler :: VulkanResources -> Managed Sampler
-withImageSampler VulkanResources { deviceContext = DeviceContext {..} } =
+withImageSampler :: VulkanResources -> Filter -> Managed Sampler
+withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt =
   withSampler device samplerInfo Nothing allocate
   where
   samplerInfo = zero
-    { magFilter = FILTER_LINEAR
-    , minFilter = FILTER_LINEAR
+    { magFilter = filt
+    , minFilter = filt
     , addressModeU = SAMPLER_ADDRESS_MODE_REPEAT
     , addressModeV = SAMPLER_ADDRESS_MODE_REPEAT
     , addressModeW = SAMPLER_ADDRESS_MODE_REPEAT

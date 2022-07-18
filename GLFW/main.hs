@@ -7,6 +7,7 @@ module Main where
 import Control.Monad.Managed (Managed)
 import Vulkan
   ( pattern PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+  , pattern FILTER_LINEAR
   )
 
 import qualified Data.ByteString as B
@@ -64,7 +65,7 @@ acquireResources _ vulkanResources swapchainContext = do
     , indices = Just [0, 1, 2, 2, 3, 0]
     }
 
-  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources ["star.png", "x.png"]
+  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR), ("x.png", FILTER_LINEAR)]
   solidColorMaterial <- H.withMaterial vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
   texturedMaterial   <- H.withMaterial vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader (Just globalDescriptorSet)
   pure Resources {..}
