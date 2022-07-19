@@ -2,7 +2,7 @@ module Hickory.Math.VectorMatrix where
 
 import Hickory.Math.Matrix
 import Hickory.Math.Vector
-import Linear (V2(..), V3(..), V4(..), lerp, (^/), _xyz, _w, _z, (!*), inv44)
+import Linear (V2(..), V3(..), V4(..), lerp, (^/), _xyz, _w, _z, (!*), inv44, (^*))
 
 import Foreign.Ptr
 import Foreign.C.Types
@@ -20,18 +20,20 @@ withVec4 v f = with (fmap realToFrac v :: (V4 CFloat)) (f . castPtr)
 
 viewProject :: Mat44 -> V4 Scalar -> V3 Scalar -> V3 Scalar
 viewProject modelView (V4 vpx vpy vpw vph) pos =
-  let projected  = modelView !* v3tov4 pos 1
-      (V3 x y z) = fmap (\a -> (a + 1) / 2) $ (projected ^. _xyz) ^/ (projected ^. _w)
-  in  V3 (vpx + vpw * x) (vpy + vph * y) z
+  let homogenousClipSpace  = modelView !* v3tov4 pos 1
+      -- Bring into normalized device space
+      (V3 ndx ndy ndz) = (homogenousClipSpace ^. _xyz) ^/ (homogenousClipSpace ^. _w)
+  in V3 (vpx + (ndx + 1) / 2 * vpw)
+        (vpy + (ndy + 1) / 2 * vph)
+        ndz
 
 viewUnproject :: V3 Scalar -> Mat44 -> V4 Scalar -> V3 Scalar
 viewUnproject (V3 wx wy wz) modelView (V4 vpx vpy vpw vph) =
-        let inverted = inv44 modelView
-            inviewport = V3 ((wx - vpx) / vpw) ((wy - vpy) / vph) wz
-            adjusted = fmap (\x -> x * 2 - 1) inviewport
-            fromv = v3tov4 adjusted 1
-            (V4 rx ry rz rw) = inverted !* fromv
-            in V3 (rx / rw) (ry / rw) (rz / rw)
+  V3 homViewX homViewY homViewZ ^* (1/homViewW) -- un-homogenize
+  where
+  normalizedDeviceSpace = V3 (2 * (wx - vpx) / vpw - 1) (2 * (wy - vpy) / vph - 1) wz
+  -- Bring into homogenous view coords
+  (V4 homViewX homViewY homViewZ homViewW) = inv44 modelView !* v3tov4 normalizedDeviceSpace 1
 
 -- This performs an unprojection on the near plane and another on the far
 -- plane, and then interpolates between them at the specified depth.

@@ -115,7 +115,7 @@ glfwTouchIdent button = case button of
   GLFW.MouseButton'8 -> 8
 
 touchPosToScreenPos :: Size Int -> (Double, Double) -> V2 Scalar
-touchPosToScreenPos (Size w h) (x,y) = V2 (realToFrac x) (fromIntegral h - realToFrac y)
+touchPosToScreenPos (Size w h) (x,y) = V2 (realToFrac x) (realToFrac y)
 
 {-
 broadcastTouchLoc win screensize touchid = do
