@@ -29,7 +29,7 @@ import Hickory.FRP.Game (timeStep)
 import Hickory.FRP.UI (topLeft)
 import Hickory.FRP.Historical (historical)
 import Hickory.Input
-import Hickory.Math (vnull, mkTranslation, mkScale)
+import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget)
 import Hickory.Types
 import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!))
 import Linear.Metric
@@ -206,12 +206,10 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, comm
   where
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
-        camera = Camera proj (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
-    in viewProjectionMatrix camera (aspectRatio size)
+    in shotMatrix proj (aspectRatio size) !*! viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
   uiCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 False
-        camera = Camera proj (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
-    in viewProjectionMatrix camera (aspectRatio size)
+    in shotMatrix proj (aspectRatio size) !*! viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
 
 -- ** INPUT **
 
