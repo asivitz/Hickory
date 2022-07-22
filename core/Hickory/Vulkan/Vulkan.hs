@@ -540,8 +540,8 @@ withGraphicsPipeline
               , srcColorBlendFactor = BLEND_FACTOR_SRC_ALPHA
               , dstColorBlendFactor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
               , colorBlendOp = BLEND_OP_ADD
-              , srcAlphaBlendFactor = BLEND_FACTOR_SRC_ALPHA
-              , dstAlphaBlendFactor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+              , srcAlphaBlendFactor = BLEND_FACTOR_ONE
+              , dstAlphaBlendFactor = BLEND_FACTOR_ZERO
               , alphaBlendOp = BLEND_OP_ADD
               }
             ]

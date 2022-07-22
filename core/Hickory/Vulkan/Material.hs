@@ -64,7 +64,7 @@ withMaterial bag@VulkanResources {..} swapchainContext (sortOn attrLocation -> a
           , stageFlags = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
           }]
       , setLayouts = V.fromList $ maybe id (:) (view #descriptorSetLayout <$> descriptorSet)
-                                               [view #descriptorSetLayout (resourceForFrame 0 materialDescriptor)]
+                                               [view #descriptorSetLayout (resourceForFrame (0 :: Int) materialDescriptor)]
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate

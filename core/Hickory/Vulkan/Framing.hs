@@ -5,7 +5,7 @@ module Hickory.Vulkan.Framing where
 -- a frame, a frame already in flight shouldn't be affected.)
 data FramedResource a = FramedResource a a
 
-resourceForFrame :: Int -> FramedResource a -> a
+resourceForFrame :: Integral b => b -> FramedResource a -> a
 resourceForFrame i (FramedResource one _) | even i = one
 resourceForFrame _ (FramedResource _ two) = two
 
