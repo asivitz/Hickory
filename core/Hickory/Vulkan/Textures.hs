@@ -115,7 +115,7 @@ transitionImageLayout image oldLayout newLayout commandBuffer = do
           , ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
           , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
           , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
-          , IMAGE_ASPECT_DEPTH_BIT .|. IMAGE_ASPECT_STENCIL_BIT
+          , IMAGE_ASPECT_DEPTH_BIT
           )
         _ -> error "Unsupported image layout transition"
 

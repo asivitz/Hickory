@@ -29,7 +29,6 @@ import Vulkan
   , PresentModeKHR (..)
   , Queue
   , QueueFlagBits (..)
-  , RenderPass
   , SharingMode (..)
   , SurfaceCapabilitiesKHR(..)
   , SurfaceFormatKHR(..)
@@ -47,43 +46,21 @@ import Vulkan
   , getSwapchainImagesKHR
   , pattern KHR_PORTABILITY_SUBSET_EXTENSION_NAME
   , pattern KHR_SWAPCHAIN_EXTENSION_NAME
+  , pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME
+  , pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME
   , queueFlags
   , withDevice
   , withImageView
   , withSwapchainKHR
-  , withRenderPass
   , SampleCountFlagBits (..)
-  , AttachmentDescription(..)
-  , SubpassDescription(..)
-  , SubpassDependency(..)
-  , RenderPassCreateInfo(..)
-  , AttachmentReference(..)
-  , AttachmentLoadOp (..)
-  , AttachmentStoreOp (..)
   , ImageLayout (..)
-  , PipelineBindPoint (..)
-  , pattern SUBPASS_EXTERNAL
-  , PipelineStageFlagBits (..)
-  , AccessFlagBits (..)
-  , FramebufferCreateInfo(..)
   , ImageView
-  , Framebuffer
-  , withFramebuffer
-  , withCommandPool
-  , CommandPoolCreateInfo(..), CommandPoolCreateFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers
-  , withSemaphore
-  , withFence
-  , FenceCreateInfo(..)
-  , FenceCreateFlagBits (..)
-  , CommandBuffer(..)
-  , Semaphore
-  , Fence
   , Image
   , CommandPool
   , physicalDeviceHandle
   , deviceHandle
   , instanceHandle
-  , pattern API_VERSION_1_0
+  , pattern API_VERSION_1_2
   , PipelineLayout
   , GraphicsPipelineCreateInfo(..)
   , Pipeline
@@ -99,11 +76,10 @@ import Vulkan
   , ShaderStageFlagBits (..)
   , withShaderModule
   , PipelineShaderStageCreateInfo(..)
-  , RenderPassBeginInfo(..)
-  , SubmitInfo(..)
-  , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, cmdUseRenderPass, SubpassContents (..), queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..), BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
-  , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags, ClearDepthStencilValue (..)
+  , BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
+  , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
   , PipelineDepthStencilStateCreateInfo(..), CompareOp (..)
+  , PipelineRenderingCreateInfo(..), pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, PhysicalDeviceDynamicRenderingFeatures(..)
   )
 import Control.Exception (bracket)
 import Vulkan.Zero
@@ -121,27 +97,11 @@ import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
 import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr, Bits ((.|.)))
 import qualified Data.ByteString as B
-import Linear (V4(..))
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
   , allocator             :: Allocator
   , shortLivedCommandPool :: CommandPool -- For, e.g., mem copy commands
-  }
-
-data SwapchainContext = SwapchainContext
-  { swapchain    :: Swapchain
-  , renderpass   :: RenderPass
-  , framebuffers :: V.Vector Framebuffer
-  }
-
--- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
-data Frame = Frame
-  { imageAvailableSemaphore :: Semaphore
-  , renderFinishedSemaphore :: Semaphore
-  , inFlightFence           :: Fence
-  , commandPool             :: CommandPool
-  , commandBuffer           :: CommandBuffer
   }
 
 data DeviceContext = DeviceContext
@@ -163,35 +123,12 @@ data Swapchain = Swapchain
   , imageViews        :: V.Vector ImageView
   , extent            :: Extent2D
   , depthFormat       :: Format
+  , depthImage        :: Image
   , depthImageView    :: ImageView
   }
 
 allocate :: IO a -> (a -> IO ()) -> Managed a
 allocate c d = managed (bracket c d)
-
-{- FRAME -}
-
-withFrame :: DeviceContext -> Managed Frame
-withFrame DeviceContext {..} = do
-  commandPool <-
-    let commandPoolCreateInfo :: CommandPoolCreateInfo
-        commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT }
-    in withCommandPool device commandPoolCreateInfo Nothing allocate
-
-  commandBuffer <- V.head <$>
-    let commandBufferAllocateInfo :: CommandBufferAllocateInfo
-        commandBufferAllocateInfo = zero
-          { commandPool        = commandPool
-          , level              = COMMAND_BUFFER_LEVEL_PRIMARY
-          , commandBufferCount = 1
-          }
-    in withCommandBuffers device commandBufferAllocateInfo allocate
-
-  imageAvailableSemaphore <- withSemaphore device zero Nothing allocate
-  renderFinishedSemaphore <- withSemaphore device zero Nothing allocate
-  inFlightFence           <- withFence device zero { flags = FENCE_CREATE_SIGNALED_BIT } Nothing allocate
-
-  pure Frame {..}
 
 {- DEVICE CREATION -}
 
@@ -264,23 +201,27 @@ withLogicalDevice inst surface = do
 
   -- (_, extensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
 
-  -- Needed for global texture array (b/c has unknown size)
-  let extra = zero { runtimeDescriptorArray = True }
-
   let
     requiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME
                          , KHR_PORTABILITY_SUBSET_EXTENSION_NAME
                          , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
                          , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
                          , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
+                         , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
+                         , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
+                         , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
+                         , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
                          ]
 
-    deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDescriptorIndexingFeatures]
+    deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDescriptorIndexingFeatures, PhysicalDeviceDynamicRenderingFeatures]
     deviceCreateInfo = zero
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
       , enabledExtensionNames = requiredExtensions
-      , next = (extra, ())
+      , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size)
+               , ( zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
+               , () )
+               )
       }
 
   device <- withDevice physicalDevice deviceCreateInfo Nothing allocate
@@ -361,72 +302,6 @@ withDepthImage VulkanResources { allocator } (Extent2D width height) format = do
 
   pure image
 
-withStandardRenderPass' :: Device -> Format -> Format -> Managed RenderPass
-withStandardRenderPass' dev swapchainImageFormat depthFormat =
-  withRenderPass dev zero
-    { attachments  = [colorAttachmentDescription, depthAttachmentDescription]
-    , subpasses    = [subpass]
-    , dependencies = [subpassDependency]
-    } Nothing allocate
-  where
-  colorAttachmentDescription :: AttachmentDescription
-  colorAttachmentDescription = zero
-    { format         = swapchainImageFormat
-    , samples        = SAMPLE_COUNT_1_BIT
-    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
-    , storeOp        = ATTACHMENT_STORE_OP_STORE
-    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
-    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_PRESENT_SRC_KHR
-    }
-  depthAttachmentDescription :: AttachmentDescription
-  depthAttachmentDescription = zero
-    { format         = depthFormat
-    , samples        = SAMPLE_COUNT_1_BIT
-    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
-    , storeOp        = ATTACHMENT_STORE_OP_DONT_CARE
-    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
-    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-    }
-  subpass :: SubpassDescription
-  subpass = zero
-    { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
-    , colorAttachments =
-      [ zero
-        { attachment = 0
-        , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }
-      ]
-    , depthStencilAttachment = Just $ zero
-      { attachment = 1
-      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-      }
-    }
-  subpassDependency :: SubpassDependency
-  subpassDependency = zero
-    { srcSubpass    = SUBPASS_EXTERNAL
-    , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
-    , srcAccessMask = zero
-    , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
-    , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-    }
-
-createFramebuffer :: Device -> RenderPass -> Extent2D -> ImageView -> ImageView -> Managed Framebuffer
-createFramebuffer dev renderPass swapchainExtent depthImageView imageView =
-  let framebufferCreateInfo :: FramebufferCreateInfo '[]
-      framebufferCreateInfo = zero
-        { renderPass  = renderPass
-        , attachments = [imageView, depthImageView]
-        , width       = width (swapchainExtent :: Extent2D)
-        , height      = height (swapchainExtent :: Extent2D)
-        , layers      = 1
-        }
-  in withFramebuffer dev framebufferCreateInfo Nothing allocate
-
 withStandardAllocator :: Instance -> PhysicalDevice -> Device -> Managed Allocator
 withStandardAllocator inst physicalDevice device = withAllocator allocInfo allocate
   where
@@ -434,7 +309,7 @@ withStandardAllocator inst physicalDevice device = withAllocator allocInfo alloc
     { physicalDevice   = physicalDeviceHandle physicalDevice
     , device           = deviceHandle device
     , instance'        = instanceHandle inst
-    , vulkanApiVersion = API_VERSION_1_0
+    , vulkanApiVersion = API_VERSION_1_2
     , vulkanFunctions  = Just $ vmaVulkanFunctions inst device
     }
 
@@ -466,7 +341,7 @@ with2DImageView DeviceContext { device } format flags image =
 
 withGraphicsPipeline
   :: VulkanResources
-  -> SwapchainContext
+  -> Swapchain
   -> PrimitiveTopology
   -> B.ByteString
   -> B.ByteString
@@ -475,7 +350,7 @@ withGraphicsPipeline
   -> V.Vector VertexInputAttributeDescription
   -> Managed Pipeline
 withGraphicsPipeline
-  VulkanResources {..} SwapchainContext{..}
+  VulkanResources {..} swapchain
   topology vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
@@ -483,7 +358,7 @@ withGraphicsPipeline
   shaderStages   <- sequence [ createVertShader device vertShader, createFragShader device fragShader ]
 
   let
-    pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
+    pipelineCreateInfo :: GraphicsPipelineCreateInfo '[ PipelineRenderingCreateInfo ]
     pipelineCreateInfo = zero
       { stages             = shaderStages
       , vertexInputState   = Just . SomeStruct $ zero
@@ -548,9 +423,12 @@ withGraphicsPipeline
           }
       , dynamicState       = Nothing
       , layout             = pipelineLayout
-      , renderPass         = renderpass
       , subpass            = 0
       , basePipelineHandle = zero
+      , next = (zero
+        { colorAttachmentFormats = [ Vulkan.format (imageFormat :: SurfaceFormatKHR) ]
+        , depthAttachmentFormat = depthFormat
+        }, ())
       }
   V.head . snd
     <$> withGraphicsPipelines device zero [SomeStruct pipelineCreateInfo] Nothing allocate
@@ -572,45 +450,3 @@ createShader stage dev source = do
     , module' = shaderModule
     , name = "main"
     }
-
-{- Drawing a frame -}
-drawFrame :: MonadIO m => Frame -> VulkanResources -> SwapchainContext -> V4 Float -> (CommandBuffer -> IO ()) -> m Bool
-drawFrame Frame {..} VulkanResources {..} SwapchainContext {..} (V4 r g b a) f = do
-  let Swapchain {..} = swapchain
-      DeviceContext {..} = deviceContext
-
-  _ <- waitForFences device [ inFlightFence ] True maxBound
-
-  (res, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
-  case res of
-    res' | res' == ERROR_OUT_OF_DATE_KHR || res' == SUBOPTIMAL_KHR -> pure False
-    _ -> do
-      resetFences device [ inFlightFence ]
-
-      let framebuffer = framebuffers V.! fromIntegral imageIndex
-
-      resetCommandBuffer commandBuffer zero
-
-      useCommandBuffer commandBuffer zero do
-        let renderPassBeginInfo = zero
-              { renderPass  = renderpass
-              , framebuffer = framebuffer
-              , renderArea  = Rect2D { offset = zero , extent = extent }
-              , clearValues = [ Color (Float32 r g b a), DepthStencil (ClearDepthStencilValue 1 0) ]
-              }
-        cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-          liftIO $ f commandBuffer
-
-      let submitInfo = zero
-            { waitSemaphores   = [imageAvailableSemaphore]
-            , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-            , commandBuffers   = [commandBufferHandle  commandBuffer]
-            , signalSemaphores = [renderFinishedSemaphore]
-            }
-      queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
-      void $ queuePresentKHR presentQueue $ zero
-        { waitSemaphores = [renderFinishedSemaphore]
-        , swapchains     = [swapchainHandle]
-        , imageIndices   = [imageIndex]
-        }
-      pure True

@@ -42,8 +42,8 @@ data Uniform = Uniform
   } deriving Generic
     deriving anyclass GStorable
 
-acquireResources :: Size Int -> VulkanResources -> SwapchainContext -> Managed Resources
-acquireResources _ vulkanResources swapchainContext = do
+acquireResources :: Size Int -> VulkanResources -> Swapchain -> Managed Resources
+acquireResources _ vulkanResources swapchain = do
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 1.0
@@ -66,8 +66,8 @@ acquireResources _ vulkanResources swapchainContext = do
     }
 
   globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR), ("x.png", FILTER_LINEAR)]
-  solidColorMaterial <- H.withMaterial vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
-  texturedMaterial   <- H.withMaterial vulkanResources swapchainContext [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader (Just globalDescriptorSet)
+  solidColorMaterial <- H.withMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
+  texturedMaterial   <- H.withMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader (Just globalDescriptorSet)
   pure Resources {..}
 
 main :: IO ()

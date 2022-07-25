@@ -12,25 +12,23 @@ import qualified Graphics.UI.GLFW as GLFW
 import Control.Monad
 import Control.Monad.Managed
 import Vulkan
-  ( pattern API_VERSION_1_0
-  , ApplicationInfo(..)
+  ( ApplicationInfo(..)
   , Instance
   , InstanceCreateInfo (..)
-  , SurfaceFormatKHR(..)
   , SurfaceKHR
   , destroySurfaceKHR
   , instanceHandle
   , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
   , withInstance, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
-  , CommandBuffer, deviceWaitIdle
+  , CommandBuffer, deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern API_VERSION_1_2, InstanceCreateFlagBits (..)
   )
 import Foreign (alloca, nullPtr, peek)
 import Vulkan.Zero
 import qualified Data.Vector as V
 import qualified Data.ByteString as B
-import Data.Traversable (for)
 import Hickory.Types (Size (..))
 import Hickory.Vulkan.Framing (frameResource, resourceForFrame)
+import Hickory.Vulkan.Frame (withFrame, drawFrame)
 import Linear (V4)
 
 {- GLFW -}
@@ -67,22 +65,14 @@ withVulkanResources inst surface = do
     in withCommandPool device commandPoolCreateInfo Nothing allocate
   pure VulkanResources {..}
 
-withSwapchainContext :: SurfaceKHR -> VulkanResources -> (Int, Int) -> Managed SwapchainContext
-withSwapchainContext surface vr@VulkanResources {..} framebufferSize = do
-  let DeviceContext {..} = deviceContext
-  swapchain@Swapchain {..} <- withSwapchain vr surface framebufferSize
-
-  renderpass   <- withStandardRenderPass' device (format (surfaceFormat :: SurfaceFormatKHR)) depthFormat
-  framebuffers <- for imageViews $ createFramebuffer device renderpass extent depthImageView
-  pure SwapchainContext {..}
-
 withStandardInstance :: V.Vector B.ByteString -> Managed Instance
 withStandardInstance extensions = withInstance instanceCreateInfo Nothing allocate
   where
   instanceCreateInfo = zero
-    { applicationInfo = Just zero { applicationName = Just "Vulkan Demo", apiVersion = API_VERSION_1_0 }
+    { applicationInfo = Just zero { applicationName = Just "Vulkan Demo", apiVersion = API_VERSION_1_2 }
     , enabledLayerNames     = validationLayers
     , enabledExtensionNames = extensions
+    , flags = INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
     }
 
 withWindowSurface :: Instance -> GLFW.Window -> Managed SurfaceKHR
@@ -100,7 +90,7 @@ validationLayers = V.fromList ["VK_LAYER_KHRONOS_validation"]
 runFrames
   :: GLFW.Window
   -> V4 Float -- Clear color
-  -> (Size Int -> VulkanResources -> SwapchainContext -> Managed userRes) -- ^ Acquire user resources
+  -> (Size Int -> VulkanResources -> Swapchain -> Managed userRes) -- ^ Acquire user resources
   -> (userRes -> (Int, CommandBuffer) -> IO ()) -- ^ Execute a frame
   -> IO ()
 runFrames win color acquireUserResources f = do
@@ -109,6 +99,7 @@ runFrames win color acquireUserResources f = do
   runManaged do
     inst            <- withStandardInstance $ glfwReqExts V.++ [ "VK_EXT_debug_utils"
                                                                , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+                                                               , KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME -- required by MoltenVK
                                                                ]
     surface         <- withWindowSurface inst win
     vulkanResources <- withVulkanResources inst surface
@@ -119,9 +110,9 @@ runFrames win color acquireUserResources f = do
     let acquireDynamicResources = do
           (w,h) <- liftIO $ GLFW.getFramebufferSize win
           let fbSize = Size w h
-          swapchainContext      <- withSwapchainContext surface vulkanResources (w,h)
-          userResources         <- acquireUserResources fbSize vulkanResources swapchainContext
-          pure (swapchainContext, userResources)
+          swapchain <- withSwapchain vulkanResources surface (w,h)
+          userResources <- acquireUserResources fbSize vulkanResources swapchain
+          pure (swapchain, userResources)
 
     liftIO $ loopWithResourceRefresh acquireDynamicResources \frameNumber (swapchainContext, userResources) -> do
       GLFW.pollEvents

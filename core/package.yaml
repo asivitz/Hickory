@@ -113,6 +113,7 @@ library:
     - Hickory.Vulkan.Monad
     - Hickory.Vulkan.Text
     - Hickory.Vulkan.Framing
+    - Hickory.Vulkan.Frame
 
 executables:
   pack-model:

@@ -20,7 +20,7 @@ import Vulkan
   , pattern PIPELINE_BIND_POINT_GRAPHICS, cmdBindDescriptorSets
   )
 import Control.Monad.Managed (Managed)
-import Hickory.Vulkan.Vulkan (VulkanResources(..), SwapchainContext(..), DeviceContext (..), allocate, withGraphicsPipeline)
+import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain(..), DeviceContext (..), allocate, withGraphicsPipeline)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.Core10 (PrimitiveTopology)
@@ -44,7 +44,7 @@ data Material uniform = Material
 withMaterial
   :: forall uniform. (Storable uniform)
   => VulkanResources
-  -> SwapchainContext
+  -> Swapchain
   -> [Attribute]
   -> PrimitiveTopology
   -> B.ByteString

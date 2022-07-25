@@ -150,8 +150,8 @@ data TextureUniform = TextureUniform
     deriving anyclass GStorable
 
 -- Load meshes, textures, materials, fonts, etc.
-loadResources :: String -> Size Int -> VulkanResources -> SwapchainContext -> Managed Resources
-loadResources path _size vulkanResources swapchainContext = do
+loadResources :: String -> Size Int -> VulkanResources -> Swapchain -> Managed Resources
+loadResources path _size vulkanResources swapchain = do
   globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources $ over (each . _1) (\n -> path ++ "images/" ++ n) [("circle.png", FILTER_LINEAR), ("gidolinya.png",FILTER_LINEAR) ]
 
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
@@ -169,9 +169,9 @@ loadResources path _size vulkanResources swapchainContext = do
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
-  solidMaterial    <- H.withMaterial vulkanResources swapchainContext
+  solidMaterial    <- H.withMaterial vulkanResources swapchain
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
-  texturedMaterial <- H.withMaterial vulkanResources swapchainContext
+  texturedMaterial <- H.withMaterial vulkanResources swapchain
     [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader (Just globalDescriptorSet)
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
