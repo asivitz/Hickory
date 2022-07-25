@@ -1,5 +1,5 @@
 {-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE DataKinds, OverloadedLists #-}
+{-# LANGUAGE DataKinds, OverloadedLists, DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
@@ -97,6 +97,7 @@ import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
 import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr, Bits ((.|.)))
 import qualified Data.ByteString as B
+import GHC.Generics (Generic)
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -119,13 +120,16 @@ data Swapchain = Swapchain
   { imageFormat       :: SurfaceFormatKHR
   , swapchainHandle   :: SwapchainKHR
   -- , imageCount        :: Int
-  , images            :: V.Vector Image
-  , imageViews        :: V.Vector ImageView
+  , images            :: V.Vector ViewableImage
   , extent            :: Extent2D
   , depthFormat       :: Format
-  , depthImage        :: Image
-  , depthImageView    :: ImageView
+  , depthImage        :: ViewableImage
   }
+
+data ViewableImage = ViewableImage
+  { image     :: Image
+  , imageView :: ImageView
+  } deriving Generic
 
 allocate :: IO a -> (a -> IO ()) -> Managed a
 allocate c d = managed (bracket c d)
@@ -270,12 +274,14 @@ withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
   swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing allocate
   let imageFormat = surfaceFormat
 
-  (_, images) <- getSwapchainImagesKHR device swapchainHandle
-  imageViews <- for images $ with2DImageView dc (Vulkan.format (surfaceFormat :: SurfaceFormatKHR)) IMAGE_ASPECT_COLOR_BIT
+  (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
+  images <- for rawImages $ \image ->
+    ViewableImage image <$> with2DImageView dc (Vulkan.format (surfaceFormat :: SurfaceFormatKHR)) IMAGE_ASPECT_COLOR_BIT image
 
   let depthFormat = FORMAT_D32_SFLOAT
-  depthImage     <- withDepthImage vr extent depthFormat
-  depthImageView <- with2DImageView dc depthFormat IMAGE_ASPECT_DEPTH_BIT depthImage
+  depthImageRaw  <- withDepthImage vr extent depthFormat
+  depthImageView <- with2DImageView dc depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
+  let depthImage = ViewableImage depthImageRaw depthImageView
 
   pure $ Swapchain {..}
 
