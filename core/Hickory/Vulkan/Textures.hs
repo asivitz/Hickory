@@ -2,7 +2,7 @@
 
 module Hickory.Vulkan.Textures where
 
-import Vulkan (Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..))
+import Vulkan (Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer)
 import Control.Monad.Managed (Managed, runManaged)
 import Hickory.Vulkan.Vulkan (VulkanResources(..), allocate, DeviceContext (..))
 import qualified Codec.Picture as Png
@@ -52,11 +52,11 @@ withTextureImage bag@VulkanResources { allocator } path = do
     liftIO $ withMappedMemory allocator stagingAlloc bracket \bptr ->
       SV.unsafeWith dat $ \iptr -> copyArray (castPtr bptr) iptr (SV.length dat)
 
-    transitionImageLayout bag image IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    withSingleTimeCommands bag $ transitionImageLayout image IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
     copyBufferToImage bag stagingBuffer image (fromIntegral width) (fromIntegral height)
 
-    transitionImageLayout bag image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    withSingleTimeCommands bag $ transitionImageLayout image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
   pure image
 
@@ -79,20 +79,43 @@ copyBufferToImage bag buffer image width height = withSingleTimeCommands bag \co
 
     cmdCopyBufferToImage commandBuffer buffer image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
 
-transitionImageLayout :: MonadIO m => VulkanResources -> Image -> ImageLayout -> ImageLayout -> m ()
-transitionImageLayout bag image oldLayout newLayout = withSingleTimeCommands bag \commandBuffer -> do
-  let (srcAccessMask, dstAccessMask, sourceStage, destinationStage) = case (oldLayout, newLayout) of
+transitionImageLayout :: MonadIO m => Image -> ImageLayout -> ImageLayout -> CommandBuffer -> m ()
+transitionImageLayout image oldLayout newLayout commandBuffer = do
+  let (srcAccessMask, dstAccessMask, sourceStage, destinationStage, aspectMask) = case (oldLayout, newLayout) of
         (IMAGE_LAYOUT_UNDEFINED, IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) ->
           ( zero
           , ACCESS_TRANSFER_WRITE_BIT
           , PIPELINE_STAGE_TOP_OF_PIPE_BIT
           , PIPELINE_STAGE_TRANSFER_BIT
+          , IMAGE_ASPECT_COLOR_BIT
           )
         (IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) ->
           ( ACCESS_TRANSFER_WRITE_BIT
           , ACCESS_SHADER_READ_BIT
           , PIPELINE_STAGE_TRANSFER_BIT
           , PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+          , IMAGE_ASPECT_COLOR_BIT
+          )
+        (IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, IMAGE_LAYOUT_PRESENT_SRC_KHR) ->
+          ( ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+          , zero
+          , PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+          , PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+          , IMAGE_ASPECT_COLOR_BIT
+          )
+        (IMAGE_LAYOUT_UNDEFINED, IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) ->
+          ( zero
+          , ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+          , PIPELINE_STAGE_TOP_OF_PIPE_BIT
+          , PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+          , IMAGE_ASPECT_COLOR_BIT
+          )
+        (IMAGE_LAYOUT_UNDEFINED, IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) ->
+          ( zero
+          , ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+          , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+          , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+          , IMAGE_ASPECT_DEPTH_BIT .|. IMAGE_ASPECT_STENCIL_BIT
           )
         _ -> error "Unsupported image layout transition"
 
@@ -110,7 +133,7 @@ transitionImageLayout bag image oldLayout newLayout = withSingleTimeCommands bag
 
       subResourceRange :: ImageSubresourceRange
       subResourceRange = ImageSubresourceRange
-        { aspectMask     = IMAGE_ASPECT_COLOR_BIT
+        { aspectMask     = aspectMask
         , baseMipLevel   = 0
         , levelCount     = 1
         , baseArrayLayer = 0
