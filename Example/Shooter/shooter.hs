@@ -7,6 +7,7 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -39,7 +40,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Hickory.Graphics as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import Control.Lens (each, over, _1)
+import Control.Lens (view, each, over, _1)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Text as H
@@ -67,7 +68,8 @@ import Hickory.Math.Vector (Scalar)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
 import qualified Hickory.Vulkan.Monad as H
-import Hickory.Vulkan.Frame (FrameContext, singlePass, frameNumber)
+import Hickory.Vulkan.Frame (FrameContext, frameNumber)
+import Hickory.Vulkan.OffscreenTarget (renderToSwapchain)
 
 -- ** GAMEPLAY **
 
@@ -169,9 +171,9 @@ loadResources path _size vulkanResources swapchain = do
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
   solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain
-    [H.Position, H.TextureCoord] vertShader fragShader (Just globalDescriptorSet)
+    [H.Position, H.TextureCoord] vertShader fragShader (Just (view #descriptorSet globalDescriptorSet))
   texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain
-    [H.Position, H.TextureCoord] texVertShader texFragShader (Just globalDescriptorSet)
+    [H.Position, H.TextureCoord] texVertShader texFragShader (Just (view #descriptorSet globalDescriptorSet))
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
   -- generated using the bmGlyph program for Mac
@@ -185,11 +187,12 @@ loadResources path _size vulkanResources swapchain = do
 
 -- Our render function
 renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, FrameContext) -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, frameContext) =
-  singlePass (V4 0 0 0 1) frameContext do
-  recordCommandBuffer frameContext
-    . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-    . useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial) $ do
+renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, frameContext)
+  = H.runFrame frameContext
+  . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
+  . useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial)
+  . renderToSwapchain (V4 0 0 0 1)
+  . recordCommandBuffer $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat <- H.askMatrix

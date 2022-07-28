@@ -33,7 +33,7 @@ import Foreign (Storable)
 import Hickory.Graphics.DrawText (squareIndices)
 import Hickory.Graphics.MatrixMonad (MatrixT)
 import Hickory.Text.Text (TextCommand, Font, transformTextCommandToVerts)
-import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet (..), TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor, withBufferDescriptorSet, descriptorSetBinding, PointedDescriptorSet)
+import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet (..), TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor, withBufferDescriptorSet, PointedDescriptorSet)
 import Hickory.Vulkan.Frame (FrameContext (..))
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource, frameResource)
 import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial, withMaterial)
@@ -67,11 +67,26 @@ withBufferedUniformMaterial vulkanResources swapchain attributes vert frag globa
   material <- withMaterial vulkanResources swapchain attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag (view #descriptorSet <$> descriptor) globalDescriptor
   pure BufferedUniformMaterial {..}
 
+{- Frame Monad -}
+
+class Monad m => FrameMonad m where
+  askFrameContext  :: m FrameContext
+
+newtype FrameT m a = FrameT { unFrameT :: ReaderT FrameContext m a }
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
+
+instance Monad m => FrameMonad (FrameT m) where
+  askFrameContext   = FrameT ask
+
+runFrame :: FrameContext -> FrameT m a -> m a
+runFrame fc = flip runReaderT fc . unFrameT
+
+mapFrameT :: (m a -> n b) -> FrameT m a -> FrameT n b
+mapFrameT f = FrameT . mapReaderT f . unFrameT
+
 {- Command Monad -}
 
-class Monad m => CommandMonad m where
-  askCommandBuffer  :: m CommandBuffer
-  askFrameNumber    :: m Int
+class FrameMonad m => CommandMonad m where
   recordDrawCommand
     :: Bool -- True if blended
     -> Material
@@ -80,8 +95,8 @@ class Monad m => CommandMonad m where
     -> m ()
   recordFinalIO :: IO () -> m ()
 
-recordCommandBuffer :: MonadIO m => FrameContext -> CommandT m a -> m a
-recordCommandBuffer FrameContext {..} f = flip runReaderT (frameNumber, commandBuffer) . flip evalStateT (DrawCommands mempty mempty mempty (pure ())) $ do
+recordCommandBuffer :: MonadIO m => CommandT m a -> m a
+recordCommandBuffer f = flip evalStateT (DrawCommands mempty mempty mempty (pure ())) $ do
   a <- unCommandT f
   DrawCommands {..} <- get
 
@@ -103,15 +118,15 @@ data DrawCommands = DrawCommands
   , extraIO          :: IO ()
   } deriving Generic
 
-newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands (ReaderT (Int, CommandBuffer) m) a }
+newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands m a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DrawCommands)
 
 instance MonadTrans CommandT where
-  lift = CommandT . lift . lift
+  lift = CommandT . lift
 
-recordUniform :: (MonadIO m, CommandMonad m, Storable uniform) => FramedResource (BufferDescriptorSet uniform) -> uniform -> m Word32
+recordUniform :: (MonadIO m, FrameMonad m, CommandMonad m, Storable uniform) => FramedResource (BufferDescriptorSet uniform) -> uniform -> m Word32
 recordUniform bds uniform = do
-  frameNumber <- askFrameNumber
+  frameNumber <- frameNumber <$> askFrameContext
   let matDesc = resourceForFrame frameNumber bds
   let uniformRef = queuedData matDesc
   uniformIndex <- liftIO $ fromIntegral . length <$> readIORef uniformRef
@@ -121,11 +136,9 @@ recordUniform bds uniform = do
 
   pure uniformIndex
 
-instance MonadIO m => CommandMonad (CommandT m) where
-  askCommandBuffer = snd <$> CommandT ask
-  askFrameNumber   = fst <$> CommandT ask
+instance (MonadIO m, FrameMonad m) => CommandMonad (CommandT m) where
   recordDrawCommand shouldBlend material uniformIndex drawCommand = CommandT do
-    (frameNumber, commandBuffer) <- ask
+    FrameContext {..} <- lift askFrameContext
     dcs@DrawCommands {..} <- get
 
     let matId = uuid material
@@ -144,7 +157,7 @@ instance MonadIO m => CommandMonad (CommandT m) where
 -- storableConvert
 
 mapCommandT :: forall m n a b. (Monad m, Monad n) => (m a -> n b) -> CommandT m a -> CommandT n b
-mapCommandT f = CommandT . mapStateT' (mapReaderT f) . unCommandT
+mapCommandT f = CommandT . mapStateT' f . unCommandT
 
 {- Global Descriptor Monad -}
 
@@ -152,10 +165,10 @@ class Monad m => GlobalDescriptorMonad m where
   askDescriptorSet :: m TextureDescriptorSet
 
 -- |Need to supply some material with a pipeline compatible with the descriptor set
-useGlobalDecriptorSet :: (CommandMonad m, MonadIO m) => TextureDescriptorSet -> Material -> GlobalDescriptorT m a -> m a
+useGlobalDecriptorSet :: (FrameMonad m, MonadIO m) => TextureDescriptorSet -> Material -> GlobalDescriptorT m a -> m a
 useGlobalDecriptorSet tds material f = flip runReaderT tds . unGlobalDescriptorT $ do
   TextureDescriptorSet {..} <- askDescriptorSet
-  commandBuffer <- askCommandBuffer
+  commandBuffer <- commandBuffer <$> askFrameContext
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS (pipelineLayout material) 0 (descriptorSets descriptorSet) []
   f
 
@@ -175,7 +188,7 @@ class Monad m => DynamicMeshMonad m where
   getMeshes      :: m [Mesh]
   addMesh        :: Mesh -> m ()
 
-useDynamicMesh :: (CommandMonad m, MonadIO m) => DynamicBufferedMesh -> DynamicMeshT m a -> m a
+useDynamicMesh :: MonadIO m => DynamicBufferedMesh -> DynamicMeshT m a -> m a
 useDynamicMesh dynamicMesh f = flip runReaderT dynamicMesh . flip evalStateT mempty . unDynamicMeshT $ do
   a <- f
   meshes <- getMeshes
@@ -203,22 +216,29 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 
 -- instance CommandMonad m => CommandMonad (MaterialT material m) where askCommandBuffer = lift askCommandBuffer
 instance CommandMonad m => CommandMonad (MatrixT m) where
-  askCommandBuffer = lift askCommandBuffer
-  askFrameNumber   = lift askFrameNumber
   recordFinalIO    = lift . recordFinalIO
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (DynamicMeshT m) where
-  askCommandBuffer = lift askCommandBuffer
-  askFrameNumber   = lift askFrameNumber
   recordFinalIO    = lift . recordFinalIO
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (GlobalDescriptorT m) where
-  askCommandBuffer = lift askCommandBuffer
-  askFrameNumber   = lift askFrameNumber
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
   recordFinalIO    = lift . recordFinalIO
 
-instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MatrixT m) where askDescriptorSet = lift askDescriptorSet
+instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MatrixT m)  where askDescriptorSet = lift askDescriptorSet
+instance GlobalDescriptorMonad m => GlobalDescriptorMonad (CommandT m) where askDescriptorSet = lift askDescriptorSet
+
+instance FrameMonad m => FrameMonad (MatrixT m) where
+  askFrameContext   = lift askFrameContext
+
+instance FrameMonad m => FrameMonad (CommandT m) where
+  askFrameContext   = lift askFrameContext
+
+instance FrameMonad m => FrameMonad (GlobalDescriptorT m) where
+  askFrameContext   = lift askFrameContext
+
+instance FrameMonad m => FrameMonad (DynamicMeshT m) where
+  askFrameContext   = lift askFrameContext
 
 instance DynamicMeshMonad m => DynamicMeshMonad (MatrixT m) where
   askDynamicMesh = lift askDynamicMesh
@@ -230,6 +250,10 @@ instance DynamicMeshMonad m => DynamicMeshMonad (GlobalDescriptorT m) where
   getMeshes      = lift getMeshes
   addMesh m      = lift $ addMesh m
 
+instance DynamicMeshMonad m => DynamicMeshMonad (CommandT m) where
+  askDynamicMesh = lift askDynamicMesh
+  getMeshes      = lift getMeshes
+  addMesh m      = lift $ addMesh m
 
 instance MonadReader r m => MonadReader r (CommandT m) where
   ask = lift ask
@@ -242,6 +266,10 @@ instance MonadReader r m => MonadReader r (DynamicMeshT m) where
 instance MonadReader r m => MonadReader r (GlobalDescriptorT m) where
   ask = lift ask
   local f = mapGlobalDescriptorT id . local f
+
+instance MonadReader r m => MonadReader r (FrameT m) where
+  ask = lift ask
+  local f = mapFrameT id . local f
 
 {- Utilities -}
 

@@ -1,14 +1,38 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, OverloadedLabels #-}
 
 module Hickory.Vulkan.OffscreenTarget where
 
-import Hickory.Vulkan.Vulkan (VulkanResources (..), Swapchain, ViewableImage (..), with2DImageView, imageFormat)
-import Control.Monad.Managed (Managed)
+import Hickory.Vulkan.Vulkan
+    ( VulkanResources(..),
+      Swapchain,
+      ViewableImage(..),
+      with2DImageView,
+      imageFormat,
+      VulkanResources(..),
+      Swapchain(..),
+      ViewableImage(..) )
 import Hickory.Vulkan.DescriptorSet (withTextureArrayDescriptorSet, PointedDescriptorSet)
-import Vulkan (Filter (..), Format (..), ImageAspectFlagBits (..), ImageUsageFlagBits (..)
-  , SurfaceFormatKHR(..), Sampler)
-import Hickory.Vulkan.Textures (withImageSampler, withIntermediateImage)
+import Vulkan
+    ( Filter(..),
+      Format(..),
+      ImageAspectFlagBits(..),
+      ImageUsageFlagBits(..),
+      SurfaceFormatKHR(..),
+      Sampler,
+      ImageLayout(..) )
+import Hickory.Vulkan.Textures
+    ( withImageSampler, withIntermediateImage, transitionImageLayout )
 import GHC.Generics (Generic)
+
+import Control.Lens (view)
+import Control.Monad.Managed
+
+import Linear (V4(..))
+import Data.Generics.Labels ()
+import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
+import Control.Arrow ((&&&))
+import Hickory.Vulkan.Monad (FrameMonad (..))
+import Hickory.Vulkan.Frame (FrameContext (..), useDynamicRenderPass)
 
 data OffscreenTarget = OffscreenTarget
   { colorImage    :: ViewableImage
@@ -37,3 +61,28 @@ withOffscreenTarget vulkanResources@VulkanResources{..} swapchain fbSize = do
     , (depthImage, sampler)
     ]
   pure OffscreenTarget {..}
+
+renderToSwapchain :: (FrameMonad m, MonadIO m) => V4 Float -> m () -> m ()
+renderToSwapchain clearColor f = do
+  FrameContext {..} <- askFrameContext
+  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
+  transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
+
+  useDynamicRenderPass commandBuffer extent clearColor colorImage depthImage f
+
+  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
+
+renderOffscreen :: (FrameMonad m, MonadIO m) => V4 Float -> FramedResource OffscreenTarget -> m () -> m ()
+renderOffscreen clearColor offscreenTarget f = do
+  FrameContext { extent, commandBuffer, frameNumber } <- askFrameContext
+  let (offscreenColor, offscreenDepth) = (view #colorImage &&& view #depthImage) (resourceForFrame frameNumber offscreenTarget)
+
+  -- prepare offscreen images for rendering
+  transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
+  transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
+
+  useDynamicRenderPass commandBuffer extent clearColor offscreenColor offscreenDepth f
+
+  -- prepare offscreen image for use as shader input
+  transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
+  transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer

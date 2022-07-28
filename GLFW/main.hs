@@ -14,7 +14,7 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
-import Hickory.Vulkan.Frame (singlePass)
+import Hickory.Vulkan.OffscreenTarget (renderToSwapchain)
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import qualified Hickory.Vulkan.Monad as H
@@ -73,23 +73,24 @@ acquireResources _ vulkanResources swapchain = do
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
-  runFrames win acquireResources \Resources {..} frameContext -> do
-    singlePass (V4 0 0 0 1) frameContext do
-      recordCommandBuffer frameContext . useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial) $ do
-        let
-          screenRatio = 1
+  runFrames win acquireResources \Resources {..} frameContext -> H.runFrame frameContext do
+    useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial) do
+      renderToSwapchain (V4 0 0 0 1) do
+        recordCommandBuffer do
+          let
+            screenRatio = 1
 
-          mat :: M44 Float
-          mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
-            -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
+            mat :: M44 Float
+            mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
+              -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-        drawMesh False solidColorMaterial (Uniform mat 0) square
+          drawMesh False solidColorMaterial (Uniform mat 0) square
 
-        texidx0 <- getTexIdx "star.png"
-        drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
+          texidx0 <- getTexIdx "star.png"
+          drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
 
-        texidx1 <- getTexIdx "x.png"
-        drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
+          texidx1 <- getTexIdx "x.png"
+          drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
 
 {-- SHADERS --}
 

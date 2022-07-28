@@ -28,7 +28,7 @@ import Vulkan
   , RenderingInfo(..)
   , RenderingAttachmentInfo(..)
   , cmdBeginRenderingKHR
-  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D, cmdDraw
+  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -38,9 +38,7 @@ import Linear (V4(..))
 import Hickory.Vulkan.Textures (transitionImageLayout)
 import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchain (..), allocate, ViewableImage (..))
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Material (Material, cmdBindMaterial)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
-import Hickory.Vulkan.OffscreenTarget (OffscreenTarget)
 import Control.Arrow ((&&&))
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
@@ -85,7 +83,7 @@ withFrame DeviceContext {..} = do
 
   pure Frame {..}
 
-useDynamicRenderPass :: MonadIO m => CommandBuffer -> Extent2D -> V4 Float -> ViewableImage -> ViewableImage -> IO () -> m ()
+useDynamicRenderPass :: MonadIO m => CommandBuffer -> Extent2D -> V4 Float -> ViewableImage -> ViewableImage -> m () -> m ()
 useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage f = do
   cmdBeginRenderingKHR commandBuffer zero
     { renderArea = Rect2D { offset = zero , extent = swapchainExtent }
@@ -106,18 +104,10 @@ useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage
       , clearValue  = DepthStencil (ClearDepthStencilValue 1 0)
       }
     }
-  liftIO f
+  f
   cmdEndRenderingKHR commandBuffer
 
-singlePass :: MonadIO m => V4 Float -> FrameContext -> IO () -> m ()
-singlePass clearColor FrameContext {..} f = do
-  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
-  transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
-
-  useDynamicRenderPass commandBuffer extent clearColor colorImage depthImage f
-
-  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
-
+{-
 twoPass :: MonadIO m => V4 Float -> FrameContext -> Material -> FramedResource OffscreenTarget -> IO () -> m ()
 twoPass clearColor FrameContext {..} postMaterial offscreenTarget mainPass = do
   let (offscreenColor, offscreenDepth) = (view #colorImage &&& view #depthImage) (resourceForFrame frameNumber offscreenTarget)
@@ -143,9 +133,10 @@ twoPass clearColor FrameContext {..} postMaterial offscreenTarget mainPass = do
 
   -- prepare swap image for presentation
   transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
+  -}
 
 {- Drawing a frame -}
-drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> IO ()) -> m Bool
+drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> m ()) -> m Bool
 drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
@@ -163,7 +154,7 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
 
       useCommandBuffer commandBuffer zero do
 
-        liftIO $ f (FrameContext extent image depthImage commandBuffer frameNumber)
+        f (FrameContext extent image depthImage commandBuffer frameNumber)
 
       let submitInfo = zero
             { waitSemaphores   = [imageAvailableSemaphore]

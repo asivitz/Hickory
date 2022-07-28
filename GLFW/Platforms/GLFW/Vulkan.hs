@@ -19,7 +19,7 @@ import Vulkan
   , instanceHandle
   , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
   , withInstance, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
-  , CommandBuffer, deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern API_VERSION_1_2, InstanceCreateFlagBits (..), Extent2D
+  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern API_VERSION_1_2, InstanceCreateFlagBits (..)
   )
 import Foreign (alloca, nullPtr, peek)
 import Vulkan.Zero
@@ -28,6 +28,7 @@ import qualified Data.ByteString as B
 import Hickory.Types (Size (..))
 import Hickory.Vulkan.Framing (frameResource, resourceForFrame)
 import Hickory.Vulkan.Frame (withFrame, drawFrame, FrameContext)
+import Hickory.Vulkan.Monad (FrameMonad, runFrame)
 
 {- GLFW -}
 
