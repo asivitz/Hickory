@@ -4,39 +4,68 @@
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Hickory.Vulkan.Monad where
 
-import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), cmdBindDescriptorSets, pattern PIPELINE_BIND_POINT_GRAPHICS, Buffer)
-import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
+import GHC.Generics (Generic)
+import Control.Lens ((%=), view)
+import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad.Trans (MonadTrans, lift)
-import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial)
-import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor)
-import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(..))
-import Foreign (Storable)
-import Hickory.Graphics.MatrixMonad (MatrixT)
-import Hickory.Vulkan.Text (DynamicBufferedMesh(..), uploadDynamicMesh)
+import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
+import Control.Monad.State.Class (modify, MonadState)
 import Control.Monad.State.Strict (StateT (..), evalStateT, get, put)
-import qualified Data.Vector.Storable as SV
-import qualified Data.Vector as V
-import Data.Word (Word32, Word64)
-import Control.Monad.State.Class (modify)
-import Hickory.Text.Text (TextCommand, Font, transformTextCommandToVerts)
-import Hickory.Graphics.DrawText (squareIndices)
+import Control.Monad.Trans (MonadTrans, lift)
+import Data.Foldable (foldrM, toList)
+import Data.Functor ((<&>))
+import Data.Generics.Labels ()
+import Data.IORef (modifyIORef', readIORef)
+import Data.List (sortOn, mapAccumL)
+import Data.Map (Map, lookup)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text, unpack)
 import Data.UUID (UUID)
-import Data.Map (Map, lookup)
+import Data.Word (Word32, Word64)
+import Foreign (Storable)
+import Hickory.Graphics.DrawText (squareIndices)
+import Hickory.Graphics.MatrixMonad (MatrixT)
+import Hickory.Text.Text (TextCommand, Font, transformTextCommandToVerts)
+import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet (..), TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor, withBufferDescriptorSet, descriptorSetBinding, PointedDescriptorSet)
+import Hickory.Vulkan.Frame (FrameContext (..))
+import Hickory.Vulkan.Framing (resourceForFrame, FramedResource, frameResource)
+import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial, withMaterial)
+import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(..))
+import Hickory.Vulkan.Text (DynamicBufferedMesh(..), uploadDynamicMesh)
+import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), cmdBindDescriptorSets, pattern PIPELINE_BIND_POINT_GRAPHICS, Buffer, PrimitiveTopology(..))
 import qualified Data.Map as Map
-import Data.Foldable (foldrM, toList)
-import Data.List (sortOn, mapAccumL)
-import Control.Monad (when, void)
-import Data.IORef (modifyIORef', readIORef)
-import Hickory.Vulkan.Framing (resourceForFrame)
-import Data.Functor ((<&>))
+import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
+import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain)
+import Control.Monad.Managed (Managed)
+import qualified Data.ByteString as B
+
+
+data BufferedUniformMaterial uniform = BufferedUniformMaterial
+  { material   :: Material
+  , descriptor :: FramedResource (BufferDescriptorSet uniform)
+  }
+
+withBufferedUniformMaterial
+  :: Storable uniform
+  => VulkanResources
+  -> Swapchain
+  -> [Attribute]
+  -> B.ByteString
+  -> B.ByteString
+  -> Maybe PointedDescriptorSet
+  -> Managed (BufferedUniformMaterial uniform)
+withBufferedUniformMaterial vulkanResources swapchain attributes vert frag globalDescriptor = do
+  descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
+  material <- withMaterial vulkanResources swapchain attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag (descriptorSetBinding (view #descriptorSet <$> descriptor)) globalDescriptor
+  pure BufferedUniformMaterial {..}
 
 {- Command Monad -}
 
@@ -44,15 +73,15 @@ class Monad m => CommandMonad m where
   askCommandBuffer  :: m CommandBuffer
   askFrameNumber    :: m Int
   recordDrawCommand
-    :: Storable uniform
-    => Bool -- True if blended
-    -> Material uniform
-    -> uniform
+    :: Bool -- True if blended
+    -> Material
+    -> Word32
     -> (CommandBuffer -> IO ())
     -> m ()
+  recordFinalIO :: IO () -> m ()
 
-recordCommandBuffer :: MonadIO m => (Int, CommandBuffer) -> CommandT m a -> m a
-recordCommandBuffer commandInfo f = flip runReaderT commandInfo . flip evalStateT (DrawCommands mempty mempty mempty (pure ())) $ do
+recordCommandBuffer :: MonadIO m => FrameContext -> CommandT m a -> m a
+recordCommandBuffer FrameContext {..} f = flip runReaderT (frameNumber, commandBuffer) . flip evalStateT (DrawCommands mempty mempty mempty (pure ())) $ do
   a <- unCommandT f
   DrawCommands {..} <- get
 
@@ -72,35 +101,44 @@ data DrawCommands = DrawCommands
   , blendedCommands  :: [(UUID, IO ())] -- We can't sort these, but if subsequent commands use the same material, we can avoid multiple binds
   , materialBinds    :: Map UUID (IO ())
   , extraIO          :: IO ()
-  }
+  } deriving Generic
 
 newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands (ReaderT (Int, CommandBuffer) m) a }
-  deriving newtype (Functor, Applicative, Monad, MonadIO)
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DrawCommands)
 
 instance MonadTrans CommandT where
   lift = CommandT . lift . lift
 
+recordUniform :: (MonadIO m, CommandMonad m, Storable uniform) => FramedResource (BufferDescriptorSet uniform) -> uniform -> m Word32
+recordUniform bds uniform = do
+  frameNumber <- askFrameNumber
+  let matDesc = resourceForFrame frameNumber bds
+  let uniformRef = queuedData matDesc
+  uniformIndex <- liftIO $ fromIntegral . length <$> readIORef uniformRef
+  liftIO $ modifyIORef' uniformRef (uniform:)
+
+  recordFinalIO $ uploadBufferDescriptor matDesc
+
+  pure uniformIndex
+
 instance MonadIO m => CommandMonad (CommandT m) where
   askCommandBuffer = snd <$> CommandT ask
   askFrameNumber   = fst <$> CommandT ask
-  recordDrawCommand shouldBlend material uniform drawCommand = CommandT do
+  recordDrawCommand shouldBlend material uniformIndex drawCommand = CommandT do
     (frameNumber, commandBuffer) <- ask
     dcs@DrawCommands {..} <- get
-    let matDesc = resourceForFrame frameNumber $ materialDescriptor material
-    let uniformRef = queuedData matDesc
-    uniformIndex <- liftIO $ fromIntegral . length <$> readIORef uniformRef
-    liftIO $ modifyIORef' uniformRef (uniform:)
 
     let matId = uuid material
         doDraw = do
           cmdPushMaterialConstants commandBuffer material uniformIndex
           drawCommand commandBuffer
         newMatBinds = Map.insert matId (cmdBindMaterial frameNumber commandBuffer material) materialBinds
-        newExtraIO = extraIO >> uploadBufferDescriptor matDesc
 
     if shouldBlend
-    then put $ dcs { materialBinds = newMatBinds, extraIO = newExtraIO, blendedCommands = (matId, doDraw) : blendedCommands }
-    else put $ dcs { materialBinds = newMatBinds, extraIO = newExtraIO, opaqueCommands  = (matId, doDraw) : opaqueCommands }
+    then put $ dcs { materialBinds = newMatBinds, blendedCommands = (matId, doDraw) : blendedCommands }
+    else put $ dcs { materialBinds = newMatBinds, opaqueCommands  = (matId, doDraw) : opaqueCommands }
+  recordFinalIO f = CommandT do
+    #extraIO %= (>> f)
 
 -- storableConvert :: (Storable a, Storable b) -> a -> IO b
 -- storableConvert
@@ -114,11 +152,11 @@ class Monad m => GlobalDescriptorMonad m where
   askDescriptorSet :: m TextureDescriptorSet
 
 -- |Need to supply some material with a pipeline compatible with the descriptor set
-useGlobalDecriptorSet :: (CommandMonad m, MonadIO m) => TextureDescriptorSet -> Material uniform -> GlobalDescriptorT m a -> m a
-useGlobalDecriptorSet descriptorSet material f = flip runReaderT descriptorSet . unGlobalDescriptorT $ do
+useGlobalDecriptorSet :: (CommandMonad m, MonadIO m) => TextureDescriptorSet -> Material -> GlobalDescriptorT m a -> m a
+useGlobalDecriptorSet tds material f = flip runReaderT tds . unGlobalDescriptorT $ do
   TextureDescriptorSet {..} <- askDescriptorSet
   commandBuffer <- askCommandBuffer
-  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS (pipelineLayout material) 0 descriptorSets []
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS (pipelineLayout material) 0 (descriptorSets descriptorSet) []
   f
 
 newtype GlobalDescriptorT m a = GlobalDescriptorT { unGlobalDescriptorT :: ReaderT TextureDescriptorSet m a }
@@ -167,15 +205,18 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 instance CommandMonad m => CommandMonad (MatrixT m) where
   askCommandBuffer = lift askCommandBuffer
   askFrameNumber   = lift askFrameNumber
+  recordFinalIO    = lift . recordFinalIO
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (DynamicMeshT m) where
   askCommandBuffer = lift askCommandBuffer
   askFrameNumber   = lift askFrameNumber
+  recordFinalIO    = lift . recordFinalIO
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (GlobalDescriptorT m) where
   askCommandBuffer = lift askCommandBuffer
   askFrameNumber   = lift askFrameNumber
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
+  recordFinalIO    = lift . recordFinalIO
 
 instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MatrixT m) where askDescriptorSet = lift askDescriptorSet
 
@@ -218,42 +259,51 @@ textMesh font tc = Mesh { indices = Just (SV.fromList indices), vertices = [(Pos
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
   (indices, _numBlockIndices) = squareIndices (fromIntegral numSquares)
 
-drawText :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable uniform) => Material uniform -> uniform -> Font Int -> TextCommand -> m ()
+drawText
+  :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable uniform)
+  => BufferedUniformMaterial uniform
+  -> uniform
+  -> Font Int
+  -> TextCommand
+  -> m ()
 drawText material uniform font tc = drawDynamicMesh True material uniform (textMesh font tc)
 
 -- |The mesh needs to supply, at a minimum, all the attributes required by the material
 drawDynamicMesh
-  :: (CommandMonad m, Storable uniform, DynamicMeshMonad m)
+  :: (CommandMonad m, MonadIO m, Storable uniform, DynamicMeshMonad m)
   => Bool
-  -> Material uniform
+  -> BufferedUniformMaterial uniform
   -> uniform
   -> Mesh
   -> m ()
-drawDynamicMesh shouldBlend material uniform mesh = do
+drawDynamicMesh shouldBlend BufferedUniformMaterial {..} uniform mesh = do
   meshes <- getMeshes
   addMesh mesh
+
+  uniformIndex <- recordUniform descriptor uniform
 
   -- This is O(n)... Might want to cache this
   let vertexSizeThusFar = sum $ map (sum . map (vsizeOf . snd) . vertices) meshes
       indexSizeThusFar  = sum $ map (maybe 0 vsizeOf . indices) meshes
 
   DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
-  recordDrawCommand shouldBlend material uniform \commandBuffer -> do
+  recordDrawCommand shouldBlend material uniformIndex \commandBuffer -> do
     cmdDrawBufferedMesh commandBuffer material mesh vertexSizeThusFar vertexBuffer (fromIntegral indexSizeThusFar) (Just indexBuffer)
 
 -- |The mesh needs to supply, at a minimum, all the attributes required by the material
 drawMesh
-  :: (CommandMonad m, Storable uniform)
+  :: (CommandMonad m, MonadIO m, Storable uniform)
   => Bool
-  -> Material uniform
+  -> BufferedUniformMaterial uniform
   -> uniform
   -> BufferedMesh
   -> m ()
-drawMesh shouldBlend material uniform BufferedMesh {..} = do
-  recordDrawCommand shouldBlend material uniform $ \cb ->
+drawMesh shouldBlend BufferedUniformMaterial {..} uniform BufferedMesh {..} = do
+  uniformIndex <- recordUniform descriptor uniform
+  recordDrawCommand shouldBlend material uniformIndex $ \cb ->
       cmdDrawBufferedMesh cb material mesh 0 vertexBuffer 0 indexBuffer
 
-cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material uniform -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
 cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer indexOffset mIndexBuffer = do
   let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) vertexOffset (sortOn (attrLocation . fst) (vertices mesh))
       bindOffsets = V.fromList $ attributes <&> \a -> fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in material")

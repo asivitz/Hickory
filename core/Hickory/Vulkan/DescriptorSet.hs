@@ -1,5 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLists, OverloadedLabels #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, PatternSynonyms  #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Avoid lambda" #-}
@@ -10,7 +10,7 @@ import Vulkan.Zero (zero)
 import Data.Text (Text, pack)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Hickory.Vulkan.Vulkan (VulkanResources (..), DeviceContext (..), allocate, with2DImageView)
+import Hickory.Vulkan.Vulkan (VulkanResources (..), DeviceContext (..), allocate, with2DImageView, ViewableImage (..))
 import Control.Monad.Managed (Managed)
 import Vulkan
   ( ShaderStageFlagBits (..)
@@ -26,12 +26,10 @@ import Vulkan
   , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), DescriptorPoolCreateFlagBits (..), DescriptorSetLayoutCreateFlagBits (..), Filter
-  , pattern IMAGE_ASPECT_COLOR_BIT
+  , pattern IMAGE_ASPECT_COLOR_BIT, Sampler
   )
-import Data.Maybe (maybeToList, listToMaybe)
-import Data.Functor (($>))
+import Data.Functor ((<&>))
 import Hickory.Vulkan.Textures (withImageSampler, withTextureImage)
-import Data.Foldable (for_)
 import Data.Traversable (for)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Control.Lens (view)
@@ -43,28 +41,24 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Exception (bracket)
 import Hickory.Vulkan.Mesh (withBuffer')
 import GHC.Generics (Generic)
-import Data.IORef (IORef, readIORef, newIORef, writeIORef)
+import Data.IORef (IORef, newIORef, atomicModifyIORef')
+import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
+import Data.Generics.Labels ()
 
-data TextureDescriptorSet = TextureDescriptorSet
-  { descriptorPool      :: DescriptorPool
-  , descriptorSetLayout :: DescriptorSetLayout
-  , descriptorSets      :: Vector DescriptorSet
-  , textureNames        :: Vector Text -- TODO: Use Text instead of String
-  } deriving (Generic)
+type DescriptorSetBinding = (DescriptorSetLayout, FramedResource (Vector DescriptorSet))
 
-withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter)] -> Managed TextureDescriptorSet
-withTextureDescriptorSet _ [] = error "No textures in descriptor set"
-withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
-  let DeviceContext {..} = deviceContext
-      numImages = fromIntegral $ Prelude.length texturePaths
+withTextureArrayDescriptorSet :: VulkanResources -> [(ViewableImage, Sampler)] -> Managed PointedDescriptorSet
+withTextureArrayDescriptorSet VulkanResources{..} images = do
+  let DeviceContext{..} = deviceContext
+      numImages = fromIntegral $ length images
   descriptorSetLayout <- withDescriptorSetLayout device zero
     -- bind textures as an array of sampled images
-    { bindings = V.fromList . maybeToList $ listToMaybe texturePaths $> zero
+    { bindings = [ zero
         { binding         = 0
         , descriptorCount = numImages
         , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
         , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
-        }
+        } ]
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
     , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
     }
@@ -74,7 +68,7 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
     { maxSets   = 1
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
     , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
-    , poolSizes = V.fromList $ texturePaths $> DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages
+    , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages ]
     }
     Nothing
     allocate
@@ -86,38 +80,58 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
     , setLayouts     = [ descriptorSetLayout ]
     }
 
-  for_ (listToMaybe texturePaths) . const $ do
-    imageInfos <- for texturePaths \(path, filt) -> do
-      sampler <- withImageSampler bag filt
-      image   <- withTextureImage bag path
-      imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB IMAGE_ASPECT_COLOR_BIT image
-      pure zero
+  let desImageInfos = images <&> \(ViewableImage _image imageView, sampler) -> zero
         { sampler     = sampler
         , imageView   = imageView
         , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }
-    let write = zero
-          { dstSet          = V.head descriptorSets
-          , dstBinding      = 0
-          , dstArrayElement = 0
-          , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-          , descriptorCount = numImages
-          , imageInfo       = V.fromList imageInfos
-          }
-    updateDescriptorSets device [SomeStruct write] []
+      write = zero
+        { dstSet          = V.head descriptorSets
+        , dstBinding      = 0
+        , dstArrayElement = 0
+        , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+        , descriptorCount = numImages
+        , imageInfo       = V.fromList desImageInfos
+        }
+  updateDescriptorSets device [SomeStruct write] []
 
+  pure PointedDescriptorSet {..}
+
+data PointedDescriptorSet = PointedDescriptorSet
+  { descriptorPool      :: DescriptorPool
+  , descriptorSetLayout :: DescriptorSetLayout
+  , descriptorSets      :: Vector DescriptorSet
+  } deriving Generic
+
+data TextureDescriptorSet = TextureDescriptorSet
+  { descriptorSet :: PointedDescriptorSet
+  , textureNames  :: Vector Text
+  } deriving Generic
+
+withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter)] -> Managed TextureDescriptorSet
+withTextureDescriptorSet _ [] = error "No textures in descriptor set"
+withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
   let textureNames = V.fromList $ pack . view filename . fst <$> texturePaths
+  images <- for texturePaths \(path, filt) -> do
+    sampler <- withImageSampler bag filt
+    image   <- withTextureImage bag path
+    imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB IMAGE_ASPECT_COLOR_BIT image
+    pure (ViewableImage image imageView, sampler)
+  descriptorSet <- withTextureArrayDescriptorSet bag images
 
   pure TextureDescriptorSet {..}
 
 data BufferDescriptorSet a = BufferDescriptorSet
-  { descriptorPool      :: DescriptorPool
-  , descriptorSetLayout :: DescriptorSetLayout
-  , descriptorSets      :: Vector DescriptorSet
-  , bufferPair          :: (Buffer, Allocation)
-  , queuedData          :: IORef [a]
-  , allocator           :: Allocator -- allocator used to create buffer
+  { descriptorSet :: PointedDescriptorSet
+  , bufferPair    :: (Buffer, Allocation)
+  , queuedData    :: IORef [a]
+  , allocator     :: Allocator -- allocator used to create buffer
   } deriving (Generic)
+
+descriptorSetBinding :: FramedResource PointedDescriptorSet -> DescriptorSetBinding
+descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Int) bds)
+                           , fmap descriptorSets bds
+                           )
 
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Managed (BufferDescriptorSet a)
 withBufferDescriptorSet VulkanResources{..} = do
@@ -163,28 +177,18 @@ withBufferDescriptorSet VulkanResources{..} = do
   updateDescriptorSets device [SomeStruct write] []
 
   let bufferPair = (buffer, alloc)
+      descriptorSet = PointedDescriptorSet {..}
 
   queuedData <- liftIO $ newIORef []
 
   pure BufferDescriptorSet {..}
 
-{-
-uploadBufferDescriptor :: (Storable a, MonadIO m) => BufferDescriptorSet a -> SV.Vector a -> m ()
-uploadBufferDescriptor BufferDescriptorSet {..} dat = do
-  let (_, alloc) = bufferPair
-
-  liftIO $ withMappedMemory allocator alloc bracket \bptr ->
-    SV.unsafeWith dat \dptr -> copyArray (castPtr bptr) dptr (SV.length dat)
-    -}
-
 uploadBufferDescriptor :: (MonadIO m, Storable a) => BufferDescriptorSet a -> m ()
 uploadBufferDescriptor BufferDescriptorSet {..} = liftIO do
-  as <- readIORef queuedData
-  case as of
+  atomicModifyIORef' queuedData ([],) >>= \case
     [] -> pure () -- noop if there's no data to push
-    _ -> do
+    as -> do
       let (_, alloc) = bufferPair
 
       withMappedMemory allocator alloc bracket \bptr ->
         withArrayLen (reverse as) \len dptr -> copyArray (castPtr bptr) dptr len
-      writeIORef queuedData []

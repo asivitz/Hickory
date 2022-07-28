@@ -47,9 +47,7 @@ import qualified Hickory.Vulkan.Text as H
 import Control.Monad
 import Control.Monad.Managed (Managed)
 import Vulkan
-  ( CommandBuffer(..)
-  , PrimitiveTopology (..)
-  , pattern FILTER_LINEAR
+  ( pattern FILTER_LINEAR
   )
 
 import qualified Data.ByteString as B
@@ -57,7 +55,6 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
-import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText, getTexIdx, useGlobalDecriptorSet)
 import Data.Foldable (for_)
@@ -69,6 +66,8 @@ import Data.Either (fromRight)
 import Hickory.Math.Vector (Scalar)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
+import qualified Hickory.Vulkan.Monad as H
+import Hickory.Vulkan.Frame (FrameContext, singlePass, frameNumber)
 
 -- ** GAMEPLAY **
 
@@ -131,8 +130,8 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 data Resources = Resources
   { globalDescriptorSet :: H.TextureDescriptorSet
   , square              :: H.BufferedMesh
-  , solidMaterial       :: H.Material SolidColorUniform
-  , texturedMaterial    :: H.Material TextureUniform
+  , solidMaterial       :: H.BufferedUniformMaterial SolidColorUniform
+  , texturedMaterial    :: H.BufferedUniformMaterial TextureUniform
   , font                :: Font Int
   , dynamicMesh         :: FramedResource H.DynamicBufferedMesh
   }
@@ -169,10 +168,10 @@ loadResources path _size vulkanResources swapchain = do
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
-  solidMaterial    <- H.withMaterial vulkanResources swapchain
-    [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
-  texturedMaterial <- H.withMaterial vulkanResources swapchain
-    [H.Position, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST texVertShader texFragShader (Just globalDescriptorSet)
+  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain
+    [H.Position, H.TextureCoord] vertShader fragShader (Just globalDescriptorSet)
+  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain
+    [H.Position, H.TextureCoord] texVertShader texFragShader (Just globalDescriptorSet)
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
   -- generated using the bmGlyph program for Mac
@@ -185,9 +184,12 @@ loadResources path _size vulkanResources swapchain = do
   pure $ Resources {..}
 
 -- Our render function
-renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, (Int, CommandBuffer)) -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, commandInfo@(frameNumber,_)) =
-  recordCommandBuffer commandInfo . useDynamicMesh (resourceForFrame frameNumber dynamicMesh) . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
+renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, FrameContext) -> m ()
+renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, frameContext) =
+  singlePass (V4 0 0 0 1) frameContext do
+  recordCommandBuffer frameContext
+    . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
+    . useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial) $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat <- H.askMatrix
@@ -243,7 +245,7 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
 
 -- Build the FRP network
-buildNetwork :: CoreEventGenerators (Resources, (Int, CommandBuffer)) -> IO ()
+buildNetwork :: CoreEventGenerators (Resources, FrameContext) -> IO ()
 buildNetwork evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
@@ -275,8 +277,8 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> do
   -- build and run the FRP network
   buildNetwork evGens
 
-  GLFWV.runFrames win (V4 0 0 0 1) (loadResources "Example/Shooter/assets/") \resources commandInfo -> do
-    coreEvProc (resources, commandInfo)
+  GLFWV.runFrames win (loadResources "Example/Shooter/assets/") \resources frameContext -> do
+    coreEvProc (resources, frameContext)
 
     focused <- GLFW.getWindowFocused win
     -- don't consume CPU when the window isn't focused

@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
-{-# LANGUAGE TupleSections #-}
 
 module Platforms.GLFW.Vulkan where
 
@@ -20,7 +19,7 @@ import Vulkan
   , instanceHandle
   , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
   , withInstance, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
-  , CommandBuffer, deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern API_VERSION_1_2, InstanceCreateFlagBits (..)
+  , CommandBuffer, deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern API_VERSION_1_2, InstanceCreateFlagBits (..), Extent2D
   )
 import Foreign (alloca, nullPtr, peek)
 import Vulkan.Zero
@@ -28,8 +27,7 @@ import qualified Data.Vector as V
 import qualified Data.ByteString as B
 import Hickory.Types (Size (..))
 import Hickory.Vulkan.Framing (frameResource, resourceForFrame)
-import Hickory.Vulkan.Frame (withFrame, drawFrame)
-import Linear (V4)
+import Hickory.Vulkan.Frame (withFrame, drawFrame, FrameContext)
 
 {- GLFW -}
 
@@ -89,11 +87,10 @@ validationLayers = V.fromList ["VK_LAYER_KHRONOS_validation"]
 
 runFrames
   :: GLFW.Window
-  -> V4 Float -- Clear color
   -> (Size Int -> VulkanResources -> Swapchain -> Managed userRes) -- ^ Acquire user resources
-  -> (userRes -> (Int, CommandBuffer) -> IO ()) -- ^ Execute a frame
+  -> (userRes -> FrameContext -> IO ()) -- ^ Execute a frame
   -> IO ()
-runFrames win color acquireUserResources f = do
+runFrames win acquireUserResources f = do
   glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= fmap V.fromList . mapM B.packCString
 
   runManaged do
@@ -118,7 +115,7 @@ runFrames win color acquireUserResources f = do
       GLFW.pollEvents
       let frame = resourceForFrame frameNumber frames
 
-      drawRes <- drawFrame frame vulkanResources swapchainContext color (f userResources . (frameNumber,))
+      drawRes <- drawFrame frameNumber frame vulkanResources swapchainContext (f userResources)
       shouldClose <- GLFW.windowShouldClose win
       when (drawRes || shouldClose) $ deviceWaitIdle (device (deviceContext vulkanResources))
       if shouldClose then pure Nothing else pure (Just drawRes)

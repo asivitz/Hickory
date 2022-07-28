@@ -28,7 +28,7 @@ import Vulkan
   , RenderingInfo(..)
   , RenderingAttachmentInfo(..)
   , cmdBeginRenderingKHR
-  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D
+  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D, cmdDraw
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -38,6 +38,8 @@ import Linear (V4(..))
 import Hickory.Vulkan.Textures (transitionImageLayout)
 import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchain (..), allocate, ViewableImage (..))
 import Data.Generics.Labels ()
+import Hickory.Vulkan.Material (Material, cmdBindMaterial)
+import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
 data Frame = Frame
@@ -46,6 +48,15 @@ data Frame = Frame
   , inFlightFence           :: Fence
   , commandPool             :: CommandPool
   , commandBuffer           :: CommandBuffer
+  }
+
+-- |User accessible context to render a given frame
+data FrameContext = FrameContext
+  { extent        :: Extent2D      -- swapchain extent
+  , colorImage    :: ViewableImage -- swapchain color image for this frame (to be presented on screen)
+  , depthImage    :: ViewableImage -- depth image
+  , commandBuffer :: CommandBuffer -- commandbuffer to render this frame
+  , frameNumber   :: Int           -- used to index FramedResources
   }
 
 {- FRAME -}
@@ -72,7 +83,7 @@ withFrame DeviceContext {..} = do
 
   pure Frame {..}
 
-useDynamicRenderPass :: MonadIO m => CommandBuffer -> Extent2D -> V4 Float -> ViewableImage -> ViewableImage -> (CommandBuffer -> IO ()) -> m ()
+useDynamicRenderPass :: MonadIO m => CommandBuffer -> Extent2D -> V4 Float -> ViewableImage -> ViewableImage -> IO () -> m ()
 useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage f = do
   cmdBeginRenderingKHR commandBuffer zero
     { renderArea = Rect2D { offset = zero , extent = swapchainExtent }
@@ -93,12 +104,47 @@ useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage
       , clearValue  = DepthStencil (ClearDepthStencilValue 1 0)
       }
     }
-  liftIO $ f commandBuffer
+  liftIO f
   cmdEndRenderingKHR commandBuffer
 
+singlePass :: MonadIO m => V4 Float -> FrameContext -> IO () -> m ()
+singlePass clearColor FrameContext {..} f = do
+  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
+  transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
+
+  useDynamicRenderPass commandBuffer extent clearColor colorImage depthImage f
+
+  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
+
+twoPass :: MonadIO m => V4 Float -> FrameContext -> (Material, FramedResource (ViewableImage, ViewableImage)) -> IO () -> m ()
+twoPass clearColor FrameContext {..} (postMaterial, offscreenTarget) mainPass = do
+  let (offscreenColor, offscreenDepth) = resourceForFrame frameNumber offscreenTarget
+  -- transition swap images
+  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
+  transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
+
+  -- transition offscreen images
+  transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
+  transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
+
+  -- render offscreen
+  useDynamicRenderPass commandBuffer extent clearColor offscreenColor offscreenDepth mainPass
+
+  -- prepare offscreen image for use as shader input
+  transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
+  transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
+
+  -- render to swap images
+  useDynamicRenderPass commandBuffer extent clearColor colorImage depthImage do
+    cmdBindMaterial frameNumber commandBuffer postMaterial
+    cmdDraw commandBuffer 3 1 0 0
+
+  -- prepare swap image for presentation
+  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
+
 {- Drawing a frame -}
-drawFrame :: MonadIO m => Frame -> VulkanResources -> Swapchain -> V4 Float -> (CommandBuffer -> IO ()) -> m Bool
-drawFrame Frame {..} VulkanResources {..} swapchain clearColor f = do
+drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> IO ()) -> m Bool
+drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
 
@@ -108,24 +154,19 @@ drawFrame Frame {..} VulkanResources {..} swapchain clearColor f = do
   case res of
     res' | res' == ERROR_OUT_OF_DATE_KHR || res' == SUBOPTIMAL_KHR -> pure False
     _ -> do
+      let image = images V.! fromIntegral imageIndex
       resetFences device [ inFlightFence ]
 
       resetCommandBuffer commandBuffer zero
 
       useCommandBuffer commandBuffer zero do
-        let image = images V.! fromIntegral imageIndex
 
-        transitionImageLayout (view #image image) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
-        transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
-
-        useDynamicRenderPass commandBuffer extent clearColor image depthImage f
-
-        transitionImageLayout (view #image image) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
+        liftIO $ f (FrameContext extent image depthImage commandBuffer frameNumber)
 
       let submitInfo = zero
             { waitSemaphores   = [imageAvailableSemaphore]
             , waitDstStageMask = [PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-            , commandBuffers   = [commandBufferHandle  commandBuffer]
+            , commandBuffers   = [commandBufferHandle commandBuffer]
             , signalSemaphores = [renderFinishedSemaphore]
             }
       queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence

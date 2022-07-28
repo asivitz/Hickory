@@ -117,6 +117,20 @@ transitionImageLayout image oldLayout newLayout commandBuffer = do
           , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
           , IMAGE_ASPECT_DEPTH_BIT
           )
+        (IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) ->
+          ( ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+          , ACCESS_SHADER_READ_BIT
+          , PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+          , PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+          , IMAGE_ASPECT_COLOR_BIT
+          )
+        (IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) ->
+          ( ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+          , ACCESS_SHADER_READ_BIT
+          , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+          , PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+          , IMAGE_ASPECT_DEPTH_BIT
+          )
         _ -> error "Unsupported image layout transition"
 
   let barrier :: ImageMemoryBarrier '[]
@@ -162,3 +176,24 @@ withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt =
     , minLod = 0.0
     , maxLod = 0.0
     }
+
+withIntermediateImage :: VulkanResources -> Format -> ImageUsageFlagBits -> (Int,Int) -> Managed Image
+withIntermediateImage VulkanResources { allocator } format usage (width,height) = do
+  let imageCreateInfo :: ImageCreateInfo '[]
+      imageCreateInfo = zero
+        { imageType     = IMAGE_TYPE_2D
+        , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
+        , format        = format
+        , mipLevels     = 1
+        , arrayLayers   = 1
+        , tiling        = IMAGE_TILING_OPTIMAL
+        , samples       = SAMPLE_COUNT_1_BIT
+        , usage         = usage .|. IMAGE_USAGE_SAMPLED_BIT
+        , sharingMode   = SHARING_MODE_EXCLUSIVE
+        , initialLayout = IMAGE_LAYOUT_UNDEFINED
+        }
+      allocationCreateInfo :: AllocationCreateInfo
+      allocationCreateInfo = zero { requiredFlags = MEMORY_PROPERTY_DEVICE_LOCAL_BIT }
+
+  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo allocate
+  pure image

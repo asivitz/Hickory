@@ -6,8 +6,7 @@ module Main where
 
 import Control.Monad.Managed (Managed)
 import Vulkan
-  ( pattern PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
-  , pattern FILTER_LINEAR
+  ( pattern FILTER_LINEAR
   )
 
 import qualified Data.ByteString as B
@@ -15,9 +14,10 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
+import Hickory.Vulkan.Frame (singlePass)
 import qualified Hickory.Vulkan.Mesh as H
-import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.DescriptorSet as H
+import qualified Hickory.Vulkan.Monad as H
 import Linear.Matrix ((!*!))
 import Linear ( M44, V2 (..), V4(..))
 import Hickory.Math (perspectiveProjection, mkTranslation)
@@ -28,11 +28,12 @@ import Data.Word (Word32)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
 import Hickory.Types (Size)
+import Control.Lens (view)
 
 data Resources = Resources
   { square              :: H.BufferedMesh
-  , solidColorMaterial  :: H.Material Uniform
-  , texturedMaterial    :: H.Material Uniform
+  , solidColorMaterial  :: H.BufferedUniformMaterial Uniform
+  , texturedMaterial    :: H.BufferedUniformMaterial Uniform
   , globalDescriptorSet :: H.TextureDescriptorSet
   }
 
@@ -66,28 +67,29 @@ acquireResources _ vulkanResources swapchain = do
     }
 
   globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR), ("x.png", FILTER_LINEAR)]
-  solidColorMaterial <- H.withMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader (Just globalDescriptorSet)
-  texturedMaterial   <- H.withMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader texFragShader (Just globalDescriptorSet)
+  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] vertShader fragShader (Just (view #descriptorSet globalDescriptorSet))
+  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just (view #descriptorSet globalDescriptorSet))
   pure Resources {..}
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
-  runFrames win (V4 0 0 0 1) acquireResources \Resources {..} commandInfo -> do
-    recordCommandBuffer commandInfo . useGlobalDecriptorSet globalDescriptorSet texturedMaterial $ do
-      let
-        screenRatio = 1
+  runFrames win acquireResources \Resources {..} frameContext -> do
+    singlePass (V4 0 0 0 1) frameContext do
+      recordCommandBuffer frameContext . useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial) $ do
+        let
+          screenRatio = 1
 
-        mat :: M44 Float
-        mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
-          -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
+          mat :: M44 Float
+          mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
+            -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-      drawMesh False solidColorMaterial (Uniform mat 0) square
+        drawMesh False solidColorMaterial (Uniform mat 0) square
 
-      texidx0 <- getTexIdx "star.png"
-      drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
+        texidx0 <- getTexIdx "star.png"
+        drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square
 
-      texidx1 <- getTexIdx "x.png"
-      drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
+        texidx1 <- getTexIdx "x.png"
+        drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square
 
 {-- SHADERS --}
 

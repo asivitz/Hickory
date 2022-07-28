@@ -119,7 +119,6 @@ data DeviceContext = DeviceContext
 data Swapchain = Swapchain
   { imageFormat       :: SurfaceFormatKHR
   , swapchainHandle   :: SwapchainKHR
-  -- , imageCount        :: Int
   , images            :: V.Vector ViewableImage
   , extent            :: Extent2D
   , depthFormat       :: Format
