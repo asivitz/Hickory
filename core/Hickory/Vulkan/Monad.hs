@@ -64,7 +64,7 @@ withBufferedUniformMaterial
   -> Managed (BufferedUniformMaterial uniform)
 withBufferedUniformMaterial vulkanResources swapchain attributes vert frag globalDescriptor = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
-  material <- withMaterial vulkanResources swapchain attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag (descriptorSetBinding (view #descriptorSet <$> descriptor)) globalDescriptor
+  material <- withMaterial vulkanResources swapchain attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag (view #descriptorSet <$> descriptor) globalDescriptor
   pure BufferedUniformMaterial {..}
 
 {- Command Monad -}

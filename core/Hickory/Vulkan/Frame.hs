@@ -40,6 +40,8 @@ import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchai
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Material (Material, cmdBindMaterial)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
+import Hickory.Vulkan.OffscreenTarget (OffscreenTarget)
+import Control.Arrow ((&&&))
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
 data Frame = Frame
@@ -116,9 +118,9 @@ singlePass clearColor FrameContext {..} f = do
 
   transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
 
-twoPass :: MonadIO m => V4 Float -> FrameContext -> (Material, FramedResource (ViewableImage, ViewableImage)) -> IO () -> m ()
-twoPass clearColor FrameContext {..} (postMaterial, offscreenTarget) mainPass = do
-  let (offscreenColor, offscreenDepth) = resourceForFrame frameNumber offscreenTarget
+twoPass :: MonadIO m => V4 Float -> FrameContext -> Material -> FramedResource OffscreenTarget -> IO () -> m ()
+twoPass clearColor FrameContext {..} postMaterial offscreenTarget mainPass = do
+  let (offscreenColor, offscreenDepth) = (view #colorImage &&& view #depthImage) (resourceForFrame frameNumber offscreenTarget)
   -- transition swap images
   transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
   transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer

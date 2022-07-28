@@ -24,7 +24,7 @@ import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain(..), DeviceContext 
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.Core10 (PrimitiveTopology)
-import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet(..), DescriptorSetBinding, PointedDescriptorSet)
+import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet(..), DescriptorSetBinding, PointedDescriptorSet, descriptorSetBinding)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Generics.Labels ()
@@ -48,7 +48,7 @@ withMaterial
   -> PrimitiveTopology
   -> B.ByteString
   -> B.ByteString
-  -> DescriptorSetBinding
+  -> FramedResource PointedDescriptorSet
   -> Maybe PointedDescriptorSet
   -> Managed Material
 withMaterial
@@ -56,9 +56,10 @@ withMaterial
   swapchainContext
   (sortOn attrLocation -> attributes)
   topology vertShader fragShader
-  (materialDescriptorLayout, materialDescriptor)
+  materialDescriptorSet
   globalDescriptorSet = do
   let
+    (materialDescriptorLayout, materialDescriptor) = descriptorSetBinding materialDescriptorSet
     DeviceContext {..} = deviceContext
     pipelineLayoutCreateInfo = zero
       { pushConstantRanges = [ PushConstantRange

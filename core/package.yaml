@@ -114,6 +114,7 @@ library:
     - Hickory.Vulkan.Text
     - Hickory.Vulkan.Framing
     - Hickory.Vulkan.Frame
+    - Hickory.Vulkan.OffscreenTarget
 
 executables:
   pack-model:
