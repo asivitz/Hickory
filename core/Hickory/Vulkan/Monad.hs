@@ -12,12 +12,13 @@
 module Hickory.Vulkan.Monad where
 
 import GHC.Generics (Generic)
-import Control.Lens ((%=), view)
+import Control.Lens (view)
 import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
 import Control.Monad.State.Class (modify, MonadState)
-import Control.Monad.State.Strict (StateT (..), evalStateT, get, put)
+import Control.Monad.State.Strict (StateT (..), evalStateT, get, put, mapStateT)
+import Control.Monad.Writer.Strict (WriterT (..), runWriterT, tell, mapWriterT)
 import Control.Monad.Trans (MonadTrans, lift)
 import Data.Foldable (foldrM, toList)
 import Data.Functor ((<&>))
@@ -67,6 +68,22 @@ withBufferedUniformMaterial vulkanResources swapchain attributes vert frag globa
   material <- withMaterial vulkanResources swapchain attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag (view #descriptorSet <$> descriptor) globalDescriptor
   pure BufferedUniformMaterial {..}
 
+{- Batch IO Monad -}
+class Monad m => BatchIOMonad m where
+  recordIO :: IO () -> m () -- record IO action to be later executed in a batch
+
+newtype BatchIOT m a = BatchIOT { unBatchIOT :: WriterT (IO ()) m a }
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
+
+instance Monad m => BatchIOMonad (BatchIOT m) where
+  recordIO = BatchIOT . tell
+
+runBatchIO :: MonadIO m => BatchIOT m a -> m a
+runBatchIO f = do
+  (a, io :: IO ()) <- runWriterT . unBatchIOT $ f
+  liftIO io
+  pure a
+
 {- Frame Monad -}
 
 class Monad m => FrameMonad m where
@@ -86,21 +103,18 @@ mapFrameT f = FrameT . mapReaderT f . unFrameT
 
 {- Command Monad -}
 
-class FrameMonad m => CommandMonad m where
+class (FrameMonad m, BatchIOMonad m) => CommandMonad m where
   recordDrawCommand
     :: Bool -- True if blended
     -> Material
     -> Word32
     -> (CommandBuffer -> IO ())
     -> m ()
-  recordFinalIO :: IO () -> m ()
 
 recordCommandBuffer :: MonadIO m => CommandT m a -> m a
-recordCommandBuffer f = flip evalStateT (DrawCommands mempty mempty mempty (pure ())) $ do
+recordCommandBuffer f = flip evalStateT (DrawCommands mempty mempty mempty) $ do
   a <- unCommandT f
   DrawCommands {..} <- get
-
-  liftIO extraIO
 
   let allCommands = blendedCommands ++ sortOn fst opaqueCommands
       bindMat :: UUID -> IO ()
@@ -115,7 +129,6 @@ data DrawCommands = DrawCommands
   { opaqueCommands   :: [(UUID, IO ())] -- As they are opaque, we can sort them by material to minimize binds
   , blendedCommands  :: [(UUID, IO ())] -- We can't sort these, but if subsequent commands use the same material, we can avoid multiple binds
   , materialBinds    :: Map UUID (IO ())
-  , extraIO          :: IO ()
   } deriving Generic
 
 newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands m a }
@@ -124,7 +137,7 @@ newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands m a }
 instance MonadTrans CommandT where
   lift = CommandT . lift
 
-recordUniform :: (MonadIO m, FrameMonad m, CommandMonad m, Storable uniform) => FramedResource (BufferDescriptorSet uniform) -> uniform -> m Word32
+recordUniform :: (MonadIO m, BatchIOMonad m, FrameMonad m, Storable uniform) => FramedResource (BufferDescriptorSet uniform) -> uniform -> m Word32
 recordUniform bds uniform = do
   frameNumber <- frameNumber <$> askFrameContext
   let matDesc = resourceForFrame frameNumber bds
@@ -132,11 +145,11 @@ recordUniform bds uniform = do
   uniformIndex <- liftIO $ fromIntegral . length <$> readIORef uniformRef
   liftIO $ modifyIORef' uniformRef (uniform:)
 
-  recordFinalIO $ uploadBufferDescriptor matDesc
+  recordIO $ uploadBufferDescriptor matDesc
 
   pure uniformIndex
 
-instance (MonadIO m, FrameMonad m) => CommandMonad (CommandT m) where
+instance (MonadIO m, FrameMonad m, BatchIOMonad m) => CommandMonad (CommandT m) where
   recordDrawCommand shouldBlend material uniformIndex drawCommand = CommandT do
     FrameContext {..} <- lift askFrameContext
     dcs@DrawCommands {..} <- get
@@ -150,14 +163,6 @@ instance (MonadIO m, FrameMonad m) => CommandMonad (CommandT m) where
     if shouldBlend
     then put $ dcs { materialBinds = newMatBinds, blendedCommands = (matId, doDraw) : blendedCommands }
     else put $ dcs { materialBinds = newMatBinds, opaqueCommands  = (matId, doDraw) : opaqueCommands }
-  recordFinalIO f = CommandT do
-    #extraIO %= (>> f)
-
--- storableConvert :: (Storable a, Storable b) -> a -> IO b
--- storableConvert
-
-mapCommandT :: forall m n a b. (Monad m, Monad n) => (m a -> n b) -> CommandT m a -> CommandT n b
-mapCommandT f = CommandT . mapStateT' f . unCommandT
 
 {- Global Descriptor Monad -}
 
@@ -216,29 +221,25 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 
 -- instance CommandMonad m => CommandMonad (MaterialT material m) where askCommandBuffer = lift askCommandBuffer
 instance CommandMonad m => CommandMonad (MatrixT m) where
-  recordFinalIO    = lift . recordFinalIO
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (DynamicMeshT m) where
-  recordFinalIO    = lift . recordFinalIO
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
 instance CommandMonad m => CommandMonad (GlobalDescriptorT m) where
   recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
-  recordFinalIO    = lift . recordFinalIO
 
 instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MatrixT m)  where askDescriptorSet = lift askDescriptorSet
 instance GlobalDescriptorMonad m => GlobalDescriptorMonad (CommandT m) where askDescriptorSet = lift askDescriptorSet
 
-instance FrameMonad m => FrameMonad (MatrixT m) where
-  askFrameContext   = lift askFrameContext
+instance BatchIOMonad m => BatchIOMonad (CommandT m)          where recordIO = lift . recordIO
+instance BatchIOMonad m => BatchIOMonad (MatrixT m)           where recordIO = lift . recordIO
+instance BatchIOMonad m => BatchIOMonad (DynamicMeshT m)      where recordIO = lift . recordIO
+instance BatchIOMonad m => BatchIOMonad (GlobalDescriptorT m) where recordIO = lift . recordIO
 
-instance FrameMonad m => FrameMonad (CommandT m) where
-  askFrameContext   = lift askFrameContext
-
-instance FrameMonad m => FrameMonad (GlobalDescriptorT m) where
-  askFrameContext   = lift askFrameContext
-
-instance FrameMonad m => FrameMonad (DynamicMeshT m) where
-  askFrameContext   = lift askFrameContext
+instance FrameMonad m => FrameMonad (MatrixT m)           where askFrameContext   = lift askFrameContext
+instance FrameMonad m => FrameMonad (CommandT m)          where askFrameContext   = lift askFrameContext
+instance FrameMonad m => FrameMonad (GlobalDescriptorT m) where askFrameContext   = lift askFrameContext
+instance FrameMonad m => FrameMonad (DynamicMeshT m)      where askFrameContext   = lift askFrameContext
+instance FrameMonad m => FrameMonad (BatchIOT m)          where askFrameContext   = lift askFrameContext
 
 instance DynamicMeshMonad m => DynamicMeshMonad (MatrixT m) where
   askDynamicMesh = lift askDynamicMesh
@@ -257,7 +258,7 @@ instance DynamicMeshMonad m => DynamicMeshMonad (CommandT m) where
 
 instance MonadReader r m => MonadReader r (CommandT m) where
   ask = lift ask
-  local f = mapCommandT id . local f
+  local f = CommandT . mapStateT id . unCommandT . local f
 
 instance MonadReader r m => MonadReader r (DynamicMeshT m) where
   ask = lift ask
@@ -270,6 +271,10 @@ instance MonadReader r m => MonadReader r (GlobalDescriptorT m) where
 instance MonadReader r m => MonadReader r (FrameT m) where
   ask = lift ask
   local f = mapFrameT id . local f
+
+instance MonadReader r m => MonadReader r (BatchIOT m) where
+  ask = lift ask
+  local f = BatchIOT . mapWriterT id . unBatchIOT . local f
 
 {- Utilities -}
 

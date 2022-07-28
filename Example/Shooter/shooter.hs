@@ -189,6 +189,7 @@ loadResources path _size vulkanResources swapchain = do
 renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, FrameContext) -> m ()
 renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, frameContext)
   = H.runFrame frameContext
+  . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
   . useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial)
   . renderToSwapchain (V4 0 0 0 1)
