@@ -24,6 +24,7 @@ import Hickory.Types (Size (..))
 import Hickory.Vulkan.Framing (frameResource, resourceForFrame, FramedResource)
 import Hickory.Vulkan.Frame (withFrame, drawFrame, FrameContext, Frame)
 import Hickory.Vulkan.Instance (withStandardInstance, withVulkanResources)
+import Hickory.Vulkan.Utils (buildFrameFunction)
 import Data.Vector (Vector)
 import Data.ByteString (ByteString)
 import Data.IORef (newIORef, atomicModifyIORef, readIORef, IORef, writeIORef)
@@ -64,17 +65,6 @@ withWindowSurface inst window = mkAcquire create release
       res        -> error $ "Error when creating window surface: " ++ show res
   release surf = destroySurfaceKHR inst surf Nothing
 
-initVulkan :: Vector ByteString -> (Instance -> Acquire SurfaceKHR) -> Acquire (VulkanResources, FramedResource Frame, (Int,Int) -> Acquire Swapchain)
-initVulkan extensions surfCreate = do
-  inst            <- withStandardInstance $ extensions V.++ [ "VK_EXT_debug_utils"
-                                                            , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-                                                            , KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME -- required by MoltenVK
-                                                            ]
-  surface         <- surfCreate inst
-  vulkanResources <- withVulkanResources inst surface
-  frames          <- frameResource $ withFrame (deviceContext vulkanResources)
-  pure (vulkanResources, frames, withSwapchain vulkanResources surface)
-
 runFrames
   :: GLFW.Window
   -> (Size Int -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
@@ -82,37 +72,16 @@ runFrames
   -> IO ()
 runFrames win acquireUserResources f = do
   glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= fmap V.fromList . mapM B.packCString
-  frameCounter :: IORef Int <- newIORef 0
-
   runAcquire do
-    (vulkanResources, frames, swapchainCreate) <- initVulkan glfwReqExts (`withWindowSurface` win)
-
-    -- When the window is resized, we have to rebuild the swapchain
-    -- Any resources that depend on the swapchain need to be rebuilt as well
-    let acquireDynamicResources = do
-          (w,h) <- liftIO $ GLFW.getFramebufferSize win
-          let fbSize = Size w h
-          swapchain <- swapchainCreate (w,h)
-          userResources <- acquireUserResources fbSize vulkanResources swapchain
-          pure (swapchain, userResources)
-
-    dynamicResources <- liftIO $ unWrapAcquire acquireDynamicResources >>= newIORef
+    (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
 
     let
-      runASingleFrame = do
+      glfwRunFrame = do
         GLFW.pollEvents
-        frameNumber <- atomicModifyIORef frameCounter (\a -> (a+1,a+1))
-        let frame = resourceForFrame frameNumber frames
-        ((swapchain, userResources), releaseRes) <- liftIO $ readIORef dynamicResources
-        drawRes <- drawFrame frameNumber frame vulkanResources swapchain (f userResources)
-        shouldClose <- GLFW.windowShouldClose win
-        when (not drawRes || shouldClose) $ deviceWaitIdle (device (deviceContext vulkanResources))
-        unless drawRes do
-          releaseRes
-          unWrapAcquire acquireDynamicResources >>= writeIORef dynamicResources
-        pure shouldClose
+        exeFrame
+        GLFW.windowShouldClose win
 
-    fix \rec -> liftIO runASingleFrame >>= \case
+    fix \rec -> liftIO glfwRunFrame >>= \case
       False -> rec
       True -> pure ()
-    liftIO $ snd =<< readIORef dynamicResources -- release resources
+    liftIO cleanup
