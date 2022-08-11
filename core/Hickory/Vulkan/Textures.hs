@@ -3,8 +3,7 @@
 module Hickory.Vulkan.Textures where
 
 import Vulkan (Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer)
-import Control.Monad.Managed (Managed, runManaged)
-import Hickory.Vulkan.Vulkan (VulkanResources(..), allocate, DeviceContext (..))
+import Hickory.Vulkan.Vulkan (VulkanResources(..), DeviceContext (..), runAcquire, mkAcquire)
 import qualified Codec.Picture as Png
 import Data.Word (Word8, Word32)
 import qualified Data.Vector.Storable as SV
@@ -16,8 +15,9 @@ import VulkanMemoryAllocator (withMappedMemory, withImage, AllocationCreateInfo(
 import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
+import Acquire.Acquire (Acquire)
 
-withTextureImage :: VulkanResources -> FilePath -> Managed Image
+withTextureImage :: VulkanResources -> FilePath -> Acquire Image
 withTextureImage bag@VulkanResources { allocator } path = do
   Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
     Left s -> error $ printf "Can't load image at path %s: %s" path s
@@ -41,9 +41,9 @@ withTextureImage bag@VulkanResources { allocator } path = do
       allocationCreateInfo :: AllocationCreateInfo
       allocationCreateInfo = zero { requiredFlags = MEMORY_PROPERTY_DEVICE_LOCAL_BIT }
 
-  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo allocate
+  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
 
-  liftIO $ runManaged do
+  liftIO $ runAcquire do
     (stagingBuffer, stagingAlloc, _) <- withBuffer' allocator
       BUFFER_USAGE_TRANSFER_SRC_BIT
       (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
@@ -156,9 +156,9 @@ transitionImageLayout image oldLayout newLayout commandBuffer = do
 
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
 
-withImageSampler :: VulkanResources -> Filter -> Managed Sampler
+withImageSampler :: VulkanResources -> Filter -> Acquire Sampler
 withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt =
-  withSampler device samplerInfo Nothing allocate
+  withSampler device samplerInfo Nothing mkAcquire
   where
   samplerInfo = zero
     { magFilter = filt
@@ -177,7 +177,7 @@ withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt =
     , maxLod = 0.0
     }
 
-withIntermediateImage :: VulkanResources -> Format -> ImageUsageFlagBits -> (Int,Int) -> Managed Image
+withIntermediateImage :: VulkanResources -> Format -> ImageUsageFlagBits -> (Int,Int) -> Acquire Image
 withIntermediateImage VulkanResources { allocator } format usage (width,height) = do
   let imageCreateInfo :: ImageCreateInfo '[]
       imageCreateInfo = zero
@@ -195,5 +195,5 @@ withIntermediateImage VulkanResources { allocator } format usage (width,height) 
       allocationCreateInfo :: AllocationCreateInfo
       allocationCreateInfo = zero { requiredFlags = MEMORY_PROPERTY_DEVICE_LOCAL_BIT }
 
-  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo allocate
+  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
   pure image

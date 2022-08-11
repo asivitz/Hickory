@@ -1,5 +1,5 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ForeignFunctionInterface, BlockArguments #-}
+{-# LANGUAGE TupleSections, PatternSynonyms #-}
 
 module Platforms.IOS where
 
@@ -15,7 +15,11 @@ import Hickory.Types
 import Hickory.Platform
 import Linear.V2 (V2(V2))
 import Hickory.FRP.CoreEvents (CoreEventGenerators, coreEventGenerators)
-import Hickory.Graphics (checkForErrors)
+import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain, withSwapchain)
+import Hickory.Vulkan.Frame (FrameContext)
+import Hickory.Vulkan.Instance (withVulkanResources, withStandardInstance)
+import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)
+import Vulkan.Zero (Zero(..))
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 

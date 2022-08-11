@@ -7,7 +7,6 @@
 module Hickory.Vulkan.Vulkan where
 
 import Control.Monad
-import Control.Monad.Managed
 import Vulkan
   ( ColorSpaceKHR (COLOR_SPACE_SRGB_NONLINEAR_KHR)
   , CompositeAlphaFlagBitsKHR (..)
@@ -81,7 +80,6 @@ import Vulkan
   , PipelineDepthStencilStateCreateInfo(..), CompareOp (..)
   , PipelineRenderingCreateInfo(..), pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, PhysicalDeviceDynamicRenderingFeatures(..)
   )
-import Control.Exception (bracket)
 import Vulkan.Zero
 import qualified Data.Vector as V
 import Data.Ord (comparing)
@@ -98,6 +96,8 @@ import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr, Bits ((.|.)))
 import qualified Data.ByteString as B
 import GHC.Generics (Generic)
+import Acquire.Acquire (Acquire (..))
+import Control.Monad.IO.Class (MonadIO)
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -129,9 +129,6 @@ data ViewableImage = ViewableImage
   { image     :: Image
   , imageView :: ImageView
   } deriving Generic
-
-allocate :: IO a -> (a -> IO ()) -> Managed a
-allocate c d = managed (bracket c d)
 
 {- DEVICE CREATION -}
 
@@ -198,7 +195,7 @@ selectPhysicalDevice inst surface = do
       <|> vheadMay formats
 
 
-withLogicalDevice :: Instance -> SurfaceKHR -> Managed DeviceContext
+withLogicalDevice :: Instance -> SurfaceKHR -> Acquire DeviceContext
 withLogicalDevice inst surface = do
   (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx) <- selectPhysicalDevice inst surface
 
@@ -227,14 +224,14 @@ withLogicalDevice inst surface = do
                )
       }
 
-  device <- withDevice physicalDevice deviceCreateInfo Nothing allocate
+  device <- withDevice physicalDevice deviceCreateInfo Nothing mkAcquire
 
   graphicsQueue <- getDeviceQueue device graphicsFamilyIdx 0
   presentQueue  <- getDeviceQueue device presentFamilyIdx 0
 
   pure $ DeviceContext {..}
 
-withSwapchain :: VulkanResources -> SurfaceKHR -> (Int, Int) -> Managed Swapchain
+withSwapchain :: VulkanResources -> SurfaceKHR -> (Int, Int) -> Acquire Swapchain
 withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
   let dc@DeviceContext{..} = deviceContext
   capabilities <- getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
@@ -270,7 +267,7 @@ withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
         else Extent2D (clamp (fromIntegral fbWidth) (width (minImageExtent :: Extent2D)) (width (maxImageExtent :: Extent2D)))
                       (clamp (fromIntegral fbHeight) (height (minImageExtent :: Extent2D)) (height (maxImageExtent :: Extent2D)))
 
-  swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing allocate
+  swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing mkAcquire
   let imageFormat = surfaceFormat
 
   (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
@@ -284,7 +281,7 @@ withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
 
   pure $ Swapchain {..}
 
-withDepthImage :: VulkanResources -> Extent2D -> Format -> Managed Image
+withDepthImage :: VulkanResources -> Extent2D -> Format -> Acquire Image
 withDepthImage VulkanResources { allocator } (Extent2D width height) format = do
 
   let imageCreateInfo :: ImageCreateInfo '[]
@@ -303,12 +300,12 @@ withDepthImage VulkanResources { allocator } (Extent2D width height) format = do
       allocationCreateInfo :: AllocationCreateInfo
       allocationCreateInfo = zero { requiredFlags = MEMORY_PROPERTY_DEVICE_LOCAL_BIT }
 
-  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo allocate
+  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
 
   pure image
 
-withStandardAllocator :: Instance -> PhysicalDevice -> Device -> Managed Allocator
-withStandardAllocator inst physicalDevice device = withAllocator allocInfo allocate
+withStandardAllocator :: Instance -> PhysicalDevice -> Device -> Acquire Allocator
+withStandardAllocator inst physicalDevice device = withAllocator allocInfo mkAcquire
   where
   allocInfo = zero
     { physicalDevice   = physicalDeviceHandle physicalDevice
@@ -324,9 +321,9 @@ vmaVulkanFunctions Instance { instanceCmds } Device { deviceCmds } = zero
   , vkGetDeviceProcAddr   = castFunPtr $ VD.pVkGetDeviceProcAddr deviceCmds
   }
 
-with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Managed ImageView
+with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Acquire ImageView
 with2DImageView DeviceContext { device } format flags image =
-  withImageView device imageViewCreateInfo Nothing allocate
+  withImageView device imageViewCreateInfo Nothing mkAcquire
   where
   imageViewCreateInfo = zero
     { image      = image
@@ -353,7 +350,7 @@ withGraphicsPipeline
   -> PipelineLayout
   -> V.Vector VertexInputBindingDescription
   -> V.Vector VertexInputAttributeDescription
-  -> Managed Pipeline
+  -> Acquire Pipeline
 withGraphicsPipeline
   VulkanResources {..} swapchain
   topology vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
@@ -436,19 +433,33 @@ withGraphicsPipeline
         }, ())
       }
   V.head . snd
-    <$> withGraphicsPipelines device zero [SomeStruct pipelineCreateInfo] Nothing allocate
+    <$> withGraphicsPipelines device zero [SomeStruct pipelineCreateInfo] Nothing mkAcquire
 
 {-- SHADERS --}
 
-createVertShader :: Device -> B.ByteString -> Managed (SomeStruct PipelineShaderStageCreateInfo)
+createVertShader :: Device -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
 createVertShader = createShader SHADER_STAGE_VERTEX_BIT
 
-createFragShader :: Device -> B.ByteString -> Managed (SomeStruct PipelineShaderStageCreateInfo)
+createFragShader :: Device -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
 createFragShader = createShader SHADER_STAGE_FRAGMENT_BIT
 
-createShader :: ShaderStageFlagBits -> Device -> B.ByteString -> Managed (SomeStruct PipelineShaderStageCreateInfo)
+mkAcquire :: IO a -> (a -> IO ()) -> Acquire a
+mkAcquire ac rel = Acquire do
+  a <- ac
+  pure (a, rel a)
+
+runAcquire :: Acquire a -> IO a
+runAcquire (Acquire acq) = do
+  (a, rel) <- acq
+  rel
+  pure a
+
+unWrapAcquire :: Acquire a -> IO (a, IO ())
+unWrapAcquire (Acquire acq) = acq
+
+createShader :: ShaderStageFlagBits -> Device -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
 createShader stage dev source = do
-  shaderModule <- withShaderModule dev zero { code = source } Nothing allocate
+  shaderModule <- withShaderModule dev zero { code = source } Nothing mkAcquire
 
   pure . SomeStruct $ zero
     { stage = stage

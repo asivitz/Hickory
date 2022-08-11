@@ -1,4 +1,4 @@
-{-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
+{-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, PatternSynonyms, DuplicateRecordFields #-}
 {-# LANGUAGE DataKinds, OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
@@ -9,26 +9,27 @@ module Platforms.GLFW.Vulkan where
 import Hickory.Vulkan.Vulkan
 import qualified Graphics.UI.GLFW as GLFW
 import Control.Monad
-import Control.Monad.Managed
 import Vulkan
-  ( ApplicationInfo(..)
-  , Instance
-  , InstanceCreateInfo (..)
+  ( Instance
   , SurfaceKHR
   , destroySurfaceKHR
   , instanceHandle
   , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-  , withInstance, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
-  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern API_VERSION_1_2, InstanceCreateFlagBits (..)
+  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
   )
 import Foreign (alloca, nullPtr, peek)
-import Vulkan.Zero
 import qualified Data.Vector as V
 import qualified Data.ByteString as B
 import Hickory.Types (Size (..))
-import Hickory.Vulkan.Framing (frameResource, resourceForFrame)
-import Hickory.Vulkan.Frame (withFrame, drawFrame, FrameContext)
-import Hickory.Vulkan.Monad (FrameMonad, runFrame)
+import Hickory.Vulkan.Framing (frameResource, resourceForFrame, FramedResource)
+import Hickory.Vulkan.Frame (withFrame, drawFrame, FrameContext, Frame)
+import Hickory.Vulkan.Instance (withStandardInstance, withVulkanResources)
+import Data.Vector (Vector)
+import Data.ByteString (ByteString)
+import Data.IORef (newIORef, atomicModifyIORef, readIORef, IORef, writeIORef)
+import Control.Monad.Fix (fix)
+import Acquire.Acquire (Acquire)
+import Control.Monad.IO.Class (liftIO)
 
 {- GLFW -}
 
@@ -54,28 +55,8 @@ withWindow width height title f = do
   where
   simpleErrorCallback e s = putStrLn $ unwords [show e, show s]
 
-withVulkanResources :: Instance -> SurfaceKHR -> Managed VulkanResources
-withVulkanResources inst surface = do
-  deviceContext@DeviceContext {..} <- withLogicalDevice inst surface
-  allocator <- withStandardAllocator inst physicalDevice device
-  shortLivedCommandPool <-
-    let commandPoolCreateInfo :: CommandPoolCreateInfo
-        commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_TRANSIENT_BIT }
-    in withCommandPool device commandPoolCreateInfo Nothing allocate
-  pure VulkanResources {..}
-
-withStandardInstance :: V.Vector B.ByteString -> Managed Instance
-withStandardInstance extensions = withInstance instanceCreateInfo Nothing allocate
-  where
-  instanceCreateInfo = zero
-    { applicationInfo = Just zero { applicationName = Just "Vulkan Demo", apiVersion = API_VERSION_1_2 }
-    , enabledLayerNames     = validationLayers
-    , enabledExtensionNames = extensions
-    , flags = INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
-    }
-
-withWindowSurface :: Instance -> GLFW.Window -> Managed SurfaceKHR
-withWindowSurface inst window = allocate create release
+withWindowSurface :: Instance -> GLFW.Window -> Acquire SurfaceKHR
+withWindowSurface inst window = mkAcquire create release
   where
   create = alloca \ptr ->
     GLFW.createWindowSurface (instanceHandle inst) window nullPtr ptr >>= \case
@@ -83,60 +64,55 @@ withWindowSurface inst window = allocate create release
       res        -> error $ "Error when creating window surface: " ++ show res
   release surf = destroySurfaceKHR inst surf Nothing
 
-validationLayers :: V.Vector B.ByteString
-validationLayers = V.fromList ["VK_LAYER_KHRONOS_validation"]
+initVulkan :: Vector ByteString -> (Instance -> Acquire SurfaceKHR) -> Acquire (VulkanResources, FramedResource Frame, (Int,Int) -> Acquire Swapchain)
+initVulkan extensions surfCreate = do
+  inst            <- withStandardInstance $ extensions V.++ [ "VK_EXT_debug_utils"
+                                                            , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+                                                            , KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME -- required by MoltenVK
+                                                            ]
+  surface         <- surfCreate inst
+  vulkanResources <- withVulkanResources inst surface
+  frames          <- frameResource $ withFrame (deviceContext vulkanResources)
+  pure (vulkanResources, frames, withSwapchain vulkanResources surface)
 
 runFrames
   :: GLFW.Window
-  -> (Size Int -> VulkanResources -> Swapchain -> Managed userRes) -- ^ Acquire user resources
+  -> (Size Int -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
   -> (userRes -> FrameContext -> IO ()) -- ^ Execute a frame
   -> IO ()
 runFrames win acquireUserResources f = do
   glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= fmap V.fromList . mapM B.packCString
+  frameCounter :: IORef Int <- newIORef 0
 
-  runManaged do
-    inst            <- withStandardInstance $ glfwReqExts V.++ [ "VK_EXT_debug_utils"
-                                                               , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-                                                               , KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME -- required by MoltenVK
-                                                               ]
-    surface         <- withWindowSurface inst win
-    vulkanResources <- withVulkanResources inst surface
-    frames          <- frameResource $ withFrame (deviceContext vulkanResources)
+  runAcquire do
+    (vulkanResources, frames, swapchainCreate) <- initVulkan glfwReqExts (`withWindowSurface` win)
 
     -- When the window is resized, we have to rebuild the swapchain
     -- Any resources that depend on the swapchain need to be rebuilt as well
     let acquireDynamicResources = do
           (w,h) <- liftIO $ GLFW.getFramebufferSize win
           let fbSize = Size w h
-          swapchain <- withSwapchain vulkanResources surface (w,h)
+          swapchain <- swapchainCreate (w,h)
           userResources <- acquireUserResources fbSize vulkanResources swapchain
           pure (swapchain, userResources)
 
-    liftIO $ loopWithResourceRefresh acquireDynamicResources \frameNumber (swapchainContext, userResources) -> do
-      GLFW.pollEvents
-      let frame = resourceForFrame frameNumber frames
+    dynamicResources <- liftIO $ unWrapAcquire acquireDynamicResources >>= newIORef
 
-      drawRes <- drawFrame frameNumber frame vulkanResources swapchainContext (f userResources)
-      shouldClose <- GLFW.windowShouldClose win
-      when (drawRes || shouldClose) $ deviceWaitIdle (device (deviceContext vulkanResources))
-      if shouldClose then pure Nothing else pure (Just drawRes)
+    let
+      runASingleFrame = do
+        GLFW.pollEvents
+        frameNumber <- atomicModifyIORef frameCounter (\a -> (a+1,a+1))
+        let frame = resourceForFrame frameNumber frames
+        ((swapchain, userResources), releaseRes) <- liftIO $ readIORef dynamicResources
+        drawRes <- drawFrame frameNumber frame vulkanResources swapchain (f userResources)
+        shouldClose <- GLFW.windowShouldClose win
+        when (not drawRes || shouldClose) $ deviceWaitIdle (device (deviceContext vulkanResources))
+        unless drawRes do
+          releaseRes
+          unWrapAcquire acquireDynamicResources >>= writeIORef dynamicResources
+        pure shouldClose
 
--- |Acquire resources and loop. User function may signal:
--- Nothing    -> Exit loop
--- Just False -> Require resources and loop
--- Just True  -> Loop
-loopWithResourceRefresh :: Managed a -> (Int -> a -> IO (Maybe Bool)) -> IO ()
-loopWithResourceRefresh acquireResource f = main 0
-  where
-  main n = do
-    outer n >>= \case
-      Just n' -> void $ main (n' + 1)
-      Nothing -> pure ()
-  outer n = do
-    with acquireResource \resource -> do
-      let inner n' = do
-            f n' resource >>= \case
-              Just True  -> inner (n' + 1)
-              Just False -> pure (Just n')
-              Nothing    -> pure Nothing
-      inner n
+    fix \rec -> liftIO runASingleFrame >>= \case
+      False -> rec
+      True -> pure ()
+    liftIO $ snd =<< readIORef dynamicResources -- release resources

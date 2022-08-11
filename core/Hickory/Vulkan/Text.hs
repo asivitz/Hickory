@@ -3,7 +3,6 @@ module Hickory.Vulkan.Text where
 import VulkanMemoryAllocator (Allocation, withMappedMemory, Allocator)
 import Vulkan (Buffer, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..))
 import Hickory.Vulkan.Vulkan (VulkanResources (..))
-import Control.Monad.Managed (Managed)
 import Data.Word (Word32)
 import Hickory.Vulkan.Mesh (withBuffer', attrStride, Mesh, indices, pack)
 import Foreign ((.|.), sizeOf, copyArray, castPtr)
@@ -11,6 +10,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Vector.Storable as SV
 import Control.Exception (bracket)
 import Data.Maybe (mapMaybe)
+import Acquire.Acquire (Acquire)
 
 data DynamicBufferedMesh = DynamicBufferedMesh
   { vertexBufferPair :: (Buffer, Allocation)
@@ -18,7 +18,7 @@ data DynamicBufferedMesh = DynamicBufferedMesh
   , allocator        :: Allocator -- allocator used to create buffers
   }
 
-withDynamicBufferedMesh :: VulkanResources -> Int -> Managed DynamicBufferedMesh
+withDynamicBufferedMesh :: VulkanResources -> Int -> Acquire DynamicBufferedMesh
 withDynamicBufferedMesh VulkanResources{..} maxVertices = do
   (vertexBuffer, vertexAlloc, _) <- withBuffer' allocator
     BUFFER_USAGE_VERTEX_BUFFER_BIT

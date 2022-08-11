@@ -33,6 +33,7 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Control.Arrow ((&&&))
 import Hickory.Vulkan.Monad (FrameMonad (..))
 import Hickory.Vulkan.Frame (FrameContext (..), useDynamicRenderPass)
+import Acquire.Acquire (Acquire)
 
 data OffscreenTarget = OffscreenTarget
   { colorImage    :: ViewableImage
@@ -41,7 +42,7 @@ data OffscreenTarget = OffscreenTarget
   , sampler       :: Sampler
   } deriving Generic
 
-withOffscreenTarget :: VulkanResources -> Swapchain -> (Int,Int) -> Managed OffscreenTarget
+withOffscreenTarget :: VulkanResources -> Swapchain -> (Int,Int) -> Acquire OffscreenTarget
 withOffscreenTarget vulkanResources@VulkanResources{..} swapchain fbSize = do
   let colorFormat = format (imageFormat swapchain) -- Don't _have_ to use the swapchain format, but currently our pipelines automatically use that format
       depthFormat = FORMAT_D32_SFLOAT

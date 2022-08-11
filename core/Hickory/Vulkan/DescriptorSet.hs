@@ -10,8 +10,7 @@ import Vulkan.Zero (zero)
 import Data.Text (Text, pack)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Hickory.Vulkan.Vulkan (VulkanResources (..), DeviceContext (..), allocate, with2DImageView, ViewableImage (..))
-import Control.Monad.Managed (Managed)
+import Hickory.Vulkan.Vulkan (VulkanResources (..), DeviceContext (..), with2DImageView, ViewableImage (..), mkAcquire)
 import Vulkan
   ( ShaderStageFlagBits (..)
   , withDescriptorPool
@@ -44,10 +43,11 @@ import GHC.Generics (Generic)
 import Data.IORef (IORef, newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
+import Acquire.Acquire (Acquire)
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource (Vector DescriptorSet))
 
-withTextureArrayDescriptorSet :: VulkanResources -> [(ViewableImage, Sampler)] -> Managed PointedDescriptorSet
+withTextureArrayDescriptorSet :: VulkanResources -> [(ViewableImage, Sampler)] -> Acquire PointedDescriptorSet
 withTextureArrayDescriptorSet VulkanResources{..} images = do
   let DeviceContext{..} = deviceContext
       numImages = fromIntegral $ length images
@@ -62,7 +62,7 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
     , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
     }
-    Nothing allocate
+    Nothing mkAcquire
 
   descriptorPool <- withDescriptorPool device zero
     { maxSets   = 1
@@ -71,7 +71,7 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
     , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages ]
     }
     Nothing
-    allocate
+    mkAcquire
 
   -- We use allocateDescriptorSets, rather than withDescriptorSets, b/c we
   -- free all the memory at once via the descriptorPool
@@ -108,7 +108,7 @@ data TextureDescriptorSet = TextureDescriptorSet
   , textureNames  :: Vector Text
   } deriving Generic
 
-withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter)] -> Managed TextureDescriptorSet
+withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter)] -> Acquire TextureDescriptorSet
 withTextureDescriptorSet _ [] = error "No textures in descriptor set"
 withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
   let textureNames = V.fromList $ pack . view filename . fst <$> texturePaths
@@ -133,7 +133,7 @@ descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Int) bd
                            , fmap descriptorSets bds
                            )
 
-withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Managed (BufferDescriptorSet a)
+withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Acquire (BufferDescriptorSet a)
 withBufferDescriptorSet VulkanResources{..} = do
   let DeviceContext {..} = deviceContext
   descriptorSetLayout <- withDescriptorSetLayout device zero
@@ -145,14 +145,14 @@ withBufferDescriptorSet VulkanResources{..} = do
         }
         ]
     }
-    Nothing allocate
+    Nothing mkAcquire
 
   descriptorPool <- withDescriptorPool device zero
     { maxSets   = 1
     , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_UNIFORM_BUFFER 1 ]
     }
     Nothing
-    allocate
+    mkAcquire
 
   -- We use allocateDescriptorSets, rather than withDescriptorSets, b/c we
   -- free all the memory at once via the descriptorPool

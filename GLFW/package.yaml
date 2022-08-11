@@ -34,7 +34,8 @@ dependencies:
   - lens
   - derive-storable
   - extra
-  
+  - acquire
+
 library:
   exposed-modules:
     - Platforms.GLFW.Utils

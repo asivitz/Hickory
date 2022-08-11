@@ -19,12 +19,11 @@ import Vulkan
   , cmdBindPipeline
   , pattern PIPELINE_BIND_POINT_GRAPHICS, cmdBindDescriptorSets, DescriptorSet
   )
-import Control.Monad.Managed (Managed)
-import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain(..), DeviceContext (..), allocate, withGraphicsPipeline)
+import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain(..), DeviceContext (..), mkAcquire, withGraphicsPipeline, mkAcquire)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.Core10 (PrimitiveTopology)
-import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet(..), DescriptorSetBinding, PointedDescriptorSet, descriptorSetBinding)
+import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet, descriptorSetBinding)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Generics.Labels ()
@@ -32,6 +31,7 @@ import Control.Lens (view)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
+import Acquire.Acquire (Acquire)
 
 data Material = Material
   { pipeline            :: Pipeline
@@ -50,7 +50,7 @@ withMaterial
   -> B.ByteString
   -> FramedResource PointedDescriptorSet
   -> Maybe PointedDescriptorSet
-  -> Managed Material
+  -> Acquire Material
 withMaterial
   bag@VulkanResources {..}
   swapchainContext
@@ -71,7 +71,7 @@ withMaterial
                                                [materialDescriptorLayout]
       }
 
-  pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing allocate
+  pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
   pipeline <- withGraphicsPipeline bag swapchainContext topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 

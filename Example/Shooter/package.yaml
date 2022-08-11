@@ -34,6 +34,7 @@ dependencies:
     - vulkan-utils
     - extra
     - derive-storable
+    - acquire
 
 default-extensions:
     - LambdaCase

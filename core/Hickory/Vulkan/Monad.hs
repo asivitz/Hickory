@@ -47,6 +47,7 @@ import qualified Data.Vector.Storable as SV
 import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain)
 import Control.Monad.Managed (Managed)
 import qualified Data.ByteString as B
+import Acquire.Acquire (Acquire)
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
@@ -62,7 +63,7 @@ withBufferedUniformMaterial
   -> B.ByteString
   -> B.ByteString
   -> Maybe PointedDescriptorSet
-  -> Managed (BufferedUniformMaterial uniform)
+  -> Acquire (BufferedUniformMaterial uniform)
 withBufferedUniformMaterial vulkanResources swapchain attributes vert frag globalDescriptor = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   material <- withMaterial vulkanResources swapchain attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag (view #descriptorSet <$> descriptor) globalDescriptor

@@ -59,6 +59,7 @@ dependencies:
     - bytestring
     - uuid
     - generic-lens
+    - acquire
 
 when:
     - condition: os(osx)
@@ -115,6 +116,8 @@ library:
     - Hickory.Vulkan.Framing
     - Hickory.Vulkan.Frame
     - Hickory.Vulkan.OffscreenTarget
+    - Hickory.Vulkan.Instance
+    - Hickory.Vulkan.Utils
 
 executables:
   pack-model:

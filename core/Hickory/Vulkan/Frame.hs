@@ -5,11 +5,9 @@ module Hickory.Vulkan.Frame where
 
 import Control.Lens (view)
 import Control.Monad
-import Control.Monad.Managed
 import Vulkan
   ( AttachmentLoadOp (..)
   , AttachmentStoreOp (..)
-  , ImageLayout (..)
   , PipelineStageFlagBits (..)
   , withCommandPool
   , CommandPoolCreateInfo(..), CommandPoolCreateFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers
@@ -35,11 +33,10 @@ import qualified Data.Vector as V
 
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Linear (V4(..))
-import Hickory.Vulkan.Textures (transitionImageLayout)
-import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchain (..), allocate, ViewableImage (..))
+import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchain (..), mkAcquire, ViewableImage (..))
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
-import Control.Arrow ((&&&))
+import Acquire.Acquire (Acquire)
+import Control.Monad.IO.Class (MonadIO)
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
 data Frame = Frame
@@ -61,12 +58,12 @@ data FrameContext = FrameContext
 
 {- FRAME -}
 
-withFrame :: DeviceContext -> Managed Frame
+withFrame :: DeviceContext -> Acquire Frame
 withFrame DeviceContext {..} = do
   commandPool <-
     let commandPoolCreateInfo :: CommandPoolCreateInfo
         commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT }
-    in withCommandPool device commandPoolCreateInfo Nothing allocate
+    in withCommandPool device commandPoolCreateInfo Nothing mkAcquire
 
   commandBuffer <- V.head <$>
     let commandBufferAllocateInfo :: CommandBufferAllocateInfo
@@ -75,11 +72,11 @@ withFrame DeviceContext {..} = do
           , level              = COMMAND_BUFFER_LEVEL_PRIMARY
           , commandBufferCount = 1
           }
-    in withCommandBuffers device commandBufferAllocateInfo allocate
+    in withCommandBuffers device commandBufferAllocateInfo mkAcquire
 
-  imageAvailableSemaphore <- withSemaphore device zero Nothing allocate
-  renderFinishedSemaphore <- withSemaphore device zero Nothing allocate
-  inFlightFence           <- withFence device zero { flags = FENCE_CREATE_SIGNALED_BIT } Nothing allocate
+  imageAvailableSemaphore <- withSemaphore device zero Nothing mkAcquire
+  renderFinishedSemaphore <- withSemaphore device zero Nothing mkAcquire
+  inFlightFence           <- withFence device zero { flags = FENCE_CREATE_SIGNALED_BIT } Nothing mkAcquire
 
   pure Frame {..}
 
@@ -107,35 +104,9 @@ useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage
   f
   cmdEndRenderingKHR commandBuffer
 
-{-
-twoPass :: MonadIO m => V4 Float -> FrameContext -> Material -> FramedResource OffscreenTarget -> IO () -> m ()
-twoPass clearColor FrameContext {..} postMaterial offscreenTarget mainPass = do
-  let (offscreenColor, offscreenDepth) = (view #colorImage &&& view #depthImage) (resourceForFrame frameNumber offscreenTarget)
-  -- transition swap images
-  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
-  transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
-
-  -- transition offscreen images
-  transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
-  transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
-
-  -- render offscreen
-  useDynamicRenderPass commandBuffer extent clearColor offscreenColor offscreenDepth mainPass
-
-  -- prepare offscreen image for use as shader input
-  transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
-  transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
-
-  -- render to swap images
-  useDynamicRenderPass commandBuffer extent clearColor colorImage depthImage do
-    cmdBindMaterial frameNumber commandBuffer postMaterial
-    cmdDraw commandBuffer 3 1 0 0
-
-  -- prepare swap image for presentation
-  transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
-  -}
-
-{- Drawing a frame -}
+-- |Draw a frame
+-- Handles concerns around synchronizing double buffers
+-- Returns false if swapchain is stale and needs to be refreshed
 drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> m ()) -> m Bool
 drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
   let Swapchain {..} = swapchain

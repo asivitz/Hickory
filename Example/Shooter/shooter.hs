@@ -41,12 +41,12 @@ import qualified Hickory.Graphics as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Control.Lens (view, each, over, _1)
+import Acquire.Acquire (Acquire)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Text as H
 
 import Control.Monad
-import Control.Monad.Managed (Managed)
 import Vulkan
   ( pattern FILTER_LINEAR
   )
@@ -151,7 +151,7 @@ data TextureUniform = TextureUniform
     deriving anyclass GStorable
 
 -- Load meshes, textures, materials, fonts, etc.
-loadResources :: String -> Size Int -> VulkanResources -> Swapchain -> Managed Resources
+loadResources :: String -> Size Int -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size vulkanResources swapchain = do
   globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources $ over (each . _1) (\n -> path ++ "images/" ++ n) [("circle.png", FILTER_LINEAR), ("gidolinya.png",FILTER_LINEAR) ]
 

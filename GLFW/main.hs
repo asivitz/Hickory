@@ -4,7 +4,6 @@
 
 module Main where
 
-import Control.Monad.Managed (Managed)
 import Vulkan
   ( pattern FILTER_LINEAR
   )
@@ -29,6 +28,7 @@ import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
 import Hickory.Types (Size)
 import Control.Lens (view)
+import Acquire.Acquire (Acquire)
 
 data Resources = Resources
   { square              :: H.BufferedMesh
@@ -43,7 +43,7 @@ data Uniform = Uniform
   } deriving Generic
     deriving anyclass GStorable
 
-acquireResources :: Size Int -> VulkanResources -> Swapchain -> Managed Resources
+acquireResources :: Size Int -> VulkanResources -> Swapchain -> Acquire Resources
 acquireResources _ vulkanResources swapchain = do
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
