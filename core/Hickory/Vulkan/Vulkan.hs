@@ -3,6 +3,7 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
+{-# HLINT ignore "Use infix" #-}
 
 module Hickory.Vulkan.Vulkan where
 
@@ -97,7 +98,9 @@ import Foreign (castFunPtr, Bits ((.|.)))
 import qualified Data.ByteString as B
 import GHC.Generics (Generic)
 import Acquire.Acquire (Acquire (..))
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import qualified Data.List as DL
+import Data.Foldable (for_)
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -199,30 +202,36 @@ withLogicalDevice :: Instance -> SurfaceKHR -> Acquire DeviceContext
 withLogicalDevice inst surface = do
   (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx) <- selectPhysicalDevice inst surface
 
-  -- (_, extensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
+  (_, V.toList . fmap extensionName -> availableExtensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
 
   let
-    requiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME
-                         , KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-                         , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
-                         , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
-                         , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
-                         , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
-                         , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
-                         , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
-                         , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
-                         ]
+    desiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME
+                        , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
+                        , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
+                        , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
+                        , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
+                        , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
+                        , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
+                        , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
+                        ]
+
+  let
+    extensionsToEnable = DL.intersect desiredExtensions availableExtensions
+    extensionsNotAvailable = desiredExtensions DL.\\ extensionsToEnable
 
     deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDescriptorIndexingFeatures, PhysicalDeviceDynamicRenderingFeatures]
     deviceCreateInfo = zero
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
-      , enabledExtensionNames = requiredExtensions
+      , enabledExtensionNames = V.fromList extensionsToEnable
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size)
                , ( zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
                , () )
                )
       }
+
+  for_ extensionsNotAvailable \e ->
+    liftIO . putStrLn $ "Device extension not available: " ++ show e
 
   device <- withDevice physicalDevice deviceCreateInfo Nothing mkAcquire
 

@@ -1,5 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface, BlockArguments #-}
-{-# LANGUAGE TupleSections, PatternSynonyms #-}
+{-# LANGUAGE TupleSections, PatternSynonyms, OverloadedLists #-}
 
 module Platforms.IOS where
 
@@ -15,11 +15,12 @@ import Hickory.Types
 import Hickory.Platform
 import Linear.V2 (V2(V2))
 import Hickory.FRP.CoreEvents (CoreEventGenerators, coreEventGenerators)
-import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain, withSwapchain)
+import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain, unWrapAcquire)
 import Hickory.Vulkan.Frame (FrameContext)
-import Hickory.Vulkan.Instance (withVulkanResources, withStandardInstance)
-import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)
+import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern EXT_METAL_SURFACE_EXTENSION_NAME )
 import Vulkan.Zero (Zero(..))
+import Hickory.Vulkan.Utils (buildFrameFunction)
+import Acquire.Acquire (Acquire)
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
@@ -28,17 +29,17 @@ foreign export ccall "touch_moved" touchMoved :: StablePtr (a,TouchData) -> CInt
 foreign export ccall "touch_ended" touchEnded :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
 foreign export ccall "draw"        draw       :: StablePtr (IO (),a) -> IO ()
 
-type CDrawInit = CInt -> CInt -> IO (StablePtr (IO (), TouchData))
+type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), TouchData))
 
 type RenderInit resources
   =  [Char] -- Path to resources folder
-  -> Int
-  -> Int
-  -> IO resources
+  -> Size Int
+  -> VulkanResources
+  -> Swapchain
+  -> Acquire resources
 
 type DrawInit resources gamedata
-  =  IORef resources
-  -> CoreEventGenerators
+  =  CoreEventGenerators (resources, FrameContext)
   -> (gamedata -> IO ())
   -> IO gamedata
   -> IO ()
@@ -47,22 +48,21 @@ mkDrawInit
   :: RenderInit resources        -- Loads assets from a given folder and provides data for use in game/render loop
   -> DrawInit resources gamedata -- Initializes logic/draw system
   -> CDrawInit
-mkDrawInit ri di w h = do
-  rp        <- resourcesPath
-  resources <- newIORef
-           =<< ri rp (fromIntegral w) (fromIntegral h)
+mkDrawInit ri di layerPtr w h = do
+  let mkSurface inst = createMetalSurfaceEXT inst zero { layer = layerPtr } Nothing
 
-  td          <- initTouchData
-  inputPoller <- makeInputPoller (touchFunc td)
-  timePoller  <- makeTimePoller
-
-  wSizeRef <- newIORef (Size (fromIntegral w) (fromIntegral h))
+  resourcePath <- resourcesPath
+  td           <- initTouchData
+  inputPoller  <- makeInputPoller (touchFunc td)
+  timePoller   <- makeTimePoller
+  wSizeRef     <- newIORef (Size (fromIntegral w) (fromIntegral h))
 
   (coreEvProc, evGens) <- coreEventGenerators inputPoller timePoller wSizeRef
+  ((exeFrame, cleanupUserRes), cleanupVulkan) <- unWrapAcquire $ buildFrameFunction [EXT_METAL_SURFACE_EXTENSION_NAME] (pure $ Size (fromIntegral w) (fromIntegral h)) mkSurface (ri resourcePath) \userRes frameContext -> do
+    coreEvProc (userRes, frameContext)
 
-  di resources evGens (error "Can't write state") (error "Can't load state")
-
-  newStablePtr (coreEvProc, td)
+  di evGens (error "Can't write state") (error "Can't load state")
+  newStablePtr (exeFrame, td)
 
 resourcesPath :: IO String
 resourcesPath = do
@@ -79,9 +79,9 @@ draw pkg = do
   performMinorGC
 
 type TouchData =
-  ( IORef [(Int, Double, Double, UTCTime)]
-  , IORef [(Int, Double, Double, UTCTime)]
-  , IORef [(Int, Double, Double)]
+  ( IORef [(Int, Scalar, Scalar, UTCTime)]
+  , IORef [(Int, Scalar, Scalar, UTCTime)]
+  , IORef [(Int, Scalar, Scalar)]
   , IORef (HashMap.HashMap Int (V2 Scalar, UTCTime))
   )
 

@@ -8,32 +8,33 @@ import Vulkan
   ( Instance
   , SurfaceKHR
   , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+  , pattern KHR_SURFACE_EXTENSION_NAME
   , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
   )
 import Hickory.Types (Size (..))
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource (..), frameResource)
 import Hickory.Vulkan.Frame (drawFrame, FrameContext, Frame (..), withFrame)
-import Data.Vector (Vector)
 import Data.ByteString (ByteString)
 import Data.IORef (newIORef, atomicModifyIORef, readIORef, IORef, writeIORef)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.Vector as V
-import Hickory.Vulkan.Instance (withStandardInstance, withVulkanResources)
+import Hickory.Vulkan.Instance (withStandardInstance, withVulkanResources, validationLayers)
 
-initVulkan :: Vector ByteString -> (Instance -> Acquire SurfaceKHR) -> Acquire (VulkanResources, FramedResource Frame, (Int,Int) -> Acquire Swapchain)
+initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire (VulkanResources, FramedResource Frame, (Int,Int) -> Acquire Swapchain)
 initVulkan extensions surfCreate = do
-  inst            <- withStandardInstance $ extensions V.++ [ "VK_EXT_debug_utils"
-                                                            , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-                                                            , KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME -- required by MoltenVK
-                                                            ]
+  let defaultExtensions = [ "VK_EXT_debug_utils"
+                          , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+                          , KHR_SURFACE_EXTENSION_NAME
+                          , KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME -- required by MoltenVK
+                          ]
+  inst            <- withStandardInstance (extensions ++ defaultExtensions) validationLayers
   surface         <- surfCreate inst
   vulkanResources <- withVulkanResources inst surface
   frames          <- frameResource $ withFrame (deviceContext vulkanResources)
   pure (vulkanResources, frames, withSwapchain vulkanResources surface)
 
 buildFrameFunction
-  :: Vector ByteString -- ^ Extensions
+  :: [ByteString] -- ^ Extensions
   -> IO (Size Int) -- ^ Query framebuffer size
   -> (Instance -> Acquire SurfaceKHR)
   -> (Size Int -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources

@@ -14,20 +14,12 @@ import Vulkan
   , SurfaceKHR
   , destroySurfaceKHR
   , instanceHandle
-  , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
   )
 import Foreign (alloca, nullPtr, peek)
-import qualified Data.Vector as V
 import qualified Data.ByteString as B
 import Hickory.Types (Size (..))
-import Hickory.Vulkan.Framing (frameResource, resourceForFrame, FramedResource)
-import Hickory.Vulkan.Frame (withFrame, drawFrame, FrameContext, Frame)
-import Hickory.Vulkan.Instance (withStandardInstance, withVulkanResources)
+import Hickory.Vulkan.Frame (FrameContext)
 import Hickory.Vulkan.Utils (buildFrameFunction)
-import Data.Vector (Vector)
-import Data.ByteString (ByteString)
-import Data.IORef (newIORef, atomicModifyIORef, readIORef, IORef, writeIORef)
 import Control.Monad.Fix (fix)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
@@ -71,7 +63,7 @@ runFrames
   -> (userRes -> FrameContext -> IO ()) -- ^ Execute a frame
   -> IO ()
 runFrames win acquireUserResources f = do
-  glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= fmap V.fromList . mapM B.packCString
+  glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= mapM B.packCString
   runAcquire do
     (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
 
