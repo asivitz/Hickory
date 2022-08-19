@@ -24,7 +24,7 @@ import Vulkan
   , WriteDescriptorSet(..), Format (..), ImageLayout (..), allocateDescriptorSets
   , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
   , DescriptorBufferInfo(..)
-  , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), DescriptorPoolCreateFlagBits (..), DescriptorSetLayoutCreateFlagBits (..), Filter
+  , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Filter
   , pattern IMAGE_ASPECT_COLOR_BIT, Sampler
   )
 import Data.Functor ((<&>))
@@ -44,9 +44,64 @@ import Data.IORef (IORef, newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
+import Data.UUID (UUID)
+import Data.UUID.V4 (nextRandom)
 
-type DescriptorSetBinding = (DescriptorSetLayout, FramedResource (Vector DescriptorSet))
+type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
+-- |Each texture is in a separately bound descriptor
+withTexturesDescriptorSet :: VulkanResources -> [(ViewableImage, Sampler)] -> Acquire PointedDescriptorSet
+withTexturesDescriptorSet VulkanResources{..} images = do
+  let DeviceContext{..} = deviceContext
+      numImages = fromIntegral $ length images
+  descriptorSetLayout <- withDescriptorSetLayout device zero
+    -- bind textures as an array of sampled images
+    { bindings = [0..numImages - 1] <&> \i -> zero
+        { binding         = i
+        , descriptorCount = 1
+        , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+        , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
+        }
+      -- Needed for dynamic descriptor array sizing (e.g. global texture array)
+    -- , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
+    }
+    Nothing mkAcquire
+
+  descriptorPool <- withDescriptorPool device zero
+    { maxSets   = 1
+      -- Needed for dynamic descriptor array sizing (e.g. global texture array)
+    -- , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
+    , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages ]
+    }
+    Nothing
+    mkAcquire
+
+  -- We use allocateDescriptorSets, rather than withDescriptorSets, b/c we
+  -- free all the memory at once via the descriptorPool
+  descriptorSet <- V.head <$> allocateDescriptorSets device zero
+    { descriptorPool = descriptorPool
+    , setLayouts     = [ descriptorSetLayout ]
+    }
+
+  let writes = zip images [0..numImages - 1] <&> \((ViewableImage _image imageView, sampler), i) -> zero
+        { dstSet          = descriptorSet
+        , dstBinding      = i
+        , dstArrayElement = 0
+        , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+        , descriptorCount = 1
+        , imageInfo       = [zero
+          { sampler     = sampler
+          , imageView   = imageView
+          , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+          }]
+        }
+  updateDescriptorSets device (V.fromList $ SomeStruct <$> writes) []
+
+  uuid <- liftIO nextRandom
+
+  pure PointedDescriptorSet {..}
+
+-- |All textures are bound to the same descriptor in an array
 withTextureArrayDescriptorSet :: VulkanResources -> [(ViewableImage, Sampler)] -> Acquire PointedDescriptorSet
 withTextureArrayDescriptorSet VulkanResources{..} images = do
   let DeviceContext{..} = deviceContext
@@ -60,14 +115,14 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
         , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
         } ]
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
-    , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
+    -- , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
     }
     Nothing mkAcquire
 
   descriptorPool <- withDescriptorPool device zero
     { maxSets   = 1
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
-    , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
+    -- , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
     , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages ]
     }
     Nothing
@@ -75,7 +130,7 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
 
   -- We use allocateDescriptorSets, rather than withDescriptorSets, b/c we
   -- free all the memory at once via the descriptorPool
-  descriptorSets <- allocateDescriptorSets device zero
+  descriptorSet <- V.head <$> allocateDescriptorSets device zero
     { descriptorPool = descriptorPool
     , setLayouts     = [ descriptorSetLayout ]
     }
@@ -86,7 +141,7 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
         , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }
       write = zero
-        { dstSet          = V.head descriptorSets
+        { dstSet          = descriptorSet
         , dstBinding      = 0
         , dstArrayElement = 0
         , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
@@ -95,12 +150,15 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
         }
   updateDescriptorSets device [SomeStruct write] []
 
+  uuid <- liftIO nextRandom
+
   pure PointedDescriptorSet {..}
 
 data PointedDescriptorSet = PointedDescriptorSet
   { descriptorPool      :: DescriptorPool
   , descriptorSetLayout :: DescriptorSetLayout
-  , descriptorSets      :: Vector DescriptorSet
+  , descriptorSet       :: DescriptorSet
+  , uuid                :: UUID
   } deriving Generic
 
 data TextureDescriptorSet = TextureDescriptorSet
@@ -130,7 +188,7 @@ data BufferDescriptorSet a = BufferDescriptorSet
 
 descriptorSetBinding :: FramedResource PointedDescriptorSet -> DescriptorSetBinding
 descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Int) bds)
-                           , fmap descriptorSets bds
+                           , fmap (view #descriptorSet) bds
                            )
 
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Acquire (BufferDescriptorSet a)
@@ -156,7 +214,7 @@ withBufferDescriptorSet VulkanResources{..} = do
 
   -- We use allocateDescriptorSets, rather than withDescriptorSets, b/c we
   -- free all the memory at once via the descriptorPool
-  descriptorSets <- allocateDescriptorSets device zero
+  descriptorSet <- V.head <$> allocateDescriptorSets device zero
     { descriptorPool = descriptorPool
     , setLayouts     = [ descriptorSetLayout ]
     }
@@ -167,7 +225,7 @@ withBufferDescriptorSet VulkanResources{..} = do
     (fromIntegral $ sizeOf (undefined :: a) * 128)
 
   let write = zero
-        { dstSet          = V.head descriptorSets
+        { dstSet          = descriptorSet
         , dstBinding      = 0
         , dstArrayElement = 0
         , descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
@@ -176,12 +234,14 @@ withBufferDescriptorSet VulkanResources{..} = do
         }
   updateDescriptorSets device [SomeStruct write] []
 
+  uuid <- liftIO nextRandom
+
   let bufferPair = (buffer, alloc)
-      descriptorSet = PointedDescriptorSet {..}
+      pointedDescriptorSet = PointedDescriptorSet {..}
 
   queuedData <- liftIO $ newIORef []
 
-  pure BufferDescriptorSet {..}
+  pure BufferDescriptorSet {descriptorSet = pointedDescriptorSet, ..}
 
 uploadBufferDescriptor :: (MonadIO m, Storable a) => BufferDescriptorSet a -> m ()
 uploadBufferDescriptor BufferDescriptorSet {..} = liftIO do

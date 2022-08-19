@@ -40,7 +40,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Hickory.Graphics as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import Control.Lens (view, each, over, _1)
+import Control.Lens (view)
 import Acquire.Acquire (Acquire)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
@@ -57,7 +57,7 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
-import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText, getTexIdx, useGlobalDecriptorSet)
+import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText)
 import Data.Foldable (for_)
 import Foreign.Storable.Generic
 import Hickory.Graphics.DrawText (textcommand)
@@ -65,7 +65,6 @@ import Hickory.Text.Text (TextCommand(..), Font, makeFont, XAlign (..))
 import Hickory.Utils.Utils (readFileAsText)
 import Data.Either (fromRight)
 import Hickory.Math.Vector (Scalar)
-import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
 import qualified Hickory.Vulkan.Monad as H
 import Hickory.Vulkan.Frame (FrameContext, frameNumber)
@@ -130,7 +129,8 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 
 -- The resources used by our rendering function
 data Resources = Resources
-  { globalDescriptorSet :: H.TextureDescriptorSet
+  { circleTex           :: H.PointedDescriptorSet
+  , fontTex             :: H.PointedDescriptorSet
   , square              :: H.BufferedMesh
   , solidMaterial       :: H.BufferedUniformMaterial SolidColorUniform
   , texturedMaterial    :: H.BufferedUniformMaterial TextureUniform
@@ -144,16 +144,16 @@ data SolidColorUniform = SolidColorUniform
   } deriving Generic
     deriving anyclass GStorable
 
-data TextureUniform = TextureUniform
+newtype TextureUniform = TextureUniform
   { mat   :: M44 Scalar
-  , texId :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> Size Int -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size vulkanResources swapchain = do
-  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources $ over (each . _1) (\n -> path ++ "images/" ++ n) [("circle.png", FILTER_LINEAR), ("gidolinya.png",FILTER_LINEAR) ]
+  circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR)]
+  fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR)]
 
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
@@ -171,9 +171,9 @@ loadResources path _size vulkanResources swapchain = do
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
   solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain
-    [H.Position, H.TextureCoord] vertShader fragShader (Just (view #descriptorSet globalDescriptorSet))
+    [H.Position, H.TextureCoord] vertShader fragShader Nothing Nothing
   texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain
-    [H.Position, H.TextureCoord] texVertShader texFragShader (Just (view #descriptorSet globalDescriptorSet))
+    [H.Position, H.TextureCoord] texVertShader texFragShader Nothing (Just circleTex)
 
   -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
   -- generated using the bmGlyph program for Mac
@@ -191,24 +191,21 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
   = H.runFrame frameContext
   . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  . useGlobalDecriptorSet globalDescriptorSet (H.material texturedMaterial)
   . renderToSwapchain (V4 0 0 0 1)
   . recordCommandBuffer $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat <- H.askMatrix
-        texId <- getTexIdx "circle.png"
-        drawMesh True texturedMaterial (TextureUniform mat texId) square
+        drawMesh True texturedMaterial (TextureUniform mat) square (Just circleTex)
 
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
         mat <- H.askMatrix
-        drawMesh False solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square
+        drawMesh False solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square Nothing
 
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
       H.xform (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (5/12) (5/12))) do
         mat <- H.askMatrix
-        texId <- getTexIdx "gidolinya.png"
-        drawText texturedMaterial (TextureUniform mat texId) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } )
+        drawText texturedMaterial (TextureUniform mat) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } ) fontTex
   where
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
@@ -300,7 +297,7 @@ vertShader = [vert|
     vec4 color;
   };
 
-  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, std140, set = 0, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -328,7 +325,7 @@ fragShader = [frag|
     vec4 color;
   };
 
-  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, std140, set = 0, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -357,10 +354,9 @@ texVertShader = [vert|
   struct Uniforms
   {
     mat4 modelViewMatrix;
-    int texIdx;
   };
 
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 0, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -385,17 +381,16 @@ texFragShader = [frag|
 
   layout(location = 1) in vec2 texCoord;
 
-  layout(set = 0, binding = 0) uniform sampler2D texSampler[];
+  layout(set = 1, binding = 0) uniform sampler2D texSampler;
 
   layout(location = 0) out vec4 outColor;
 
   struct Uniforms
   {
     mat4 modelViewMatrix;
-    int texIdx;
   };
 
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 0, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -406,7 +401,7 @@ texFragShader = [frag|
 
   void main() {
     Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-    outColor = texture(texSampler[uniforms.texIdx], texCoord);
+    outColor = texture(texSampler, texCoord);
   }
 
 |]

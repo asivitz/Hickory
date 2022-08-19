@@ -1,5 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedLists, DeriveGeneric #-}
 {-# LANGUAGE DataKinds, PatternSynonyms, OverloadedLabels  #-}
 
 module Hickory.Vulkan.Material where
@@ -17,13 +17,13 @@ import Vulkan
   , withPipelineLayout
   , cmdPushConstants
   , cmdBindPipeline
-  , pattern PIPELINE_BIND_POINT_GRAPHICS, cmdBindDescriptorSets, DescriptorSet
+  , pattern PIPELINE_BIND_POINT_GRAPHICS, cmdBindDescriptorSets
   )
 import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain(..), DeviceContext (..), mkAcquire, withGraphicsPipeline, mkAcquire)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.Core10 (PrimitiveTopology)
-import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet, descriptorSetBinding)
+import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Generics.Labels ()
@@ -32,14 +32,16 @@ import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
+import GHC.Generics (Generic)
+import Data.Maybe (maybeToList)
 
 data Material = Material
-  { pipeline            :: Pipeline
-  , pipelineLayout      :: PipelineLayout
-  , materialDescriptor  :: FramedResource (Vector DescriptorSet)
-  , uuid                :: UUID
-  , attributes          :: [Attribute]
-  }
+  { pipeline               :: Pipeline
+  , pipelineLayout         :: PipelineLayout
+  , materialDescriptorSets :: [FramedResource PointedDescriptorSet] -- Bound along with the material
+  , uuid                   :: UUID
+  , attributes             :: [Attribute]
+  } deriving Generic
 
 withMaterial
   :: VulkanResources
@@ -48,18 +50,18 @@ withMaterial
   -> PrimitiveTopology
   -> B.ByteString
   -> B.ByteString
-  -> FramedResource PointedDescriptorSet
-  -> Maybe PointedDescriptorSet
+  -> [FramedResource PointedDescriptorSet]       -- Descriptor sets bound along with material
+  -> Maybe (FramedResource PointedDescriptorSet) -- Descriptor set bound per draw
   -> Acquire Material
 withMaterial
   bag@VulkanResources {..}
   swapchainContext
   (sortOn attrLocation -> attributes)
   topology vertShader fragShader
-  materialDescriptorSet
-  globalDescriptorSet = do
+  materialDescriptorSets
+  drawDescriptorSet
+  = do
   let
-    (materialDescriptorLayout, materialDescriptor) = descriptorSetBinding materialDescriptorSet
     DeviceContext {..} = deviceContext
     pipelineLayoutCreateInfo = zero
       { pushConstantRanges = [ PushConstantRange
@@ -67,8 +69,7 @@ withMaterial
           , offset = 0
           , stageFlags = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
           }]
-      , setLayouts = V.fromList $ maybe id (:) (view #descriptorSetLayout <$> globalDescriptorSet)
-                                               [materialDescriptorLayout]
+      , setLayouts = V.fromList $ view #descriptorSetLayout . resourceForFrame (0 :: Int) <$> (materialDescriptorSets Prelude.++ maybeToList drawDescriptorSet)
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
@@ -80,8 +81,14 @@ withMaterial
 cmdBindMaterial :: MonadIO m => Int -> CommandBuffer -> Material -> m ()
 cmdBindMaterial frameNumber commandBuffer Material {..} = do
   cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 1 (resourceForFrame frameNumber materialDescriptor) []
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
+  where
+  sets = V.fromList $ view #descriptorSet . resourceForFrame frameNumber <$> materialDescriptorSets
 
 cmdPushMaterialConstants :: (MonadIO m) => CommandBuffer -> Material -> Word32 -> m ()
 cmdPushMaterialConstants commandBuffer Material {..} a =
   liftIO $ with a $ cmdPushConstants commandBuffer pipelineLayout (SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT) 0 (fromIntegral $ sizeOf a) . castPtr
+
+cmdBindDrawDescriptorSet :: MonadIO m => CommandBuffer -> Material -> PointedDescriptorSet -> m ()
+cmdBindDrawDescriptorSet commandBuffer Material {..} pds =
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout (fromIntegral $ Prelude.length materialDescriptorSets) [view #descriptorSet pds] []

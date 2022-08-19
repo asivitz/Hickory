@@ -14,3 +14,6 @@ resourceForFrame _ (FramedResource _ two) = two
 
 frameResource :: Applicative m => m a -> m (FramedResource a)
 frameResource a = FramedResource <$> a <*> a
+
+doubleResource :: a -> FramedResource a
+doubleResource a = FramedResource a a

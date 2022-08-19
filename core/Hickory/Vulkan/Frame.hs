@@ -3,7 +3,7 @@
 
 module Hickory.Vulkan.Frame where
 
-import Control.Lens (view)
+import Control.Lens (view, (<&>))
 import Control.Monad
 import Vulkan
   ( AttachmentLoadOp (..)
@@ -80,7 +80,7 @@ withFrame DeviceContext {..} = do
 
   pure Frame {..}
 
-useDynamicRenderPass :: MonadIO m => CommandBuffer -> Extent2D -> V4 Float -> ViewableImage -> ViewableImage -> m () -> m ()
+useDynamicRenderPass :: MonadIO m => CommandBuffer -> Extent2D -> V4 Float -> ViewableImage -> Maybe ViewableImage -> m () -> m ()
 useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage f = do
   cmdBeginRenderingKHR commandBuffer zero
     { renderArea = Rect2D { offset = zero , extent = swapchainExtent }
@@ -93,8 +93,8 @@ useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage
       , clearValue  = Color (Float32 r g b a)
       }
       ]
-    , depthAttachment = Just $ zero
-      { imageView   = view #imageView depthImage
+    , depthAttachment = depthImage <&> \di -> zero
+      { imageView   = view #imageView di
       , imageLayout = IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR
       , loadOp      = ATTACHMENT_LOAD_OP_CLEAR
       , storeOp     = ATTACHMENT_STORE_OP_STORE

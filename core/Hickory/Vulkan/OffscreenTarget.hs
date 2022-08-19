@@ -11,7 +11,7 @@ import Hickory.Vulkan.Vulkan
       VulkanResources(..),
       Swapchain(..),
       ViewableImage(..) )
-import Hickory.Vulkan.DescriptorSet (withTextureArrayDescriptorSet, PointedDescriptorSet)
+import Hickory.Vulkan.DescriptorSet (withTextureArrayDescriptorSet, withTexturesDescriptorSet, PointedDescriptorSet)
 import Vulkan
     ( Filter(..),
       Format(..),
@@ -57,19 +57,19 @@ withOffscreenTarget vulkanResources@VulkanResources{..} swapchain fbSize = do
   let colorImage = ViewableImage offscreenColorImage offscreenColorImageView
       depthImage = ViewableImage offscreenDepthImage offscreenDepthImageView
 
-  descriptorSet <- withTextureArrayDescriptorSet vulkanResources
+  descriptorSet <- withTexturesDescriptorSet vulkanResources
     [ (colorImage, sampler)
     , (depthImage, sampler)
     ]
   pure OffscreenTarget {..}
 
-renderToSwapchain :: (FrameMonad m, MonadIO m) => V4 Float -> m () -> m ()
-renderToSwapchain clearColor f = do
+renderToSwapchain :: (FrameMonad m, MonadIO m) => Bool -> V4 Float -> m () -> m ()
+renderToSwapchain useDepth clearColor f = do
   FrameContext {..} <- askFrameContext
   transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
   transitionImageLayout (view #image depthImage) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
 
-  useDynamicRenderPass commandBuffer extent clearColor colorImage depthImage f
+  useDynamicRenderPass commandBuffer extent clearColor colorImage (if useDepth then Just depthImage else Nothing) f
 
   transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
 
@@ -82,7 +82,7 @@ renderOffscreen clearColor offscreenTarget f = do
   transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL commandBuffer
   transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL commandBuffer
 
-  useDynamicRenderPass commandBuffer extent clearColor offscreenColor offscreenDepth f
+  useDynamicRenderPass commandBuffer extent clearColor offscreenColor (Just offscreenDepth) f
 
   -- prepare offscreen image for use as shader input
   transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
