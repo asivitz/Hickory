@@ -8,8 +8,7 @@ module Hickory.Vulkan.RenderPass where
 -- (Only needed really if we need to take advantage of subpasses for
 -- performance benefits.)
 
-import Hickory.Vulkan.Vulkan (allocate)
-import Control.Monad.Managed
+import Hickory.Vulkan.Vulkan (mkAcquire)
 import Vulkan
   ( Device
   , Extent2D (..)
@@ -36,14 +35,17 @@ import Vulkan
   )
 import Vulkan.Zero
 import Foreign (Bits ((.|.)))
+import Acquire.Acquire (Acquire)
+import Data.Maybe (catMaybes)
+import qualified Data.Vector as V
 
-withStandardRenderPass' :: Device -> Format -> Format -> Managed RenderPass
+withStandardRenderPass' :: Device -> Format -> Format -> Acquire RenderPass
 withStandardRenderPass' dev swapchainImageFormat depthFormat =
   withRenderPass dev zero
     { attachments  = [colorAttachmentDescription, depthAttachmentDescription]
     , subpasses    = [subpass]
     , dependencies = [subpassDependency]
-    } Nothing allocate
+    } Nothing mkAcquire
   where
   colorAttachmentDescription :: AttachmentDescription
   colorAttachmentDescription = zero
@@ -91,14 +93,14 @@ withStandardRenderPass' dev swapchainImageFormat depthFormat =
     , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
     }
 
-createFramebuffer :: Device -> RenderPass -> Extent2D -> ImageView -> ImageView -> Managed Framebuffer
-createFramebuffer dev renderPass swapchainExtent depthImageView imageView =
+createFramebuffer :: Device -> RenderPass -> Extent2D -> ImageView -> Maybe ImageView -> Acquire Framebuffer
+createFramebuffer dev renderPass swapchainExtent imageView depthImageView =
   let framebufferCreateInfo :: FramebufferCreateInfo '[]
       framebufferCreateInfo = zero
         { renderPass  = renderPass
-        , attachments = [imageView, depthImageView]
+        , attachments = V.fromList $ catMaybes [Just imageView, depthImageView]
         , width       = width (swapchainExtent :: Extent2D)
         , height      = height (swapchainExtent :: Extent2D)
         , layers      = 1
         }
-  in withFramebuffer dev framebufferCreateInfo Nothing allocate
+  in withFramebuffer dev framebufferCreateInfo Nothing mkAcquire

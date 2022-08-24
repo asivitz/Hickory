@@ -37,6 +37,7 @@ import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchai
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (MonadIO)
+import Data.Word (Word32)
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
 data Frame = Frame
@@ -49,11 +50,12 @@ data Frame = Frame
 
 -- |User accessible context to render a given frame
 data FrameContext = FrameContext
-  { extent        :: Extent2D      -- swapchain extent
-  , colorImage    :: ViewableImage -- swapchain color image for this frame (to be presented on screen)
-  , depthImage    :: ViewableImage -- depth image
-  , commandBuffer :: CommandBuffer -- commandbuffer to render this frame
-  , frameNumber   :: Int           -- used to index FramedResources
+  { extent              :: Extent2D      -- swapchain extent
+  , colorImage          :: ViewableImage -- swapchain color image for this frame (to be presented on screen)
+  , depthImage          :: ViewableImage -- depth image
+  , commandBuffer       :: CommandBuffer -- commandbuffer to render this frame
+  , frameNumber         :: Int           -- used to index FramedResources
+  , swapchainImageIndex :: Word32
   }
 
 {- FRAME -}
@@ -125,7 +127,7 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
 
       useCommandBuffer commandBuffer zero do
 
-        f (FrameContext extent image depthImage commandBuffer frameNumber)
+        f (FrameContext extent image depthImage commandBuffer frameNumber imageIndex)
 
       let submitInfo = zero
             { waitSemaphores   = [imageAvailableSemaphore]

@@ -35,6 +35,7 @@ dependencies:
   - derive-storable
   - extra
   - acquire
+  - dear-imgui
 
 library:
   exposed-modules:
@@ -42,6 +43,7 @@ library:
     - Platforms.GLFW.Bridge
     - Platforms.GLFW.FRP
     - Platforms.GLFW.Vulkan
+    - Platforms.GLFW.DearImGui
     - Platforms.GLFW
 
 executables:

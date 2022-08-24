@@ -207,8 +207,8 @@ withLogicalDevice inst surface = do
   let
     desiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME
                         , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
-                        -- , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
-                        -- , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
+                        , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
+                        , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
                         , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
                         , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
                         , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
@@ -219,13 +219,13 @@ withLogicalDevice inst surface = do
     extensionsToEnable = DL.intersect desiredExtensions availableExtensions
     extensionsNotAvailable = desiredExtensions DL.\\ extensionsToEnable
 
-    deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDynamicRenderingFeatures]
+    deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDescriptorIndexingFeatures, PhysicalDeviceDynamicRenderingFeatures]
     deviceCreateInfo = zero
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
       , enabledExtensionNames = V.fromList extensionsToEnable
-      , next = ( -- zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
-               ( zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
+      , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
+               , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
                , () )
                )
       }

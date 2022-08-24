@@ -71,6 +71,9 @@ renderToSwapchain useDepth clearColor f = do
 
   useDynamicRenderPass commandBuffer extent clearColor colorImage (if useDepth then Just depthImage else Nothing) f
 
+transitionSwapchainForPresent  :: (FrameMonad m, MonadIO m) => m ()
+transitionSwapchainForPresent = do
+  FrameContext {..} <- askFrameContext
   transitionImageLayout (view #image colorImage) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_PRESENT_SRC_KHR commandBuffer
 
 renderOffscreen :: (FrameMonad m, MonadIO m) => V4 Float -> FramedResource OffscreenTarget -> m () -> m ()

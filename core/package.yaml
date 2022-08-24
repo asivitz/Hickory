@@ -118,6 +118,7 @@ library:
     - Hickory.Vulkan.OffscreenTarget
     - Hickory.Vulkan.Instance
     - Hickory.Vulkan.Utils
+    - Hickory.Vulkan.RenderPass
 
 executables:
   pack-model:

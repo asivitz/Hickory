@@ -23,6 +23,10 @@ import Hickory.Vulkan.Utils (buildFrameFunction)
 import Control.Monad.Fix (fix)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
+import Platforms.GLFW.DearImGui (initDearImGui, renderDearImGui)
+import DearImGui (showDemoWindow, newFrame)
+import DearImGui.Vulkan (vulkanNewFrame)
+import DearImGui.GLFW (glfwNewFrame)
 
 {- GLFW -}
 
@@ -59,13 +63,22 @@ withWindowSurface inst window = mkAcquire create release
 
 runFrames
   :: GLFW.Window
-  -> (Size Int -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
+  -> (Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
   -> (userRes -> FrameContext -> IO ()) -- ^ Execute a frame
   -> IO ()
 runFrames win acquireUserResources f = do
   glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= mapM B.packCString
   runAcquire do
-    (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
+    let imguiAcquire size inst vr swap =
+          (,) <$> initDearImGui win inst vr swap
+              <*> acquireUserResources size inst vr swap
+        imguiRender (imguiRes, userRes) frameContext = do
+          renderDearImGui imguiRes frameContext do
+            f userRes frameContext
+
+    -- TODO: Option to turn off dear-imgui?
+    -- (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
+    (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) imguiAcquire imguiRender
 
     let
       glfwRunFrame = do

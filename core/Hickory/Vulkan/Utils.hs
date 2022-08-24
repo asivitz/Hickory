@@ -20,7 +20,7 @@ import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.Vulkan.Instance (withStandardInstance, withVulkanResources, validationLayers)
 
-initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire (VulkanResources, FramedResource Frame, (Int,Int) -> Acquire Swapchain)
+initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire (Instance, VulkanResources, FramedResource Frame, (Int,Int) -> Acquire Swapchain)
 initVulkan extensions surfCreate = do
   let defaultExtensions = [ "VK_EXT_debug_utils"
                           , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
@@ -31,17 +31,17 @@ initVulkan extensions surfCreate = do
   surface         <- surfCreate inst
   vulkanResources <- withVulkanResources inst surface
   frames          <- frameResource $ withFrame (deviceContext vulkanResources)
-  pure (vulkanResources, frames, withSwapchain vulkanResources surface)
+  pure (inst, vulkanResources, frames, withSwapchain vulkanResources surface)
 
 buildFrameFunction
   :: [ByteString] -- ^ Extensions
   -> IO (Size Int) -- ^ Query framebuffer size
   -> (Instance -> Acquire SurfaceKHR)
-  -> (Size Int -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
+  -> (Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
   -> (userRes -> FrameContext -> IO ()) -- ^ Run with frame context
   -> Acquire (IO (), IO ()) -- ^ (Execute a frame, Cleanup user res)
 buildFrameFunction extensions queryFbSize acqSurface acqUserRes exeFrame = do
-  (vulkanResources, frames, swapchainCreate) <- initVulkan extensions acqSurface
+  (inst, vulkanResources, frames, swapchainCreate) <- initVulkan extensions acqSurface
   frameCounter :: IORef Int <- liftIO $ newIORef 0
 
   -- When the window is resized, we have to rebuild the swapchain
@@ -50,7 +50,7 @@ buildFrameFunction extensions queryFbSize acqSurface acqUserRes exeFrame = do
     acquireDynamicResources = do
       (Size w h) <- liftIO queryFbSize
       swapchain <- swapchainCreate (w,h)
-      userResources <- acqUserRes (Size w h) vulkanResources swapchain
+      userResources <- acqUserRes (Size w h) inst vulkanResources swapchain
       pure (swapchain, userResources)
 
   dynamicResources <- liftIO $ unWrapAcquire acquireDynamicResources >>= newIORef

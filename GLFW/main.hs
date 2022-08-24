@@ -5,7 +5,7 @@
 module Main where
 
 import Vulkan
-  ( pattern FILTER_LINEAR
+  ( pattern FILTER_LINEAR, Instance
   )
 
 import qualified Data.ByteString as B
@@ -43,8 +43,8 @@ data Uniform = Uniform
   } deriving Generic
     deriving anyclass GStorable
 
-acquireResources :: Size Int -> VulkanResources -> Swapchain -> Acquire Resources
-acquireResources _ vulkanResources swapchain = do
+acquireResources :: Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
+acquireResources _ _ vulkanResources swapchain = do
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 1.0
