@@ -8,7 +8,7 @@ import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Data.List (mapAccumL, uncons)
 import Data.Tuple (swap)
-import Reactive.Banana ((<@>))
+import Reactive.Banana ((<@>), MonadMoment)
 import Data.Maybe (mapMaybe)
 import Linear.Metric (distance)
 import Control.Lens (over, each, _2)
@@ -44,7 +44,7 @@ middle (Size w h) = V2 (realToFrac w/2) (realToFrac h/2)
 
 -- Given input targets and touch events, create new events for the hit
 -- targets (along with locally transformed touch events)
-inputLayer :: forall a. B.Behavior [InputTarget a] -> B.Event [TouchEvent] -> B.MomentIO (B.Event [(Maybe a, TouchEvent)])
+inputLayer :: forall a m. MonadMoment m => B.Behavior [InputTarget a] -> B.Event [TouchEvent] -> m (B.Event [(Maybe a, TouchEvent)])
 inputLayer targets touchEvs =
   fmap fst <$> B.mapAccum ([] :: [(Int, (a, V2 Scalar -> V2 Scalar))]) $ behavAccum <$> targets <@> touchEvs
   where

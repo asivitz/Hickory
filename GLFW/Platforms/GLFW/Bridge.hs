@@ -12,6 +12,8 @@ import Data.Time
 import Data.Maybe
 import Control.Monad
 import Linear (V2(..))
+import Control.Monad.Extra (unlessM)
+import DearImGui (wantCaptureMouse, wantCaptureKeyboard)
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -60,7 +62,7 @@ stepInput sd fbSizeRef win addInput = do
     addInput (InputKeysHeld relative)
 
 mouseButtonCallback :: IORef SysData -> IORef (Size Int) -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
-mouseButtonCallback platform fbSizeRef addInput win button buttonState modkeys = do
+mouseButtonCallback platform fbSizeRef addInput win button buttonState modkeys = unlessM wantCaptureMouse do
   fbSize <- readIORef fbSizeRef
   sd@SysData { touches } <- readIORef platform
 
@@ -84,7 +86,7 @@ mouseButtonCallback platform fbSizeRef addInput win button buttonState modkeys =
   addInput ev
 
 keyCallback :: IORef SysData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallback platform addInput win glfwkey scancode keyState modkeys = do
+keyCallback platform addInput win glfwkey scancode keyState modkeys = unlessM wantCaptureKeyboard do
   sd@SysData { keys } <- readIORef platform
 
   time <- getCurrentTime

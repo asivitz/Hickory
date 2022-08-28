@@ -17,7 +17,7 @@ import Linear.V2 (V2(V2))
 import Hickory.FRP.CoreEvents (CoreEventGenerators, coreEventGenerators)
 import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain, unWrapAcquire)
 import Hickory.Vulkan.Frame (FrameContext)
-import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern EXT_METAL_SURFACE_EXTENSION_NAME )
+import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern EXT_METAL_SURFACE_EXTENSION_NAME, Instance )
 import Vulkan.Zero (Zero(..))
 import Hickory.Vulkan.Utils (buildFrameFunction)
 import Acquire.Acquire (Acquire)
@@ -34,6 +34,7 @@ type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), Touch
 type RenderInit resources
   =  [Char] -- Path to resources folder
   -> Size Int
+  -> Instance
   -> VulkanResources
   -> Swapchain
   -> Acquire resources

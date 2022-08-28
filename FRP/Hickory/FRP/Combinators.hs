@@ -8,6 +8,9 @@ import System.Random (StdGen, newStdGen)
 unionFirst :: [Event a] -> Event a
 unionFirst = fmap getFirst . mconcat . fmap (fmap First)
 
+unionAll :: [Event a] -> Event [a]
+unionAll = mconcat . fmap (fmap pure)
+
 counter :: MonadMoment m => Event Int -> Event Int -> m (Behavior Int)
 counter eDelta eReset = accumB 0 $ unions [ (+) <$> eDelta, const <$> eReset ]
 
