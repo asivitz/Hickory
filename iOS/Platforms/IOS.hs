@@ -32,8 +32,7 @@ foreign export ccall "draw"        draw       :: StablePtr (IO (),a) -> IO ()
 type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), TouchData))
 
 type RenderInit resources
-  =  [Char] -- Path to resources folder
-  -> Size Int
+  =  Size Int
   -> Instance
   -> VulkanResources
   -> Swapchain
@@ -52,15 +51,17 @@ mkDrawInit
 mkDrawInit ri di layerPtr w h = do
   let mkSurface inst = createMetalSurfaceEXT inst zero { layer = layerPtr } Nothing
 
-  resourcePath <- resourcesPath
   td           <- initTouchData
   inputPoller  <- makeInputPoller (touchFunc td)
   timePoller   <- makeTimePoller
   wSizeRef     <- newIORef (Size (fromIntegral w) (fromIntegral h))
 
   (coreEvProc, evGens) <- coreEventGenerators inputPoller timePoller wSizeRef
-  ((exeFrame, cleanupUserRes), cleanupVulkan) <- unWrapAcquire $ buildFrameFunction [EXT_METAL_SURFACE_EXTENSION_NAME] (pure $ Size (fromIntegral w) (fromIntegral h)) mkSurface (ri resourcePath) \userRes frameContext -> do
-    coreEvProc (userRes, frameContext)
+  ((exeFrame, cleanupUserRes), cleanupVulkan)
+    <- unWrapAcquire
+     $ buildFrameFunction [EXT_METAL_SURFACE_EXTENSION_NAME] (pure $ Size (fromIntegral w) (fromIntegral h)) mkSurface ri
+                          \userRes frameContext -> do
+                            coreEvProc (userRes, frameContext)
 
   di evGens (error "Can't write state") (error "Can't load state")
   newStablePtr (exeFrame, td)
