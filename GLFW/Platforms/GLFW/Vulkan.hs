@@ -1,4 +1,4 @@
-{-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, PatternSynonyms, DuplicateRecordFields #-}
+{-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, DuplicateRecordFields #-}
 {-# LANGUAGE DataKinds, OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
@@ -24,9 +24,6 @@ import Control.Monad.Fix (fix)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import Platforms.GLFW.DearImGui (initDearImGui, renderDearImGui)
-import DearImGui (showDemoWindow, newFrame)
-import DearImGui.Vulkan (vulkanNewFrame)
-import DearImGui.GLFW (glfwNewFrame)
 
 {- GLFW -}
 

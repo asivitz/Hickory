@@ -91,6 +91,7 @@ library:
     - Hickory.Math.Matrix
     - Hickory.Math.Vector
     - Hickory.Math.VectorMatrix
+    - Hickory.Math.Bezier
     - Hickory.ModelLoading.Animation
     - Hickory.ModelLoading.Bvh
     - Hickory.ModelLoading.DirectX

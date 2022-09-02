@@ -36,8 +36,9 @@ import Linear (V4(..))
 import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchain (..), mkAcquire, ViewableImage (..))
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Word (Word32)
+import Control.Exception (SomeException, handle, throw)
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
 data Frame = Frame
@@ -109,7 +110,7 @@ useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage
 -- |Draw a frame
 -- Handles concerns around synchronizing double buffers
 -- Returns false if swapchain is stale and needs to be refreshed
-drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> m ()) -> m Bool
+drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> IO ()) -> m Bool
 drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
   let Swapchain {..} = swapchain
       DeviceContext {..} = deviceContext
@@ -127,7 +128,8 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
 
       useCommandBuffer commandBuffer zero do
 
-        f (FrameContext extent image depthImage commandBuffer frameNumber imageIndex)
+        liftIO $ handle (\(e :: SomeException) -> putStrLn ("ERROR: " ++ show e) >> throw e) do
+          f (FrameContext extent image depthImage commandBuffer frameNumber imageIndex)
 
       let submitInfo = zero
             { waitSemaphores   = [imageAvailableSemaphore]
