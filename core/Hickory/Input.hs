@@ -147,6 +147,7 @@ data TouchEvent
   = Up   TouchIdent (V2 Scalar)
   | Down TouchIdent (V2 Scalar)
   | Loc  TouchIdent (V2 Scalar)
+  deriving Show
 
 touchIdent :: TouchEvent -> TouchIdent
 touchIdent = \case
