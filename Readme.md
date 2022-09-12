@@ -4,7 +4,7 @@ Hickory could be considered a game engine, but really it's a collection of tools
 
 ## Core library: 'Hickory'
 
-- OpenGL Graphics
+- Vulkan Graphics
 - 3D Model Loading / Animation
 - Camera Projection/Unprojection
 - Text Rendering
@@ -21,11 +21,11 @@ Hickory could be considered a game engine, but really it's a collection of tools
 
 ## GLFW Backend: 'Hickory-GLFW'
 
-- Easy initialization of a GL context and input handling for GLFW (a cross platform desktop library)
+- Easy initialization of a Vulkan context and input handling for GLFW (a cross platform desktop library)
 
 ## iOS Backend: 'Hickory-iOS'
 
-- Easy initialization of a GL context and input handling for iOS
+- Easy initialization of a Vulkan context and input handling for iOS
 - Some additional fiddly work needed to get a working binary, but overall this is a relatively painless way to get into iOS development
 
 ## Getting started
