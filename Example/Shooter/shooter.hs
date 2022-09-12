@@ -48,7 +48,7 @@ import qualified Hickory.Vulkan.Text as H
 
 import Control.Monad
 import Vulkan
-  ( pattern FILTER_LINEAR
+  ( pattern FILTER_LINEAR, Instance
   )
 
 import qualified Data.ByteString as B
@@ -150,8 +150,8 @@ newtype TextureUniform = TextureUniform
     deriving anyclass GStorable
 
 -- Load meshes, textures, materials, fonts, etc.
-loadResources :: String -> Size Int -> VulkanResources -> Swapchain -> Acquire Resources
-loadResources path _size vulkanResources swapchain = do
+loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
+loadResources path _size _inst vulkanResources swapchain = do
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR)]
   fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR)]
 
@@ -191,7 +191,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
   = H.runFrame frameContext
   . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  . renderToSwapchain (V4 0 0 0 1)
+  . renderToSwapchain False (V4 0 0 0 1)
   . recordCommandBuffer $ do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
