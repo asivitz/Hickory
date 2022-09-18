@@ -14,10 +14,11 @@ import Linear.Metric (distance)
 import Control.Lens (over, each, _2)
 
 data InputTarget a = InputTarget
-  { loc      :: V2 Scalar
-  , target   :: Scalar
-  , value    :: a
-  , children :: [InputTarget a]
+  { loc            :: V2 Scalar
+  , target         :: Scalar
+  , value          :: a
+  , children       :: [InputTarget a]
+  , transformPoint :: Bool
   }
 
 bottomRight :: (Real a1, Fractional a2) => a2 -> a2 -> Size a1 -> V2 a2
@@ -44,9 +45,10 @@ middle (Size w h) = V2 (realToFrac w/2) (realToFrac h/2)
 
 -- Given input targets and touch events, create new events for the hit
 -- targets (along with locally transformed touch events)
-inputLayer :: forall a m. MonadMoment m => B.Behavior [InputTarget a] -> B.Event [TouchEvent] -> m (B.Event [(Maybe a, TouchEvent)])
-inputLayer targets touchEvs =
-  fmap fst <$> B.mapAccum ([] :: [(Int, (a, V2 Scalar -> V2 Scalar))]) $ behavAccum <$> targets <@> touchEvs
+inputLayer :: forall a m. MonadMoment m => B.Behavior [InputTarget a] -> B.Event [TouchEvent] -> m (B.Event [(Maybe a, TouchEvent)], B.Behavior [a])
+inputLayer targets touchEvs = do
+  (e,b) <- B.mapAccum ([] :: [(Int, (a, V2 Scalar -> V2 Scalar))]) $ behavAccum <$> targets <@> touchEvs
+  pure (e, fmap (fst . snd) <$> b)
   where
 
   behavAccum :: [InputTarget a] -> [TouchEvent] -> [(Int, (a, V2 Scalar -> V2 Scalar))] -> ([(Maybe a, TouchEvent)], [(Int, (a, V2 Scalar -> V2 Scalar))])
@@ -68,8 +70,10 @@ inputLayer targets touchEvs =
     hitTarget :: V2 Scalar -> InputTarget a -> Maybe (a, V2 Scalar -> V2 Scalar)
     hitTarget v InputTarget {..} =
       if distance v loc < target
-      then headMay . reverse . over (each . _2) ((\x -> x - loc).) $ (value, id) : mapMaybe (hitTarget (v - loc)) children
+      then headMay . reverse . over (each . _2) xform $ (value, id) : mapMaybe (hitTarget (v - loc)) children
       else Nothing
+      where
+      xform = if transformPoint then ((\x -> x - loc).) else id
 
 headMay :: [a] -> Maybe a
 headMay = fmap fst . uncons

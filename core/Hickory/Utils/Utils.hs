@@ -52,13 +52,13 @@ sortOnMaybe f = map snd . sortBy (comparing fst) . mapMaybe (\x ->
 
 modifyAt :: (a -> a) -> Int -> [a] -> [a]
 modifyAt f 0 (x:xs) = f x : xs
-modifyAt f num (x:xs) = x : (modifyAt f (num - 1) xs)
+modifyAt f num (x:xs) = x : modifyAt f (num - 1) xs
 modifyAt _ _ [] = []
 
 deleteAt :: [a] -> Int -> [a]
 deleteAt [] _ = []
 deleteAt (_:xs) 0 = xs
-deleteAt (x:xs) n = x : (deleteAt xs (n - 1))
+deleteAt (x:xs) n = x : deleteAt xs (n - 1)
 
 replace :: (a -> Bool) -> a -> [a] -> [a]
 replace p a (x:xs) | p x = a:xs
