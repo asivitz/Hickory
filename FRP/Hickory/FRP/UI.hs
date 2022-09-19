@@ -6,12 +6,13 @@ import Hickory.Types
 import Linear (V2(..))
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import Data.List (mapAccumL, uncons)
+import Data.List (mapAccumL, uncons, findIndex)
 import Data.Tuple (swap)
 import Reactive.Banana ((<@>), MonadMoment)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, catMaybes, isNothing)
 import Linear.Metric (distance)
 import Control.Lens (over, each, _2)
+import Hickory.Utils.Utils (modifyAt)
 
 data InputTarget a = InputTarget
   { loc            :: V2 Scalar
@@ -77,3 +78,39 @@ inputLayer targets touchEvs = do
 
 headMay :: [a] -> Maybe a
 headMay = fmap fst . uncons
+
+data TouchChange
+ = AddTouch  TouchIdent Int (V2 Scalar)
+ | LoseTouch TouchIdent Int (V2 Scalar)
+ deriving Show
+
+-- |Track the state of each touch and generate events as they enter/leave
+-- Events include the order in which the touch entered (0th or 1st touch, etc.)
+trackTouches :: B.Event [TouchEvent] -> B.MomentIO (B.Event [TouchChange], B.Behavior [(TouchIdent, V2 Scalar)])
+trackTouches = B.mapAccum [] . fmap f
+  where
+  f :: [TouchEvent] -> [(TouchIdent, V2 Scalar)] -> ([TouchChange], [(TouchIdent, V2 Scalar)])
+  f tes state = foldr h ([], state) tes
+
+  h :: TouchEvent -> ([TouchChange], [(TouchIdent, V2 Scalar)]) -> ([TouchChange], [(TouchIdent, V2 Scalar)])
+  h te (tcs, st) = let (tcs', st') = g te st in (tcs ++ tcs', st')
+
+  g :: TouchEvent -> [(TouchIdent, V2 Scalar)] -> ([TouchChange], [(TouchIdent, V2 Scalar)])
+  g te state = case te of
+    Down i v -> addOrUpdate i v state
+    Loc  i v -> ([], update i v state)
+    Up   i v -> (catMaybes [(\idx -> LoseTouch i idx v) <$> findIndex ((==i) . fst) state], filter ((/=i) . fst) state)
+
+  update k v = \case
+    (x:xs) -> if k == fst x
+              then (k, v) : xs
+              else x : update k v xs
+    [] -> []
+
+  addOrUpdate :: TouchIdent -> V2 Scalar -> [(TouchIdent, V2 Scalar)] -> ([TouchChange], [(TouchIdent, V2 Scalar)])
+  addOrUpdate k v state = case findIndex ((==k) . fst) state of
+    Just i  -> ([], modifyAt (const (k,v)) i state)
+    Nothing -> ([AddTouch k (length state) v], state ++ [(k, v)])
+
+unclaimedTouches :: B.Event [(Maybe c, TouchEvent)] -> B.Event [TouchEvent]
+unclaimedTouches = B.filterE (not . null) . fmap (fmap snd . filter (isNothing . fst))
