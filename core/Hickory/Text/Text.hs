@@ -160,7 +160,7 @@ transformTextCommandToVerts (TextCommand text align valign commandBump)
     Glyph GlyphSpec { xadvance } (GlyphVerts glyphVerts glyphTCs) ->
       let placeGlyph :: V2 Scalar -> V3 Scalar
           placeGlyph = \(V2 vx vy) -> V3 (vx + leftBump)
-                                          (realToFrac linenum * realToFrac lineHeight * (-1) + (vy + yoffset))
+                                          (realToFrac linenum * realToFrac lineHeight + (vy + yoffset))
                                           0
           new_verts = map placeGlyph glyphVerts
           in (leftBump + realToFrac xadvance, linenum, numsquares + 1, new_verts ++ posLst, glyphTCs ++ tcLst)
