@@ -13,16 +13,16 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
-import Hickory.Vulkan.OffscreenTarget (renderToSwapchain)
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import qualified Hickory.Vulkan.Monad as H
+import qualified Hickory.Vulkan.RenderPass as H
 import Linear.Matrix ((!*!))
 import Linear ( M44, V2 (..), V4(..))
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 
-import Hickory.Vulkan.Monad (recordCommandBuffer, useGlobalDecriptorSet, getTexIdx, drawMesh)
+import Hickory.Vulkan.Monad (useGlobalDecriptorSet, getTexIdx, drawMesh)
 import Data.Word (Word32)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
@@ -31,7 +31,8 @@ import Control.Lens (view)
 import Acquire.Acquire (Acquire)
 
 data Resources = Resources
-  { square              :: H.BufferedMesh
+  { target              :: H.RenderTarget
+  , square              :: H.BufferedMesh
   , solidColorMaterial  :: H.BufferedUniformMaterial Uniform
   , texturedMaterial    :: H.BufferedUniformMaterial Uniform
   , globalDescriptorSet :: H.TextureDescriptorSet
@@ -45,6 +46,7 @@ data Uniform = Uniform
 
 acquireResources :: Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 acquireResources _ _ vulkanResources swapchain = do
+  target@H.RenderTarget {..} <- H.withStandardRenderTarget vulkanResources swapchain
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 1.0
@@ -67,8 +69,8 @@ acquireResources _ _ vulkanResources swapchain = do
     }
 
   globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR), ("x.png", FILTER_LINEAR)]
-  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] vertShader fragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
-  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
+  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True [H.Position, H.Color, H.TextureCoord] vertShader fragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
+  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
   pure Resources {..}
 
 main :: IO ()
@@ -76,23 +78,28 @@ main = withWindow 800 800 "Vulkan Test" \win ->
   runFrames win acquireResources \Resources {..} frameContext -> H.runFrame frameContext
     . H.runBatchIO
     . useGlobalDecriptorSet globalDescriptorSet
-    . renderToSwapchain True (V4 0 0 0 1)
-    . recordCommandBuffer
     $ do
       let
-        screenRatio = 1
+        overlayF = do
+          pure ()
+        litF = do
+          let
+            screenRatio = 1
 
-        mat :: M44 Float
-        mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
-          -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
+            mat :: M44 Float
+            mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
+              -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-      drawMesh False solidColorMaterial (Uniform mat 0) square Nothing
+          drawMesh False solidColorMaterial (Uniform mat 0) square Nothing
 
-      texidx0 <- getTexIdx "star.png"
-      drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square Nothing
+          texidx0 <- getTexIdx "star.png"
+          drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square Nothing
 
-      texidx1 <- getTexIdx "x.png"
-      drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square Nothing
+          texidx1 <- getTexIdx "x.png"
+          drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square Nothing
+
+      H.renderToTarget target (V4 0 0 0 1) litF overlayF
+  where
 
 {-- SHADERS --}
 

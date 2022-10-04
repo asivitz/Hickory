@@ -5,7 +5,9 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Hickory.Vulkan.Monad where
@@ -37,9 +39,12 @@ import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet (..), TextureDescripto
 import Hickory.Vulkan.Frame (FrameContext (..))
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource, frameResource, doubleResource)
 import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial, withMaterial, cmdBindDrawDescriptorSet)
-import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(..))
+import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(Position, TextureCoord))
 import Hickory.Vulkan.Text (DynamicBufferedMesh(..), uploadDynamicMesh)
-import Vulkan (CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), Buffer, PrimitiveTopology(..))
+import Vulkan
+  ( CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), Buffer, PrimitiveTopology(..)
+  , RenderPass
+  )
 import qualified Data.Map as Map
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
@@ -57,17 +62,19 @@ withBufferedUniformMaterial
   :: Storable uniform
   => VulkanResources
   -> Swapchain
+  -> RenderPass
+  -> Bool
   -> [Attribute]
   -> B.ByteString
   -> B.ByteString
   -> Maybe PointedDescriptorSet -- Global descriptor set
   -> Maybe PointedDescriptorSet -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial uniform)
-withBufferedUniformMaterial vulkanResources swapchain attributes vert frag globalDescriptorSet perDrawDescriptorSet = do
+withBufferedUniformMaterial vulkanResources swapchain renderPass lit attributes vert frag globalDescriptorSet perDrawDescriptorSet = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let
     materialSets = maybe id (:) (doubleResource <$> globalDescriptorSet) [view #descriptorSet <$> descriptor]
-  material <- withMaterial vulkanResources swapchain attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag materialSets (doubleResource <$> perDrawDescriptorSet)
+  material <- withMaterial vulkanResources swapchain renderPass lit attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag materialSets (doubleResource <$> perDrawDescriptorSet)
   pure BufferedUniformMaterial {..}
 
 {- Batch IO Monad -}

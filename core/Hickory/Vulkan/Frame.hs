@@ -26,11 +26,10 @@ import Vulkan
   , RenderingInfo(..)
   , RenderingAttachmentInfo(..)
   , cmdBeginRenderingKHR
-  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D
+  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D, SampleCountFlagBits (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
-
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Linear (V4(..))
 import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchain (..), mkAcquire, ViewableImage (..))
@@ -53,7 +52,6 @@ data Frame = Frame
 data FrameContext = FrameContext
   { extent              :: Extent2D      -- swapchain extent
   , colorImage          :: ViewableImage -- swapchain color image for this frame (to be presented on screen)
-  , depthImage          :: ViewableImage -- depth image
   , commandBuffer       :: CommandBuffer -- commandbuffer to render this frame
   , frameNumber         :: Int           -- used to index FramedResources
   , swapchainImageIndex :: Word32
@@ -129,7 +127,7 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
       useCommandBuffer commandBuffer zero do
 
         liftIO $ handle (\(e :: SomeException) -> putStrLn ("ERROR: " ++ show e) >> throw e) do
-          f (FrameContext extent image depthImage commandBuffer frameNumber imageIndex)
+          f (FrameContext extent image commandBuffer frameNumber imageIndex)
 
       let submitInfo = zero
             { waitSemaphores   = [imageAvailableSemaphore]

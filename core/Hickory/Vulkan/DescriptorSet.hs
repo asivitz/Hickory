@@ -83,7 +83,7 @@ withTexturesDescriptorSet VulkanResources{..} images = do
     , setLayouts     = [ descriptorSetLayout ]
     }
 
-  let writes = zip images [0..numImages - 1] <&> \((ViewableImage _image imageView, sampler), i) -> zero
+  let writes = zip images [0..numImages - 1] <&> \((ViewableImage _image imageView _format, sampler), i) -> zero
         { dstSet          = descriptorSet
         , dstBinding      = i
         , dstArrayElement = 0
@@ -135,7 +135,7 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
     , setLayouts     = [ descriptorSetLayout ]
     }
 
-  let desImageInfos = images <&> \(ViewableImage _image imageView, sampler) -> zero
+  let desImageInfos = images <&> \(ViewableImage _image imageView _format, sampler) -> zero
         { sampler     = sampler
         , imageView   = imageView
         , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -173,8 +173,9 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
   images <- for texturePaths \(path, filt) -> do
     sampler <- withImageSampler bag filt
     image   <- withTextureImage bag path
-    imageView <- with2DImageView deviceContext FORMAT_R8G8B8A8_SRGB IMAGE_ASPECT_COLOR_BIT image
-    pure (ViewableImage image imageView, sampler)
+    let format = FORMAT_R8G8B8A8_SRGB
+    imageView <- with2DImageView deviceContext format IMAGE_ASPECT_COLOR_BIT image
+    pure (ViewableImage image imageView format, sampler)
   descriptorSet <- withTextureArrayDescriptorSet bag images
 
   pure TextureDescriptorSet {..}

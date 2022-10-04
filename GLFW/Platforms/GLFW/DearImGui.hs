@@ -114,8 +114,8 @@ initDearImGui window inst vulkanResources@VulkanResources {..} Swapchain {..} = 
   let acqFonts = withSingleTimeCommands vulkanResources $ void . vulkanCreateFontsTexture
   _ <- mkAcquire acqFonts (const vulkanDestroyFontUploadObjects)
 
-  frameBuffers <- for images \(ViewableImage _img imgView) ->
-    createFramebuffer device renderPass extent imgView Nothing
+  frameBuffers <- for images \(ViewableImage _img imgView _format) ->
+    createFramebuffer device renderPass extent [imgView]
 
   pure ImGuiResources {..}
 

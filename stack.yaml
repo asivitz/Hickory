@@ -17,9 +17,9 @@ allow-newer: true
 extra-deps:
 - reactive-banana-1.2.2.0
 - wavefront-0.7.1.4
-- vulkan-3.17
-- vulkan-utils-0.5.7
-- VulkanMemoryAllocator-0.10
+- vulkan-3.23
+- vulkan-utils-0.5.10.1
+- VulkanMemoryAllocator-0.10.4
 - derive-storable-0.3.1.0
 - acquire-0.2.0.1
 # - dear-imgui-2.1.0

@@ -42,9 +42,11 @@ data OffscreenTarget = OffscreenTarget
   , sampler       :: Sampler
   } deriving Generic
 
+{-
 withOffscreenTarget :: VulkanResources -> Swapchain -> (Int,Int) -> Acquire OffscreenTarget
 withOffscreenTarget vulkanResources@VulkanResources{..} swapchain fbSize = do
-  let colorFormat = format (imageFormat swapchain) -- Don't _have_ to use the swapchain format, but currently our pipelines automatically use that format
+  let -- colorFormat = format (imageFormat swapchain) -- Don't _have_ to use the swapchain format, but currently our pipelines automatically use that format
+      colorFormat = FORMAT_R32G32B32A32_SFLOAT
       depthFormat = FORMAT_D32_SFLOAT
 
   offscreenColorImage     <- withIntermediateImage vulkanResources colorFormat IMAGE_USAGE_COLOR_ATTACHMENT_BIT fbSize
@@ -54,8 +56,8 @@ withOffscreenTarget vulkanResources@VulkanResources{..} swapchain fbSize = do
 
   sampler <- withImageSampler vulkanResources FILTER_LINEAR
 
-  let colorImage = ViewableImage offscreenColorImage offscreenColorImageView
-      depthImage = ViewableImage offscreenDepthImage offscreenDepthImageView
+  let colorImage = ViewableImage offscreenColorImage offscreenColorImageView colorFormat
+      depthImage = ViewableImage offscreenDepthImage offscreenDepthImageView depthFormat
 
   descriptorSet <- withTexturesDescriptorSet vulkanResources
     [ (colorImage, sampler)
@@ -90,3 +92,4 @@ renderOffscreen clearColor offscreenTarget f = do
   -- prepare offscreen image for use as shader input
   transitionImageLayout (view #image offscreenColor) IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
   transitionImageLayout (view #image offscreenDepth) IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
+  -}

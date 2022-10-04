@@ -61,25 +61,14 @@ import Vulkan
   , deviceHandle
   , instanceHandle
   , pattern API_VERSION_1_2
-  , PipelineLayout
-  , GraphicsPipelineCreateInfo(..)
-  , Pipeline
-  , PipelineInputAssemblyStateCreateInfo(..)
-  , Viewport (..)
-  , PipelineViewportStateCreateInfo(..), Rect2D (..)
-  , PipelineRasterizationStateCreateInfo(..)
-  , PipelineMultisampleStateCreateInfo(..)
-  , PipelineColorBlendAttachmentState(..)
-  , PipelineColorBlendStateCreateInfo(..), PrimitiveTopology (..), Offset2D (..), PolygonMode (..), CullModeFlagBits (..), FrontFace (..), ColorComponentFlagBits (..), withGraphicsPipelines
-  , PipelineVertexInputStateCreateInfo(..), VertexInputBindingDescription, VertexInputAttributeDescription, PipelineShaderStageCreateInfo
+  , PipelineShaderStageCreateInfo
   , ShaderModuleCreateInfo(..)
   , ShaderStageFlagBits (..)
   , withShaderModule
   , PipelineShaderStageCreateInfo(..)
-  , BlendOp (..), BlendFactor (..), pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
+  , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PipelineDepthStencilStateCreateInfo(..), CompareOp (..)
-  , PipelineRenderingCreateInfo(..), pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, PhysicalDeviceDynamicRenderingFeatures(..)
+  , pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -94,7 +83,7 @@ import Control.Applicative ((<|>))
 import Data.Traversable (for)
 import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
 import qualified Vulkan.Dynamic as VD
-import Foreign (castFunPtr, Bits ((.|.)))
+import Foreign (castFunPtr)
 import qualified Data.ByteString as B
 import GHC.Generics (Generic)
 import Acquire.Acquire (Acquire (..))
@@ -117,6 +106,7 @@ data DeviceContext = DeviceContext
   , presentFamilyIdx  :: Word32
   , physicalDevice    :: PhysicalDevice
   , presentMode       :: PresentModeKHR
+  , maxSampleCount    :: SampleCountFlagBits
   }
 
 data Swapchain = Swapchain
@@ -124,25 +114,24 @@ data Swapchain = Swapchain
   , swapchainHandle   :: SwapchainKHR
   , images            :: V.Vector ViewableImage
   , extent            :: Extent2D
-  , depthFormat       :: Format
-  , depthImage        :: ViewableImage
   }
 
 data ViewableImage = ViewableImage
   { image     :: Image
   , imageView :: ImageView
+  , format    :: Format
   } deriving Generic
 
 {- DEVICE CREATION -}
 
-selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (PhysicalDevice, SurfaceFormatKHR, PresentModeKHR, Word32, Word32)
+selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (PhysicalDevice, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits)
 selectPhysicalDevice inst surface = do
   (_, devices)      <- enumeratePhysicalDevices inst
   elaboratedDevices <- V.mapMaybeM elaborateDevice devices
 
   pure . project . V.maximumBy (comparing rank) $ elaboratedDevices
   where
-  elaborateDevice :: MonadIO m => PhysicalDevice -> m (Maybe (PhysicalDevice, PhysicalDeviceProperties, SurfaceFormatKHR, PresentModeKHR, Word32, Word32))
+  elaborateDevice :: MonadIO m => PhysicalDevice -> m (Maybe (PhysicalDevice, PhysicalDeviceProperties, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits))
   elaborateDevice dev = do
     deviceProperties   <- getPhysicalDeviceProperties dev
     graphicsQueueIndex <- getGraphicsQueueIdx dev
@@ -155,19 +144,29 @@ selectPhysicalDevice inst surface = do
     (_, extensions) <- enumerateDeviceExtensionProperties dev Nothing
     let hasExtension x = V.any ((==x) . extensionName) extensions
 
+    let maxSampleCount = case framebufferColorSampleCounts . limits $ deviceProperties of
+          c | c .&&. SAMPLE_COUNT_64_BIT -> SAMPLE_COUNT_64_BIT
+          c | c .&&. SAMPLE_COUNT_32_BIT -> SAMPLE_COUNT_32_BIT
+          c | c .&&. SAMPLE_COUNT_16_BIT -> SAMPLE_COUNT_16_BIT
+          c | c .&&. SAMPLE_COUNT_8_BIT  -> SAMPLE_COUNT_8_BIT
+          c | c .&&. SAMPLE_COUNT_4_BIT  -> SAMPLE_COUNT_4_BIT
+          c | c .&&. SAMPLE_COUNT_2_BIT  -> SAMPLE_COUNT_2_BIT
+          _                              -> SAMPLE_COUNT_1_BIT
+
     pure $ guard (hasExtension KHR_SWAPCHAIN_EXTENSION_NAME) >>
-      (,,,,,) <$> pure dev
+      (,,,,,,) <$> pure dev
               <*> pure deviceProperties
               <*> pure format
               <*> pure presentMode
               <*> graphicsQueueIndex
               <*> presentQueueIndex
-  project (dev, _props, format, presentMode, graphQIdx, presentQIdx) = (dev, format, presentMode, graphQIdx, presentQIdx)
+              <*> pure maxSampleCount
+  project (dev, _props, format, presentMode, graphQIdx, presentQIdx, maxSampleCount) = (dev, format, presentMode, graphQIdx, presentQIdx, maxSampleCount)
 
   vheadMay v = if V.null v then Nothing else Just (V.head v)
 
-  rank :: (PhysicalDevice, PhysicalDeviceProperties, SurfaceFormatKHR, PresentModeKHR, Word32, Word32) -> Int
-  rank (_dev, props, _format, _presentMode, _graphQIdx, _presentQIdx) = case deviceType props of
+  rank :: (PhysicalDevice, PhysicalDeviceProperties, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits) -> Int
+  rank (_dev, props, _format, _presentMode, _graphQIdx, _presentQIdx, _maxSampleCount) = case deviceType props of
     PHYSICAL_DEVICE_TYPE_DISCRETE_GPU   -> 5
     PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU -> 4
     PHYSICAL_DEVICE_TYPE_CPU            -> 3
@@ -200,7 +199,7 @@ selectPhysicalDevice inst surface = do
 
 withLogicalDevice :: Instance -> SurfaceKHR -> Acquire DeviceContext
 withLogicalDevice inst surface = do
-  (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx) <- selectPhysicalDevice inst surface
+  (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx, maxSampleCount) <- selectPhysicalDevice inst surface
 
   (_, V.toList . fmap extensionName -> availableExtensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
 
@@ -280,18 +279,13 @@ withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
   let imageFormat = surfaceFormat
 
   (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
-  images <- for rawImages $ \image ->
-    ViewableImage image <$> with2DImageView dc (Vulkan.format (surfaceFormat :: SurfaceFormatKHR)) IMAGE_ASPECT_COLOR_BIT image
-
-  let depthFormat = FORMAT_D32_SFLOAT
-  depthImageRaw  <- withDepthImage vr extent depthFormat
-  depthImageView <- with2DImageView dc depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
-  let depthImage = ViewableImage depthImageRaw depthImageView
+  images <- for rawImages $ \image -> let form = Vulkan.format (surfaceFormat :: SurfaceFormatKHR) in
+    ViewableImage image <$> with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image <*> pure form
 
   pure $ Swapchain {..}
 
-withDepthImage :: VulkanResources -> Extent2D -> Format -> Acquire Image
-withDepthImage VulkanResources { allocator } (Extent2D width height) format = do
+withDepthImage :: VulkanResources -> Extent2D -> Format -> SampleCountFlagBits -> Acquire Image
+withDepthImage VulkanResources { allocator } (Extent2D width height) format samples = do
 
   let imageCreateInfo :: ImageCreateInfo '[]
       imageCreateInfo = zero
@@ -301,7 +295,7 @@ withDepthImage VulkanResources { allocator } (Extent2D width height) format = do
         , mipLevels     = 1
         , arrayLayers   = 1
         , tiling        = IMAGE_TILING_OPTIMAL
-        , samples       = SAMPLE_COUNT_1_BIT
+        , samples       = samples
         , usage         = IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
         , sharingMode   = SHARING_MODE_EXCLUSIVE
         , initialLayout = IMAGE_LAYOUT_UNDEFINED
@@ -347,102 +341,6 @@ with2DImageView DeviceContext { device } format flags image =
       , layerCount     = 1
       }
     }
-
-{- GRAPHICS PIPELINE -}
-
-withGraphicsPipeline
-  :: VulkanResources
-  -> Swapchain
-  -> PrimitiveTopology
-  -> B.ByteString
-  -> B.ByteString
-  -> PipelineLayout
-  -> V.Vector VertexInputBindingDescription
-  -> V.Vector VertexInputAttributeDescription
-  -> Acquire Pipeline
-withGraphicsPipeline
-  VulkanResources {..} swapchain
-  topology vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
-  = do
-  let DeviceContext {..} = deviceContext
-  let Swapchain {..} = swapchain
-  shaderStages   <- sequence [ createVertShader device vertShader, createFragShader device fragShader ]
-
-  let
-    pipelineCreateInfo :: GraphicsPipelineCreateInfo '[ PipelineRenderingCreateInfo ]
-    pipelineCreateInfo = zero
-      { stages             = shaderStages
-      , vertexInputState   = Just . SomeStruct $ zero
-        { vertexBindingDescriptions   = vertexBindingDescriptions
-        , vertexAttributeDescriptions = vertexAttributeDescriptions
-        }
-      , inputAssemblyState = Just zero
-          { topology = topology
-          , primitiveRestartEnable = False
-          }
-      , viewportState = Just . SomeStruct $ zero
-        { viewports =
-          [ Viewport
-              { x        = 0
-              , y        = 0
-              , width    = realToFrac $ width  (extent :: Extent2D)
-              , height   = realToFrac $ height (extent :: Extent2D)
-              , minDepth = 0
-              , maxDepth = 1
-              }
-          ]
-        , scissors  = [ Rect2D { offset = Offset2D 0 0, extent = extent } ]
-        }
-      , rasterizationState = Just . SomeStruct $ zero
-          { depthClampEnable        = False
-          , rasterizerDiscardEnable = False
-          , polygonMode             = POLYGON_MODE_FILL
-          , lineWidth               = 1
-          , cullMode                = CULL_MODE_BACK_BIT
-          , frontFace               = FRONT_FACE_COUNTER_CLOCKWISE
-          , depthBiasEnable         = False
-          }
-      , multisampleState = Just . SomeStruct $ zero
-          { sampleShadingEnable  = False
-          , rasterizationSamples = SAMPLE_COUNT_1_BIT
-          }
-      , depthStencilState = Just $ zero
-        { depthTestEnable       = True
-        , depthWriteEnable      = True
-        , depthCompareOp        = COMPARE_OP_LESS
-        , depthBoundsTestEnable = False
-        , stencilTestEnable     = False
-        }
-      , colorBlendState = Just . SomeStruct $ zero
-          { logicOpEnable = False
-          , attachments =
-            [ zero
-              { colorWriteMask
-                =   COLOR_COMPONENT_R_BIT
-                .|. COLOR_COMPONENT_G_BIT
-                .|. COLOR_COMPONENT_B_BIT
-                .|. COLOR_COMPONENT_A_BIT
-              , blendEnable = True
-              , srcColorBlendFactor = BLEND_FACTOR_SRC_ALPHA
-              , dstColorBlendFactor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
-              , colorBlendOp = BLEND_OP_ADD
-              , srcAlphaBlendFactor = BLEND_FACTOR_ONE
-              , dstAlphaBlendFactor = BLEND_FACTOR_ZERO
-              , alphaBlendOp = BLEND_OP_ADD
-              }
-            ]
-          }
-      , dynamicState       = Nothing
-      , layout             = pipelineLayout
-      , subpass            = 0
-      , basePipelineHandle = zero
-      , next = (zero
-        { colorAttachmentFormats = [ Vulkan.format (imageFormat :: SurfaceFormatKHR) ]
-        , depthAttachmentFormat = depthFormat
-        }, ())
-      }
-  V.head . snd
-    <$> withGraphicsPipelines device zero [SomeStruct pipelineCreateInfo] Nothing mkAcquire
 
 {-- SHADERS --}
 

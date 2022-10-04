@@ -2,7 +2,10 @@
 
 module Hickory.Vulkan.Textures where
 
-import Vulkan (Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer)
+import Vulkan
+  ( Extent2D(..)
+  , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer
+  )
 import Hickory.Vulkan.Vulkan (VulkanResources(..), DeviceContext (..), runAcquire, mkAcquire)
 import qualified Codec.Picture as Png
 import Data.Word (Word8, Word32)
@@ -177,8 +180,8 @@ withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt =
     , maxLod = 0.0
     }
 
-withIntermediateImage :: VulkanResources -> Format -> ImageUsageFlagBits -> (Int,Int) -> Acquire Image
-withIntermediateImage VulkanResources { allocator } format usage (width,height) = do
+withIntermediateImage :: VulkanResources -> Format -> ImageUsageFlagBits -> Extent2D -> SampleCountFlagBits -> Acquire Image
+withIntermediateImage VulkanResources { allocator } format usage (Extent2D width height) samples = do
   let imageCreateInfo :: ImageCreateInfo '[]
       imageCreateInfo = zero
         { imageType     = IMAGE_TYPE_2D
@@ -187,7 +190,7 @@ withIntermediateImage VulkanResources { allocator } format usage (width,height) 
         , mipLevels     = 1
         , arrayLayers   = 1
         , tiling        = IMAGE_TILING_OPTIMAL
-        , samples       = SAMPLE_COUNT_1_BIT
+        , samples       = samples
         , usage         = usage .|. IMAGE_USAGE_SAMPLED_BIT
         , sharingMode   = SHARING_MODE_EXCLUSIVE
         , initialLayout = IMAGE_LAYOUT_UNDEFINED
