@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE DataKinds, OverloadedLists, OverloadedLabels #-}
+{-# LANGUAGE QuasiQuotes, DerivingStrategies #-}
+{-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
 module Hickory.Vulkan.RenderPass where
 
@@ -51,19 +51,22 @@ import Data.Traversable (for)
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Monad (FrameMonad (askFrameContext), CommandT, recordCommandBuffer)
-import Hickory.Vulkan.Material (Material, withMaterial, cmdBindMaterial)
+import Hickory.Vulkan.Material (Material, withMaterial, cmdBindMaterial, cmdPushMaterialConstants)
 import Hickory.Vulkan.Framing (FramedResource(..), doubleResource)
 import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet(..), withTexturesDescriptorSet)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
-import Linear (V4 (..))
+import Linear (V4 (..), V3)
 import Control.Monad.IO.Class (MonadIO)
 import Hickory.Math (Scalar)
 import Hickory.Vulkan.Frame (FrameContext(..))
+import GHC.Generics (Generic)
+import Foreign.Storable.Generic (GStorable)
+import Data.Proxy (Proxy)
 
 data RenderTarget = RenderTarget
   { renderPass          :: !RenderPass
   , frameBuffers        :: !(V.Vector Framebuffer)
-  , postProcessMaterial :: !Material
+  , postProcessMaterial :: !(Material PostConstants)
   }
 
 withStandardRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
@@ -218,9 +221,16 @@ createFramebuffer dev renderPass swapchainExtent imageViews =
         }
   in withFramebuffer dev framebufferCreateInfo Nothing mkAcquire
 
-withPostProcessMaterial :: VulkanResources -> Swapchain -> RenderPass -> FramedResource PointedDescriptorSet -> Acquire Material
+data PostConstants = PostConstants
+  { exposure   :: Float
+  , colorShift :: V3 Float
+  , saturation :: Float
+  } deriving Generic
+    deriving anyclass GStorable
+
+withPostProcessMaterial :: VulkanResources -> Swapchain -> RenderPass -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withPostProcessMaterial vulkanResources swapchain renderPass materialDescriptorSet =
-  withMaterial vulkanResources swapchain renderPass False
+  withMaterial vulkanResources swapchain renderPass False (undefined :: Proxy PostConstants)
     [] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader [materialDescriptorSet] Nothing
   where
   vertShader = [vert|
@@ -237,13 +247,23 @@ void main()
 |]
   fragShader = [frag|
 #version 450
+#extension GL_EXT_scalar_block_layout : require
 
-layout (set = 0, binding = 0) uniform sampler2D textureSampler;
 layout (location = 0) in vec2 texCoordsVarying;
 layout (location = 0) out vec4 outColor;
 
-// Bring hdr color into sdr range with an artistic curve
-// From: https://www.shadertoy.com/view/llXyWr
+layout( push_constant, scalar ) uniform constants
+{
+  float exposure;
+  vec3 colorShift;
+  float saturation;
+} PushConstants;
+
+layout (set = 0, binding = 0) uniform sampler2D textureSampler;
+
+// Bring hdr color into ldr range with an artistic curve
+// Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
+
 vec3 aces_tonemapping(vec3 x) {
   const float a = 2.51;
   const float b = 0.03;
@@ -255,13 +275,22 @@ vec3 aces_tonemapping(vec3 x) {
 
 void main()
 {
-    lowp vec4 origColor = texture(textureSampler, texCoordsVarying);
-    outColor = vec4(aces_tonemapping(origColor.rgb), 1.0);
+  lowp vec4 origColor = texture(textureSampler, texCoordsVarying);
+
+  vec3 exposureFilter = exp2(PushConstants.exposure) * PushConstants.colorShift;
+  vec3 color = origColor.rgb * exposureFilter;
+
+  vec3 lumaWeights = vec3(0.25,0.50,0.25);
+  float luminance = dot(lumaWeights, color.rgb);
+  vec3 grey = vec3(luminance, luminance, luminance);
+  vec3 saturated = grey + PushConstants.saturation * (color.rgb - grey);
+
+  outColor = vec4(aces_tonemapping(saturated), 1.0);
 }
 |]
 
-renderToTarget :: (FrameMonad m, MonadIO m) => RenderTarget -> V4 Scalar -> CommandT m () -> CommandT m () -> m ()
-renderToTarget RenderTarget {..} (V4 r g b a) litF overlayF = do
+renderToTarget :: (FrameMonad m, MonadIO m) => RenderTarget -> V4 Scalar -> PostConstants -> CommandT m () -> CommandT m () -> m ()
+renderToTarget RenderTarget {..} (V4 r g b a) postConstants litF overlayF = do
   FrameContext {..} <- askFrameContext
 
   let framebuffer = frameBuffers V.! fromIntegral swapchainImageIndex
@@ -278,6 +307,7 @@ renderToTarget RenderTarget {..} (V4 r g b a) litF overlayF = do
     cmdNextSubpass commandBuffer SUBPASS_CONTENTS_INLINE
 
     cmdBindMaterial frameNumber commandBuffer postProcessMaterial
+    cmdPushMaterialConstants commandBuffer postProcessMaterial postConstants
     cmdDraw commandBuffer 3 1 0 0
 
     recordCommandBuffer do

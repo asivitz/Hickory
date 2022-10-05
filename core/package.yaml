@@ -32,13 +32,20 @@ dependencies:
     - JuicyPixels-extra
     - MonadRandom
     - OpenGLRaw
+    - VulkanMemoryAllocator
+    - acquire
     - attoparsec
     - base
+    - binary
+    - bytestring
     - containers
+    - derive-storable
+    - generic-lens
     - groom
     - hashable
     - lens
     - linear
+    - managed
     - megaparsec
     - mtl
     - random
@@ -48,18 +55,12 @@ dependencies:
     - text
     - time
     - unordered-containers
+    - uuid
     - vector
-    - wavefront
-    - binary
     - vector-binary-instances
-    - managed
     - vulkan
     - vulkan-utils
-    - VulkanMemoryAllocator
-    - bytestring
-    - uuid
-    - generic-lens
-    - acquire
+    - wavefront
 
 when:
     - condition: os(osx)

@@ -51,10 +51,11 @@ import qualified Data.Vector.Storable as SV
 import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain)
 import qualified Data.ByteString as B
 import Acquire.Acquire (Acquire)
+import Data.Proxy (Proxy)
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
-  { material   :: Material
+  { material   :: Material Word32
   , descriptor :: FramedResource (BufferDescriptorSet uniform)
   } deriving Generic
 
@@ -74,7 +75,7 @@ withBufferedUniformMaterial vulkanResources swapchain renderPass lit attributes 
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let
     materialSets = maybe id (:) (doubleResource <$> globalDescriptorSet) [view #descriptorSet <$> descriptor]
-  material <- withMaterial vulkanResources swapchain renderPass lit attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag materialSets (doubleResource <$> perDrawDescriptorSet)
+  material <- withMaterial vulkanResources swapchain renderPass lit (undefined :: Proxy Word32) attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag materialSets (doubleResource <$> perDrawDescriptorSet)
   pure BufferedUniformMaterial {..}
 
 {- Batch IO Monad -}
@@ -115,7 +116,7 @@ mapFrameT f = FrameT . mapReaderT f . unFrameT
 class (FrameMonad m, BatchIOMonad m) => CommandMonad m where
   recordDrawCommand
     :: Bool -- True if blended
-    -> Material
+    -> Material Word32
     -> Word32
     -> (CommandBuffer -> IO ())
     -> m ()
@@ -354,7 +355,7 @@ drawMesh shouldBlend BufferedUniformMaterial {..} uniform BufferedMesh {..} draw
       for_ drawBufferDescriptorSet $ cmdBindDrawDescriptorSet cb material
       cmdDrawBufferedMesh cb material mesh 0 vertexBuffer 0 indexBuffer
 
-cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
 cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer indexOffset mIndexBuffer = do
   let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) vertexOffset (sortOn (attrLocation . fst) (vertices mesh))
       bindOffsets = V.fromList $ attributes <&> \a -> fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in material")
