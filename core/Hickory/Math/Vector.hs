@@ -23,6 +23,9 @@ module Hickory.Math.Vector
   , v3FromList
   , v3map
   , v2map
+  , clamp
+  , rlerp
+  , rlerpClamp
   ) where
 
 import Linear.V2
@@ -52,7 +55,7 @@ vnull = nearZero
 vabsangle :: Vector f a => f a -> f a -> a
 -- TODO: Performance test the difference
 -- vangle a b = acos $ vdot (vnormalise a) (vnormalise b)
-vabsangle a b = acos $ dot a b / (norm a * norm b)
+vabsangle a b = acos $ clamp (dot a b / (norm a * norm b)) (-1) 1
 
 v2angle :: (Epsilon a, RealFloat a) => V2 a -> V2 a -> a
 v2angle a b = if v2clockwise a b then -ang else ang
@@ -140,3 +143,12 @@ v3map f (V3 a b c) = V3 (f a) (f b) (f c)
 
 v2map :: (a -> b) -> V2 a -> V2 b
 v2map f (V2 a b) = V2 (f a) (f b)
+
+clamp :: Ord a => a -> a -> a -> a
+clamp a low high = min (max a low) high
+
+rlerp :: Fractional a => a -> a -> a -> a
+rlerp a low high = (a - low) / (high - low)
+
+rlerpClamp :: (Fractional a, Ord a) => a -> a -> a -> a
+rlerpClamp a low high = rlerp (clamp a low high) low high

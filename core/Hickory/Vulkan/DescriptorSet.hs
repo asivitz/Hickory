@@ -223,7 +223,7 @@ withBufferDescriptorSet VulkanResources{..} = do
   (buffer, alloc, _) <- withBuffer' allocator
     BUFFER_USAGE_UNIFORM_BUFFER_BIT
     (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    (fromIntegral $ sizeOf (undefined :: a) * 128)
+    (fromIntegral $ sizeOf (undefined :: a) * 1024) -- There's got to be a better way than hardcoding # of uniforms allowed
 
   let write = zero
         { dstSet          = descriptorSet

@@ -11,15 +11,6 @@ import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
 import Hickory.Math.Vector (Scalar)
 
-clamp :: Ord a => a -> a -> a -> a
-clamp a low high = min (max a low) high
-
-rlerp :: Fractional a => a -> a -> a -> a
-rlerp a low high = (a - low) / (high - low)
-
-rlerpClamp :: (Fractional a, Ord a) => a -> a -> a -> a
-rlerpClamp a low high = rlerp (clamp a low high) low high
-
 whenMaybe :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenMaybe a f = maybe (return ()) f a
 
