@@ -6,13 +6,14 @@ import Hickory.Types
 import Linear (V2(..), zero)
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import Data.List (mapAccumL, uncons, findIndex)
+import Data.List (mapAccumL, uncons, findIndex, sortOn)
 import Data.Tuple (swap)
 import Reactive.Banana ((<@>), MonadMoment)
 import Data.Maybe (mapMaybe, catMaybes, isNothing)
 import Linear.Metric (distance)
-import Control.Lens (over, each, _1, _2, view)
+import Control.Lens (over, each, _1, _2, _3, view)
 import Hickory.Utils.Utils (modifyAt)
+import Linear.Metric (norm)
 
 data InputTarget a = InputTarget
   { loc            :: V2 Scalar
@@ -64,7 +65,7 @@ inputLayer targets touchEvs = do
         Up   i v -> (dropWhile ((==i) . fst) cache, (Just a, Up i $ xform (v - offset)))
         Loc  i v -> (cache, (Just a, Loc i $ xform (v - offset)))
       Nothing -> case te of
-        Down i v -> case headMay $ mapMaybe (hitTarget v) targs of
+        Down i v -> case headMay . sortOn (norm . view _3) $ mapMaybe (hitTarget v) targs of
           Just (a,xform, offset)  -> ((i,(a,xform,offset)):cache, (Just a, Down i $ xform (v - offset)))
           Nothing         -> (cache, (Nothing, te))
         _ -> (cache, (Nothing, te))
