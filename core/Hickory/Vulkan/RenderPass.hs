@@ -88,7 +88,7 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
 
   -- Target tex for the multisample resolve pass
   resolveImageRaw  <- withIntermediateImage vulkanResources resolveFormat
-    (IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT .|. IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+    (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
     extent SAMPLE_COUNT_1_BIT
   resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw
   let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
