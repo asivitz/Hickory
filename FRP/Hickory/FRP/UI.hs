@@ -3,7 +3,7 @@ module Hickory.FRP.UI where
 import Hickory.Input
 import Hickory.Math.Vector
 import Hickory.Types
-import Linear (V2(..))
+import Linear (V2(..), zero)
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Data.List (mapAccumL, uncons, findIndex)
@@ -11,7 +11,7 @@ import Data.Tuple (swap)
 import Reactive.Banana ((<@>), MonadMoment)
 import Data.Maybe (mapMaybe, catMaybes, isNothing)
 import Linear.Metric (distance)
-import Control.Lens (over, each, _2)
+import Control.Lens (over, each, _1, _2, view)
 import Hickory.Utils.Utils (modifyAt)
 
 data InputTarget a = InputTarget
@@ -20,6 +20,7 @@ data InputTarget a = InputTarget
   , value          :: a
   , children       :: [InputTarget a]
   , transformPoint :: Bool
+  , offset         :: Bool -- Offset touch events based on original touch down offset
   }
 
 bottomRight :: (Real a1, Fractional a2) => a2 -> a2 -> Size a1 -> V2 a2
@@ -48,30 +49,30 @@ middle (Size w h) = V2 (realToFrac w/2) (realToFrac h/2)
 -- targets (along with locally transformed touch events)
 inputLayer :: forall a m. MonadMoment m => B.Behavior [InputTarget a] -> B.Event [TouchEvent] -> m (B.Event [(Maybe a, TouchEvent)], B.Behavior [a])
 inputLayer targets touchEvs = do
-  (e,b) <- B.mapAccum ([] :: [(Int, (a, V2 Scalar -> V2 Scalar))]) $ behavAccum <$> targets <@> touchEvs
-  pure (e, fmap (fst . snd) <$> b)
+  (e,b) <- B.mapAccum ([] :: [(Int, (a, V2 Scalar -> V2 Scalar, V2 Scalar))]) $ behavAccum <$> targets <@> touchEvs
+  pure (e, fmap (view _1 . snd) <$> b)
   where
 
-  behavAccum :: [InputTarget a] -> [TouchEvent] -> [(Int, (a, V2 Scalar -> V2 Scalar))] -> ([(Maybe a, TouchEvent)], [(Int, (a, V2 Scalar -> V2 Scalar))])
+  behavAccum :: [InputTarget a] -> [TouchEvent] -> [(Int, (a, V2 Scalar -> V2 Scalar, V2 Scalar))] -> ([(Maybe a, TouchEvent)], [(Int, (a, V2 Scalar -> V2 Scalar, V2 Scalar))])
   behavAccum targs tevs focused = swap $ mapAccumL perTouch focused tevs
     where
 
-    perTouch :: [(Int, (a, V2 Scalar -> V2 Scalar))] -> TouchEvent -> ([(Int, (a, V2 Scalar -> V2 Scalar))], (Maybe a, TouchEvent))
+    perTouch :: [(Int, (a, V2 Scalar -> V2 Scalar, V2 Scalar))] -> TouchEvent -> ([(Int, (a, V2 Scalar -> V2 Scalar, V2 Scalar))], (Maybe a, TouchEvent))
     perTouch cache te = case lookup (touchIdent te) focused of
-      Just (a, xform) -> case te of
-        Down i v -> (cache, (Just a, Down i $ xform v))
-        Up   i v -> (dropWhile ((==i) . fst) cache, (Just a, Up i $ xform v))
-        Loc  i v -> (cache, (Just a, Loc i $ xform v))
+      Just (a, xform, offset) -> case te of
+        Down i v -> (cache, (Just a, Down i $ xform (v - offset)))
+        Up   i v -> (dropWhile ((==i) . fst) cache, (Just a, Up i $ xform (v - offset)))
+        Loc  i v -> (cache, (Just a, Loc i $ xform (v - offset)))
       Nothing -> case te of
         Down i v -> case headMay $ mapMaybe (hitTarget v) targs of
-          Just (a,xform)  -> ((i,(a,xform)):cache, (Just a, Down i $ xform v))
+          Just (a,xform, offset)  -> ((i,(a,xform,offset)):cache, (Just a, Down i $ xform (v - offset)))
           Nothing         -> (cache, (Nothing, te))
         _ -> (cache, (Nothing, te))
 
-    hitTarget :: V2 Scalar -> InputTarget a -> Maybe (a, V2 Scalar -> V2 Scalar)
+    hitTarget :: V2 Scalar -> InputTarget a -> Maybe (a, V2 Scalar -> V2 Scalar, V2 Scalar)
     hitTarget v InputTarget {..} =
       if distance v loc < target
-      then headMay . reverse . over (each . _2) xform $ (value, id) : mapMaybe (hitTarget (v - loc)) children
+      then headMay . reverse . over (each . _2) xform $ (value, id, if offset then v - loc else zero) : mapMaybe (hitTarget (v - loc)) children
       else Nothing
       where
       xform = if transformPoint then ((\x -> x - loc).) else id
