@@ -1,19 +1,24 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 module Hickory.FRP.UI where
 
 import Hickory.Input
 import Hickory.Math.Vector
 import Hickory.Types
-import Linear (V2(..), zero)
+import Linear (V2(..), zero, (^/), (^*))
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Data.List (mapAccumL, uncons, findIndex, sortOn)
 import Data.Tuple (swap)
 import Reactive.Banana ((<@>), MonadMoment)
 import Data.Maybe (mapMaybe, catMaybes, isNothing)
-import Linear.Metric (distance)
+import Linear.Metric ( distance, norm )
 import Control.Lens (over, each, _1, _2, _3, view)
 import Hickory.Utils.Utils (modifyAt)
-import Linear.Metric (norm)
+import Data.Time (NominalDiffTime)
+import qualified Data.Map as Map
+import qualified Data.Sequence as Seq
+import Data.Sequence (Seq(..))
 
 data InputTarget a = InputTarget
   { loc            :: V2 Scalar
@@ -77,6 +82,81 @@ inputLayer targets touchEvs = do
       else Nothing
       where
       xform = if transformPoint then ((\x -> x - loc).) else id
+
+
+data VelocityObject a = VelocityObject
+  { item        :: a
+  , offset      :: V2 Scalar
+  , posHistory  :: Seq.Seq (NominalDiffTime, V2 Scalar)
+  , velocity    :: Maybe (V2 Scalar)
+  }
+-- Given input targets and touch events, create new events for the hit targets
+-- Targets will slide with momentum and emit up events until they stop
+velocityTargetLayer
+  :: forall a m. MonadMoment m
+  => B.Behavior [InputTarget a]
+  -> B.Event [TouchEvent]
+  -> B.Event NominalDiffTime
+  -> m (B.Event [(Maybe a, TouchEvent)], B.Behavior [a])
+velocityTargetLayer targets touchEvs tickEv = do
+  time <- B.accumB 0 ((+) <$> tickEv)
+  (e,b) <- B.mapAccum (mempty :: Map.Map Int (VelocityObject a)) $
+    B.unionWith combineEvents (touchAccum <$> targets <*> time <@> touchEvs) (timeAccum <$> tickEv)
+
+  pure (e, map item . filter (isNothing . velocity) . Map.elems <$> b)
+  where
+  initVelMult = 0.5
+  dampening   = 4
+
+  combineEvents f1 f2 acc =
+    let (x', acc')   = f1 acc
+        (x'', acc'') = f2 acc'
+    in (x' <> x'', acc'')
+
+  timeAccum :: NominalDiffTime -> Map.Map Int (VelocityObject a) -> ([(Maybe a, TouchEvent)], Map.Map Int (VelocityObject a))
+  timeAccum time cache = Map.mapAccum (\lst vo -> (maybe id (:) (genEv vo) lst, move vo)) [] (Map.filter filt cache)
+    where
+    genEv VelocityObject { velocity = Nothing } = Nothing
+    genEv VelocityObject { item, velocity = Just _, posHistory = (_, v) :<| _ } = Just (Just item, Up (-1) v)
+    genEv VelocityObject { velocity = Just _, posHistory = Seq.Empty } = Nothing
+    move vo@VelocityObject { velocity = Nothing }  = vo
+    move vo@VelocityObject { velocity = Just vel, posHistory = ph@ ((time', v') :<| _) }
+      = vo { velocity = Just (vel ^* max 0 (1 - realToFrac time * dampening))
+           , posHistory = (time' + time, v' + (vel ^* realToFrac time)) :<| ph }
+    move VelocityObject { posHistory = Seq.Empty } = error "Impossible"
+    filt VelocityObject { velocity = Nothing }  = True
+    filt VelocityObject { velocity = Just vel } = norm vel > 0.1
+
+  touchAccum :: [InputTarget a] -> NominalDiffTime -> [TouchEvent] -> Map.Map Int (VelocityObject a) -> ([(Maybe a, TouchEvent)], Map.Map Int (VelocityObject a))
+  touchAccum targs time tevs cache_ = swap $ mapAccumL perTouch cache_ tevs
+    where
+
+    perTouch :: Map.Map Int (VelocityObject a) -> TouchEvent -> (Map.Map Int (VelocityObject a), (Maybe a, TouchEvent))
+    perTouch cache te = case te of
+      Down i v -> let hit = headMay . sortOn (norm . snd) $ mapMaybe (hitTarget v) targs in
+        case hit of
+          Just (hitItem, hitOffset) -> (Map.insert i (VelocityObject hitItem hitOffset (Seq.singleton (time, v - hitOffset)) Nothing) cache, (Just hitItem, Down i (v - hitOffset)))
+          Nothing -> (cache, (Nothing, te))
+      Loc  i v -> case cached of
+        Just VelocityObject {velocity = Nothing, offset, item, posHistory} ->
+          (Map.adjust (\vo -> vo { posHistory = (time, v - offset) :<| posHistory }) i cache, (Just item, Loc i  (v - offset)))
+        _ -> (cache, (Nothing, te))
+      Up   i v -> case cached of
+        Just VelocityObject {velocity = Nothing, offset, item } ->
+          ( Map.adjust (\vo@VelocityObject { posHistory = ph }
+                              -> let _ :|> (time', v') = Seq.take 10 ph
+                                 in vo { posHistory = (time, v - offset) :<| ph
+                                    , velocity = Just ((v - offset - v') ^/ (realToFrac (time - time') / initVelMult)) }) i cache
+          , (Just item, Up i (v - offset)))
+        _ -> (cache, (Nothing, te))
+      where
+      cached = Map.lookup (touchIdent te) cache
+
+    hitTarget :: V2 Scalar -> InputTarget a -> Maybe (a, V2 Scalar)
+    hitTarget v InputTarget {..} =
+      if distance v loc < target
+      then headMay . reverse $ (value, if offset then v - loc else zero) : mapMaybe (hitTarget (v - loc)) children
+      else Nothing
 
 headMay :: [a] -> Maybe a
 headMay = fmap fst . uncons
