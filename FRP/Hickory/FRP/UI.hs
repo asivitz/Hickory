@@ -93,7 +93,7 @@ data VelocityObject a = VelocityObject
 -- Given input targets and touch events, create new events for the hit targets
 -- Targets will slide with momentum and emit up events until they stop
 velocityTargetLayer
-  :: forall a m. MonadMoment m
+  :: forall a m. (Eq a, MonadMoment m)
   => B.Behavior [InputTarget a]
   -> B.Event [TouchEvent]
   -> B.Event NominalDiffTime
@@ -135,7 +135,10 @@ velocityTargetLayer targets touchEvs tickEv = do
     perTouch cache te = case te of
       Down i v -> let hit = headMay . sortOn (norm . snd) $ mapMaybe (hitTarget v) targs in
         case hit of
-          Just (hitItem, hitOffset) -> (Map.insert i (VelocityObject hitItem hitOffset (Seq.singleton (time, v - hitOffset)) Nothing) cache, (Just hitItem, Down i (v - hitOffset)))
+          Just (hitItem, hitOffset) -> ( Map.insert i (VelocityObject hitItem hitOffset (Seq.singleton (time, v - hitOffset)) Nothing)
+                                         (Map.filter ((/=hitItem) . item) cache)
+                                       , (Just hitItem, Down i (v - hitOffset))
+                                       )
           Nothing -> (cache, (Nothing, te))
       Loc  i v -> case cached of
         Just VelocityObject {velocity = Nothing, offset, item, posHistory} ->
