@@ -4,7 +4,7 @@ module Hickory.FRP.CoreEvents where
 
 import Data.Hashable (Hashable)
 import Data.IORef (IORef, readIORef)
-import Hickory.Input (TouchEvent(..), RawInput(..), Key)
+import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
@@ -53,9 +53,9 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 
 concatTouchEvents :: CoreEvents a -> Event [TouchEvent]
 concatTouchEvents CoreEvents {..} = mconcat
-  [ map (\(v,i)   -> Down i v) <$> eTouchesDown
-  , map (\(_,v,i) -> Up i v)   <$> eTouchesUp
-  , map (\(v,i)   -> Loc i v)  <$> eTouchesLoc
+  [ map (\(v,i)   -> TouchEvent i v Down) <$> eTouchesDown
+  , map (\(_,v,i) -> TouchEvent i v Up)   <$> eTouchesUp
+  , map (\(v,i)   -> TouchEvent i v Loc)  <$> eTouchesLoc
   ]
 
 keyHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)

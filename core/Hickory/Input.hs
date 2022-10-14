@@ -1,9 +1,14 @@
+{-# LANGUAGE DeriveGeneric, OverloadedLabels #-}
+
 module Hickory.Input where
 
 import Linear (V2(..))
 import Hickory.Math.Vector
 import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable
+import GHC.Generics (Generic)
+import Control.Lens (over)
+import Data.Generics.Labels ()
 
 -- key is the type used by your platform to represent a key. e.g. GLFW's Key type
 data RawInput = InputTouchesDown [(V2 Scalar,Int)]
@@ -143,20 +148,17 @@ instance Data.Hashable.Hashable Key where
 
 type TouchIdent = Int
 
-data TouchEvent
-  = Up   TouchIdent (V2 Scalar)
-  | Down TouchIdent (V2 Scalar)
-  | Loc  TouchIdent (V2 Scalar)
+data TouchEvent = TouchEvent
+  { touchIdent :: TouchIdent
+  , loc        :: V2 Scalar
+  , eventType  :: TouchEventType
+  } deriving (Show, Generic)
+
+data TouchEventType
+  = Up              -- Touch ends
+  | Down            -- Touch begins
+  | Loc             -- Touch is moved by user
   deriving Show
 
-touchIdent :: TouchEvent -> TouchIdent
-touchIdent = \case
-  Up   i _ -> i
-  Down i _ -> i
-  Loc  i _ -> i
-
 mapTouchEvent :: (V2 Scalar -> V2 Scalar) -> TouchEvent -> TouchEvent
-mapTouchEvent f = \case
-  Up   i v -> Up   i (f v)
-  Down i v -> Down i (f v)
-  Loc  i v -> Loc  i (f v)
+mapTouchEvent = over #loc
