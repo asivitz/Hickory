@@ -1,44 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Hickory.Text.Font where
+
+module Hickory.Text.ParseFnt where
 
 import Data.Attoparsec.Text
-{-import Data.Attoparsec.Char8-}
-import Data.Hashable
 import Control.Applicative
 import qualified Data.Text as Text
+import Hickory.Text.Types (FontInfo (..), GlyphSpec (..), KerningSpec (..), CharIdent (..), emptyFontInfo, KerningPair (..), Font (..), makeCharTable, makeKerningTable)
+import Data.Foldable (foldl')
 
-data FontInfo a = FontInfo
-  { lineHeight :: a
-  , base       :: a
-  , scaleW     :: a
-  , scaleH     :: a
-  } deriving Show
-
-emptyFontInfo :: Integral a => FontInfo a
-emptyFontInfo = FontInfo 0 0 0 0
-
-data KerningPair = KerningPair CharIdent CharIdent deriving (Show, Eq)
-
-instance Data.Hashable.Hashable KerningPair where
-      hashWithSalt s (KerningPair (CharIdent a) (CharIdent b)) = hashWithSalt s ((a * 1000) + b)
-
-newtype CharIdent = CharIdent Int deriving (Eq, Show)
-
-instance Data.Hashable.Hashable CharIdent where
-      hashWithSalt s (CharIdent a) = hashWithSalt s a
-
-data GlyphSpec a = GlyphSpec
-  { ident    :: CharIdent
-  , x        :: a
-  , y        :: a
-  , width    :: a
-  , height   :: a
-  , xoffset  :: a
-  , yoffset  :: a
-  , xadvance :: a
-  } deriving (Show)
-
-data KerningSpec a = KerningSpec KerningPair a deriving Show
 
 -- common lineHeight=117 base=95 scaleW=512 scaleH=512 pages=1 packed=0
 
@@ -57,24 +26,26 @@ quotedString = do
   _ <- char '"'
   return prop
 
-data Value a = StringVal String | CommaSepValue [a] deriving Show
+data Value a
+  = StringVal String
+  | CommaSepValue [a]
+  deriving Show
 
 stringVal :: Parser (Value a)
-stringVal = do
-        val <- quotedString
-        return $ StringVal (Text.unpack val)
+stringVal =
+  StringVal . Text.unpack <$> quotedString
 
 commaSepVal :: Integral a => Parser (Value a)
 commaSepVal = do
-        lst <- (signed decimal) `sepBy` (char ',')
-        return $ CommaSepValue lst
+  lst <- signed decimal `sepBy` char ','
+  return $ CommaSepValue lst
 
 parseProperty :: Integral a => Parser (String, Value a)
 parseProperty = do
-        key <- many' letter
-        char '='
-        val <- (stringVal <|> commaSepVal)
-        return (key, val)
+  key <- many' letter
+  char '='
+  val <- stringVal <|> commaSepVal
+  return (key, val)
 
 data CommandResult a = FontInfoResult (FontInfo a)
                    | GlyphResult (GlyphSpec a)
@@ -91,16 +62,18 @@ pullNumVal key alist =
 
 interpretCommand :: (Integral a) => (String, [(String, Value a)]) -> CommandResult a
 interpretCommand ("common", alist) =
-        FontInfoResult $ FontInfo {
-                                  lineHeight = pullNumVal "lineHeight" alist,
-                                  base = pullNumVal "base" alist,
-                                  scaleW = pullNumVal "scaleW" alist,
-                                  scaleH = pullNumVal "scaleH" alist}
+  FontInfoResult $
+    FontInfo
+      { lineHeight = pullNumVal "lineHeight" alist
+      , base = pullNumVal "base" alist
+      , scaleW = pullNumVal "scaleW" alist
+      , scaleH = pullNumVal "scaleH" alist
+      }
 
 interpretCommand ("char", alist) =
         let pullval = (\k -> pullNumVal k alist) in
             GlyphResult $ GlyphSpec {
-                        ident = (CharIdent $ fromIntegral $ pullval "id"),
+                        ident = CharIdent $ fromIntegral $ pullval "id",
                         x = pullval "x",
                         y = pullval "y",
                         width = pullval "width",
@@ -111,23 +84,23 @@ interpretCommand ("char", alist) =
                         }
 
 interpretCommand ("kerning", alist) =
-        let pullval = (\k -> pullNumVal k alist) in
-            KerningResult $ KerningSpec (KerningPair (CharIdent $ fromIntegral $ pullval "first") (CharIdent $ fromIntegral $ pullval "second")) (pullval "amount")
+  let pullval = (\k -> pullNumVal k alist) in
+      KerningResult $ KerningSpec (KerningPair (CharIdent $ fromIntegral $ pullval "first") (CharIdent $ fromIntegral $ pullval "second")) (pullval "amount")
 
 interpretCommand _ = Unused
 
 parseCommand :: Integral a => Parser (String, [(String, Value a)])
 parseCommand = do
-        name <- many' letter
-        inlineSpace
-        alist <- parseProperty `sepBy` inlineSpace
-        return (name, alist)
+  name <- many' letter
+  _ <- inlineSpace
+  alist <- parseProperty `sepBy` inlineSpace
+  return (name, alist)
 
-parseFont :: Integral a => Parser ((FontInfo a), [GlyphSpec a], [KerningSpec a])
+parseFont :: Integral a => Parser (FontInfo a, [GlyphSpec a], [KerningSpec a])
 parseFont = do
         commands <- parseCommand `sepBy` endOfLine
         let commands' = map interpretCommand commands
-        return $ foldl (\(fi, chars, kernings) res -> case res of
+        return $ foldl' (\(fi, chars, kernings) res -> case res of
             FontInfoResult fi' -> (fi', chars, kernings)
             GlyphResult g -> (fi, g:chars, kernings)
             KerningResult k -> (fi, chars, k:kernings)
@@ -136,5 +109,11 @@ parseFont = do
             (emptyFontInfo, [], [])
             commands'
 
-runParseFont :: Integral a => Text.Text -> Either String ((FontInfo a), [GlyphSpec a], [KerningSpec a])
+runParseFont :: Integral a => Text.Text -> Either String (FontInfo a, [GlyphSpec a], [KerningSpec a])
 runParseFont = Data.Attoparsec.Text.parseOnly parseFont
+
+makeFont :: Integral a => Text.Text -> String -> Either String (Font a)
+makeFont text name = case runParseFont text of
+                    Right (info, glyphspecs, kernings) ->
+                        Right $ Font name info (makeCharTable info glyphspecs) (makeKerningTable kernings)
+                    Left s -> Left s

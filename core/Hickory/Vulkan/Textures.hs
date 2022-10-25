@@ -8,6 +8,7 @@ import Vulkan
   )
 import Hickory.Vulkan.Vulkan (VulkanResources(..), DeviceContext (..), runAcquire, mkAcquire)
 import qualified Codec.Picture as Png
+import qualified Codec.Picture.Extra as Png
 import Data.Word (Word8, Word32)
 import qualified Data.Vector.Storable as SV
 import Foreign (sizeOf, Bits ((.|.)), copyArray, castPtr)
@@ -24,7 +25,7 @@ withTextureImage :: VulkanResources -> FilePath -> Acquire Image
 withTextureImage bag@VulkanResources { allocator } path = do
   Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
     Left s -> error $ printf "Can't load image at path %s: %s" path s
-    Right dynImage -> pure $ Png.convertRGBA8 dynImage
+    Right dynImage -> pure . Png.flipVertically $ Png.convertRGBA8 dynImage
 
   let bufferSize = fromIntegral $ SV.length dat * sizeOf (undefined :: Word8)
 
@@ -32,7 +33,7 @@ withTextureImage bag@VulkanResources { allocator } path = do
       imageCreateInfo = zero
         { imageType     = IMAGE_TYPE_2D
         , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
-        , format        = FORMAT_R8G8B8A8_SRGB
+        , format        = FORMAT_R8G8B8A8_UNORM
         , mipLevels     = 1
         , arrayLayers   = 1
         , tiling        = IMAGE_TILING_OPTIMAL

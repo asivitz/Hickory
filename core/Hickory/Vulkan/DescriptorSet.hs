@@ -173,7 +173,7 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
   images <- for texturePaths \(path, filt) -> do
     sampler <- withImageSampler bag filt
     image   <- withTextureImage bag path
-    let format = FORMAT_R8G8B8A8_SRGB
+    let format = FORMAT_R8G8B8A8_UNORM
     imageView <- with2DImageView deviceContext format IMAGE_ASPECT_COLOR_BIT image
     pure (ViewableImage image imageView format, sampler)
   descriptorSet <- withTextureArrayDescriptorSet bag images

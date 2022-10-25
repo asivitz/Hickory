@@ -12,7 +12,6 @@
 module Hickory.Graphics.DrawText
   ( Printer(..)
   , loadPrinter
-  , PositionedTextCommand(..)
   , textcommand
   , PrinterMonad(..)
   , PrinterT
@@ -30,47 +29,35 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT, runReaderT, lift, ask, asks, MonadReader(..), mapReaderT)
 import Control.Monad.State.Strict (StateT, runStateT, modify, MonadState, mapStateT)
 import Control.Monad.Trans (MonadTrans)
-import Hickory.Color
-import Hickory.Graphics.GLSupport
-import Hickory.Text.Text
-import Hickory.Graphics.VAO (createIndexedVAO, VAO(..), deleteVAOConfigs, VertexGroup (..), Attachment (..))
-import Hickory.Graphics.Drawing (drawVAO, bindTextures)
-import Hickory.Graphics.ShaderMonad (bindMatrix)
-import Hickory.Graphics.MatrixMonad (MatrixMonad, MatrixT)
+import Hickory.Graphics.VAO (VAO(..), deleteVAOConfigs)
+import Hickory.Graphics.MatrixMonad (MatrixT)
 
-import Hickory.Utils.Utils
 import Hickory.Graphics.Textures
-import Linear (zero)
-import qualified Data.Vector.Storable as V
 import Hickory.Graphics.Shader (Shader)
+import Hickory.Text.ParseJson (Font, makeFont)
+import Hickory.Text.Types (TextCommand (..), XAlign (..), YAlign (..))
+import qualified Data.ByteString.Lazy as BS
 
-data Printer a = Printer (Font a) TexID Shader
-
-instance Eq (Printer a) where
-  Printer fa _tid _ == Printer fb _tidb _ = name fa == name fb
-
-instance Show (Printer a) where
-  show (Printer font tid _) = "Printer:" ++ name font ++ "/" ++ show tid
+data Printer a = Printer Font TexID Shader
 
 loadPrinter :: String -> Shader -> String -> IO (Maybe (Printer Int))
 loadPrinter resPath shader name = do
-        texid <- loadTexture resPath (name ++ ".png") texLoadDefaults { flipY = False }
-        case texid of
-            Nothing -> return Nothing
-            Just tid -> do
-                text <- readFileAsText $ resPath ++ "/fonts/" ++ name ++ ".fnt"
-                case makeFont text name of
-                    Left s -> do
-                        print $ "Error: Can't parse font file for " ++ name ++ ".fnt Msg: " ++ s
-                        return Nothing
-                    Right font -> return $ Just (Printer font tid shader)
+  texid <- loadTexture resPath (name ++ ".png") texLoadDefaults { flipY = False }
+  case texid of
+    Nothing -> return Nothing
+    Just tid -> do
+      bs <- BS.readFile $ resPath ++ "/fonts/" ++ name ++ ".json"
+      case makeFont bs of
+        Left s -> do
+            print $ "Error: Can't parse font file for " ++ name ++ ".fnt Msg: " ++ s
+            return Nothing
+        Right font -> return $ Just (Printer font tid shader)
 
 textcommand :: TextCommand
 textcommand = TextCommand
-  { text = ""
-  , align = AlignCenter
-  , valign = Middle
-  , leftBump = 0
+  { text   = ""
+  , align  = AlignCenter
+  , valign = AlignMiddle
   }
 
 {-

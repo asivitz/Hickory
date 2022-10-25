@@ -7,7 +7,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Hickory.Vulkan.Monad where
@@ -33,14 +32,13 @@ import Data.UUID (UUID)
 import Data.Word (Word32, Word64)
 import Foreign (Storable)
 import Hickory.Graphics.DrawText (squareIndices)
-import Hickory.Graphics.MatrixMonad (MatrixT)
-import Hickory.Text.Text (TextCommand, Font, transformTextCommandToVerts)
+import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet (..), TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor, withBufferDescriptorSet, PointedDescriptorSet)
 import Hickory.Vulkan.Frame (FrameContext (..))
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource, frameResource, doubleResource)
 import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial, withMaterial, cmdBindDrawDescriptorSet)
 import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(Position, TextureCoord))
-import Hickory.Vulkan.Text (DynamicBufferedMesh(..), uploadDynamicMesh)
+import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Vulkan
   ( CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), Buffer, PrimitiveTopology(..)
   , RenderPass
@@ -52,6 +50,8 @@ import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain)
 import qualified Data.ByteString as B
 import Acquire.Acquire (Acquire)
 import Data.Proxy (Proxy)
+import Hickory.Text.ParseJson (Font)
+import Hickory.Text.Types (TextCommand)
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
@@ -150,10 +150,7 @@ data DrawCommands = DrawCommands
   } deriving Generic
 
 newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands m a }
-  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DrawCommands)
-
-instance MonadTrans CommandT where
-  lift = CommandT . lift
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DrawCommands, MonadTrans)
 
 recordUniform :: (MonadIO m, BatchIOMonad m, FrameMonad m, Storable uniform) => FramedResource (BufferDescriptorSet uniform) -> uniform -> m Word32
 recordUniform bds uniform = do
@@ -233,39 +230,11 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 
 {- Transitive Instances -}
 
--- instance CommandMonad m => CommandMonad (MaterialT material m) where askCommandBuffer = lift askCommandBuffer
-instance CommandMonad m => CommandMonad (MatrixT m) where
-  recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
-instance CommandMonad m => CommandMonad (DynamicMeshT m) where
-  recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
-instance CommandMonad m => CommandMonad (GlobalDescriptorT m) where
-  recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
-
-instance GlobalDescriptorMonad m => GlobalDescriptorMonad (MatrixT m)  where askDescriptorSet = lift askDescriptorSet
-instance GlobalDescriptorMonad m => GlobalDescriptorMonad (CommandT m) where askDescriptorSet = lift askDescriptorSet
-
-instance BatchIOMonad m => BatchIOMonad (CommandT m)          where recordIO = lift . recordIO
-instance BatchIOMonad m => BatchIOMonad (MatrixT m)           where recordIO = lift . recordIO
-instance BatchIOMonad m => BatchIOMonad (DynamicMeshT m)      where recordIO = lift . recordIO
-instance BatchIOMonad m => BatchIOMonad (GlobalDescriptorT m) where recordIO = lift . recordIO
-
-instance FrameMonad m => FrameMonad (MatrixT m)           where askFrameContext   = lift askFrameContext
-instance FrameMonad m => FrameMonad (CommandT m)          where askFrameContext   = lift askFrameContext
-instance FrameMonad m => FrameMonad (GlobalDescriptorT m) where askFrameContext   = lift askFrameContext
-instance FrameMonad m => FrameMonad (DynamicMeshT m)      where askFrameContext   = lift askFrameContext
-instance FrameMonad m => FrameMonad (BatchIOT m)          where askFrameContext   = lift askFrameContext
-
-instance DynamicMeshMonad m => DynamicMeshMonad (MatrixT m) where
-  askDynamicMesh = lift askDynamicMesh
-  getMeshes      = lift getMeshes
-  addMesh m      = lift $ addMesh m
-
-instance DynamicMeshMonad m => DynamicMeshMonad (GlobalDescriptorT m) where
-  askDynamicMesh = lift askDynamicMesh
-  getMeshes      = lift getMeshes
-  addMesh m      = lift $ addMesh m
-
-instance DynamicMeshMonad m => DynamicMeshMonad (CommandT m) where
+instance {-# OVERLAPPABLE #-} (MonadTrans t, CommandMonad m, Monad (t m)) => CommandMonad (t m) where recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
+instance {-# OVERLAPPABLE #-} (MonadTrans t, GlobalDescriptorMonad m, Monad (t m)) => GlobalDescriptorMonad (t m) where askDescriptorSet = lift askDescriptorSet
+instance {-# OVERLAPPABLE #-} (MonadTrans t, FrameMonad m, Monad (t m))            => FrameMonad (t m)   where askFrameContext = lift askFrameContext
+instance {-# OVERLAPPABLE #-} (MonadTrans t, BatchIOMonad m, Monad (t m))          => BatchIOMonad (t m) where recordIO = lift . recordIO
+instance {-# OVERLAPPABLE #-} (MonadTrans t, DynamicMeshMonad m, Monad (t m))      => DynamicMeshMonad (t m) where
   askDynamicMesh = lift askDynamicMesh
   getMeshes      = lift getMeshes
   addMesh m      = lift $ addMesh m
@@ -300,17 +269,17 @@ getTexIdx name = do
 packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a
 packVecs = SV.fromList . concatMap toList
 
-textMesh :: Font Int -> TextCommand -> Mesh
+textMesh :: Font -> TextCommand -> Mesh
 textMesh font tc = Mesh { indices = Just (SV.fromList indices), vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)] }
   where
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
-  (indices, _numBlockIndices) = squareIndices (fromIntegral numSquares)
+  (indices, _numBlockIndices)   = squareIndices (fromIntegral numSquares)
 
 drawText
   :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable uniform)
   => BufferedUniformMaterial uniform
   -> uniform
-  -> Font Int
+  -> Font
   -> TextCommand
   -> PointedDescriptorSet
   -> m ()

@@ -25,6 +25,7 @@ extra-deps:
 # - dear-imgui-2.1.0
 - git: https://github.com/asivitz/dear-imgui.hs.git # need cxx flags to compile on MacOS
   commit: e6c40ff93da1bf748aa08af47f5bcb1b8601cb76
+- aeson-deriving-0.1.1.2
 
 # Override default flag values for local packages and extra-deps
 flags:

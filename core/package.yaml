@@ -35,6 +35,8 @@ dependencies:
     - VulkanMemoryAllocator
     - acquire
     - attoparsec
+    - aeson
+    - aeson-deriving
     - base
     - binary
     - bytestring
@@ -103,8 +105,11 @@ library:
     - Hickory.Platform
     - Hickory.Resources
     - Hickory.Serialize
-    - Hickory.Text.Font
+    # - Hickory.Text.ParseFnt
+    - Hickory.Text.ParseJson
     - Hickory.Text.Text
+    - Hickory.Text
+    - Hickory.Text.Types
     - Hickory.Types
     - Hickory.Utils.Projection
     - Hickory.Utils.Utils
@@ -115,6 +120,7 @@ library:
     - Hickory.Vulkan.Textures
     - Hickory.Vulkan.Monad
     - Hickory.Vulkan.Text
+    - Hickory.Vulkan.DynamicMesh
     - Hickory.Vulkan.Framing
     - Hickory.Vulkan.Frame
     - Hickory.Vulkan.OffscreenTarget

@@ -42,6 +42,7 @@ import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Control.Lens (view)
 import Acquire.Acquire (Acquire)
+import qualified Data.ByteString.Lazy as BS
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Text as H
@@ -57,18 +58,18 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
-import Hickory.Vulkan.Monad (recordCommandBuffer, drawMesh, useDynamicMesh, drawText)
+import Hickory.Vulkan.Monad (drawMesh, useDynamicMesh, drawText)
 import Data.Foldable (for_)
 import Foreign.Storable.Generic
 import Hickory.Graphics.DrawText (textcommand)
-import Hickory.Text.Text (TextCommand(..), Font, makeFont, XAlign (..))
-import Hickory.Utils.Utils (readFileAsText)
-import Data.Either (fromRight)
+import Hickory.Text (TextCommand(..), Font, makeFont, XAlign (..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
 import qualified Hickory.Vulkan.Monad as H
 import Hickory.Vulkan.Frame (FrameContext, frameNumber)
-import Hickory.Vulkan.OffscreenTarget (renderToSwapchain)
+import qualified Hickory.Vulkan.RenderPass as H
+import qualified Hickory.Vulkan.DynamicMesh as H
+import Hickory.Color (white)
 
 -- ** GAMEPLAY **
 
@@ -129,12 +130,14 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 
 -- The resources used by our rendering function
 data Resources = Resources
-  { circleTex           :: H.PointedDescriptorSet
+  { target              :: H.RenderTarget
+  , circleTex           :: H.PointedDescriptorSet
   , fontTex             :: H.PointedDescriptorSet
   , square              :: H.BufferedMesh
   , solidMaterial       :: H.BufferedUniformMaterial SolidColorUniform
   , texturedMaterial    :: H.BufferedUniformMaterial TextureUniform
-  , font                :: Font Int
+  , msdfMaterial        :: H.BufferedUniformMaterial H.MSDFMatConstants
+  , font                :: Font
   , dynamicMesh         :: FramedResource H.DynamicBufferedMesh
   }
 
@@ -152,6 +155,7 @@ newtype TextureUniform = TextureUniform
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size _inst vulkanResources swapchain = do
+  target@H.RenderTarget {..} <- H.withStandardRenderTarget vulkanResources swapchain
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR)]
   fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR)]
 
@@ -170,15 +174,18 @@ loadResources path _size _inst vulkanResources swapchain = do
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
-  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain
+  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True
     [H.Position, H.TextureCoord] vertShader fragShader Nothing Nothing
-  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain
+  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True
     [H.Position, H.TextureCoord] texVertShader texFragShader Nothing (Just circleTex)
+  msdfMaterial <- H.withMSDFMaterial False vulkanResources swapchain renderPass fontTex
 
-  -- gidolinya.fnt (font data) and gidolinya.png (font texture) were
-  -- generated using the bmGlyph program for Mac
-  text <- liftIO $ readFileAsText $ path ++ "/fonts/gidolinya.fnt"
-  let font :: Font Int = fromRight (error "Can't parse font") $ makeFont text "gidolinya"
+  -- gidolinya.json (font data) and gidolinya.png (font texture) were
+  -- generated using https://github.com/Chlumsky/msdf-atlas-gen
+  text <- liftIO $ BS.readFile $ path ++ "fonts/gidolinya.json"
+  let font = case makeFont text of
+                Left s -> error s
+                Right f -> f
 
   -- We need a dynamic buffer per frame to write text mesh data
   dynamicMesh <- frameResource $ H.withDynamicBufferedMesh vulkanResources 1000
@@ -191,8 +198,9 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
   = H.runFrame frameContext
   . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  . renderToSwapchain False (V4 0 0 0 1)
-  . recordCommandBuffer $ do
+  $ H.renderToTarget target (V4 0 0 0 1) (H.PostConstants 0 (V3 1 1 1) 1) litF overlayF
+  where
+  litF = do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat <- H.askMatrix
@@ -202,11 +210,12 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
         mat <- H.askMatrix
         drawMesh False solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square Nothing
 
+  overlayF = do
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
-      H.xform (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (5/12) (5/12))) do
+      H.xform (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12))) do
         mat <- H.askMatrix
-        drawText texturedMaterial (TextureUniform mat) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } ) fontTex
-  where
+        drawText msdfMaterial (H.MSDFMatConstants mat white white 0 2) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } ) fontTex
+
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True
     in shotMatrix proj (aspectRatio size) !*! viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
