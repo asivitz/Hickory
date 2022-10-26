@@ -222,9 +222,11 @@ createFramebuffer dev renderPass swapchainExtent imageViews =
   in withFramebuffer dev framebufferCreateInfo Nothing mkAcquire
 
 data PostConstants = PostConstants
-  { exposure   :: Float
-  , colorShift :: V3 Float
-  , saturation :: Float
+  { exposure    :: Float
+  , colorShift  :: V3 Float
+  , saturation  :: Float
+  , filmGrain   :: Float
+  , frameNumber :: Int
   } deriving Generic
     deriving anyclass GStorable
 
@@ -257,6 +259,8 @@ layout( push_constant, scalar ) uniform constants
   float exposure;
   vec3 colorShift;
   float saturation;
+  float filmGrain;
+  int frameNumber;
 } PushConstants;
 
 layout (set = 0, binding = 0) uniform sampler2D textureSampler;
@@ -277,15 +281,33 @@ void main()
 {
   lowp vec4 origColor = texture(textureSampler, texCoordsVarying);
 
+  // Exposure
   vec3 exposureFilter = exp2(PushConstants.exposure) * PushConstants.colorShift;
   vec3 color = origColor.rgb * exposureFilter;
 
+  // Saturation
   vec3 lumaWeights = vec3(0.25,0.50,0.25);
   float luminance = dot(lumaWeights, color.rgb);
   vec3 grey = vec3(luminance, luminance, luminance);
   vec3 saturated = grey + PushConstants.saturation * (color.rgb - grey);
 
-  outColor = vec4(aces_tonemapping(saturated), 1.0);
+  // Tonemapping
+  color = aces_tonemapping(saturated);
+
+  // Film grain
+  float grainIntensity =
+    fract( 10000
+         * sin( (3.14 / 180)
+              * ( texCoordsVarying.x * 360
+                + texCoordsVarying.y * 36
+                * PushConstants.frameNumber
+                )
+              )
+         );
+
+  color += PushConstants.filmGrain * grainIntensity;
+
+  outColor = vec4(color, 1.0);
 }
 |]
 

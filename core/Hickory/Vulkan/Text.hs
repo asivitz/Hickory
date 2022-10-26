@@ -100,22 +100,35 @@ void main() {
   float distance = median(texture(texSampler, texCoord).rgb);
 
   float range = screenPixelRange(uniforms.sdfPixelRange);
-  float screenPixelDistance = range*(distance - 0.5);
+  float screenPixelDistance = range * (distance - 0.5);
 
-  float alpha = clamp( screenPixelDistance + 1 + uniforms.outlineSize
-                      , 0
-                      , 2
-                      ) / 2;
+  if (uniforms.outlineSize > 0)
+  {
+    vec4 background = vec4(uniforms.outlineColor.rgb, 0);
 
-  vec3 rgb = mix( uniforms.outlineColor.rgb
-                , uniforms.color.rgb
-                , clamp( screenPixelDistance + 1
-                        , 0
-                        , 2
-                        ) / 2
-                );
-
-  outColor = vec4(rgb, alpha);
+    vec4 outerColor = mix( background
+                         , uniforms.outlineColor
+                         , clamp( screenPixelDistance + 1 + uniforms.outlineSize
+                           , 0
+                           , 2
+                           ) / 2);
+    outColor = mix( outerColor
+                  , uniforms.color
+                  , clamp( screenPixelDistance + 1
+                         , 0
+                         , 2
+                         ) / 2);
+  }
+  else
+  {
+    vec4 background = vec4(uniforms.color.rgb, 0);
+    outColor = mix( background
+                  , uniforms.color
+                  , clamp( screenPixelDistance + 1
+                         , 0
+                         , 2
+                         ) / 2);
+  }
 }
 
 |]

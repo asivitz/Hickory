@@ -21,6 +21,7 @@ import Linear.Matrix ((!*!))
 import Linear ( M44, V2 (..), V4(..), V3(..))
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
+import Hickory.Vulkan.Frame (FrameContext(..))
 
 import Hickory.Vulkan.Monad (useGlobalDecriptorSet, getTexIdx, drawMesh)
 import Data.Word (Word32)
@@ -75,7 +76,7 @@ acquireResources _ _ vulkanResources swapchain = do
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
-  runFrames win acquireResources \Resources {..} frameContext -> H.runFrame frameContext
+  runFrames win acquireResources \Resources {..} frameContext@FrameContext {..} -> H.runFrame frameContext
     . H.runBatchIO
     . useGlobalDecriptorSet globalDescriptorSet
     $ do
@@ -98,7 +99,7 @@ main = withWindow 800 800 "Vulkan Test" \win ->
           texidx1 <- getTexIdx "x.png"
           drawMesh True texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square Nothing
 
-      H.renderToTarget target (V4 0 0 0 1) (H.PostConstants 0 (V3 1 1 1) 1) litF overlayF
+      H.renderToTarget target (V4 0 0 0 1) (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
   where
 
 {-- SHADERS --}
