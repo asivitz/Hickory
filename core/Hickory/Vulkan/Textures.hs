@@ -160,16 +160,16 @@ transitionImageLayout image oldLayout newLayout commandBuffer = do
 
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
 
-withImageSampler :: VulkanResources -> Filter -> Acquire Sampler
-withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt =
+withImageSampler :: VulkanResources -> Filter -> SamplerAddressMode -> Acquire Sampler
+withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt addressMode =
   withSampler device samplerInfo Nothing mkAcquire
   where
   samplerInfo = zero
     { magFilter = filt
     , minFilter = filt
-    , addressModeU = SAMPLER_ADDRESS_MODE_REPEAT
-    , addressModeV = SAMPLER_ADDRESS_MODE_REPEAT
-    , addressModeW = SAMPLER_ADDRESS_MODE_REPEAT
+    , addressModeU = addressMode
+    , addressModeV = addressMode
+    , addressModeW = addressMode
     , anisotropyEnable = False
     , borderColor = BORDER_COLOR_INT_OPAQUE_BLACK
     , unnormalizedCoordinates = False

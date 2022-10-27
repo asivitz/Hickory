@@ -50,6 +50,7 @@ import qualified Hickory.Vulkan.Text as H
 import Control.Monad
 import Vulkan
   ( pattern FILTER_LINEAR, Instance
+  , SamplerAddressMode(..)
   )
 
 import qualified Data.ByteString as B
@@ -156,8 +157,8 @@ newtype TextureUniform = TextureUniform
 loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size _inst vulkanResources swapchain = do
   target@H.RenderTarget {..} <- H.withStandardRenderTarget vulkanResources swapchain
-  circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR)]
-  fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR)]
+  circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
+  fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
@@ -174,11 +175,11 @@ loadResources path _size _inst vulkanResources swapchain = do
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
-  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True
+  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass
     [H.Position, H.TextureCoord] vertShader fragShader Nothing Nothing
-  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True
+  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass
     [H.Position, H.TextureCoord] texVertShader texFragShader Nothing (Just circleTex)
-  msdfMaterial <- H.withMSDFMaterial False vulkanResources swapchain renderPass fontTex
+  msdfMaterial <- H.withMSDFMaterial vulkanResources swapchain renderPass fontTex
 
   -- gidolinya.json (font data) and gidolinya.png (font texture) were
   -- generated using https://github.com/Chlumsky/msdf-atlas-gen
@@ -214,7 +215,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
       H.xform (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12))) do
         mat <- H.askMatrix
-        drawText msdfMaterial (H.MSDFMatConstants mat white white 0 2) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } ) fontTex
+        drawText msdfMaterial (H.MSDFMatConstants mat white white 0 2 (V2 1 1)) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } ) fontTex
 
   gameCameraMatrix size@(Size w _h) =
     let proj = Ortho w 1 100 True

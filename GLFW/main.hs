@@ -6,6 +6,7 @@ module Main where
 
 import Vulkan
   ( pattern FILTER_LINEAR, Instance
+  , SamplerAddressMode(..)
   )
 
 import qualified Data.ByteString as B
@@ -69,9 +70,9 @@ acquireResources _ _ vulkanResources swapchain = do
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
 
-  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR), ("x.png", FILTER_LINEAR)]
-  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True [H.Position, H.Color, H.TextureCoord] vertShader fragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
-  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass True [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
+  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE), ("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
+  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass [H.Position, H.Color, H.TextureCoord] vertShader fragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
+  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
   pure Resources {..}
 
 main :: IO ()

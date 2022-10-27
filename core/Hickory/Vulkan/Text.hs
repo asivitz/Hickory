@@ -13,7 +13,7 @@ import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)
-import Linear (M44)
+import Linear (M44, V2)
 import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
@@ -24,11 +24,12 @@ data MSDFMatConstants = MSDFMatConstants
   , outlineColor  :: V4 Float
   , outlineSize   :: Float -- In pixels
   , sdfPixelRange :: Float -- Should match parameter used to generate MSDF
+  , tiling        :: V2 Float
   } deriving Generic
     deriving anyclass GStorable
 
-withMSDFMaterial :: Bool -> VulkanResources -> Swapchain -> RenderPass -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withMSDFMaterial lit vulkanResources swapchain renderPass pds = withBufferedUniformMaterial vulkanResources swapchain renderPass lit [Position, TextureCoord] vertShader fragShader Nothing (Just pds)
+withMSDFMaterial :: VulkanResources -> Swapchain -> RenderPass -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial vulkanResources swapchain renderPass pds = withBufferedUniformMaterial vulkanResources swapchain renderPass [Position, TextureCoord] vertShader fragShader Nothing (Just pds)
   where
   vertShader :: ByteString
   vertShader = [vert|
@@ -47,6 +48,7 @@ withMSDFMaterial lit vulkanResources swapchain renderPass pds = withBufferedUnif
     vec4 outlineColor;
     float outlineSize;
     float sdfPixelRange;
+    vec2 tiling;
   };
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
@@ -55,7 +57,7 @@ withMSDFMaterial lit vulkanResources swapchain renderPass pds = withBufferedUnif
   void main() {
       Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
       gl_Position = uniforms.modelViewProjMatrix * vec4(inPosition, 1.0);
-      texCoord = inTexCoord;
+      texCoord = uniforms.tiling * inTexCoord;
   }
 
 |]
@@ -76,6 +78,7 @@ struct Uniforms
   vec4 outlineColor;
   float outlineSize;
   float sdfPixelRange;
+  vec2 tiling;
 };
 
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;

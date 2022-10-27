@@ -36,7 +36,7 @@ import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet (..), TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor, withBufferDescriptorSet, PointedDescriptorSet)
 import Hickory.Vulkan.Frame (FrameContext (..))
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource, frameResource, doubleResource)
-import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, cmdBindMaterial, withMaterial, cmdBindDrawDescriptorSet)
+import Hickory.Vulkan.Material (Material (..), cmdPushMaterialConstants, withMaterial, cmdBindDrawDescriptorSet, cmdBindMaterial)
 import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(Position, TextureCoord))
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Vulkan
@@ -64,18 +64,17 @@ withBufferedUniformMaterial
   => VulkanResources
   -> Swapchain
   -> RenderPass
-  -> Bool
   -> [Attribute]
   -> B.ByteString
   -> B.ByteString
   -> Maybe PointedDescriptorSet -- Global descriptor set
   -> Maybe PointedDescriptorSet -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial uniform)
-withBufferedUniformMaterial vulkanResources swapchain renderPass lit attributes vert frag globalDescriptorSet perDrawDescriptorSet = do
+withBufferedUniformMaterial vulkanResources swapchain renderPass attributes vert frag globalDescriptorSet perDrawDescriptorSet = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let
     materialSets = maybe id (:) (doubleResource <$> globalDescriptorSet) [view #descriptorSet <$> descriptor]
-  material <- withMaterial vulkanResources swapchain renderPass lit (undefined :: Proxy Word32) attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag materialSets (doubleResource <$> perDrawDescriptorSet)
+  material <- withMaterial vulkanResources swapchain renderPass (undefined :: Proxy Word32) attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag materialSets (doubleResource <$> perDrawDescriptorSet)
   pure BufferedUniformMaterial {..}
 
 {- Batch IO Monad -}
@@ -121,19 +120,19 @@ class (FrameMonad m, BatchIOMonad m) => CommandMonad m where
     -> (CommandBuffer -> IO ())
     -> m ()
 
-recordCommandBuffer :: MonadIO m => CommandT m a -> m a
-recordCommandBuffer f = flip evalStateT (DrawCommands mempty mempty mempty) $ do
+recordCommandBuffer :: MonadIO m => Bool -> CommandT m a -> m a
+recordCommandBuffer multisample f = flip evalStateT (DrawCommands mempty mempty mempty) $ do
   a <- unCommandT f
   DrawCommands {..} <- get
 
   let allCommands = blendedCommands ++ sortOn fst opaqueCommands
-      bindMat :: UUID -> IO ()
+      bindMat :: UUID -> Bool -> IO ()
       bindMat matId = fromMaybe (error "Can't find material to bind") $ Data.Map.lookup matId materialBinds
 
       folder :: (UUID, IO ()) -> Maybe UUID -> IO (Maybe UUID)
       folder (matId, drawCom) curMatId = do
         when (Just matId /= curMatId) do
-          bindMat matId
+          bindMat matId multisample
         drawCom
         pure (Just matId)
 
@@ -146,7 +145,7 @@ recordCommandBuffer f = flip evalStateT (DrawCommands mempty mempty mempty) $ do
 data DrawCommands = DrawCommands
   { opaqueCommands   :: [(UUID, IO ())] -- As they are opaque, we can sort them by material to minimize binds
   , blendedCommands  :: [(UUID, IO ())] -- We can't sort these, but if subsequent commands use the same material, we can avoid multiple binds
-  , materialBinds    :: Map UUID (IO ())
+  , materialBinds    :: Map UUID (Bool -> IO ())
   } deriving Generic
 
 newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands m a }
@@ -173,7 +172,7 @@ instance (MonadIO m, FrameMonad m, BatchIOMonad m) => CommandMonad (CommandT m) 
         doDraw = do
           cmdPushMaterialConstants commandBuffer material uniformIndex
           drawCommand commandBuffer
-        newMatBinds = Map.insert matId (cmdBindMaterial frameNumber commandBuffer material) materialBinds
+        newMatBinds = Map.insert matId (\multisample -> cmdBindMaterial frameNumber multisample commandBuffer material) materialBinds
 
     if shouldBlend
     then put $ dcs { materialBinds = newMatBinds, blendedCommands = (matId, doDraw) : blendedCommands }

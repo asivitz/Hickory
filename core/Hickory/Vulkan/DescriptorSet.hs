@@ -25,13 +25,13 @@ import Vulkan
   , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Filter
-  , pattern IMAGE_ASPECT_COLOR_BIT, Sampler
+  , pattern IMAGE_ASPECT_COLOR_BIT, Sampler, SamplerAddressMode
   )
 import Data.Functor ((<&>))
 import Hickory.Vulkan.Textures (withImageSampler, withTextureImage)
 import Data.Traversable (for)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Control.Lens (view)
+import Control.Lens (view, _1)
 import System.FilePath.Lens (filename)
 import Data.Bits ((.|.))
 import VulkanMemoryAllocator (Allocation, Allocator, withMappedMemory)
@@ -166,12 +166,12 @@ data TextureDescriptorSet = TextureDescriptorSet
   , textureNames  :: Vector Text
   } deriving Generic
 
-withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter)] -> Acquire TextureDescriptorSet
+withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter, SamplerAddressMode)] -> Acquire TextureDescriptorSet
 withTextureDescriptorSet _ [] = error "No textures in descriptor set"
 withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
-  let textureNames = V.fromList $ pack . view filename . fst <$> texturePaths
-  images <- for texturePaths \(path, filt) -> do
-    sampler <- withImageSampler bag filt
+  let textureNames = V.fromList $ pack . view filename . view _1 <$> texturePaths
+  images <- for texturePaths \(path, filt, addressMode) -> do
+    sampler <- withImageSampler bag filt addressMode
     image   <- withTextureImage bag path
     let format = FORMAT_R8G8B8A8_UNORM
     imageView <- with2DImageView deviceContext format IMAGE_ASPECT_COLOR_BIT image

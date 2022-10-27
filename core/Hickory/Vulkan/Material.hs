@@ -50,8 +50,9 @@ import Vulkan.CStruct.Extends (SomeStruct(..))
 import Data.Proxy (Proxy)
 
 data Material a = Material
-  { pipeline               :: Pipeline
-  , pipelineLayout         :: PipelineLayout
+  { pipelineLayout         :: PipelineLayout
+  , singleSamplePipeline   :: Pipeline
+  , multiSamplePipeline    :: Pipeline
   , materialDescriptorSets :: [FramedResource PointedDescriptorSet] -- Bound along with the material
   , uuid                   :: UUID
   , attributes             :: [Attribute]
@@ -62,7 +63,6 @@ withMaterial
   => VulkanResources
   -> Swapchain
   -> RenderPass
-  -> Bool                                        -- Lit? If True, use first subpass and multisample FIXME: Too tied to renderpass structure?
   -> f a -- Push Const proxy
   -> [Attribute]
   -> PrimitiveTopology
@@ -75,7 +75,6 @@ withMaterial
   bag@VulkanResources {..}
   swapchain
   renderPass
-  lit
   pushConstProxy
   (sortOn attrLocation -> attributes)
   topology vertShader fragShader
@@ -94,17 +93,11 @@ withMaterial
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
-  pipeline <- withGraphicsPipeline bag swapchain renderPass lit topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  singleSamplePipeline <- withGraphicsPipeline bag swapchain renderPass False topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  multiSamplePipeline <- withGraphicsPipeline bag swapchain renderPass True topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
-
-cmdBindMaterial :: MonadIO m => Int -> CommandBuffer -> Material a -> m ()
-cmdBindMaterial frameNumber commandBuffer Material {..} = do
-  cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
-  where
-  sets = V.fromList $ view #descriptorSet . resourceForFrame frameNumber <$> materialDescriptorSets
 
 cmdPushMaterialConstants :: (MonadIO m, Storable a) => CommandBuffer -> Material a -> a -> m ()
 cmdPushMaterialConstants commandBuffer Material {..} a =
@@ -113,6 +106,15 @@ cmdPushMaterialConstants commandBuffer Material {..} a =
 cmdBindDrawDescriptorSet :: MonadIO m => CommandBuffer -> Material a -> PointedDescriptorSet -> m ()
 cmdBindDrawDescriptorSet commandBuffer Material {..} pds =
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout (fromIntegral $ Prelude.length materialDescriptorSets) [view #descriptorSet pds] []
+
+cmdBindMaterial :: MonadIO m => Int -> Bool -> CommandBuffer -> Material a -> m ()
+cmdBindMaterial frameNumber multiSample commandBuffer Material {..} = do
+  let pipeline = if multiSample then multiSamplePipeline else singleSamplePipeline
+
+  cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
+  where
+  sets = V.fromList $ view #descriptorSet . resourceForFrame frameNumber <$> materialDescriptorSets
 
 {- GRAPHICS PIPELINE -}
 

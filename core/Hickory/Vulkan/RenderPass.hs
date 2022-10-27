@@ -41,7 +41,7 @@ import Vulkan
   , cmdUseRenderPass
   , ClearDepthStencilValue(..)
   , pattern SUBPASS_CONTENTS_INLINE
-  , cmdNextSubpass, RenderPass, Filter (..)
+  , cmdNextSubpass, RenderPass, Filter (..), SamplerAddressMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -96,7 +96,7 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
   frameBuffers <- for images \(ViewableImage _img imgView _format) ->
     createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView, imgView]
 
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR
+  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   descriptorSet <- withTexturesDescriptorSet vulkanResources
     [ (resolveImage, sampler)
     ]
@@ -232,7 +232,7 @@ data PostConstants = PostConstants
 
 withPostProcessMaterial :: VulkanResources -> Swapchain -> RenderPass -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withPostProcessMaterial vulkanResources swapchain renderPass materialDescriptorSet =
-  withMaterial vulkanResources swapchain renderPass False (undefined :: Proxy PostConstants)
+  withMaterial vulkanResources swapchain renderPass (undefined :: Proxy PostConstants)
     [] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader [materialDescriptorSet] Nothing
   where
   vertShader = [vert|
@@ -323,14 +323,14 @@ renderToTarget RenderTarget {..} (V4 r g b a) postConstants litF overlayF = do
         , clearValues = [ Color (Float32 r g b a), DepthStencil (ClearDepthStencilValue 1 0), Color (Float32 1 1 1 1) ]
         }
   cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-    recordCommandBuffer do
+    recordCommandBuffer True do
       litF
 
     cmdNextSubpass commandBuffer SUBPASS_CONTENTS_INLINE
 
-    cmdBindMaterial frameNumber commandBuffer postProcessMaterial
+    cmdBindMaterial frameNumber False commandBuffer postProcessMaterial
     cmdPushMaterialConstants commandBuffer postProcessMaterial postConstants
     cmdDraw commandBuffer 3 1 0 0
 
-    recordCommandBuffer do
+    recordCommandBuffer False do
       overlayF
