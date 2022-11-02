@@ -6,7 +6,7 @@ import Data.Char (ord)
 import Hickory.Math.Vector
 import qualified Data.Text as Text
 import Data.List
-import Linear (V2(..), V3(..))
+import Linear (V2(..), V3(..), (^*))
 import Hickory.Text.ParseJson (Glyph (..), Font (..), GlyphVerts (..), Metrics (..), Atlas (..))
 import Data.Functor ((<&>))
 import Data.Maybe (mapMaybe, fromMaybe)
@@ -17,11 +17,6 @@ lineShiftX width AlignRight = negate width
 lineShiftX width AlignCenter = negate (width / 2)
 lineShiftX _width AlignLeft = 0
 
-lineShiftY :: (Fractional b) => b -> YAlign -> b
-lineShiftY _ AlignMiddle      = 0
-lineShiftY _ AlignLowerMiddle = 48 - 12
-lineShiftY height AlignBottom = height
-lineShiftY _ AlignTop = 0
 
 kernGlyphs :: [(Glyph, Maybe GlyphVerts)] -> HashMap.HashMap (Int,Int) Scalar -> [((Glyph, Maybe GlyphVerts), Scalar)]
 kernGlyphs glyphs kernMap = primary ++ [(last glyphs, 0)]
@@ -34,14 +29,19 @@ transformTextCommandToVerts (TextCommand text align valign) Font {..}
   where
   Metrics {..} = metrics
   Atlas {..} = atlas
+
+  yoffset :: Scalar = case valign of
+    AlignMiddle      -> ((ascender + descender) / 2 - descender) / 2
+    AlignBottom      -> 0
+    AlignTop         -> (ascender + descender) / 2 - descender
+
   defaultGlyph = \case
     10 -> Just (Glyph 10 0 Nothing Nothing, Nothing)
     _  -> Nothing
   glyphs = mapMaybe (\c -> HashMap.lookup (ord c) glyphMap <|> defaultGlyph (ord c)) (Text.unpack text)
   kernedGlyphs = kernGlyphs glyphs kerningMap
-  fullwidth = (size*) . sum $ kernedGlyphs <&> \((g,_), k) -> advance g + k
+  fullwidth = sum $ kernedGlyphs <&> \((g,_), k) -> advance g + k
   xoffset = lineShiftX (realToFrac fullwidth) align
-  yoffset = lineShiftY (realToFrac lineHeight) valign
   accum :: (Scalar, Int, Int, [V3 Scalar], [V2 Scalar]) -> ((Glyph, Maybe GlyphVerts), Scalar) -> (Scalar, Int, Int, [V3 Scalar], [V2 Scalar])
   accum = \(leftBump, linenum, numsquares, posLst, tcLst) ((Glyph {..}, gv), kerning) -> case unicode of
     10 -> (0, linenum + 1, numsquares, posLst, tcLst)
@@ -49,9 +49,9 @@ transformTextCommandToVerts (TextCommand text align valign) Font {..}
       Just GlyphVerts {..} ->
         let placeGlyph :: V2 Scalar -> V3 Scalar
             placeGlyph = \(V2 vx vy) -> V3 (vx + leftBump)
-                                          (realToFrac linenum * realToFrac lineHeight * size + (vy + yoffset))
-                                          0
+                                          (realToFrac linenum * realToFrac lineHeight + (vy + yoffset))
+                                          0 ^* size
             new_verts = map placeGlyph verts
-        in (leftBump + (advance + kerning) * size, linenum, numsquares + 1, new_verts ++ posLst, texCoords ++ tcLst)
-      Nothing -> (leftBump + advance * size, linenum, numsquares, posLst, tcLst)
+        in (leftBump + (advance + kerning), linenum, numsquares + 1, new_verts ++ posLst, texCoords ++ tcLst)
+      Nothing -> (leftBump + advance, linenum, numsquares, posLst, tcLst)
   (_, _, num_squares, posLstResult, tcLstResult) = foldl' accum (xoffset, 0, 0, [], []) kernedGlyphs

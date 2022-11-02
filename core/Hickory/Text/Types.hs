@@ -15,7 +15,6 @@ data XAlign
 
 data YAlign
   = AlignMiddle
-  | AlignLowerMiddle
   | AlignBottom
   | AlignTop
   deriving (Show, Eq, Generic)

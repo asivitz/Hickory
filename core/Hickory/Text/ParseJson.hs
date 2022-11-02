@@ -154,10 +154,10 @@ makeFont text = case eitherDecode text of
           , V2 (ar / realToFrac width) (ab / realToFrac height)
           ]
         verts =
-          [ V2 (pl * size) ((lineHeight - pt) * size)
-          , V2 (pr * size) ((lineHeight - pt) * size)
-          , V2 (pl * size) ((lineHeight - pb) * size)
-          , V2 (pr * size) ((lineHeight - pb) * size)
+          [ V2 pl (-pt)
+          , V2 pr (-pt)
+          , V2 pl (-pb)
+          , V2 pr (-pb)
           ]
       in Just GlyphVerts {..}
     _ -> Nothing
