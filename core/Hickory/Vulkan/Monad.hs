@@ -115,26 +115,27 @@ mapFrameT f = FrameT . mapReaderT f . unFrameT
 class (FrameMonad m, BatchIOMonad m) => CommandMonad m where
   recordDrawCommand
     :: Bool -- True if blended
+    -> Bool -- True if we should render to the shadow map
     -> Material Word32
     -> Word32
     -> (CommandBuffer -> IO ())
     -> m ()
 
 recordCommandBuffer :: MonadIO m => Bool -> CommandT m a -> m a
-recordCommandBuffer multisample f = flip evalStateT (DrawCommands mempty mempty mempty) $ do
+recordCommandBuffer multisample f = flip evalStateT (DrawCommands mempty mempty) $ do
   a <- unCommandT f
   DrawCommands {..} <- get
 
-  let allCommands = blendedCommands ++ sortOn fst opaqueCommands
+  let allCommands = filter blended commands ++ sortOn materialId (filter (not . blended) commands)
       bindMat :: UUID -> Bool -> IO ()
       bindMat matId = fromMaybe (error "Can't find material to bind") $ Data.Map.lookup matId materialBinds
 
-      folder :: (UUID, IO ()) -> Maybe UUID -> IO (Maybe UUID)
-      folder (matId, drawCom) curMatId = do
-        when (Just matId /= curMatId) do
-          bindMat matId multisample
-        drawCom
-        pure (Just matId)
+      folder :: DrawCommand -> Maybe UUID -> IO (Maybe UUID)
+      folder DrawCommand {..} curMatId = do
+        when (Just materialId /= curMatId) do
+          bindMat materialId multisample
+        io
+        pure (Just materialId)
 
   void . liftIO $ foldrM folder Nothing allCommands
   pure a
@@ -143,9 +144,15 @@ recordCommandBuffer multisample f = flip evalStateT (DrawCommands mempty mempty 
 -- screen, so the draws themselves can be sorted by material
 -- Blended draws (e.g. for e.g. transparency) are drawn in the order they are submitted
 data DrawCommands = DrawCommands
-  { opaqueCommands   :: [(UUID, IO ())] -- As they are opaque, we can sort them by material to minimize binds
-  , blendedCommands  :: [(UUID, IO ())] -- We can't sort these, but if subsequent commands use the same material, we can avoid multiple binds
-  , materialBinds    :: Map UUID (Bool -> IO ())
+  { commands      :: [DrawCommand]
+  , materialBinds :: Map UUID (Bool -> IO ())
+  } deriving Generic
+
+data DrawCommand = DrawCommand
+  { io         :: IO ()
+  , materialId :: UUID
+  , blended    :: Bool -- We can sort opaque commands by material to minimize binds.
+  , shadowMap  :: Bool
   } deriving Generic
 
 newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands m a }
@@ -164,19 +171,17 @@ recordUniform bds uniform = do
   pure uniformIndex
 
 instance (MonadIO m, FrameMonad m, BatchIOMonad m) => CommandMonad (CommandT m) where
-  recordDrawCommand shouldBlend material uniformIndex drawCommand = CommandT do
+  recordDrawCommand blended shadowMap material uniformIndex drawCommand = CommandT do
     FrameContext {..} <- lift askFrameContext
     dcs@DrawCommands {..} <- get
 
-    let matId = view #uuid material
-        doDraw = do
+    let materialId = view #uuid material
+        io = do
           cmdPushMaterialConstants commandBuffer material uniformIndex
           drawCommand commandBuffer
-        newMatBinds = Map.insert matId (\multisample -> cmdBindMaterial frameNumber multisample commandBuffer material) materialBinds
+        newMatBinds = Map.insert materialId (\multisample -> cmdBindMaterial frameNumber multisample commandBuffer material) materialBinds
 
-    if shouldBlend
-    then put $ dcs { materialBinds = newMatBinds, blendedCommands = (matId, doDraw) : blendedCommands }
-    else put $ dcs { materialBinds = newMatBinds, opaqueCommands  = (matId, doDraw) : opaqueCommands }
+    put $ dcs { materialBinds = newMatBinds, commands = DrawCommand {..} : commands }
 
 {- Global Descriptor Monad -}
 
@@ -229,7 +234,7 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 
 {- Transitive Instances -}
 
-instance {-# OVERLAPPABLE #-} (MonadTrans t, CommandMonad m, Monad (t m)) => CommandMonad (t m) where recordDrawCommand a b c d = lift $ recordDrawCommand a b c d
+instance {-# OVERLAPPABLE #-} (MonadTrans t, CommandMonad m, Monad (t m)) => CommandMonad (t m) where recordDrawCommand a b c d e = lift $ recordDrawCommand a b c d e
 instance {-# OVERLAPPABLE #-} (MonadTrans t, GlobalDescriptorMonad m, Monad (t m)) => GlobalDescriptorMonad (t m) where askDescriptorSet = lift askDescriptorSet
 instance {-# OVERLAPPABLE #-} (MonadTrans t, FrameMonad m, Monad (t m))            => FrameMonad (t m)   where askFrameContext = lift askFrameContext
 instance {-# OVERLAPPABLE #-} (MonadTrans t, BatchIOMonad m, Monad (t m))          => BatchIOMonad (t m) where recordIO = lift . recordIO
@@ -282,18 +287,19 @@ drawText
   -> TextCommand
   -> PointedDescriptorSet
   -> m ()
-drawText material uniform font tc texDescriptorSet = drawDynamicMesh True material uniform (textMesh font tc) (Just texDescriptorSet)
+drawText material uniform font tc texDescriptorSet = drawDynamicMesh True False material uniform (textMesh font tc) (Just texDescriptorSet)
 
 -- |The mesh needs to supply, at a minimum, all the attributes required by the material
 drawDynamicMesh
   :: (CommandMonad m, MonadIO m, Storable uniform, DynamicMeshMonad m)
   => Bool
+  -> Bool
   -> BufferedUniformMaterial uniform
   -> uniform
   -> Mesh
   -> Maybe PointedDescriptorSet
   -> m ()
-drawDynamicMesh shouldBlend BufferedUniformMaterial {..} uniform mesh drawBufferDescriptorSet = do
+drawDynamicMesh shouldBlend shadowMap BufferedUniformMaterial {..} uniform mesh drawBufferDescriptorSet = do
   meshes <- getMeshes
   addMesh mesh
 
@@ -304,7 +310,7 @@ drawDynamicMesh shouldBlend BufferedUniformMaterial {..} uniform mesh drawBuffer
       indexSizeThusFar  = sum $ map (maybe 0 vsizeOf . indices) meshes
 
   DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
-  recordDrawCommand shouldBlend material uniformIndex \commandBuffer -> do
+  recordDrawCommand shouldBlend shadowMap material uniformIndex \commandBuffer -> do
     for_ drawBufferDescriptorSet $ cmdBindDrawDescriptorSet commandBuffer material
     cmdDrawBufferedMesh commandBuffer material mesh vertexSizeThusFar vertexBuffer (fromIntegral indexSizeThusFar) (Just indexBuffer)
 
@@ -312,14 +318,15 @@ drawDynamicMesh shouldBlend BufferedUniformMaterial {..} uniform mesh drawBuffer
 drawMesh
   :: (CommandMonad m, MonadIO m, Storable uniform)
   => Bool
+  -> Bool
   -> BufferedUniformMaterial uniform
   -> uniform
   -> BufferedMesh
   -> Maybe PointedDescriptorSet
   -> m ()
-drawMesh shouldBlend BufferedUniformMaterial {..} uniform BufferedMesh {..} drawBufferDescriptorSet = do
+drawMesh shouldBlend shadowMap BufferedUniformMaterial {..} uniform BufferedMesh {..} drawBufferDescriptorSet = do
   uniformIndex <- recordUniform descriptor uniform
-  recordDrawCommand shouldBlend material uniformIndex $ \cb -> do
+  recordDrawCommand shouldBlend shadowMap material uniformIndex $ \cb -> do
       for_ drawBufferDescriptorSet $ cmdBindDrawDescriptorSet cb material
       cmdDrawBufferedMesh cb material mesh 0 vertexBuffer 0 indexBuffer
 
