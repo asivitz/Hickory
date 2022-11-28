@@ -205,11 +205,11 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
       for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
         mat <- H.askMatrix
-        drawMesh True False texturedMaterial (TextureUniform mat) square (Just circleTex)
+        drawMesh texturedMaterial (TextureUniform mat) square (Just circleTex) H.doBlend
 
       H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
         mat <- H.askMatrix
-        drawMesh False False solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square Nothing
+        drawMesh solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square Nothing id
 
   overlayF = do
     H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do

@@ -92,13 +92,13 @@ main = withWindow 800 800 "Vulkan Test" \win ->
             mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
               -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-          drawMesh False False solidColorMaterial (Uniform mat 0) square Nothing
+          drawMesh solidColorMaterial (Uniform mat 0) square Nothing id
 
           texidx0 <- getTexIdx "star.png"
-          drawMesh True False texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square Nothing
+          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square Nothing H.doBlend
 
           texidx1 <- getTexIdx "x.png"
-          drawMesh True False texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square Nothing
+          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square Nothing H.doBlend
 
       H.renderToTarget target (V4 0 0 0 1) (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
   where
