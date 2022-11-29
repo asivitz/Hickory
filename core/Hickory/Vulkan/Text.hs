@@ -9,7 +9,6 @@ import Vulkan (RenderPass)
 import Hickory.Vulkan.Vulkan (VulkanResources (..), Swapchain)
 import Hickory.Vulkan.Mesh (Attribute (..))
 import Acquire.Acquire (Acquire)
-import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)
@@ -17,6 +16,7 @@ import Linear (M44, V2)
 import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget)
 
 data MSDFMatConstants = MSDFMatConstants
   { modelViewMat  :: M44 Float
@@ -28,8 +28,8 @@ data MSDFMatConstants = MSDFMatConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withMSDFMaterial :: VulkanResources -> Swapchain -> RenderPass -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withMSDFMaterial vulkanResources swapchain renderPass pds = withBufferedUniformMaterial vulkanResources swapchain renderPass [Position, TextureCoord] vertShader fragShader Nothing (Just pds)
+withMSDFMaterial :: VulkanResources -> Swapchain -> RenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial vulkanResources swapchain renderTarget pds = withBufferedUniformMaterial vulkanResources swapchain renderTarget [Position, TextureCoord] vertShader fragShader (Just pds)
   where
   vertShader :: ByteString
   vertShader = [vert|
@@ -52,7 +52,7 @@ withMSDFMaterial vulkanResources swapchain renderPass pds = withBufferedUniformM
   };
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-  layout (row_major, scalar, set = 0, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 
   void main() {
       Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
@@ -82,8 +82,8 @@ struct Uniforms
 };
 
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-layout (row_major, scalar, set = 0, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (set = 1, binding = 0) uniform sampler2D texSampler;
+layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
+layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 
 float median(vec3 v) {

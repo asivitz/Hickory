@@ -127,6 +127,7 @@ library:
     - Hickory.Vulkan.Instance
     - Hickory.Vulkan.Utils
     - Hickory.Vulkan.RenderPass
+    - Hickory.Vulkan.Types
 
 executables:
   pack-model:

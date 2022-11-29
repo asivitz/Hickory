@@ -11,7 +11,7 @@ import Hickory.Vulkan.Vulkan
       VulkanResources(..),
       Swapchain(..),
       ViewableImage(..) )
-import Hickory.Vulkan.DescriptorSet (withTextureArrayDescriptorSet, withTexturesDescriptorSet, PointedDescriptorSet)
+import Hickory.Vulkan.DescriptorSet (withTextureArrayDescriptorSet, withTexturesDescriptorSet)
 import Vulkan
     ( Filter(..),
       Format(..),
@@ -34,6 +34,7 @@ import Control.Arrow ((&&&))
 import Hickory.Vulkan.Monad (FrameMonad (..))
 import Hickory.Vulkan.Frame (FrameContext (..), useDynamicRenderPass)
 import Acquire.Acquire (Acquire)
+import Hickory.Vulkan.Types (PointedDescriptorSet)
 
 data OffscreenTarget = OffscreenTarget
   { colorImage    :: ViewableImage

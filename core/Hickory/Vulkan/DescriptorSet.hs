@@ -46,6 +46,7 @@ import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
+import Hickory.Vulkan.Types (PointedDescriptorSet(..))
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
@@ -153,13 +154,6 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
   uuid <- liftIO nextRandom
 
   pure PointedDescriptorSet {..}
-
-data PointedDescriptorSet = PointedDescriptorSet
-  { descriptorPool      :: DescriptorPool
-  , descriptorSetLayout :: DescriptorSetLayout
-  , descriptorSet       :: DescriptorSet
-  , uuid                :: UUID
-  } deriving Generic
 
 data TextureDescriptorSet = TextureDescriptorSet
   { descriptorSet :: PointedDescriptorSet

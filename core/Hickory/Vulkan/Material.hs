@@ -35,50 +35,38 @@ import Vulkan
 import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain(..), DeviceContext (..), mkAcquire, mkAcquire, createVertShader, createFragShader)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet)
-import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Data.Generics.Labels ()
 import Control.Lens (view)
 import Data.Word (Word32)
-import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
+import Hickory.Vulkan.Framing (FramedResource, resourceForFrame, doubleResource)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
-import GHC.Generics (Generic)
-import Data.Maybe (maybeToList)
+import Data.Maybe (catMaybes, maybeToList)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-
-data Material a = Material
-  { pipelineLayout         :: PipelineLayout
-  , shadowPipeline         :: Pipeline
-  , multiSamplePipeline    :: Pipeline
-  , singleSamplePipeline   :: Pipeline
-  , materialDescriptorSets :: [FramedResource PointedDescriptorSet] -- Bound along with the material
-  , uuid                   :: UUID
-  , attributes             :: [Attribute]
-  } deriving Generic
+import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
 
 withMaterial
   :: forall f a. Storable a
   => VulkanResources
   -> Swapchain
-  -> RenderPass
+  -> RenderTarget
   -> f a -- Push Const proxy
   -> [Attribute]
   -> PrimitiveTopology
   -> B.ByteString
   -> B.ByteString
-  -> [FramedResource PointedDescriptorSet]       -- Descriptor sets bound along with material
+  -> FramedResource PointedDescriptorSet -- Descriptor sets bound along with material
   -> Maybe (FramedResource PointedDescriptorSet) -- Descriptor set bound per draw
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
   swapchain
-  renderPass
+  RenderTarget {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
   topology vertShader fragShader
-  materialDescriptorSets
+  materialDescriptorSet
   drawDescriptorSet
   = do
   let
@@ -89,7 +77,10 @@ withMaterial
           , offset = 0
           , stageFlags = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
           }]
-      , setLayouts = V.fromList $ view #descriptorSetLayout . resourceForFrame (0 :: Int) <$> (materialDescriptorSets Prelude.++ maybeToList drawDescriptorSet)
+      , setLayouts = V.fromList $ view #descriptorSetLayout . resourceForFrame (0 :: Int)
+                               <$> [ doubleResource globalDescriptorSet
+                                   , materialDescriptorSet
+                                   ] Prelude.++ maybeToList drawDescriptorSet
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
@@ -106,7 +97,7 @@ cmdPushMaterialConstants commandBuffer Material {..} a =
 
 cmdBindDrawDescriptorSet :: MonadIO m => CommandBuffer -> Material a -> PointedDescriptorSet -> m ()
 cmdBindDrawDescriptorSet commandBuffer Material {..} pds =
-  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout (fromIntegral $ Prelude.length materialDescriptorSets) [view #descriptorSet pds] []
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 2 [view #descriptorSet pds] []
 
 cmdBindMaterial :: MonadIO m => Int -> Word32 -> CommandBuffer -> Material a -> m ()
 cmdBindMaterial frameNumber subpassIdx commandBuffer Material {..} = do
@@ -117,9 +108,9 @@ cmdBindMaterial frameNumber subpassIdx commandBuffer Material {..} = do
         _ -> error "Invalid subpass index"
 
   cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 1 sets []
   where
-  sets = V.fromList $ view #descriptorSet . resourceForFrame frameNumber <$> materialDescriptorSets
+  sets = [view #descriptorSet . resourceForFrame frameNumber $ materialDescriptorSet]
 
 {- GRAPHICS PIPELINE -}
 

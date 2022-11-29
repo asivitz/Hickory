@@ -18,14 +18,14 @@ import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import qualified Hickory.Vulkan.Monad as H
 import qualified Hickory.Vulkan.RenderPass as H
+import qualified Hickory.Vulkan.Types as H
 import Linear.Matrix ((!*!))
 import Linear ( M44, V2 (..), V4(..), V3(..))
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 import Hickory.Vulkan.Frame (FrameContext(..))
 
-import Hickory.Vulkan.Monad (useGlobalDecriptorSet, getTexIdx, drawMesh)
-import Data.Word (Word32)
+import Hickory.Vulkan.Monad (drawMesh)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
 import Hickory.Types (Size)
@@ -33,22 +33,22 @@ import Control.Lens (view)
 import Acquire.Acquire (Acquire)
 
 data Resources = Resources
-  { target              :: H.RenderTarget
+  { target              :: H.ForwardRenderTarget
   , square              :: H.BufferedMesh
   , solidColorMaterial  :: H.BufferedUniformMaterial Uniform
   , texturedMaterial    :: H.BufferedUniformMaterial Uniform
-  , globalDescriptorSet :: H.TextureDescriptorSet
+  , starTex             :: H.PointedDescriptorSet
+  , xTex                :: H.PointedDescriptorSet
   }
 
 data Uniform = Uniform
   { modelView :: M44 Float
-  , texIdx    :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
 acquireResources :: Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 acquireResources _ _ vulkanResources swapchain = do
-  target@H.RenderTarget {..} <- H.withStandardRenderTarget vulkanResources swapchain
+  target@H.ForwardRenderTarget {..} <- H.withForwardRenderTarget vulkanResources swapchain []
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 1.0
@@ -62,24 +62,25 @@ acquireResources _ _ vulkanResources swapchain = do
                       , 1.0, 1.0, 1.0, 0.0
                       ])
           , (H.TextureCoord, [ 0.0, 0.0
-                              , 1.0, 0.0
-                              , 1.0, 1.0
-                              , 0.0, 1.0
-                              ])
+                             , 1.0, 0.0
+                             , 1.0, 1.0
+                             , 0.0, 1.0
+                             ])
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
 
-  globalDescriptorSet <- H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE), ("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
-  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass [H.Position, H.Color, H.TextureCoord] vertShader fragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
-  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just $ view #descriptorSet globalDescriptorSet) Nothing
+  starTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
+  xTex    <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
+
+  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] vertShader fragShader Nothing
+  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just xTex)
   pure Resources {..}
 
 main :: IO ()
 main = withWindow 800 800 "Vulkan Test" \win ->
   runFrames win acquireResources \Resources {..} frameContext@FrameContext {..} -> H.runFrame frameContext
     . H.runBatchIO
-    . useGlobalDecriptorSet globalDescriptorSet
     $ do
       let
         overlayF = do
@@ -92,16 +93,12 @@ main = withWindow 800 800 "Vulkan Test" \win ->
             mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
               -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
 
-          drawMesh solidColorMaterial (Uniform mat 0) square Nothing id
+          drawMesh solidColorMaterial (Uniform mat) square Nothing id
 
-          texidx0 <- getTexIdx "star.png"
-          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float) texidx0) square Nothing H.doBlend
-
-          texidx1 <- getTexIdx "x.png"
-          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float) texidx1) square Nothing H.doBlend
+          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float)) square (Just starTex) H.doBlend
+          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float)) square (Just xTex) H.doBlend
 
       H.renderToTarget target (V4 0 0 0 1) (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
-  where
 
 {-- SHADERS --}
 
@@ -120,7 +117,6 @@ vertShader = [vert|
   struct Uniforms
   {
     mat4 modelViewMatrix;
-    int texIdx;
   };
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
@@ -159,19 +155,18 @@ texFragShader = [frag|
   layout(location = 0) in vec3 fragColor;
   layout(location = 1) in vec2 texCoord;
 
-  layout(set = 0, binding = 0) uniform sampler2D texSampler[];
-
   layout(location = 0) out vec4 outColor;
 
   struct Uniforms
   {
     mat4 modelViewMatrix;
-    int texIdx;
   };
 
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
+
+  layout(set = 2, binding = 0) uniform sampler2D texSampler;
 
   layout( push_constant ) uniform constants
   {
@@ -180,7 +175,7 @@ texFragShader = [frag|
 
   void main() {
     Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-    outColor = vec4(fragColor, 1.0) * texture(texSampler[ub.uniforms[PushConstants.uniformIdx].texIdx], texCoord);
+    outColor = vec4(fragColor, 1.0) * texture(texSampler, texCoord);
   }
 
 |]

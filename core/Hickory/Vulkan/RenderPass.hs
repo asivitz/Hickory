@@ -41,7 +41,7 @@ import Vulkan
   , cmdUseRenderPass
   , ClearDepthStencilValue(..)
   , pattern SUBPASS_CONTENTS_INLINE
-  , cmdNextSubpass, RenderPass, Filter (..), SamplerAddressMode (..)
+  , cmdNextSubpass, RenderPass, Filter (..), SamplerAddressMode (..), Sampler, cmdBindDescriptorSets, cmdBindPipeline
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -51,26 +51,23 @@ import Data.Traversable (for)
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits ((.|.), zeroBits)
 import Hickory.Vulkan.Monad (FrameMonad (askFrameContext), CommandT, recordCommandBuffer)
-import Hickory.Vulkan.Material (Material, withMaterial, cmdBindMaterial, cmdPushMaterialConstants)
+import Hickory.Vulkan.Material (withMaterial, cmdBindMaterial, cmdPushMaterialConstants)
 import Hickory.Vulkan.Framing (FramedResource(..), doubleResource)
-import Hickory.Vulkan.DescriptorSet (PointedDescriptorSet(..), withTexturesDescriptorSet)
+import Hickory.Vulkan.DescriptorSet (withTexturesDescriptorSet)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
-import Linear (V4 (..), V3)
+import Linear (V4 (..))
 import Control.Monad.IO.Class (MonadIO)
 import Hickory.Math (Scalar)
 import Hickory.Vulkan.Frame (FrameContext(..))
+import Data.Proxy (Proxy)
+import Hickory.Vulkan.Types
+import Linear.V3 (V3)
 import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)
-import Data.Proxy (Proxy)
+import Control.Lens (view)
 
-data RenderTarget = RenderTarget
-  { renderPass          :: !RenderPass
-  , frameBuffers        :: !(V.Vector Framebuffer)
-  , postProcessMaterial :: !(Material PostConstants)
-  }
-
-withStandardRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
-withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceContext@DeviceContext{..}} swapchain@Swapchain {..} = do
+withForwardRenderTarget :: VulkanResources -> Swapchain -> [(ViewableImage, Sampler)] -> Acquire ForwardRenderTarget
+withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceContext@DeviceContext{..}} swapchain@Swapchain {..} extraGlobalImages = do
   renderPass <- withRenderPass device zero
     { attachments  = [shadowmapAttachmentDescription, hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription, outColorAttachmentDescription]
     , subpasses    = [shadowSubpass, litSubpass, postOverlaySubpass]
@@ -80,7 +77,7 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
   -- Shadowmap depth texture
   shadowmapImageRaw  <- withDepthImage vulkanResources extent depthFormat SAMPLE_COUNT_1_BIT IMAGE_USAGE_SAMPLED_BIT
   shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw
-  let _showmapImage = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
+  let shadowmapImage = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
 
   -- Target textures for the lit pass
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
@@ -106,9 +103,14 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
     [ (resolveImage, sampler)
     ]
 
-  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchain renderPass (doubleResource descriptorSet)
+  globalDescriptorSet <- withTexturesDescriptorSet vulkanResources $
+    (shadowmapImage, sampler) : extraGlobalImages
 
-  pure RenderTarget {..}
+  let renderTarget = RenderTarget {..}
+
+  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchain renderTarget (doubleResource descriptorSet)
+
+  pure ForwardRenderTarget {..}
 
   where
   resolveFormat = hdrFormat
@@ -263,10 +265,10 @@ data PostConstants = PostConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withPostProcessMaterial :: VulkanResources -> Swapchain -> RenderPass -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
-withPostProcessMaterial vulkanResources swapchain renderPass materialDescriptorSet =
-  withMaterial vulkanResources swapchain renderPass (undefined :: Proxy PostConstants)
-    [] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader [materialDescriptorSet] Nothing
+withPostProcessMaterial :: VulkanResources -> Swapchain -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
+withPostProcessMaterial vulkanResources swapchain renderTarget materialDescriptorSet =
+  withMaterial vulkanResources swapchain renderTarget (undefined :: Proxy PostConstants)
+    [] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader materialDescriptorSet Nothing
   where
   vertShader = [vert|
 #version 450
@@ -296,7 +298,7 @@ layout( push_constant, scalar ) uniform constants
   int frameNumber;
 } PushConstants;
 
-layout (set = 0, binding = 0) uniform sampler2D textureSampler;
+layout (set = 1, binding = 0) uniform sampler2D textureSampler;
 
 // Bring hdr color into ldr range with an artistic curve
 // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
@@ -344,8 +346,13 @@ void main()
 }
 |]
 
-renderToTarget :: (FrameMonad m, MonadIO m) => RenderTarget -> V4 Scalar -> PostConstants -> CommandT m () -> CommandT m () -> m ()
-renderToTarget RenderTarget {..} (V4 r g b a) postConstants litF overlayF = do
+data ForwardRenderTarget = ForwardRenderTarget
+  { renderTarget        :: !RenderTarget
+  , postProcessMaterial :: !(Material PostConstants)
+  }
+
+renderToTarget :: (FrameMonad m, MonadIO m) => ForwardRenderTarget -> V4 Scalar -> PostConstants -> CommandT m () -> CommandT m () -> m ()
+renderToTarget ForwardRenderTarget { renderTarget = RenderTarget {..}, postProcessMaterial} (V4 r g b a) postConstants litF overlayF = do
   FrameContext {..} <- askFrameContext
 
   let framebuffer = frameBuffers V.! fromIntegral swapchainImageIndex
@@ -360,6 +367,8 @@ renderToTarget RenderTarget {..} (V4 r g b a) postConstants litF overlayF = do
                         ]
         }
   cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
+    cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS (pipelineLayout postProcessMaterial) 0 [view #descriptorSet globalDescriptorSet] []
+
     cmdNextSubpass commandBuffer SUBPASS_CONTENTS_INLINE
     recordCommandBuffer 1 do
       litF
