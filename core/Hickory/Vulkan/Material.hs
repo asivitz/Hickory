@@ -47,12 +47,12 @@ import Acquire.Acquire (Acquire)
 import GHC.Generics (Generic)
 import Data.Maybe (maybeToList)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Data.Proxy (Proxy)
 
 data Material a = Material
   { pipelineLayout         :: PipelineLayout
-  , singleSamplePipeline   :: Pipeline
+  , shadowPipeline         :: Pipeline
   , multiSamplePipeline    :: Pipeline
+  , singleSamplePipeline   :: Pipeline
   , materialDescriptorSets :: [FramedResource PointedDescriptorSet] -- Bound along with the material
   , uuid                   :: UUID
   , attributes             :: [Attribute]
@@ -75,7 +75,7 @@ withMaterial
   bag@VulkanResources {..}
   swapchain
   renderPass
-  pushConstProxy
+  _pushConstProxy
   (sortOn attrLocation -> attributes)
   topology vertShader fragShader
   materialDescriptorSets
@@ -93,8 +93,9 @@ withMaterial
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
-  singleSamplePipeline <- withGraphicsPipeline bag swapchain renderPass False topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  multiSamplePipeline <- withGraphicsPipeline bag swapchain renderPass True topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  shadowPipeline       <- withGraphicsPipeline bag swapchain renderPass 0 False topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  multiSamplePipeline  <- withGraphicsPipeline bag swapchain renderPass 1 True  topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  singleSamplePipeline <- withGraphicsPipeline bag swapchain renderPass 2 False topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
@@ -107,9 +108,13 @@ cmdBindDrawDescriptorSet :: MonadIO m => CommandBuffer -> Material a -> PointedD
 cmdBindDrawDescriptorSet commandBuffer Material {..} pds =
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout (fromIntegral $ Prelude.length materialDescriptorSets) [view #descriptorSet pds] []
 
-cmdBindMaterial :: MonadIO m => Int -> Bool -> CommandBuffer -> Material a -> m ()
-cmdBindMaterial frameNumber multiSample commandBuffer Material {..} = do
-  let pipeline = if multiSample then multiSamplePipeline else singleSamplePipeline
+cmdBindMaterial :: MonadIO m => Int -> Word32 -> CommandBuffer -> Material a -> m ()
+cmdBindMaterial frameNumber subpassIdx commandBuffer Material {..} = do
+  let pipeline = case subpassIdx of
+        0 -> shadowPipeline
+        1 -> multiSamplePipeline
+        2 -> singleSamplePipeline
+        _ -> error "Invalid subpass index"
 
   cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
@@ -122,6 +127,7 @@ withGraphicsPipeline
   :: VulkanResources
   -> Swapchain
   -> RenderPass
+  -> Word32
   -> Bool
   -> PrimitiveTopology
   -> B.ByteString
@@ -131,7 +137,7 @@ withGraphicsPipeline
   -> V.Vector VertexInputAttributeDescription
   -> Acquire Pipeline
 withGraphicsPipeline
-  VulkanResources {..} swapchain renderPass lit
+  VulkanResources {..} swapchain renderPass subpassIndex multisample
   topology vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
@@ -174,7 +180,7 @@ withGraphicsPipeline
           }
       , multisampleState = Just . SomeStruct $ zero
           { sampleShadingEnable  = False
-          , rasterizationSamples = if lit then maxSampleCount else SAMPLE_COUNT_1_BIT
+          , rasterizationSamples = if multisample then maxSampleCount else SAMPLE_COUNT_1_BIT
           }
       , depthStencilState = Just $ zero
         { depthTestEnable       = True
@@ -204,7 +210,7 @@ withGraphicsPipeline
           }
       , dynamicState       = Nothing
       , layout             = pipelineLayout
-      , subpass            = if lit then 0 else 1
+      , subpass            = subpassIndex
       , basePipelineHandle = zero
       , renderPass
       }

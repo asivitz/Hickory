@@ -90,6 +90,7 @@ import Acquire.Acquire (Acquire (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.List as DL
 import Data.Foldable (for_)
+import Data.Bits ((.|.))
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -284,8 +285,8 @@ withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
 
   pure $ Swapchain {..}
 
-withDepthImage :: VulkanResources -> Extent2D -> Format -> SampleCountFlagBits -> Acquire Image
-withDepthImage VulkanResources { allocator } (Extent2D width height) format samples = do
+withDepthImage :: VulkanResources -> Extent2D -> Format -> SampleCountFlagBits -> ImageUsageFlagBits -> Acquire Image
+withDepthImage VulkanResources { allocator } (Extent2D width height) format samples usage = do
 
   let imageCreateInfo :: ImageCreateInfo '[]
       imageCreateInfo = zero
@@ -296,7 +297,7 @@ withDepthImage VulkanResources { allocator } (Extent2D width height) format samp
         , arrayLayers   = 1
         , tiling        = IMAGE_TILING_OPTIMAL
         , samples       = samples
-        , usage         = IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+        , usage         = IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT .|. usage
         , sharingMode   = SHARING_MODE_EXCLUSIVE
         , initialLayout = IMAGE_LAYOUT_UNDEFINED
         }

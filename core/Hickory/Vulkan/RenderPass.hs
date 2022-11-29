@@ -49,7 +49,7 @@ import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Data.Traversable (for)
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
-import Data.Bits ((.|.))
+import Data.Bits ((.|.), zeroBits)
 import Hickory.Vulkan.Monad (FrameMonad (askFrameContext), CommandT, recordCommandBuffer)
 import Hickory.Vulkan.Material (Material, withMaterial, cmdBindMaterial, cmdPushMaterialConstants)
 import Hickory.Vulkan.Framing (FramedResource(..), doubleResource)
@@ -72,17 +72,22 @@ data RenderTarget = RenderTarget
 withStandardRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
 withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceContext@DeviceContext{..}} swapchain@Swapchain {..} = do
   renderPass <- withRenderPass device zero
-    { attachments  = [hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription, outColorAttachmentDescription]
-    , subpasses    = [litSubpass, postOverlaySubpass]
-    , dependencies = [litDependency, postOverlayDependency]
+    { attachments  = [shadowmapAttachmentDescription, hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription, outColorAttachmentDescription]
+    , subpasses    = [shadowSubpass, litSubpass, postOverlaySubpass]
+    , dependencies = [shadowDependency, litDependency, postOverlayDependency]
     } Nothing mkAcquire
+
+  -- Shadowmap depth texture
+  shadowmapImageRaw  <- withDepthImage vulkanResources extent depthFormat SAMPLE_COUNT_1_BIT IMAGE_USAGE_SAMPLED_BIT
+  shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw
+  let _showmapImage = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
 
   -- Target textures for the lit pass
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
   hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw
   let _hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
 
-  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount
+  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount zeroBits
   depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
   let _depthImage = ViewableImage depthImageRaw depthImageView depthFormat
 
@@ -94,7 +99,7 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
   let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
 
   frameBuffers <- for images \(ViewableImage _img imgView _format) ->
-    createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView, imgView]
+    createFramebuffer device renderPass extent [shadowmapImageView, hdrImageView, depthImageView, resolveImageView, imgView]
 
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   descriptorSet <- withTexturesDescriptorSet vulkanResources
@@ -109,6 +114,17 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
   resolveFormat = hdrFormat
   hdrFormat     = FORMAT_R16G16B16A16_SFLOAT
   depthFormat   = FORMAT_D32_SFLOAT
+  shadowmapAttachmentDescription :: AttachmentDescription
+  shadowmapAttachmentDescription = zero
+    { format         = depthFormat
+    , samples        = SAMPLE_COUNT_1_BIT
+    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
+    , storeOp        = ATTACHMENT_STORE_OP_STORE
+    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
+    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
+    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+    }
   hdrColorAttachmentDescription :: AttachmentDescription
   hdrColorAttachmentDescription = zero
     { format         = hdrFormat
@@ -153,22 +169,30 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
     , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -- Leave as attachment for DearImgui, which will present it
     }
+  shadowSubpass :: SubpassDescription
+  shadowSubpass = zero
+    { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
+    , depthStencilAttachment = Just $ zero
+      { attachment = 0
+      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+      }
+    }
   litSubpass :: SubpassDescription
   litSubpass = zero
     { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
     , colorAttachments =
       [ zero
-        { attachment = 0
+        { attachment = 1
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
       ]
     , depthStencilAttachment = Just $ zero
-      { attachment = 1
+      { attachment = 2
       , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
       }
     , resolveAttachments =
       [ zero
-        { attachment = 2
+        { attachment = 3
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
       ]
@@ -178,22 +202,31 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
     { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
     , colorAttachments =
       [ zero
-        { attachment = 3
+        { attachment = 4
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
       ]
     , depthStencilAttachment = Nothing
     , inputAttachments =
       [ zero
-        { attachment = 2
+        { attachment = 3
         , layout     = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }
       ]
     }
-  litDependency :: SubpassDependency
-  litDependency = zero
+  shadowDependency :: SubpassDependency
+  shadowDependency = zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
+    , srcStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+    , srcAccessMask = ACCESS_SHADER_READ_BIT
+    , dstStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+    , dstAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    }
+  litDependency :: SubpassDependency
+  litDependency = zero
+    { srcSubpass    = 0
+    , dstSubpass    = 1
     , srcStageMask  = PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
     , srcAccessMask = zero
     , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
@@ -201,8 +234,8 @@ withStandardRenderTarget vulkanResources@VulkanResources {deviceContext = device
     }
   postOverlayDependency :: SubpassDependency
   postOverlayDependency = zero
-    { srcSubpass    = 0
-    , dstSubpass    = 1
+    { srcSubpass    = 1
+    , dstSubpass    = 2
     , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
@@ -320,17 +353,22 @@ renderToTarget RenderTarget {..} (V4 r g b a) postConstants litF overlayF = do
         { renderPass  = renderPass
         , framebuffer = framebuffer
         , renderArea  = Rect2D { offset = zero , extent = extent }
-        , clearValues = [ Color (Float32 r g b a), DepthStencil (ClearDepthStencilValue 1 0), Color (Float32 1 1 1 1) ]
+        , clearValues = [ DepthStencil (ClearDepthStencilValue 1 0)
+                        , Color (Float32 r g b a)
+                        , DepthStencil (ClearDepthStencilValue 1 0)
+                        , Color (Float32 1 1 1 1)
+                        ]
         }
   cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-    recordCommandBuffer True do
+    cmdNextSubpass commandBuffer SUBPASS_CONTENTS_INLINE
+    recordCommandBuffer 1 do
       litF
 
     cmdNextSubpass commandBuffer SUBPASS_CONTENTS_INLINE
 
-    cmdBindMaterial frameNumber False commandBuffer postProcessMaterial
+    cmdBindMaterial frameNumber 2 commandBuffer postProcessMaterial
     cmdPushMaterialConstants commandBuffer postProcessMaterial postConstants
     cmdDraw commandBuffer 3 1 0 0
 
-    recordCommandBuffer False do
+    recordCommandBuffer 2 do
       overlayF

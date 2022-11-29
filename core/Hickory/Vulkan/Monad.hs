@@ -120,19 +120,19 @@ class (FrameMonad m, BatchIOMonad m) => CommandMonad m where
     -> (CommandBuffer -> IO ())
     -> m ()
 
-recordCommandBuffer :: MonadIO m => Bool -> CommandT m a -> m a
-recordCommandBuffer multisample f = flip evalStateT (DrawCommands mempty mempty) $ do
+recordCommandBuffer :: MonadIO m => Word32 -> CommandT m a -> m a
+recordCommandBuffer subpassIdx f = flip evalStateT (DrawCommands mempty mempty) $ do
   a <- unCommandT f
   DrawCommands {..} <- get
 
   let allCommands = filter (blend . meshOptions) commands ++ sortOn materialId (filter (not . blend . meshOptions) commands)
-      bindMat :: UUID -> Bool -> IO ()
+      bindMat :: UUID -> Word32 -> IO ()
       bindMat matId = fromMaybe (error "Can't find material to bind") $ Data.Map.lookup matId materialBinds
 
       folder :: DrawCommand -> Maybe UUID -> IO (Maybe UUID)
       folder DrawCommand {..} curMatId = do
         when (Just materialId /= curMatId) do
-          bindMat materialId multisample
+          bindMat materialId subpassIdx
         io
         pure (Just materialId)
 
@@ -144,7 +144,7 @@ recordCommandBuffer multisample f = flip evalStateT (DrawCommands mempty mempty)
 -- Blended draws (e.g. for e.g. transparency) are drawn in the order they are submitted
 data DrawCommands = DrawCommands
   { commands      :: [DrawCommand]
-  , materialBinds :: Map UUID (Bool -> IO ())
+  , materialBinds :: Map UUID (Word32 -> IO ())
   } deriving Generic
 
 data DrawCommand = DrawCommand
@@ -182,7 +182,7 @@ instance (MonadIO m, FrameMonad m, BatchIOMonad m) => CommandMonad (CommandT m) 
         io = do
           cmdPushMaterialConstants commandBuffer material uniformIndex
           drawCommand commandBuffer
-        newMatBinds = Map.insert materialId (\multisample -> cmdBindMaterial frameNumber multisample commandBuffer material) materialBinds
+        newMatBinds = Map.insert materialId (\subpassIdx -> cmdBindMaterial frameNumber subpassIdx commandBuffer material) materialBinds
 
     put $ dcs { materialBinds = newMatBinds, commands = DrawCommand {..} : commands }
 
