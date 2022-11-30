@@ -21,17 +21,18 @@ import Vulkan
   , withDescriptorSetLayout
   , updateDescriptorSets
   , DescriptorImageInfo(..)
-  , WriteDescriptorSet(..), Format (..), ImageLayout (..), allocateDescriptorSets
+  , Format (..), ImageLayout (..), allocateDescriptorSets
   , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Filter
   , pattern IMAGE_ASPECT_COLOR_BIT, Sampler, SamplerAddressMode
   )
+import qualified Vulkan as Writes (WriteDescriptorSet(..))
 import Data.Functor ((<&>))
 import Hickory.Vulkan.Textures (withImageSampler, withTextureImage)
 import Data.Traversable (for)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Control.Lens (view, _1)
+import Control.Lens (view, _1, (&))
 import System.FilePath.Lens (filename)
 import Data.Bits ((.|.))
 import VulkanMemoryAllocator (Allocation, Allocator, withMappedMemory)
@@ -47,22 +48,34 @@ import Acquire.Acquire (Acquire)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Hickory.Vulkan.Types (PointedDescriptorSet(..))
+import Data.List (group, sort)
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
+data DescriptorSpec
+  = ImageDescriptor ViewableImage Sampler
+  | BufferDescriptor Buffer
+
 -- |Each texture is in a separately bound descriptor
-withTexturesDescriptorSet :: VulkanResources -> [(ViewableImage, Sampler)] -> Acquire PointedDescriptorSet
-withTexturesDescriptorSet VulkanResources{..} images = do
+withDescriptorSet :: VulkanResources -> [DescriptorSpec] -> Acquire PointedDescriptorSet
+withDescriptorSet VulkanResources{..} specs = do
   let DeviceContext{..} = deviceContext
-      numImages = fromIntegral $ length images
+      bindings' = zip [0..] specs <&> \(i, spec) -> case spec of
+        ImageDescriptor _ _ -> zero
+          { binding         = i
+          , descriptorCount = 1
+          , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+          , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
+          }
+        BufferDescriptor _ -> zero
+          { binding         = i
+          , descriptorCount = 1
+          , descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
+          , stageFlags      = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
+          }
   descriptorSetLayout <- withDescriptorSetLayout device zero
     -- bind textures as an array of sampled images
-    { bindings = [0..numImages - 1] <&> \i -> zero
-        { binding         = i
-        , descriptorCount = 1
-        , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-        , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
-        }
+    { bindings = V.fromList bindings'
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
     -- , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
     }
@@ -72,7 +85,7 @@ withTexturesDescriptorSet VulkanResources{..} images = do
     { maxSets   = 1
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
     -- , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
-    , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages ]
+    , poolSizes = V.fromList $ bindings' & map (\g -> DescriptorPoolSize (head g) (fromIntegral $ length g)) . group . sort . map descriptorType
     }
     Nothing
     mkAcquire
@@ -84,18 +97,27 @@ withTexturesDescriptorSet VulkanResources{..} images = do
     , setLayouts     = [ descriptorSetLayout ]
     }
 
-  let writes = zip images [0..numImages - 1] <&> \((ViewableImage _image imageView _format, sampler), i) -> zero
-        { dstSet          = descriptorSet
-        , dstBinding      = i
-        , dstArrayElement = 0
-        , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-        , descriptorCount = 1
-        , imageInfo       = [zero
-          { sampler     = sampler
-          , imageView   = imageView
-          , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-          }]
-        }
+  let writes = zip [0..] specs <&> \(i, spec) -> case spec of
+        ImageDescriptor (ViewableImage _image imageView _format) sampler -> zero
+          { Writes.dstSet          = descriptorSet
+          , Writes.dstBinding      = i
+          , Writes.dstArrayElement = 0
+          , Writes.descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+          , Writes.descriptorCount = 1
+          , Writes.imageInfo       = [zero
+            { sampler     = sampler
+            , imageView   = imageView
+            , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            }]
+          }
+        BufferDescriptor buffer -> zero
+          { Writes.dstSet = descriptorSet
+          , Writes.dstBinding      = i
+          , Writes.dstArrayElement = 0
+          , Writes.descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
+          , Writes.descriptorCount = 1
+          , Writes.bufferInfo      = [ zero { buffer = buffer, offset = 0, range = WHOLE_SIZE } ]
+          }
   updateDescriptorSets device (V.fromList $ SomeStruct <$> writes) []
 
   uuid <- liftIO nextRandom
@@ -142,12 +164,12 @@ withTextureArrayDescriptorSet VulkanResources{..} images = do
         , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         }
       write = zero
-        { dstSet          = descriptorSet
-        , dstBinding      = 0
-        , dstArrayElement = 0
-        , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-        , descriptorCount = numImages
-        , imageInfo       = V.fromList desImageInfos
+        { Writes.dstSet          = descriptorSet
+        , Writes.dstBinding      = 0
+        , Writes.dstArrayElement = 0
+        , Writes.descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+        , Writes.descriptorCount = numImages
+        , Writes.imageInfo       = V.fromList desImageInfos
         }
   updateDescriptorSets device [SomeStruct write] []
 
@@ -220,12 +242,12 @@ withBufferDescriptorSet VulkanResources{..} = do
     (fromIntegral $ sizeOf (undefined :: a) * 2048) -- There's got to be a better way than hardcoding # of uniforms allowed
 
   let write = zero
-        { dstSet          = descriptorSet
-        , dstBinding      = 0
-        , dstArrayElement = 0
-        , descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
-        , descriptorCount = 1
-        , bufferInfo      = [ zero { buffer = buffer, offset = 0, range = WHOLE_SIZE } ]
+        { Writes.dstSet          = descriptorSet
+        , Writes.dstBinding      = 0
+        , Writes.dstArrayElement = 0
+        , Writes.descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
+        , Writes.descriptorCount = 1
+        , Writes.bufferInfo      = [ zero { buffer = buffer, offset = 0, range = WHOLE_SIZE } ]
         }
   updateDescriptorSets device [SomeStruct write] []
 

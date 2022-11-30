@@ -42,7 +42,7 @@ import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame, doubleResource)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
-import Data.Maybe (catMaybes, maybeToList)
+import Data.Maybe (maybeToList)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
 
@@ -62,7 +62,7 @@ withMaterial
 withMaterial
   bag@VulkanResources {..}
   swapchain
-  RenderTarget {..}
+  rt@RenderTarget {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
   topology vertShader fragShader
@@ -88,6 +88,7 @@ withMaterial
   multiSamplePipeline  <- withGraphicsPipeline bag swapchain renderPass 1 True  topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   singleSamplePipeline <- withGraphicsPipeline bag swapchain renderPass 2 False topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
+  let globalDescriptorSet = doubleResource $ view #globalDescriptorSet rt
 
   pure Material {..}
 
@@ -108,9 +109,9 @@ cmdBindMaterial frameNumber subpassIdx commandBuffer Material {..} = do
         _ -> error "Invalid subpass index"
 
   cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
-  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 1 sets []
+  cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
   where
-  sets = [view #descriptorSet . resourceForFrame frameNumber $ materialDescriptorSet]
+  sets = fmap (view #descriptorSet . resourceForFrame frameNumber) [globalDescriptorSet, materialDescriptorSet]
 
 {- GRAPHICS PIPELINE -}
 

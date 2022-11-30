@@ -41,7 +41,7 @@ import Vulkan
   , cmdUseRenderPass
   , ClearDepthStencilValue(..)
   , pattern SUBPASS_CONTENTS_INLINE
-  , cmdNextSubpass, RenderPass, Filter (..), SamplerAddressMode (..), Sampler, cmdBindDescriptorSets, cmdBindPipeline
+  , cmdNextSubpass, RenderPass, Filter (..), SamplerAddressMode (..), Sampler, cmdBindDescriptorSets, cmdBindPipeline, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -53,11 +53,11 @@ import Data.Bits ((.|.), zeroBits)
 import Hickory.Vulkan.Monad (FrameMonad (askFrameContext), CommandT, recordCommandBuffer)
 import Hickory.Vulkan.Material (withMaterial, cmdBindMaterial, cmdPushMaterialConstants)
 import Hickory.Vulkan.Framing (FramedResource(..), doubleResource)
-import Hickory.Vulkan.DescriptorSet (withTexturesDescriptorSet)
+import Hickory.Vulkan.DescriptorSet (withDescriptorSet, DescriptorSpec (..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 import Linear (V4 (..))
-import Control.Monad.IO.Class (MonadIO)
-import Hickory.Math (Scalar)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Hickory.Math (Scalar, Mat44)
 import Hickory.Vulkan.Frame (FrameContext(..))
 import Data.Proxy (Proxy)
 import Hickory.Vulkan.Types
@@ -65,9 +65,14 @@ import Linear.V3 (V3)
 import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)
 import Control.Lens (view)
+import Hickory.Vulkan.Mesh (withBuffer')
+import Foreign (sizeOf, poke)
+import VulkanMemoryAllocator (withMappedMemory)
+import Control.Exception (bracket)
+import Foreign.Ptr (castPtr)
 
-withForwardRenderTarget :: VulkanResources -> Swapchain -> [(ViewableImage, Sampler)] -> Acquire ForwardRenderTarget
-withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceContext@DeviceContext{..}} swapchain@Swapchain {..} extraGlobalImages = do
+withForwardRenderTarget :: VulkanResources -> Swapchain -> [DescriptorSpec] -> Acquire ForwardRenderTarget
+withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceContext@DeviceContext{..}, allocator} swapchain@Swapchain {..} extraGlobalDescriptors = do
   renderPass <- withRenderPass device zero
     { attachments  = [shadowmapAttachmentDescription, hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription, outColorAttachmentDescription]
     , subpasses    = [shadowSubpass, litSubpass, postOverlaySubpass]
@@ -99,16 +104,24 @@ withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceC
     createFramebuffer device renderPass extent [shadowmapImageView, hdrImageView, depthImageView, resolveImageView, imgView]
 
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-  descriptorSet <- withTexturesDescriptorSet vulkanResources
-    [ (resolveImage, sampler)
+  materialDescriptorSet <- withDescriptorSet vulkanResources
+    [ ImageDescriptor resolveImage sampler
     ]
 
-  globalDescriptorSet <- withTexturesDescriptorSet vulkanResources $
-    (shadowmapImage, sampler) : extraGlobalImages
+  (buffer, alloc, _) <- withBuffer' allocator
+    BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    (fromIntegral $ sizeOf (undefined :: Mat44)) -- There's got to be a better way than hardcoding # of uniforms allowed
+  let lightTransformBuffer = (buffer, alloc, allocator)
+
+  globalDescriptorSet <- withDescriptorSet vulkanResources
+    $ ImageDescriptor shadowmapImage sampler
+    : BufferDescriptor buffer
+    : extraGlobalDescriptors
 
   let renderTarget = RenderTarget {..}
 
-  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchain renderTarget (doubleResource descriptorSet)
+  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchain renderTarget (doubleResource materialDescriptorSet)
 
   pure ForwardRenderTarget {..}
 
@@ -351,9 +364,14 @@ data ForwardRenderTarget = ForwardRenderTarget
   , postProcessMaterial :: !(Material PostConstants)
   }
 
-renderToTarget :: (FrameMonad m, MonadIO m) => ForwardRenderTarget -> V4 Scalar -> PostConstants -> CommandT m () -> CommandT m () -> m ()
-renderToTarget ForwardRenderTarget { renderTarget = RenderTarget {..}, postProcessMaterial} (V4 r g b a) postConstants litF overlayF = do
+renderToTarget :: (FrameMonad m, MonadIO m) => ForwardRenderTarget -> V4 Scalar -> Mat44 -> PostConstants -> CommandT m () -> CommandT m () -> m ()
+renderToTarget ForwardRenderTarget { renderTarget = RenderTarget {..}, postProcessMaterial} (V4 r g b a) lightTransform postConstants litF overlayF = do
   FrameContext {..} <- askFrameContext
+
+  let (_,alloc,allocator) = lightTransformBuffer
+  liftIO do
+    withMappedMemory allocator alloc bracket \bufptr ->
+      poke (castPtr bufptr) lightTransform
 
   let framebuffer = frameBuffers V.! fromIntegral swapchainImageIndex
       renderPassBeginInfo = zero

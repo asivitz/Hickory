@@ -32,7 +32,7 @@ import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget)
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!))
+import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!), identity)
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
@@ -46,6 +46,7 @@ import qualified Data.ByteString.Lazy as BS
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Text as H
+import qualified Hickory.Vulkan.Types as H
 
 import Control.Monad
 import Vulkan
@@ -131,7 +132,7 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 
 -- The resources used by our rendering function
 data Resources = Resources
-  { target              :: H.RenderTarget
+  { target              :: H.ForwardRenderTarget
   , circleTex           :: H.PointedDescriptorSet
   , fontTex             :: H.PointedDescriptorSet
   , square              :: H.BufferedMesh
@@ -156,7 +157,7 @@ newtype TextureUniform = TextureUniform
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size _inst vulkanResources swapchain = do
-  target@H.RenderTarget {..} <- H.withStandardRenderTarget vulkanResources swapchain
+  target@H.ForwardRenderTarget {..} <- H.withForwardRenderTarget vulkanResources swapchain []
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
   fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
@@ -175,11 +176,11 @@ loadResources path _size _inst vulkanResources swapchain = do
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
-  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass
-    [H.Position, H.TextureCoord] vertShader fragShader Nothing Nothing
-  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderPass
-    [H.Position, H.TextureCoord] texVertShader texFragShader Nothing (Just circleTex)
-  msdfMaterial <- H.withMSDFMaterial vulkanResources swapchain renderPass fontTex
+  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget
+    [H.Position, H.TextureCoord] vertShader fragShader Nothing
+  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget
+    [H.Position, H.TextureCoord] texVertShader texFragShader (Just circleTex)
+  msdfMaterial <- H.withMSDFMaterial vulkanResources swapchain renderTarget fontTex
 
   -- gidolinya.json (font data) and gidolinya.png (font texture) were
   -- generated using https://github.com/Chlumsky/msdf-atlas-gen
@@ -199,7 +200,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
   = H.runFrame frameContext
   . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  $ H.renderToTarget target (V4 0 0 0 1) (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
+  $ H.renderToTarget target (V4 0 0 0 1) identity (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
   where
   litF = do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
