@@ -11,7 +11,6 @@ import Hickory.Vulkan.Vulkan
       VulkanResources(..),
       Swapchain(..),
       ViewableImage(..) )
-import Hickory.Vulkan.DescriptorSet (withTextureArrayDescriptorSet)
 import Vulkan
     ( Filter(..),
       Format(..),

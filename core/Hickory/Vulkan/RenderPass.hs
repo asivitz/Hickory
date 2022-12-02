@@ -116,7 +116,7 @@ withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceC
 
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   materialDescriptorSet <- withDescriptorSet vulkanResources
-    [ ImageDescriptor resolveImage sampler
+    [ ImageDescriptor [(resolveImage,sampler)]
     ]
 
   (buffer, alloc, _) <- withBuffer' allocator

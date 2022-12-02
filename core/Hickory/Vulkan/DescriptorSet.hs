@@ -45,7 +45,6 @@ import Data.IORef (IORef, newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
-import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import Hickory.Vulkan.Types (PointedDescriptorSet(..))
 import Data.List (group, sort)
@@ -53,7 +52,7 @@ import Data.List (group, sort)
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
 data DescriptorSpec
-  = ImageDescriptor ViewableImage Sampler
+  = ImageDescriptor [(ViewableImage, Sampler)]
   | DepthImageDescriptor ViewableImage Sampler
   | BufferDescriptor Buffer
 
@@ -62,9 +61,9 @@ withDescriptorSet :: VulkanResources -> [DescriptorSpec] -> Acquire PointedDescr
 withDescriptorSet VulkanResources{..} specs = do
   let DeviceContext{..} = deviceContext
       bindings' = zip [0..] specs <&> \(i, spec) -> case spec of
-        ImageDescriptor _ _ -> zero
+        ImageDescriptor is -> zero
           { binding         = i
-          , descriptorCount = 1
+          , descriptorCount = fromIntegral $ length is
           , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
           , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
           }
@@ -105,17 +104,17 @@ withDescriptorSet VulkanResources{..} specs = do
     }
 
   let writes = zip [0..] specs <&> \(i, spec) -> case spec of
-        ImageDescriptor (ViewableImage _image imageView _format) sampler -> zero
+        ImageDescriptor images -> zero
           { Writes.dstSet          = descriptorSet
           , Writes.dstBinding      = i
           , Writes.dstArrayElement = 0
           , Writes.descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
           , Writes.descriptorCount = 1
-          , Writes.imageInfo       = [zero
+          , Writes.imageInfo       = V.fromList $ images <&> \(ViewableImage _image imageView _format, sampler) -> zero
             { sampler     = sampler
             , imageView   = imageView
             , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-            }]
+            }
           }
         DepthImageDescriptor (ViewableImage _image imageView _format) sampler -> zero
           { Writes.dstSet          = descriptorSet
@@ -143,59 +142,6 @@ withDescriptorSet VulkanResources{..} specs = do
 
   pure PointedDescriptorSet {..}
 
--- |All textures are bound to the same descriptor in an array
-withTextureArrayDescriptorSet :: VulkanResources -> [(ViewableImage, Sampler)] -> Acquire PointedDescriptorSet
-withTextureArrayDescriptorSet VulkanResources{..} images = do
-  let DeviceContext{..} = deviceContext
-      numImages = fromIntegral $ length images
-  descriptorSetLayout <- withDescriptorSetLayout device zero
-    -- bind textures as an array of sampled images
-    { bindings = [ zero
-        { binding         = 0
-        , descriptorCount = numImages
-        , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-        , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
-        } ]
-      -- Needed for dynamic descriptor array sizing (e.g. global texture array)
-    -- , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
-    }
-    Nothing mkAcquire
-
-  descriptorPool <- withDescriptorPool device zero
-    { maxSets   = 1
-      -- Needed for dynamic descriptor array sizing (e.g. global texture array)
-    -- , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
-    , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER numImages ]
-    }
-    Nothing
-    mkAcquire
-
-  -- We use allocateDescriptorSets, rather than withDescriptorSets, b/c we
-  -- free all the memory at once via the descriptorPool
-  descriptorSet <- V.head <$> allocateDescriptorSets device zero
-    { descriptorPool = descriptorPool
-    , setLayouts     = [ descriptorSetLayout ]
-    }
-
-  let desImageInfos = images <&> \(ViewableImage _image imageView _format, sampler) -> zero
-        { sampler     = sampler
-        , imageView   = imageView
-        , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }
-      write = zero
-        { Writes.dstSet          = descriptorSet
-        , Writes.dstBinding      = 0
-        , Writes.dstArrayElement = 0
-        , Writes.descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-        , Writes.descriptorCount = numImages
-        , Writes.imageInfo       = V.fromList desImageInfos
-        }
-  updateDescriptorSets device [SomeStruct write] []
-
-  uuid <- liftIO nextRandom
-
-  pure PointedDescriptorSet {..}
-
 data TextureDescriptorSet = TextureDescriptorSet
   { descriptorSet :: PointedDescriptorSet
   , textureNames  :: Vector Text
@@ -211,7 +157,7 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
     let format = FORMAT_R8G8B8A8_UNORM
     imageView <- with2DImageView deviceContext format IMAGE_ASPECT_COLOR_BIT image
     pure (ViewableImage image imageView format, sampler)
-  descriptorSet <- withTextureArrayDescriptorSet bag images
+  descriptorSet <- withDescriptorSet bag [ImageDescriptor images]
 
   pure TextureDescriptorSet {..}
 
