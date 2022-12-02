@@ -1,6 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
 {-# LANGUAGE OverloadedLists, DeriveGeneric #-}
-{-# LANGUAGE DataKinds, PatternSynonyms, OverloadedLabels  #-}
+{-# LANGUAGE DataKinds, PatternSynonyms, OverloadedLabels, QuasiQuotes  #-}
 
 module Hickory.Vulkan.Material where
 
@@ -45,6 +45,14 @@ import Acquire.Acquire (Acquire)
 import Data.Maybe (maybeToList)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
+import Hickory.Types (Size(..))
+
+shadowDim :: Extent2D
+shadowDim = Extent2D 1024 1024
+
+shadowMapSize :: Size Int
+shadowMapSize = Size 1024 1024
 
 withMaterial
   :: forall f a. Storable a
@@ -61,7 +69,7 @@ withMaterial
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
-  swapchain
+  Swapchain {..}
   rt@RenderTarget {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
@@ -84,13 +92,25 @@ withMaterial
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
-  shadowPipeline       <- withGraphicsPipeline bag swapchain renderPass 0 False topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  multiSamplePipeline  <- withGraphicsPipeline bag swapchain renderPass 1 True  topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  singleSamplePipeline <- withGraphicsPipeline bag swapchain renderPass 2 False topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  shadowPipeline       <- withGraphicsPipeline bag renderPass 0 False CULL_MODE_FRONT_BIT shadowDim topology vertShader shadowFragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  multiSamplePipeline  <- withGraphicsPipeline bag renderPass 1 True  CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  singleSamplePipeline <- withGraphicsPipeline bag renderPass 2 False CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
   let globalDescriptorSet = doubleResource $ view #globalDescriptorSet rt
 
   pure Material {..}
+  where
+  -- For the shadowmap, we don't care about pixel color
+  shadowFragShader :: B.ByteString
+  shadowFragShader = [frag|
+  #version 450
+
+  layout(location = 0) out vec4 outColor;
+
+  void main() {
+    outColor = vec4(1.0,1.0,1.0,1.0);
+  }
+  |]
 
 cmdPushMaterialConstants :: (MonadIO m, Storable a) => CommandBuffer -> Material a -> a -> m ()
 cmdPushMaterialConstants commandBuffer Material {..} a =
@@ -117,10 +137,11 @@ cmdBindMaterial frameNumber subpassIdx commandBuffer Material {..} = do
 
 withGraphicsPipeline
   :: VulkanResources
-  -> Swapchain
   -> RenderPass
   -> Word32
   -> Bool
+  -> CullModeFlagBits
+  -> Extent2D
   -> PrimitiveTopology
   -> B.ByteString
   -> B.ByteString
@@ -129,11 +150,10 @@ withGraphicsPipeline
   -> V.Vector VertexInputAttributeDescription
   -> Acquire Pipeline
 withGraphicsPipeline
-  VulkanResources {..} swapchain renderPass subpassIndex multisample
+  VulkanResources {..} renderPass subpassIndex multisample cullMode extent
   topology vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
-  let Swapchain {..} = swapchain
   shaderStages   <- V.sequence [ createVertShader device vertShader, createFragShader device fragShader ]
 
   let
@@ -166,7 +186,7 @@ withGraphicsPipeline
           , rasterizerDiscardEnable = False
           , polygonMode             = POLYGON_MODE_FILL
           , lineWidth               = 1
-          , cullMode                = CULL_MODE_BACK_BIT
+          , cullMode                = cullMode
           , frontFace               = FRONT_FACE_COUNTER_CLOCKWISE
           , depthBiasEnable         = False
           }

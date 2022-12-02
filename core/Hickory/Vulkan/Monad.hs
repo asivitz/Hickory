@@ -17,7 +17,7 @@ import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (ReaderT (..), runReaderT, ask, MonadReader, local, mapReaderT)
 import Control.Monad.State.Class (modify, MonadState)
-import Control.Monad.State.Strict (StateT (..), evalStateT, get, put, mapStateT)
+import Control.Monad.State.Strict (StateT (..), execStateT, evalStateT, get, put, mapStateT)
 import Control.Monad.Writer.Strict (WriterT (..), runWriterT, tell, mapWriterT)
 import Control.Monad.Trans (MonadTrans, lift)
 import Data.Foldable (foldrM, toList, for_)
@@ -120,36 +120,40 @@ class (FrameMonad m, BatchIOMonad m) => CommandMonad m where
     -> (CommandBuffer -> IO ())
     -> m ()
 
-recordCommandBuffer :: MonadIO m => Word32 -> CommandT m a -> m a
-recordCommandBuffer subpassIdx f = flip evalStateT (DrawCommands mempty mempty) $ do
-  a <- unCommandT f
-  DrawCommands {..} <- get
+recordCommandBuffer :: MonadIO m => CommandT m () -> m [DrawCommand]
+recordCommandBuffer = fmap commands . flip execStateT (DrawCommands mempty) . unCommandT
+  -- DrawCommands {..} <- get
+  -- pure commands
 
+{-
   let allCommands = filter (blend . meshOptions) commands ++ sortOn materialId (filter (not . blend . meshOptions) commands)
-      bindMat :: UUID -> Word32 -> IO ()
-      bindMat matId = fromMaybe (error "Can't find material to bind") $ Data.Map.lookup matId materialBinds
+
+      -- bindMat :: UUID -> Word32 -> IO ()
+      -- bindMat matId = fromMaybe (error "Can't find material to bind") $ Data.Map.lookup matId materialBinds
 
       folder :: DrawCommand -> Maybe UUID -> IO (Maybe UUID)
       folder DrawCommand {..} curMatId = do
         when (Just materialId /= curMatId) do
           bindMat materialId subpassIdx
+          cmdBindMaterial frameNumber subpassIdx commandBuffer material
         io
         pure (Just materialId)
 
   void . liftIO $ foldrM folder Nothing allCommands
   pure a
+  -}
 
 -- We can use the depth buffer to properly order opaque draws on the
 -- screen, so the draws themselves can be sorted by material
 -- Blended draws (e.g. for e.g. transparency) are drawn in the order they are submitted
 data DrawCommands = DrawCommands
   { commands      :: [DrawCommand]
-  , materialBinds :: Map UUID (Word32 -> IO ())
+  -- , materialBinds :: Map UUID (Word32 -> IO ())
   } deriving Generic
 
 data DrawCommand = DrawCommand
-  { io          :: IO ()
-  , materialId  :: UUID
+  { io          :: CommandBuffer -> IO ()
+  , material    :: Material Word32
   , meshOptions :: MeshOptions
   } deriving Generic
 
@@ -175,16 +179,16 @@ recordUniform bds uniform = do
 
 instance (MonadIO m, FrameMonad m, BatchIOMonad m) => CommandMonad (CommandT m) where
   recordDrawCommand meshOptions material uniformIndex drawCommand = CommandT do
-    FrameContext {..} <- lift askFrameContext
+    -- FrameContext {..} <- lift askFrameContext
     dcs@DrawCommands {..} <- get
 
-    let materialId = view #uuid material
-        io = do
+    -- let materialId = view #uuid material
+    let io commandBuffer = do
           cmdPushMaterialConstants commandBuffer material uniformIndex
           drawCommand commandBuffer
-        newMatBinds = Map.insert materialId (\subpassIdx -> cmdBindMaterial frameNumber subpassIdx commandBuffer material) materialBinds
+        -- newMatBinds = Map.insert materialId (\subpassIdx -> cmdBindMaterial frameNumber subpassIdx commandBuffer material) materialBinds
 
-    put $ dcs { materialBinds = newMatBinds, commands = DrawCommand {..} : commands }
+    put $ dcs { commands = DrawCommand {..} : commands }
 
 {- Global Descriptor Monad -}
 

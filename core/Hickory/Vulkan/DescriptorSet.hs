@@ -54,6 +54,7 @@ type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
 data DescriptorSpec
   = ImageDescriptor ViewableImage Sampler
+  | DepthImageDescriptor ViewableImage Sampler
   | BufferDescriptor Buffer
 
 -- |Each texture is in a separately bound descriptor
@@ -62,6 +63,12 @@ withDescriptorSet VulkanResources{..} specs = do
   let DeviceContext{..} = deviceContext
       bindings' = zip [0..] specs <&> \(i, spec) -> case spec of
         ImageDescriptor _ _ -> zero
+          { binding         = i
+          , descriptorCount = 1
+          , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+          , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
+          }
+        DepthImageDescriptor _ _ -> zero
           { binding         = i
           , descriptorCount = 1
           , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
@@ -108,6 +115,18 @@ withDescriptorSet VulkanResources{..} specs = do
             { sampler     = sampler
             , imageView   = imageView
             , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            }]
+          }
+        DepthImageDescriptor (ViewableImage _image imageView _format) sampler -> zero
+          { Writes.dstSet          = descriptorSet
+          , Writes.dstBinding      = i
+          , Writes.dstArrayElement = 0
+          , Writes.descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+          , Writes.descriptorCount = 1
+          , Writes.imageInfo       = [zero
+            { sampler     = sampler
+            , imageView   = imageView
+            , imageLayout = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
             }]
           }
         BufferDescriptor buffer -> zero

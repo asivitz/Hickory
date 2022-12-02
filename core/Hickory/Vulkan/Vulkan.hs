@@ -68,7 +68,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts
+  , pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -219,15 +219,16 @@ withLogicalDevice inst surface = do
     extensionsToEnable = DL.intersect desiredExtensions availableExtensions
     extensionsNotAvailable = desiredExtensions DL.\\ extensionsToEnable
 
-    deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDescriptorIndexingFeatures, PhysicalDeviceDynamicRenderingFeatures]
+    deviceCreateInfo :: DeviceCreateInfo '[PhysicalDeviceDescriptorIndexingFeatures, PhysicalDeviceDynamicRenderingFeatures, PhysicalDevicePortabilitySubsetFeaturesKHR]
     deviceCreateInfo = zero
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
       , enabledExtensionNames = V.fromList extensionsToEnable
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
                , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
-               , () )
-               )
+               , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow
+               , ()
+               )))
       }
 
   for_ extensionsNotAvailable \e ->

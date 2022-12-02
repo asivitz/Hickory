@@ -308,7 +308,7 @@ vertShader = [vert|
     vec4 color;
   };
 
-  layout (row_major, std140, set = 0, binding = 0) uniform UniformBlock {
+  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -336,7 +336,7 @@ fragShader = [frag|
     vec4 color;
   };
 
-  layout (row_major, std140, set = 0, binding = 0) uniform UniformBlock {
+  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -367,7 +367,7 @@ texVertShader = [vert|
     mat4 modelViewMatrix;
   };
 
-  layout (row_major, scalar, set = 0, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 
@@ -392,7 +392,7 @@ texFragShader = [frag|
 
   layout(location = 1) in vec2 texCoord;
 
-  layout(set = 1, binding = 0) uniform sampler2D texSampler;
+  layout(set = 2, binding = 0) uniform sampler2D texSampler;
 
   layout(location = 0) out vec4 outColor;
 
@@ -401,7 +401,7 @@ texFragShader = [frag|
     mat4 modelViewMatrix;
   };
 
-  layout (row_major, scalar, set = 0, binding = 0) uniform UniformBlock {
+  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
     Uniforms uniforms [128];
   } ub;
 

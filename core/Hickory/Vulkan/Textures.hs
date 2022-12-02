@@ -181,6 +181,27 @@ withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt add
     , maxLod = 0.0
     }
 
+withShadowSampler :: VulkanResources -> Acquire Sampler
+withShadowSampler VulkanResources { deviceContext = DeviceContext {..} } =
+  withSampler device samplerInfo Nothing mkAcquire
+  where
+  samplerInfo = zero
+    { magFilter = FILTER_LINEAR
+    , minFilter = FILTER_LINEAR
+    , addressModeU = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+    , addressModeV = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+    , addressModeW = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+    , anisotropyEnable = False
+    , borderColor = BORDER_COLOR_INT_OPAQUE_BLACK
+    , unnormalizedCoordinates = False
+    , compareEnable = True
+    , compareOp = COMPARE_OP_LESS
+    , mipmapMode = SAMPLER_MIPMAP_MODE_LINEAR
+    , mipLodBias = 0.0
+    , minLod = 0.0
+    , maxLod = 0.0
+    }
+
 withIntermediateImage :: VulkanResources -> Format -> ImageUsageFlagBits -> Extent2D -> SampleCountFlagBits -> Acquire Image
 withIntermediateImage VulkanResources { allocator } format usage (Extent2D width height) samples = do
   let imageCreateInfo :: ImageCreateInfo '[]
