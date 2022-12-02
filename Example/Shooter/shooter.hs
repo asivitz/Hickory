@@ -200,7 +200,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
   = H.runFrame frameContext
   . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  $ H.renderToTarget target (V4 0 0 0 1) identity (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
+  $ H.renderToTarget target (V4 0 0 0 1) (H.Globals identity (V3 1 1 1)) (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
   where
   litF = do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do

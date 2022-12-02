@@ -49,10 +49,10 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Types (Size(..))
 
 shadowDim :: Extent2D
-shadowDim = Extent2D 1024 1024
+shadowDim = Extent2D 2048 2048
 
 shadowMapSize :: Size Int
-shadowMapSize = Size 1024 1024
+shadowMapSize = Size 2048 2048
 
 withMaterial
   :: forall f a. Storable a
@@ -92,9 +92,9 @@ withMaterial
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
-  shadowPipeline       <- withGraphicsPipeline bag renderPass 0 False CULL_MODE_FRONT_BIT shadowDim topology vertShader shadowFragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  multiSamplePipeline  <- withGraphicsPipeline bag renderPass 1 True  CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  singleSamplePipeline <- withGraphicsPipeline bag renderPass 2 False CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  shadowPipeline       <- withGraphicsPipeline bag shadowPass 0 False CULL_MODE_FRONT_BIT shadowDim topology vertShader shadowFragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  multiSamplePipeline  <- withGraphicsPipeline bag renderPass 0 True  CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  singleSamplePipeline <- withGraphicsPipeline bag renderPass 1 False CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
   let globalDescriptorSet = doubleResource $ view #globalDescriptorSet rt
 
@@ -120,15 +120,9 @@ cmdBindDrawDescriptorSet :: MonadIO m => CommandBuffer -> Material a -> PointedD
 cmdBindDrawDescriptorSet commandBuffer Material {..} pds =
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 2 [view #descriptorSet pds] []
 
-cmdBindMaterial :: MonadIO m => Int -> Word32 -> CommandBuffer -> Material a -> m ()
-cmdBindMaterial frameNumber subpassIdx commandBuffer Material {..} = do
-  let pipeline = case subpassIdx of
-        0 -> shadowPipeline
-        1 -> multiSamplePipeline
-        2 -> singleSamplePipeline
-        _ -> error "Invalid subpass index"
-
-  cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
+cmdBindMaterial :: MonadIO m => Int -> (Material a -> Pipeline) -> CommandBuffer -> Material a -> m ()
+cmdBindMaterial frameNumber selector commandBuffer m@Material {..} = do
+  cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS (selector m)
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
   where
   sets = fmap (view #descriptorSet . resourceForFrame frameNumber) [globalDescriptorSet, materialDescriptorSet]

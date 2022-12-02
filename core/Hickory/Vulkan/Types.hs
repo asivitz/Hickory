@@ -13,10 +13,12 @@ import Hickory.Vulkan.Mesh (Attribute)
 import VulkanMemoryAllocator (Allocation, Allocator)
 
 data RenderTarget = RenderTarget
-  { renderPass           :: !RenderPass
+  { shadowPass           :: !RenderPass
+  , renderPass           :: !RenderPass
+  , shadowFrameBuffer    :: !Framebuffer
   , frameBuffers         :: !(V.Vector Framebuffer)
   , globalDescriptorSet  :: !PointedDescriptorSet
-  , lightTransformBuffer :: (Buffer, Allocation, Allocator)
+  , globalsBuffer        :: (Buffer, Allocation, Allocator)
   } deriving Generic
 
 data Material a = Material
