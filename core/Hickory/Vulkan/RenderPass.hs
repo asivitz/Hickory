@@ -55,7 +55,6 @@ import Hickory.Vulkan.Material (withMaterial, cmdBindMaterial, cmdPushMaterialCo
 import Hickory.Vulkan.Framing (FramedResource(..), doubleResource)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, DescriptorSpec (..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
-import Linear (V4 (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Math (Scalar, Mat44)
 import Hickory.Vulkan.Frame (FrameContext(..))
@@ -73,6 +72,7 @@ import Foreign.Ptr (castPtr)
 import Data.List (partition, sortOn)
 import Control.Monad (when)
 import Data.Foldable (for_)
+import Linear ( M44, V2 (..), V4(..), V3(..), identity)
 
 withForwardRenderTarget :: VulkanResources -> Swapchain -> [DescriptorSpec] -> Acquire ForwardRenderTarget
 withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceContext@DeviceContext{..}, allocator} swapchain@Swapchain {..} extraGlobalDescriptors = do
@@ -379,8 +379,18 @@ void main()
 data Globals = Globals
   { lightTransform :: Mat44
   , lightDirection :: V3 Scalar
+  , sunColor       :: V3 Scalar -- HDR
+  , ambientColor   :: V3 Scalar -- HDR
   } deriving Generic
     deriving anyclass GStorable
+
+globalDefaults :: Globals
+globalDefaults = Globals {..}
+  where
+  lightTransform = identity
+  lightDirection = V3 1 1 1
+  sunColor = V3 1 1 1
+  ambientColor = V3 1 1 1
 
 data ForwardRenderTarget = ForwardRenderTarget
   { renderTarget        :: !RenderTarget
