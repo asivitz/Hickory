@@ -5,7 +5,7 @@
 
 module Hickory.Vulkan.Text where
 
-import Vulkan (RenderPass)
+import Vulkan (RenderPass, PrimitiveTopology (..))
 import Hickory.Vulkan.Vulkan (VulkanResources (..), Swapchain)
 import Hickory.Vulkan.Mesh (Attribute (..))
 import Acquire.Acquire (Acquire)
@@ -17,6 +17,7 @@ import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget)
+import Hickory.Vulkan.Material (pipelineDefaults)
 
 data MSDFMatConstants = MSDFMatConstants
   { modelViewMat  :: M44 Float
@@ -29,7 +30,7 @@ data MSDFMatConstants = MSDFMatConstants
     deriving anyclass GStorable
 
 withMSDFMaterial :: VulkanResources -> Swapchain -> RenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withMSDFMaterial vulkanResources swapchain renderTarget pds = withBufferedUniformMaterial vulkanResources swapchain renderTarget [Position, TextureCoord] vertShader fragShader (Just pds)
+withMSDFMaterial vulkanResources swapchain renderTarget pds = withBufferedUniformMaterial vulkanResources swapchain renderTarget [Position, TextureCoord] pipelineDefaults vertShader fragShader (Just pds)
   where
   vertShader :: ByteString
   vertShader = [vert|

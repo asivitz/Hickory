@@ -47,6 +47,8 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Text as H
 import qualified Hickory.Vulkan.Types as H
+import qualified Hickory.Vulkan.Material as H
+import qualified Hickory.Vulkan.RenderPass as H
 
 import Control.Monad
 import Vulkan
@@ -177,9 +179,9 @@ loadResources path _size _inst vulkanResources swapchain = do
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
   solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget
-    [H.Position, H.TextureCoord] vertShader fragShader Nothing
+    [H.Position, H.TextureCoord] H.pipelineDefaults vertShader fragShader Nothing
   texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget
-    [H.Position, H.TextureCoord] texVertShader texFragShader (Just circleTex)
+    [H.Position, H.TextureCoord] H.pipelineDefaults texVertShader texFragShader (Just circleTex)
   msdfMaterial <- H.withMSDFMaterial vulkanResources swapchain renderTarget fontTex
 
   -- gidolinya.json (font data) and gidolinya.png (font texture) were
@@ -200,7 +202,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
   = H.runFrame frameContext
   . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  $ H.renderToTarget target (V4 0 0 0 1) (H.Globals identity (V3 1 1 1)) (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
+  $ H.renderToTarget target (V4 0 0 0 1) H.globalDefaults (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
   where
   litF = do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do

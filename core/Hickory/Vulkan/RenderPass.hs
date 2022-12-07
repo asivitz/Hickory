@@ -51,7 +51,7 @@ import Data.Traversable (for)
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler, withShadowSampler)
 import Data.Bits ((.|.), zeroBits)
 import Hickory.Vulkan.Monad (FrameMonad (askFrameContext), CommandT, recordCommandBuffer, shadowMap, meshOptions, DrawCommand (..), blend)
-import Hickory.Vulkan.Material (withMaterial, cmdBindMaterial, cmdPushMaterialConstants, shadowDim)
+import Hickory.Vulkan.Material (withMaterial, cmdBindMaterial, cmdPushMaterialConstants, shadowDim, pipelineDefaults)
 import Hickory.Vulkan.Framing (FramedResource(..), doubleResource)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, DescriptorSpec (..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
@@ -298,7 +298,7 @@ data PostConstants = PostConstants
 withPostProcessMaterial :: VulkanResources -> Swapchain -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withPostProcessMaterial vulkanResources swapchain renderTarget materialDescriptorSet =
   withMaterial vulkanResources swapchain renderTarget (undefined :: Proxy PostConstants)
-    [] PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vertShader fragShader materialDescriptorSet Nothing
+    [] pipelineDefaults vertShader fragShader materialDescriptorSet Nothing
   where
   vertShader = [vert|
 #version 450
@@ -453,7 +453,7 @@ renderToTarget ForwardRenderTarget { renderTarget = RenderTarget {..}, postProce
       pure (Just newMatId)
     renderCommands commandBuffer frameNumber selector (reverse blended)
     where
-    (blended, sortOn (view #uuid . material) -> opaque) = partition (blend . meshOptions) commands
+    (blended, sortOn (view #uuid . material) . reverse -> opaque) = partition (blend . meshOptions) commands
 
 forState_ :: Monad m => [t] -> a -> (a -> t -> m a) -> m ()
 forState_ (x:xs) initialVal f = f initialVal x >>= flip (forState_ xs) f

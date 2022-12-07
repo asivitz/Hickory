@@ -61,7 +61,7 @@ withMaterial
   -> RenderTarget
   -> f a -- Push Const proxy
   -> [Attribute]
-  -> PrimitiveTopology
+  -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
   -> FramedResource PointedDescriptorSet -- Descriptor sets bound along with material
@@ -73,7 +73,7 @@ withMaterial
   rt@RenderTarget {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
-  topology vertShader fragShader
+  pipelineOptions vertShader fragShader
   materialDescriptorSet
   drawDescriptorSet
   = do
@@ -92,9 +92,9 @@ withMaterial
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
-  shadowPipeline       <- withGraphicsPipeline bag shadowPass 0 False CULL_MODE_FRONT_BIT shadowDim topology vertShader shadowFragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  multiSamplePipeline  <- withGraphicsPipeline bag renderPass 0 True  CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  singleSamplePipeline <- withGraphicsPipeline bag renderPass 1 False CULL_MODE_BACK_BIT extent topology vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  shadowPipeline       <- withGraphicsPipeline bag shadowPass 0 False CULL_MODE_FRONT_BIT shadowDim pipelineOptions vertShader shadowFragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  multiSamplePipeline  <- withGraphicsPipeline bag renderPass 0 True  CULL_MODE_BACK_BIT extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  singleSamplePipeline <- withGraphicsPipeline bag renderPass 1 False CULL_MODE_BACK_BIT extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
   let globalDescriptorSet = doubleResource $ view #globalDescriptorSet rt
 
@@ -129,6 +129,17 @@ cmdBindMaterial frameNumber selector commandBuffer m@Material {..} = do
 
 {- GRAPHICS PIPELINE -}
 
+data PipelineOptions = PipelineOptions
+  { primitiveTopology :: PrimitiveTopology
+  , depthTestEnable   :: Bool
+  }
+
+pipelineDefaults :: PipelineOptions
+pipelineDefaults = PipelineOptions {..}
+  where
+  primitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
+  depthTestEnable = True
+
 withGraphicsPipeline
   :: VulkanResources
   -> RenderPass
@@ -136,7 +147,7 @@ withGraphicsPipeline
   -> Bool
   -> CullModeFlagBits
   -> Extent2D
-  -> PrimitiveTopology
+  -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
   -> PipelineLayout
@@ -145,7 +156,7 @@ withGraphicsPipeline
   -> Acquire Pipeline
 withGraphicsPipeline
   VulkanResources {..} renderPass subpassIndex multisample cullMode extent
-  topology vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
+  PipelineOptions {..} vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
   shaderStages   <- V.sequence [ createVertShader device vertShader, createFragShader device fragShader ]
@@ -159,7 +170,7 @@ withGraphicsPipeline
         , vertexAttributeDescriptions = vertexAttributeDescriptions
         }
       , inputAssemblyState = Just zero
-          { topology = topology
+          { topology = primitiveTopology
           , primitiveRestartEnable = False
           }
       , viewportState = Just . SomeStruct $ zero
@@ -189,7 +200,7 @@ withGraphicsPipeline
           , rasterizationSamples = if multisample then maxSampleCount else SAMPLE_COUNT_1_BIT
           }
       , depthStencilState = Just $ zero
-        { depthTestEnable       = True
+        { depthTestEnable       = depthTestEnable
         , depthWriteEnable      = True
         , depthCompareOp        = COMPARE_OP_LESS
         , depthBoundsTestEnable = False

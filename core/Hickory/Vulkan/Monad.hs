@@ -36,7 +36,7 @@ import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..), BufferDescriptorSet(..), uploadBufferDescriptor, withBufferDescriptorSet)
 import Hickory.Vulkan.Frame (FrameContext (..))
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource, frameResource, doubleResource)
-import Hickory.Vulkan.Material (cmdPushMaterialConstants, withMaterial, cmdBindDrawDescriptorSet, cmdBindMaterial)
+import Hickory.Vulkan.Material (cmdPushMaterialConstants, withMaterial, cmdBindDrawDescriptorSet, cmdBindMaterial, PipelineOptions)
 import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(Position, TextureCoord))
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Vulkan
@@ -66,15 +66,16 @@ withBufferedUniformMaterial
   -> Swapchain
   -> RenderTarget
   -> [Attribute]
+  -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
   -> Maybe PointedDescriptorSet -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial uniform)
-withBufferedUniformMaterial vulkanResources swapchain renderTarget attributes vert frag perDrawDescriptorSet = do
+withBufferedUniformMaterial vulkanResources swapchain renderTarget attributes pipelineOptions vert frag perDrawDescriptorSet = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let
     materialSet = view #descriptorSet <$> descriptor
-  material <- withMaterial vulkanResources swapchain renderTarget (undefined :: Proxy Word32) attributes PRIMITIVE_TOPOLOGY_TRIANGLE_LIST vert frag materialSet (doubleResource <$> perDrawDescriptorSet)
+  material <- withMaterial vulkanResources swapchain renderTarget (undefined :: Proxy Word32) attributes pipelineOptions vert frag materialSet (doubleResource <$> perDrawDescriptorSet)
   pure BufferedUniformMaterial {..}
 
 {- Batch IO Monad -}

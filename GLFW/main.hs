@@ -7,6 +7,7 @@ module Main where
 import Vulkan
   ( pattern FILTER_LINEAR, Instance
   , SamplerAddressMode(..)
+  , PrimitiveTopology(..)
   )
 
 import qualified Data.ByteString as B
@@ -24,6 +25,7 @@ import Linear ( M44, V2 (..), V4(..), V3(..), identity)
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 import Hickory.Vulkan.Frame (FrameContext(..))
+import Hickory.Vulkan.Material (pipelineDefaults)
 
 import Hickory.Vulkan.Monad (drawMesh)
 import Foreign.Storable.Generic (GStorable)
@@ -73,8 +75,8 @@ acquireResources _ _ vulkanResources swapchain = do
   starTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
   xTex    <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
-  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] vertShader fragShader Nothing
-  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] vertShader texFragShader (Just xTex)
+  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader fragShader Nothing
+  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader texFragShader (Just xTex)
   pure Resources {..}
 
 main :: IO ()
