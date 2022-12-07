@@ -56,10 +56,9 @@ stepInput sd fbSizeRef win addInput = do
       ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
   addInput (InputTouchesLoc [(curloc,ident)])
 
-  unless (HashMap.null keys) $ do
-    time <- getCurrentTime
-    let relative = HashMap.map (\t -> realToFrac (diffUTCTime time t)) keys
-    addInput (InputKeysHeld relative)
+  time <- getCurrentTime
+  let relative = HashMap.map (\t -> realToFrac (diffUTCTime time t)) keys
+  addInput (InputKeysHeld relative)
 
 mouseButtonCallback :: IORef SysData -> IORef (Size Int) -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
 mouseButtonCallback platform fbSizeRef addInput win button buttonState modkeys = unlessM wantCaptureMouse do

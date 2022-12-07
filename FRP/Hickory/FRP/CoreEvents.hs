@@ -61,7 +61,7 @@ concatTouchEvents CoreEvents {..} = mconcat
 keyHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
 keyHandlers = (,,) <$> newAddHandler <*> newAddHandler <*> newAddHandler
 
-mkKeyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => (HandlerPair k, HandlerPair (HashMap.HashMap k b1), HandlerPair k) -> MomentIO (Event k, k -> Event k, Event k)
+mkKeyEvents :: (Ord b1, Fractional b1, Hashable k, Eq k) => (HandlerPair k, HandlerPair (HashMap.HashMap k b1), HandlerPair k) -> MomentIO (Event k, k -> Event k, Event k, k -> Behavior Bool)
 mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
   eKey    <- mkEvent keyPair
   eKeysHeld <- mkEvent keysHeldPair
@@ -71,7 +71,8 @@ mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
                                    , k <$ (filterE (>0.2) . filterJust $ HashMap.lookup k <$> eKeysHeld)
                                    ]
       -- keyUp k = filterE (==k) eKeyUp
-  pure (eKey, keyDownOrHeld, eKeyUp)
+  bKeysHeld <- stepper mempty eKeysHeld
+  pure (eKey, keyDownOrHeld, eKeyUp, \k -> HashMap.member k <$> bKeysHeld)
 
 data CoreEventGenerators a = CoreEventGenerators
   { renderEvent :: HandlerPair a
@@ -89,6 +90,7 @@ data CoreEvents a = CoreEvents
   , keyDown       :: Event Key
   , keyDownOrHeld :: Key -> Event Key
   , keyUp         :: Event Key
+  , keyHeldB      :: Key -> Behavior Bool
   , eTouchesDown  :: Event [Point]
   , eTouchesLoc   :: Event [Point]
   , eTouchesUp    :: Event [PointUp]
@@ -124,7 +126,7 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
 mkCoreEvents :: CoreEventGenerators a -> MomentIO (CoreEvents a)
 mkCoreEvents coreEvGens = do
   (eTouchesDown, eTouchesUp, eTouchesLoc) <- mkTouchEvents . touchEvents $ coreEvGens
-  (keyDown, keyDownOrHeld, keyUp)         <- mkKeyEvents   . keyEvents $ coreEvGens
+  (keyDown, keyDownOrHeld, keyUp, keyHeldB)         <- mkKeyEvents   . keyEvents $ coreEvGens
   eTime   <- mkEvent . timeEvents $ coreEvGens
   eRender <- mkEvent . renderEvent $ coreEvGens
 

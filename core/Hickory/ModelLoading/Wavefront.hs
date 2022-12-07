@@ -49,8 +49,8 @@ packOBJIndexed obj@WavefrontOBJ { objFaces } fs = (SV.convert verts, SV.convert 
   where
   indices = V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
   verts :: V.Vector GLfloat
-  verts = V.concatMap (\fi -> V.concat $ map ($fi) packFuns) allFaceIndices
-  packFuns = map ($obj) fs
+  verts = V.concatMap (\fi -> V.concat $ map ($ fi) packFuns) allFaceIndices
+  packFuns = map ($ obj) fs
   faces = fmap elValue objFaces
   allFaceIndices :: V.Vector FaceIndex
   allFaceIndices = V.fromList . nub . concat $ faces <&> \(Face one two three xtras) -> one : two : three : xtras

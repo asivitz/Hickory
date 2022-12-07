@@ -166,6 +166,7 @@ headMay = fmap fst . uncons
 
 data TouchChange
  = AddTouch  TouchIdent Int (V2 Scalar)
+ | LocTouch  TouchIdent Int (V2 Scalar)
  | LoseTouch TouchIdent Int (V2 Scalar)
  deriving Show
 
@@ -183,7 +184,7 @@ trackTouches = B.mapAccum [] . fmap f
   g :: TouchEvent -> [(TouchIdent, V2 Scalar)] -> ([TouchChange], [(TouchIdent, V2 Scalar)])
   g TouchEvent {..} state = case eventType of
     Down -> addOrUpdate touchIdent loc state
-    Loc  -> ([], update touchIdent loc state)
+    Loc  -> (catMaybes [(\idx -> LocTouch touchIdent idx loc) <$> findIndex ((==touchIdent) . fst) state], update touchIdent loc state)
     Up   -> (catMaybes [(\idx -> LoseTouch touchIdent idx loc) <$> findIndex ((==touchIdent) . fst) state], filter ((/=touchIdent) . fst) state)
 
   update k v = \case
