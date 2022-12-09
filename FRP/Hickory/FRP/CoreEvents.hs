@@ -8,7 +8,7 @@ import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
-import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper)
+import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE)
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll, MonadIO (..), mapEventIO)
 import qualified Data.HashMap.Strict as HashMap
 import Linear (V2(..))
@@ -139,3 +139,16 @@ mkCoreEvents coreEvGens = do
   (eNewTime, currentTimeB) <- mapAccum 0 $ (\timeDelt x -> (timeDelt + x, timeDelt + x)) <$> eTime
 
   pure $ CoreEvents { .. }
+
+maskCoreEvents :: Behavior Bool -> CoreEvents a -> CoreEvents a
+maskCoreEvents switch ce@CoreEvents {..} = ce
+  { eRender = whenE switch eRender
+  , eTime = whenE switch eTime
+  , keyDown = whenE switch keyDown
+  , keyDownOrHeld = whenE switch . keyDownOrHeld
+  , keyUp = whenE switch keyUp
+  , eTouchesDown = whenE switch eTouchesDown
+  , eTouchesLoc = whenE switch eTouchesLoc
+  , eTouchesUp = whenE switch eTouchesUp
+  , eNewTime = whenE switch eNewTime
+  }
