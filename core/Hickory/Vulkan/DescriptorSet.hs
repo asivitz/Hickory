@@ -46,15 +46,11 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
 import Data.UUID.V4 (nextRandom)
-import Hickory.Vulkan.Types (PointedDescriptorSet(..))
+import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..))
 import Data.List (group, sort)
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
-data DescriptorSpec
-  = ImageDescriptor [(ViewableImage, Sampler)]
-  | DepthImageDescriptor ViewableImage Sampler
-  | BufferDescriptor Buffer
 
 -- |Each texture is in a separately bound descriptor
 withDescriptorSet :: VulkanResources -> [DescriptorSpec] -> Acquire PointedDescriptorSet

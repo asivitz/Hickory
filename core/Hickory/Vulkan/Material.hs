@@ -42,11 +42,12 @@ import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame, doubleResource)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
-import Data.Maybe (maybeToList)
+import Data.Maybe (maybeToList, fromMaybe)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..), ForwardRenderTarget (..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Types (Size(..))
+import Data.Traversable (for)
 
 shadowDim :: Extent2D
 shadowDim = Extent2D 2048 2048
@@ -57,23 +58,23 @@ shadowMapSize = Size 2048 2048
 withMaterial
   :: forall f a. Storable a
   => VulkanResources
-  -> Swapchain
-  -> RenderTarget
+  -> [RenderTarget]
   -> f a -- Push Const proxy
   -> [Attribute]
   -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
+  -> FramedResource PointedDescriptorSet -- Descriptor sets bound globally
   -> FramedResource PointedDescriptorSet -- Descriptor sets bound along with material
   -> Maybe (FramedResource PointedDescriptorSet) -- Descriptor set bound per draw
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
-  Swapchain {..}
-  rt@RenderTarget {..}
+  renderTargets
   _pushConstProxy
   (sortOn attrLocation -> attributes)
   pipelineOptions vertShader fragShader
+  globalDescriptorSet
   materialDescriptorSet
   drawDescriptorSet
   = do
@@ -86,31 +87,17 @@ withMaterial
           , stageFlags = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
           }]
       , setLayouts = V.fromList $ view #descriptorSetLayout . resourceForFrame (0 :: Int)
-                               <$> [ doubleResource globalDescriptorSet
+                               <$> [ globalDescriptorSet
                                    , materialDescriptorSet
                                    ] Prelude.++ maybeToList drawDescriptorSet
       }
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
-  shadowPipeline       <- withGraphicsPipeline bag shadowPass 0 False CULL_MODE_FRONT_BIT shadowDim pipelineOptions vertShader shadowFragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  multiSamplePipeline  <- withGraphicsPipeline bag renderPass 0 True  CULL_MODE_BACK_BIT extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
-  singleSamplePipeline <- withGraphicsPipeline bag renderPass 1 False CULL_MODE_BACK_BIT extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  pipelines <- V.fromList <$> for renderTargets \RenderTarget{..} ->
+    withGraphicsPipeline bag renderPass 0 samples cullMode extent pipelineOptions vertShader (fromMaybe fragShader fragShaderOverride) pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
-  let globalDescriptorSet = doubleResource $ view #globalDescriptorSet rt
 
   pure Material {..}
-  where
-  -- For the shadowmap, we don't care about pixel color
-  shadowFragShader :: B.ByteString
-  shadowFragShader = [frag|
-  #version 450
-
-  layout(location = 0) out vec4 outColor;
-
-  void main() {
-    outColor = vec4(1.0,1.0,1.0,1.0);
-  }
-  |]
 
 cmdPushMaterialConstants :: (MonadIO m, Storable a) => CommandBuffer -> Material a -> a -> m ()
 cmdPushMaterialConstants commandBuffer Material {..} a =
@@ -144,7 +131,7 @@ withGraphicsPipeline
   :: VulkanResources
   -> RenderPass
   -> Word32
-  -> Bool
+  -> SampleCountFlagBits
   -> CullModeFlagBits
   -> Extent2D
   -> PipelineOptions
@@ -155,7 +142,7 @@ withGraphicsPipeline
   -> V.Vector VertexInputAttributeDescription
   -> Acquire Pipeline
 withGraphicsPipeline
-  VulkanResources {..} renderPass subpassIndex multisample cullMode extent
+  VulkanResources {..} renderPass subpassIndex samples cullMode extent
   PipelineOptions {..} vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
@@ -197,7 +184,7 @@ withGraphicsPipeline
           }
       , multisampleState = Just . SomeStruct $ zero
           { sampleShadingEnable  = False
-          , rasterizationSamples = if multisample then maxSampleCount else SAMPLE_COUNT_1_BIT
+          , rasterizationSamples = samples
           }
       , depthStencilState = Just $ zero
         { depthTestEnable       = depthTestEnable

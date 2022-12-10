@@ -52,7 +52,7 @@ import Acquire.Acquire (Acquire)
 import Data.Proxy (Proxy)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
-import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget)
+import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget, ForwardRenderTarget (..))
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
@@ -63,19 +63,18 @@ data BufferedUniformMaterial uniform = BufferedUniformMaterial
 withBufferedUniformMaterial
   :: Storable uniform
   => VulkanResources
-  -> Swapchain
-  -> RenderTarget
+  -> ForwardRenderTarget
   -> [Attribute]
   -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
   -> Maybe PointedDescriptorSet -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial uniform)
-withBufferedUniformMaterial vulkanResources swapchain renderTarget attributes pipelineOptions vert frag perDrawDescriptorSet = do
+withBufferedUniformMaterial vulkanResources ForwardRenderTarget {..} attributes pipelineOptions vert frag perDrawDescriptorSet = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let
     materialSet = view #descriptorSet <$> descriptor
-  material <- withMaterial vulkanResources swapchain renderTarget (undefined :: Proxy Word32) attributes pipelineOptions vert frag materialSet (doubleResource <$> perDrawDescriptorSet)
+  material <- withMaterial vulkanResources [shadowRenderTarget, litRenderTarget, swapchainRenderTarget] (undefined :: Proxy Word32) attributes pipelineOptions vert frag (doubleResource globalDescriptorSet) materialSet (doubleResource <$> perDrawDescriptorSet)
   pure BufferedUniformMaterial {..}
 
 {- Batch IO Monad -}

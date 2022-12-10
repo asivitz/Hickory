@@ -39,6 +39,10 @@ instance Num a => Num (Size a) where
   fromInteger i = Size (fromInteger i) (fromInteger i)
   signum (Size a b) = Size (signum a) (signum b)
 
+instance Fractional a => Fractional (Size a) where
+  fromRational rat = Size (fromRational rat) (fromRational rat)
+  (Size a1 a2) / (Size b1 b2) = Size (a1 / b1) (a2 / b2)
+
 convertSize :: (Real a, Fractional b) => Size a -> Size b
 convertSize (Size a b) = Size (realToFrac a) (realToFrac b)
 

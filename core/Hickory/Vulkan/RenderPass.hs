@@ -41,7 +41,7 @@ import Vulkan
   , cmdUseRenderPass
   , ClearDepthStencilValue(..)
   , pattern SUBPASS_CONTENTS_INLINE
-  , cmdNextSubpass, RenderPass, Filter (..), SamplerAddressMode (..), Sampler, cmdBindDescriptorSets, cmdBindPipeline, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..)
+  , cmdNextSubpass, RenderPass, Filter (..), SamplerAddressMode (..), Sampler, cmdBindDescriptorSets, cmdBindPipeline, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Buffer, CullModeFlagBits (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -53,7 +53,7 @@ import Data.Bits ((.|.), zeroBits)
 import Hickory.Vulkan.Monad (FrameMonad (askFrameContext), CommandT, recordCommandBuffer, shadowMap, meshOptions, DrawCommand (..), blend)
 import Hickory.Vulkan.Material (withMaterial, cmdBindMaterial, cmdPushMaterialConstants, shadowDim, pipelineDefaults)
 import Hickory.Vulkan.Framing (FramedResource(..), doubleResource)
-import Hickory.Vulkan.DescriptorSet (withDescriptorSet, DescriptorSpec (..))
+import Hickory.Vulkan.DescriptorSet (withDescriptorSet)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Math (Scalar, Mat44)
@@ -66,32 +66,90 @@ import Foreign.Storable.Generic (GStorable)
 import Control.Lens (view)
 import Hickory.Vulkan.Mesh (withBuffer')
 import Foreign (sizeOf, poke)
-import VulkanMemoryAllocator (withMappedMemory)
+import VulkanMemoryAllocator (withMappedMemory, Allocator, Allocation)
 import Control.Exception (bracket)
 import Foreign.Ptr (castPtr)
 import Data.List (partition, sortOn)
 import Control.Monad (when)
 import Data.Foldable (for_)
-import Linear ( M44, V2 (..), V4(..), V3(..), identity)
+import Linear ( V4(..), V3(..), identity)
+import qualified Data.ByteString as B
+import Data.Maybe
 
-withForwardRenderTarget :: VulkanResources -> Swapchain -> [DescriptorSpec] -> Acquire ForwardRenderTarget
-withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceContext@DeviceContext{..}, allocator} swapchain@Swapchain {..} extraGlobalDescriptors = do
-  shadowPass <- withRenderPass device zero
+depthFormat :: Format
+depthFormat = FORMAT_D32_SFLOAT
+
+withShadowRenderTarget :: VulkanResources -> Acquire RenderTarget
+withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do
+  renderPass <- withRenderPass device zero
     { attachments  = [shadowmapAttachmentDescription]
     , subpasses    = [shadowSubpass]
     , dependencies = [shadowDependency]
-    } Nothing mkAcquire
-  renderPass <- withRenderPass device zero
-    { attachments  = [hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription, outColorAttachmentDescription]
-    , subpasses    = [litSubpass, postOverlaySubpass]
-    , dependencies = [litDependency, postOverlayDependency]
     } Nothing mkAcquire
 
   -- Shadowmap depth texture
   shadowmapImageRaw  <- withDepthImage vulkanResources shadowDim depthFormat SAMPLE_COUNT_1_BIT (IMAGE_USAGE_SAMPLED_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
   shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw
-  let shadowmapImage = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
-  shadowSampler <- withShadowSampler vulkanResources
+  let image = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
+  sampler <- withShadowSampler vulkanResources
+
+  shadowFrameBuffer <- createFramebuffer device renderPass shadowDim [shadowmapImageView]
+  let frameBuffers = V.replicate 3 shadowFrameBuffer
+      descriptorSpec = DepthImageDescriptor image sampler
+      extent = shadowDim
+      cullMode = CULL_MODE_FRONT_BIT
+      samples = SAMPLE_COUNT_1_BIT
+      fragShaderOverride = Just shadowFragShader
+
+  pure RenderTarget {..}
+  where
+  shadowSubpass :: SubpassDescription
+  shadowSubpass = zero
+    { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
+    , depthStencilAttachment = Just $ zero
+      { attachment = 0
+      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+      }
+    }
+  shadowDependency :: SubpassDependency
+  shadowDependency = zero
+    { srcSubpass    = SUBPASS_EXTERNAL
+    , dstSubpass    = 0
+    , srcStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+    , srcAccessMask = zero
+    , dstStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+    , dstAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    }
+  shadowmapAttachmentDescription :: AttachmentDescription
+  shadowmapAttachmentDescription = zero
+    { format         = depthFormat
+    , samples        = SAMPLE_COUNT_1_BIT
+    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
+    , storeOp        = ATTACHMENT_STORE_OP_STORE
+    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
+    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
+    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+    }
+  -- For the shadowmap, we don't care about pixel color
+  shadowFragShader :: B.ByteString
+  shadowFragShader = [frag|
+  #version 450
+
+  layout(location = 0) out vec4 outColor;
+
+  void main() {
+    outColor = vec4(1.0,1.0,1.0,1.0);
+  }
+  |]
+
+withLitRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
+withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
+  renderPass <- withRenderPass device zero
+    { attachments  = [hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription]
+    , subpasses    = [litSubpass]
+    , dependencies = [litDependency]
+    } Nothing mkAcquire
 
   -- Target textures for the lit pass
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
@@ -109,48 +167,21 @@ withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceC
   resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw
   let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
 
-  frameBuffers <- for images \(ViewableImage _img imgView _format) ->
-    createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView, imgView]
-
-  shadowFrameBuffer <- createFramebuffer device shadowPass shadowDim [shadowmapImageView]
+  frameBuffer <-
+    createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
 
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-  materialDescriptorSet <- withDescriptorSet vulkanResources
-    [ ImageDescriptor [(resolveImage,sampler)]
-    ]
 
-  (buffer, alloc, _) <- withBuffer' allocator
-    BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    (fromIntegral $ sizeOf (undefined :: Globals)) -- There's got to be a better way than hardcoding # of uniforms allowed
-  let globalsBuffer = (buffer, alloc, allocator)
-
-  globalDescriptorSet <- withDescriptorSet vulkanResources
-    $ DepthImageDescriptor shadowmapImage shadowSampler
-    : BufferDescriptor buffer
-    : extraGlobalDescriptors
-
-  let renderTarget = RenderTarget {..}
-
-  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchain renderTarget (doubleResource materialDescriptorSet)
-
-  pure ForwardRenderTarget {..}
-
+  let frameBuffers = V.replicate 3 frameBuffer
+      -- targetImages = V.fromList [(image, sampler)]
+      descriptorSpec = ImageDescriptor [(resolveImage,sampler)]
+      cullMode = CULL_MODE_BACK_BIT
+      samples = maxSampleCount
+      fragShaderOverride = Nothing
+  pure RenderTarget {..}
   where
   resolveFormat = hdrFormat
   hdrFormat     = FORMAT_R16G16B16A16_SFLOAT
-  depthFormat   = FORMAT_D32_SFLOAT
-  shadowmapAttachmentDescription :: AttachmentDescription
-  shadowmapAttachmentDescription = zero
-    { format         = depthFormat
-    , samples        = SAMPLE_COUNT_1_BIT
-    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
-    , storeOp        = ATTACHMENT_STORE_OP_STORE
-    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
-    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-    }
   hdrColorAttachmentDescription :: AttachmentDescription
   hdrColorAttachmentDescription = zero
     { format         = hdrFormat
@@ -182,26 +213,7 @@ withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceC
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-    }
-  outColorAttachmentDescription :: AttachmentDescription
-  outColorAttachmentDescription = zero
-    { format         = Vulkan.format (imageFormat :: SurfaceFormatKHR)
-    , samples        = SAMPLE_COUNT_1_BIT
-    , loadOp         = ATTACHMENT_LOAD_OP_DONT_CARE
-    , storeOp        = ATTACHMENT_STORE_OP_STORE
-    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
-    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -- Leave as attachment for DearImgui, which will present it
-    }
-  shadowSubpass :: SubpassDescription
-  shadowSubpass = zero
-    { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
-    , depthStencilAttachment = Just $ zero
-      { attachment = 0
-      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-      }
+    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
   litSubpass :: SubpassDescription
   litSubpass = zero
@@ -222,38 +234,6 @@ withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceC
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
       ]
-    -- , inputAttachments =
-    --   [ zero
-    --     { attachment = 0
-    --     , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
-    --     }
-    --   ]
-    }
-  postOverlaySubpass :: SubpassDescription
-  postOverlaySubpass = zero
-    { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
-    , colorAttachments =
-      [ zero
-        { attachment = 3
-        , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }
-      ]
-    , depthStencilAttachment = Nothing
-    , inputAttachments =
-      [ zero
-        { attachment = 2
-        , layout     = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        }
-      ]
-    }
-  shadowDependency :: SubpassDependency
-  shadowDependency = zero
-    { srcSubpass    = SUBPASS_EXTERNAL
-    , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-    , srcAccessMask = zero
-    , dstStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
-    , dstAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
     }
   litDependency :: SubpassDependency
   litDependency = zero
@@ -264,15 +244,81 @@ withForwardRenderTarget vulkanResources@VulkanResources {deviceContext = deviceC
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+
+withSwapchainRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
+withSwapchainRenderTarget VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+  renderPass <- withRenderPass device zero
+    { attachments  = [outColorAttachmentDescription]
+    , subpasses    = [postOverlaySubpass]
+    , dependencies = [postOverlayDependency]
+    } Nothing mkAcquire
+
+  frameBuffers <- for images \(ViewableImage _img imgView _format) ->
+    createFramebuffer device renderPass extent [imgView]
+
+  let descriptorSpec = undefined -- TODO: Handle swapchain targets more gracefully
+      cullMode = CULL_MODE_BACK_BIT
+      samples = SAMPLE_COUNT_1_BIT
+      fragShaderOverride = Nothing
+
+  pure RenderTarget {..}
+  where
+  outColorAttachmentDescription :: AttachmentDescription
+  outColorAttachmentDescription = zero
+    { format         = Vulkan.format (imageFormat :: SurfaceFormatKHR)
+    , samples        = SAMPLE_COUNT_1_BIT
+    , loadOp         = ATTACHMENT_LOAD_OP_DONT_CARE
+    , storeOp        = ATTACHMENT_STORE_OP_STORE
+    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
+    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
+    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -- Leave as attachment for DearImgui, which will present it
+    }
+  postOverlaySubpass :: SubpassDescription
+  postOverlaySubpass = zero
+    { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
+    , colorAttachments =
+      [ zero
+        { attachment = 0
+        , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        }
+      ]
+    , depthStencilAttachment = Nothing
+    }
   postOverlayDependency :: SubpassDependency
   postOverlayDependency = zero
-    { srcSubpass    = 0
-    , dstSubpass    = 1
+    { srcSubpass    = SUBPASS_EXTERNAL
+    , dstSubpass    = 0
     , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+
+withForwardRenderTarget :: VulkanResources -> Swapchain -> [DescriptorSpec] -> Acquire ForwardRenderTarget
+withForwardRenderTarget vulkanResources@VulkanResources {allocator} swapchain extraGlobalDescriptors = do
+  shadowRenderTarget    <- withShadowRenderTarget vulkanResources
+  litRenderTarget       <- withLitRenderTarget vulkanResources swapchain
+  swapchainRenderTarget <- withSwapchainRenderTarget vulkanResources swapchain
+
+  (buffer, alloc, _) <- withBuffer' allocator
+    BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    (fromIntegral $ sizeOf (undefined :: Globals)) -- There's got to be a better way than hardcoding # of uniforms allowed
+  let globalsBuffer = (buffer, alloc, allocator)
+
+  globalDescriptorSet <- withDescriptorSet vulkanResources
+    $ descriptorSpec shadowRenderTarget
+    : BufferDescriptor buffer
+    : extraGlobalDescriptors
+
+  materialDescriptorSet <- withDescriptorSet vulkanResources
+    [ view #descriptorSpec litRenderTarget
+    ]
+
+  postProcessMaterial <- withPostProcessMaterial vulkanResources [shadowRenderTarget, litRenderTarget, swapchainRenderTarget] (doubleResource globalDescriptorSet) (doubleResource materialDescriptorSet)
+
+  pure ForwardRenderTarget {..}
 
 createFramebuffer :: Device -> RenderPass -> Extent2D -> V.Vector ImageView -> Acquire Framebuffer
 createFramebuffer dev renderPass swapchainExtent imageViews =
@@ -286,19 +332,10 @@ createFramebuffer dev renderPass swapchainExtent imageViews =
         }
   in withFramebuffer dev framebufferCreateInfo Nothing mkAcquire
 
-data PostConstants = PostConstants
-  { exposure    :: Float
-  , colorShift  :: V3 Float
-  , saturation  :: Float
-  , filmGrain   :: Float
-  , frameNumber :: Int
-  } deriving Generic
-    deriving anyclass GStorable
-
-withPostProcessMaterial :: VulkanResources -> Swapchain -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
-withPostProcessMaterial vulkanResources swapchain renderTarget materialDescriptorSet =
-  withMaterial vulkanResources swapchain renderTarget (undefined :: Proxy PostConstants)
-    [] pipelineDefaults vertShader fragShader materialDescriptorSet Nothing
+withPostProcessMaterial :: VulkanResources -> [RenderTarget] -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
+withPostProcessMaterial vulkanResources renderTargets globalDescriptorSet materialDescriptorSet =
+  withMaterial vulkanResources renderTargets (undefined :: Proxy PostConstants)
+    [] pipelineDefaults vertShader fragShader globalDescriptorSet materialDescriptorSet Nothing
   where
   vertShader = [vert|
 #version 450
@@ -392,13 +429,20 @@ globalDefaults = Globals {..}
   sunColor = V3 1 1 1
   ambientColor = V3 1 1 1
 
-data ForwardRenderTarget = ForwardRenderTarget
-  { renderTarget        :: !RenderTarget
-  , postProcessMaterial :: !(Material PostConstants)
-  }
+useRenderTarget :: (MonadIO io, Integral a) => RenderTarget -> Vulkan.CommandBuffer -> V.Vector ClearValue -> a -> io r -> io r
+useRenderTarget RenderTarget {..} commandBuffer clearValues swapchainImageIndex f = do
+  let framebuffer = fromMaybe (error "Error accessing framebuffer") $ frameBuffers V.!? fromIntegral swapchainImageIndex
+      renderPassBeginInfo = zero
+        { renderPass  = renderPass
+        , framebuffer = framebuffer
+        , renderArea  = Rect2D { offset = zero , extent = extent }
+        , clearValues = clearValues
+        }
 
-renderToTarget :: (FrameMonad m, MonadIO m) => ForwardRenderTarget -> V4 Scalar -> Globals -> PostConstants -> CommandT m () -> CommandT m () -> m ()
-renderToTarget ForwardRenderTarget { renderTarget = RenderTarget {..}, postProcessMaterial} (V4 r g b a) globals postConstants litF overlayF = do
+  cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE f
+
+renderToForwardTarget :: (FrameMonad m, MonadIO m) => ForwardRenderTarget -> V4 Scalar -> Globals -> PostConstants -> CommandT m () -> CommandT m () -> m ()
+renderToForwardTarget ForwardRenderTarget {..} (V4 r g b a) globals postConstants litF overlayF = do
   FrameContext {..} <- askFrameContext
 
   let (_,alloc,allocator) = globalsBuffer
@@ -409,37 +453,25 @@ renderToTarget ForwardRenderTarget { renderTarget = RenderTarget {..}, postProce
   drawCommands <- recordCommandBuffer litF
   let (shadowCommands, litCommands) = partition (shadowMap . meshOptions) drawCommands
 
-  let shadowPassBeginInfo = zero
-        { renderPass  = shadowPass
-        , framebuffer = shadowFrameBuffer
-        , renderArea  = Rect2D { offset = zero , extent = shadowDim }
-        , clearValues = [ DepthStencil (ClearDepthStencilValue 1 0) ]
-        }
+  useRenderTarget shadowRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex do
+    liftIO $ renderCommands commandBuffer frameNumber (selectPipeline 0) shadowCommands
 
-  cmdUseRenderPass commandBuffer shadowPassBeginInfo SUBPASS_CONTENTS_INLINE do
-    liftIO $ renderCommands commandBuffer frameNumber shadowPipeline shadowCommands
+  useRenderTarget litRenderTarget commandBuffer
+    [ Color (Float32 r g b a)
+    , DepthStencil (ClearDepthStencilValue 1 0)
+    , Color (Float32 1 1 1 1)
+    ] swapchainImageIndex do
+      liftIO $ sortBlendedAndRenderCommands commandBuffer frameNumber (selectPipeline 1) litCommands
 
-  let framebuffer = frameBuffers V.! fromIntegral swapchainImageIndex
-      renderPassBeginInfo = zero
-        { renderPass  = renderPass
-        , framebuffer = framebuffer
-        , renderArea  = Rect2D { offset = zero , extent = extent }
-        , clearValues = [ Color (Float32 r g b a)
-                        , DepthStencil (ClearDepthStencilValue 1 0)
-                        , Color (Float32 1 1 1 1)
-                        ]
-        }
-  cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
-    liftIO $ sortBlendedAndRenderCommands commandBuffer frameNumber multiSamplePipeline litCommands
-
-    cmdNextSubpass commandBuffer SUBPASS_CONTENTS_INLINE
-
-    cmdBindMaterial frameNumber singleSamplePipeline commandBuffer postProcessMaterial
+  useRenderTarget swapchainRenderTarget commandBuffer [] swapchainImageIndex do
+    cmdBindMaterial frameNumber (selectPipeline 2) commandBuffer postProcessMaterial
     cmdPushMaterialConstants commandBuffer postProcessMaterial postConstants
     cmdDraw commandBuffer 3 1 0 0
 
-    recordCommandBuffer overlayF >>= liftIO . sortBlendedAndRenderCommands commandBuffer frameNumber singleSamplePipeline
+    recordCommandBuffer overlayF >>= liftIO . sortBlendedAndRenderCommands commandBuffer frameNumber (selectPipeline 2)
+
   where
+  selectPipeline i = fromMaybe (error $ "Error accessing pipeline: " ++ show i) . (V.!? i) . pipelines
   renderCommands commandBuffer frameNumber selector commands =
     for_ commands \DrawCommand{..} -> do
       cmdBindMaterial frameNumber selector commandBuffer material

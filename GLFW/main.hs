@@ -75,8 +75,8 @@ acquireResources _ _ vulkanResources swapchain = do
   starTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
   xTex    <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
-  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader fragShader Nothing
-  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader texFragShader (Just xTex)
+  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources target [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader fragShader Nothing
+  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources target [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader texFragShader (Just xTex)
   pure Resources {..}
 
 main :: IO ()
@@ -100,7 +100,7 @@ main = withWindow 800 800 "Vulkan Test" \win ->
           drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float)) square (Just starTex) H.doBlend
           drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float)) square (Just xTex) H.doBlend
 
-      H.renderToTarget target (V4 0 0 0 1) H.globalDefaults (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
+      H.renderToForwardTarget target (V4 0 0 0 1) H.globalDefaults (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
 
 {-- SHADERS --}
 

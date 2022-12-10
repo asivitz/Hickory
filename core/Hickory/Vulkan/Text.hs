@@ -16,7 +16,7 @@ import Linear (M44, V2)
 import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, ForwardRenderTarget)
 import Hickory.Vulkan.Material (pipelineDefaults)
 
 data MSDFMatConstants = MSDFMatConstants
@@ -29,8 +29,8 @@ data MSDFMatConstants = MSDFMatConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withMSDFMaterial :: VulkanResources -> Swapchain -> RenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withMSDFMaterial vulkanResources swapchain renderTarget pds = withBufferedUniformMaterial vulkanResources swapchain renderTarget [Position, TextureCoord] pipelineDefaults vertShader fragShader (Just pds)
+withMSDFMaterial :: VulkanResources -> ForwardRenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial vulkanResources renderTarget pds = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader fragShader (Just pds)
   where
   vertShader :: ByteString
   vertShader = [vert|

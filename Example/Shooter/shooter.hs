@@ -159,7 +159,7 @@ newtype TextureUniform = TextureUniform
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size _inst vulkanResources swapchain = do
-  target@H.ForwardRenderTarget {..} <- H.withForwardRenderTarget vulkanResources swapchain []
+  target <- H.withForwardRenderTarget vulkanResources swapchain []
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
   fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
@@ -178,11 +178,11 @@ loadResources path _size _inst vulkanResources swapchain = do
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
-  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget
+  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources target
     [H.Position, H.TextureCoord] H.pipelineDefaults vertShader fragShader Nothing
-  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources swapchain renderTarget
+  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources target
     [H.Position, H.TextureCoord] H.pipelineDefaults texVertShader texFragShader (Just circleTex)
-  msdfMaterial <- H.withMSDFMaterial vulkanResources swapchain renderTarget fontTex
+  msdfMaterial <- H.withMSDFMaterial vulkanResources target fontTex
 
   -- gidolinya.json (font data) and gidolinya.png (font texture) were
   -- generated using https://github.com/Chlumsky/msdf-atlas-gen
@@ -202,7 +202,7 @@ renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, fram
   = H.runFrame frameContext
   . H.runBatchIO
   . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  $ H.renderToTarget target (V4 0 0 0 1) H.globalDefaults (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
+  $ H.renderToForwardTarget target (V4 0 0 0 1) H.globalDefaults (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
   where
   litF = do
     H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
