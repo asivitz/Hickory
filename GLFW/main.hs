@@ -7,7 +7,6 @@ module Main where
 import Vulkan
   ( pattern FILTER_LINEAR, Instance
   , SamplerAddressMode(..)
-  , PrimitiveTopology(..)
   )
 
 import qualified Data.ByteString as B
@@ -18,14 +17,14 @@ import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import qualified Hickory.Vulkan.Monad as H
-import qualified Hickory.Vulkan.RenderPass as H
 import qualified Hickory.Vulkan.Types as H
 import Linear.Matrix ((!*!))
-import Linear ( M44, V2 (..), V4(..), V3(..), identity)
+import Linear ( M44, V2 (..), V4(..), V3(..))
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 import Hickory.Vulkan.Frame (FrameContext(..))
 import Hickory.Vulkan.Material (pipelineDefaults)
+import qualified Hickory.Vulkan.ForwardRenderTarget as H
 
 import Hickory.Vulkan.Monad (drawMesh)
 import Foreign.Storable.Generic (GStorable)
@@ -50,7 +49,7 @@ data Uniform = Uniform
 
 acquireResources :: Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 acquireResources _ _ vulkanResources swapchain = do
-  target@H.ForwardRenderTarget {..} <- H.withForwardRenderTarget vulkanResources swapchain []
+  target <- H.withForwardRenderTarget vulkanResources swapchain []
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 1.0

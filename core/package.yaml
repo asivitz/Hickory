@@ -127,6 +127,8 @@ library:
     - Hickory.Vulkan.Instance
     - Hickory.Vulkan.Utils
     - Hickory.Vulkan.RenderPass
+    - Hickory.Vulkan.ForwardRenderTarget
+    - Hickory.Vulkan.ObjectPicking
     - Hickory.Vulkan.Types
 
 executables:

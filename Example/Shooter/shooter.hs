@@ -49,6 +49,7 @@ import qualified Hickory.Vulkan.Text as H
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Material as H
 import qualified Hickory.Vulkan.RenderPass as H
+import qualified Hickory.Vulkan.ForwardRenderTarget as H
 
 import Control.Monad
 import Vulkan

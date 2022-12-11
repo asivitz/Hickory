@@ -32,20 +32,19 @@ import Vulkan
   , PipelineDepthStencilStateCreateInfo(..)
   , CompareOp (..), RenderPass
   )
-import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain(..), DeviceContext (..), mkAcquire, mkAcquire, createVertShader, createFragShader)
+import Hickory.Vulkan.Vulkan (VulkanResources(..), DeviceContext (..), mkAcquire, mkAcquire, createVertShader, createFragShader)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.UUID.V4 (nextRandom)
 import Data.Generics.Labels ()
 import Control.Lens (view)
 import Data.Word (Word32)
-import Hickory.Vulkan.Framing (FramedResource, resourceForFrame, doubleResource)
+import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
 import Data.Maybe (maybeToList, fromMaybe)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..), ForwardRenderTarget (..))
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
+import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
 import Hickory.Types (Size(..))
 import Data.Traversable (for)
 
