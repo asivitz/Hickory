@@ -2,16 +2,16 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), unCommandT, StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..))
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), unCommandT, StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), CommandT, DrawType (..), addCommand)
 import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain (..), mkAcquire, DeviceContext (..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.ForwardRenderTarget (withPostProcessMaterial)
 import Linear (V4 (..), transpose, inv33, _m33, V2 (..))
-import Hickory.Vulkan.Monad (FrameMonad, askFrameContext, material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad)
+import Hickory.Vulkan.Monad (FrameMonad, askFrameContext, material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (PostConstants(..), RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf)
 import Hickory.Vulkan.Frame (FrameContext(..))
-import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..))
+import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer)
 import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
@@ -32,6 +32,8 @@ import Data.Functor.Identity (runIdentity)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget)
+import Linear.Matrix (M44)
+import Hickory.Text (TextCommand(..))
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -220,3 +222,23 @@ renderMaterialCommandsAndUpload
 renderMaterialCommandsAndUpload frameContext mat commands
   = renderMaterialCommands frameContext mat 0 commands
   >>= uploadUniformsBuffer frameContext mat
+
+drawText
+  :: Monad m
+  => TextRenderer
+  -> M44 Float
+  -> V4 Float
+  -> V4 Float
+  -> Float
+  -> TextCommand
+  -> CommandT m ()
+drawText (font, fontTex, sdfPixelRange) mat color outlineColor outlineSize tc =
+  addCommand $ DrawCommand
+    { modelMat = mat
+    , mesh = Dynamic (textMesh font tc)
+    , color = color
+    , drawType = MSDF $ MSDFMesh fontTex outlineColor outlineSize sdfPixelRange (V2 1 1)
+    , lit = False
+    , castsShadow = False
+    , blend = True
+    }

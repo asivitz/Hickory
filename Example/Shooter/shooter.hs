@@ -44,6 +44,7 @@ import qualified Data.ByteString.Lazy as BS
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
+import qualified Hickory.Vulkan.Text as H
 import qualified Hickory.Vulkan.Forward.Types as H
 import qualified Hickory.Vulkan.Forward.Renderer as H
 
@@ -127,32 +128,16 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 -- The resources used by our rendering function
 data Resources = Resources
   { circleTex           :: H.PointedDescriptorSet
-  , fontTex             :: H.PointedDescriptorSet
   , square              :: H.BufferedMesh
-  -- , solidMaterial       :: H.BufferedUniformMaterial SolidColorUniform
-  -- , texturedMaterial    :: H.BufferedUniformMaterial TextureUniform
-  -- , msdfMaterial        :: H.BufferedUniformMaterial H.MSDFMatConstants
-  , font                :: Font
-  -- , dynamicMesh         :: FramedResource H.DynamicBufferedMesh
   , renderer            :: H.Renderer
+  , textRenderer        :: H.TextRenderer
   }
-
-data SolidColorUniform = SolidColorUniform
-  { mat   :: M44 Scalar
-  , color :: V4 Scalar
-  } deriving Generic
-    deriving anyclass GStorable
-
-newtype TextureUniform = TextureUniform
-  { mat   :: M44 Scalar
-  } deriving Generic
-    deriving anyclass GStorable
 
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size _inst vulkanResources swapchain = do
+  renderer <- H.withRenderer vulkanResources swapchain
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
-  fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
@@ -172,18 +157,13 @@ loadResources path _size _inst vulkanResources swapchain = do
 
   -- gidolinya.json (font data) and gidolinya.png (font texture) were
   -- generated using https://github.com/Chlumsky/msdf-atlas-gen
-  text <- liftIO $ BS.readFile $ path ++ "fonts/gidolinya.json"
-  let font = case makeFont text of
-                Left s -> error s
-                Right f -> f
-
-  renderer <- H.withRenderer vulkanResources swapchain
+  textRenderer <- H.withTextRenderer vulkanResources (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
   pure $ Resources {..}
 
 -- Our render function
-renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, FrameContext) -> m ()
-renderGame scrSize@(Size w _h) Model { playerPos, missiles } _gameTime (Resources {..}, frameContext)
+renderGame :: MonadIO m => Size Scalar -> Model -> (Resources, FrameContext) -> m ()
+renderGame scrSize@(Size w _h) Model { playerPos, missiles } (Resources {..}, frameContext)
   = H.runFrame frameContext
   $ H.renderToRenderer renderer renderSettings (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
   where
@@ -221,16 +201,8 @@ renderGame scrSize@(Size w _h) Model { playerPos, missiles } _gameTime (Resource
       }
 
   overlayF = do
-    let tc = textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft }
-    H.addCommand $ DrawCommand
-      { modelMat = mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12))
-      , mesh = H.Dynamic (textMesh font tc)
-      , color = white
-      , drawType = H.MSDF $ H.MSDFMesh fontTex white 0 2 (V2 1 1)
-      , lit = False
-      , castsShadow = False
-      , blend = False
-      }
+    H.drawText textRenderer (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12)))
+      white white 0 $ textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft }
 
 -- ** INPUT **
 
@@ -269,9 +241,6 @@ buildNetwork evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
 
-    -- currentTime isn't currently used, but it's useful for things like animation
-    currentTime <- B.accumB 0 ((+) <$> eTime coreEvents)
-
     -- Player inputs
     let inputs = mconcat [ maybeToList . procKeyDown <$> keyDown coreEvents
                          , maybeToList . procKeyUp   <$> keyUp coreEvents
@@ -286,7 +255,7 @@ buildNetwork evGens = do
 
     -- every time we get a 'render' event tick, draw the screen
     B.reactimate
-      (renderGame <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <*> currentTime <@> eRender coreEvents)
+      (renderGame <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <@> eRender coreEvents)
 
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Demo" \win -> do

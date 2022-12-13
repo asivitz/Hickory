@@ -1,6 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Hickory.Vulkan.Text where
@@ -17,7 +18,23 @@ import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget)
 import Hickory.Vulkan.Material (pipelineDefaults)
-import Vulkan (DescriptorSetLayout)
+import Vulkan (DescriptorSetLayout, SamplerAddressMode (..), Filter (..))
+import Hickory.Text (Font(..), makeFont)
+import Control.Monad.IO.Class (liftIO)
+import qualified Data.ByteString.Lazy as BS
+import Control.Lens (view)
+import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet)
+
+type TextRenderer = (Font, PointedDescriptorSet, Float)
+
+withTextRenderer :: VulkanResources -> FilePath -> FilePath -> Float -> Acquire TextRenderer
+withTextRenderer vulkanResources fontPath imagePath sdfPixelRange = do
+  fontTex   <- view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(imagePath, FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
+  text <- liftIO $ BS.readFile fontPath
+  let font = case makeFont text of
+                Left s -> error s
+                Right f -> f
+  pure (font, fontTex, sdfPixelRange)
 
 data MSDFMatConstants = MSDFMatConstants
   { modelMat      :: M44 Float
