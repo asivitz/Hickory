@@ -30,9 +30,9 @@ data Renderer = Renderer
   { swapchainRenderTarget  :: !RenderTarget
   , shadowRenderTarget     :: !RenderTarget
   , litRenderTarget        :: !RenderTarget
-  -- , objectIDRenderTarget   :: !RenderTarget
+  , objectIDRenderTarget   :: !RenderTarget
   -- Pipelines
-  -- , objectIDMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
+  , objectIDMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
   , staticShadowMaterial   :: !(BufferedUniformMaterial StaticConstants)
   , animatedShadowMaterial :: !(BufferedUniformMaterial AnimatedConstants)
 

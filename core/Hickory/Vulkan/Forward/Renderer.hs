@@ -31,14 +31,14 @@ import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedM
 import Data.Functor.Identity (runIdentity)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
-import GHC.Word (Word32)
+import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget)
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
   shadowRenderTarget       <- withShadowRenderTarget vulkanResources
   litRenderTarget          <- withLitRenderTarget vulkanResources swapchain
   swapchainRenderTarget    <- withSwapchainRenderTarget vulkanResources swapchain
-  -- objectIDRenderTarget     <- withObjectIDRenderTarget vulkanResources swapchain
+  objectIDRenderTarget     <- withObjectIDRenderTarget vulkanResources swapchain
 
   globalWorldBuffer   <- withDataBuffer vulkanResources 1
   globalOverlayBuffer <- withDataBuffer vulkanResources 1
@@ -55,7 +55,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
 
-  -- objectIDMaterial         <- withObjectIDMaterial vulkanResources objectIDRenderTarget globalWorldDescriptorSet
+  objectIDMaterial         <- withObjectIDMaterial vulkanResources objectIDRenderTarget globalWorldDescriptorSet
   staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderTarget globalWorldDescriptorSet
   animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderTarget globalWorldDescriptorSet
   staticLitWorldMaterial   <- withStaticLitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
@@ -182,7 +182,7 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
         , color = color
         }
 
-renderMaterialCommands :: (MonadIO m, DynamicMeshMonad m, Integral i) => FrameContext -> BufferedUniformMaterial uniform -> i -> [(DrawCommand, (uniform, Maybe PointedDescriptorSet))] -> m [uniform]
+renderMaterialCommands :: (MonadIO m, DynamicMeshMonad m) => FrameContext -> BufferedUniformMaterial uniform -> Int -> [(DrawCommand, (uniform, Maybe PointedDescriptorSet))] -> m [uniform]
 renderMaterialCommands _ _ _ [] = pure []
 renderMaterialCommands FrameContext {..} BufferedUniformMaterial {..} startIdx commands = do
   cmdBindMaterial frameNumber commandBuffer material

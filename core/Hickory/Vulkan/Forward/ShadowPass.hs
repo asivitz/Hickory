@@ -22,7 +22,7 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , CullModeFlagBits (..), ImageUsageFlagBits (..)
+  , CullModeFlagBits (..), ImageUsageFlagBits (..), Extent2D (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -30,7 +30,7 @@ import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withShadowSampler)
 import Data.Bits ((.|.))
-import Hickory.Vulkan.Material (shadowDim, pipelineDefaults)
+import Hickory.Vulkan.Material (pipelineDefaults)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
@@ -42,6 +42,9 @@ import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
+
+shadowDim :: Extent2D
+shadowDim = Extent2D 2048 2048
 
 withShadowRenderTarget :: VulkanResources -> Acquire RenderTarget
 withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do

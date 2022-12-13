@@ -22,7 +22,7 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..)
+  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -30,7 +30,7 @@ import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits (zeroBits)
-import Hickory.Vulkan.Material (shadowDim, pipelineDefaults, PipelineOptions(..))
+import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
@@ -54,12 +54,12 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits
   depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
 
-  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat zeroBits extent samples
+  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat IMAGE_USAGE_COLOR_ATTACHMENT_BIT extent samples
   objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
-  frameBuffer <- createFramebuffer device renderPass shadowDim [depthImageView, objIDImageView]
+  frameBuffer <- createFramebuffer device renderPass extent [depthImageView, objIDImageView]
   let frameBuffers = V.replicate 3 frameBuffer
       cullMode = CULL_MODE_FRONT_BIT
       descriptorSpec = ImageDescriptor [(objIDImage,sampler)]
@@ -80,14 +80,14 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
       ]
     , depthStencilAttachment = Just $ zero
       { attachment = 0
-      , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
       }
     }
   dependency :: SubpassDependency
   dependency = zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = zero
+    , srcStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , srcAccessMask = zero
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
@@ -131,12 +131,12 @@ withObjectIDMaterial vulkanResources renderTarget globalDS
   #extension GL_EXT_scalar_block_layout : require
 
   layout(location = 0) in vec3 inPosition;
-  layout(location = 0) out float objectID;
+  layout(location = 0) out uint objectID;
 
   struct Uniforms
   {
     mat4 modelMat;
-    int objectID;
+    uint objectID;
   };
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
@@ -166,10 +166,10 @@ withObjectIDMaterial vulkanResources renderTarget globalDS
   fragShader = [frag|
   #version 450
 
-  layout(location = 0) in float objectID;
-  layout(location = 0) out vec4 outColor;
+  layout(location = 0) flat in uint objectID;
+  layout(location = 0) out uint outColor;
 
   void main() {
-    outColor = vec4(objectID, 0, 0, 0);
+    outColor = objectID;
   }
   |]

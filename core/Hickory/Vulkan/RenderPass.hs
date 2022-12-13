@@ -9,12 +9,12 @@ module Hickory.Vulkan.RenderPass where
 -- (Only needed really if we need to take advantage of subpasses for
 -- performance benefits.)
 
-import Hickory.Vulkan.Vulkan (mkAcquire, ViewableImage(..), Swapchain (..), VulkanResources (..), DeviceContext (..), withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, ViewableImage(..), Swapchain (..), VulkanResources (..), DeviceContext (..))
 import qualified Vulkan
 import Vulkan
   ( Device
   , Extent2D (..)
-  , Format (..)
+
   , withRenderPass
   , SampleCountFlagBits (..)
   , AttachmentDescription(..)
@@ -33,26 +33,21 @@ import Vulkan
   , ImageView
   , Framebuffer
   , withFramebuffer
-  , SurfaceFormatKHR, ImageAspectFlagBits (..)
-  , ImageUsageFlagBits(..)
+  , SurfaceFormatKHR
+
   , ClearValue(..)
   , Rect2D (..), RenderPassBeginInfo(..)
   , cmdUseRenderPass
   , pattern SUBPASS_CONTENTS_INLINE
-  , RenderPass, Filter (..), SamplerAddressMode (..), CullModeFlagBits (..)
+  , RenderPass, CullModeFlagBits (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
 import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Data.Traversable (for)
-import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler, withShadowSampler)
-import Data.Bits ((.|.), zeroBits)
-import Hickory.Vulkan.Material (shadowDim)
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Control.Monad.IO.Class (MonadIO)
 import Hickory.Vulkan.Types
-import qualified Data.ByteString as B
 import Data.Maybe
 
 withSwapchainRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget

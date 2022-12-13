@@ -44,13 +44,6 @@ import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
-import Hickory.Types (Size(..))
-
-shadowDim :: Extent2D
-shadowDim = Extent2D 2048 2048
-
-shadowMapSize :: Size Int
-shadowMapSize = Size 2048 2048
 
 withMaterial
   :: forall f a. Storable a
@@ -198,7 +191,7 @@ withGraphicsPipeline
                 .|. COLOR_COMPONENT_G_BIT
                 .|. COLOR_COMPONENT_B_BIT
                 .|. COLOR_COMPONENT_A_BIT
-              , blendEnable = True
+              , blendEnable = blendEnable
               , srcColorBlendFactor = BLEND_FACTOR_SRC_ALPHA
               , dstColorBlendFactor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
               , colorBlendOp = BLEND_OP_ADD
