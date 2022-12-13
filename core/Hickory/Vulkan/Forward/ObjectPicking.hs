@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, DerivingStrategies, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
-module Hickory.Vulkan.ObjectPicking where
+module Hickory.Vulkan.Forward.ObjectPicking where
 
 import Hickory.Vulkan.Vulkan (mkAcquire, ViewableImage(..), Swapchain (..), VulkanResources (..), DeviceContext (..), withDepthImage, with2DImageView)
 import Vulkan
@@ -30,7 +30,7 @@ import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits (zeroBits)
-import Hickory.Vulkan.Material (shadowDim, pipelineDefaults)
+import Hickory.Vulkan.Material (shadowDim, pipelineDefaults, PipelineOptions(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
@@ -67,7 +67,6 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
   pure RenderTarget {..}
   where
   samples = SAMPLE_COUNT_1_BIT
-  fragShaderOverride = Nothing
   objIDFormat     = FORMAT_R16_UINT
   depthFormat = FORMAT_D16_UNORM
   subpass :: SubpassDescription
@@ -122,8 +121,9 @@ data ObjectIDConstants = ObjectIDConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withObjectIDMaterial :: VulkanResources -> ForwardRenderTarget -> Acquire (BufferedUniformMaterial ObjectIDConstants)
-withObjectIDMaterial vulkanResources renderTarget = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineDefaults vertShader fragShader Nothing
+withObjectIDMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
+withObjectIDMaterial vulkanResources renderTarget globalDS
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) vertShader fragShader globalDS Nothing
   where
   vertShader :: ByteString
   vertShader = [vert|
@@ -135,16 +135,28 @@ withObjectIDMaterial vulkanResources renderTarget = withBufferedUniformMaterial 
 
   struct Uniforms
   {
-    mat4 modelViewProjMatrix;
+    mat4 modelMat;
     int objectID;
   };
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 
+  layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+    { mat4 viewMat;
+      mat4 projMat;
+      mat4 lightTransform;
+      vec3 lightDirection;
+      vec3 sunColor;
+      vec3 ambientColor;
+    } globals;
+
   void main() {
       Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
-      gl_Position = uniforms.modelViewProjMatrix * vec4(inPosition, 1.0);
+      gl_Position = globals.projMat
+                  * globals.viewMat
+                  * uniforms.modelMat
+                  * vec4(inPosition, 1.0);
       objectID = uniforms.objectID;
   }
 

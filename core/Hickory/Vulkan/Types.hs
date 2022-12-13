@@ -14,7 +14,6 @@ import VulkanMemoryAllocator (Allocation, Allocator)
 import Hickory.Vulkan.Vulkan (ViewableImage)
 import Linear (V3)
 import Foreign.Storable.Generic (GStorable)
-import qualified Data.ByteString as B
 
 data RenderTarget = RenderTarget
   { renderPass     :: !RenderPass
@@ -23,8 +22,6 @@ data RenderTarget = RenderTarget
   , extent         :: !Extent2D
   , samples        :: !SampleCountFlagBits
   , cullMode       :: !CullModeFlagBits
-  , fragShaderOverride :: Maybe B.ByteString
-
   } deriving Generic
 
 data Material a = Material
@@ -35,7 +32,7 @@ data Material a = Material
   -- We rebind this global set along with the material, b/c if the push
   -- constant range doesn't match between materials, this can get unbound :(
   , globalDescriptorSet    :: FramedResource PointedDescriptorSet
-  , pipelines              :: V.Vector Pipeline
+  , pipeline               :: Pipeline
   } deriving Generic
 
 data PointedDescriptorSet = PointedDescriptorSet
@@ -67,3 +64,9 @@ data PostConstants = PostConstants
   , frameNumber :: Int
   } deriving Generic
     deriving anyclass GStorable
+
+data DataBuffer a = DataBuffer
+  { buf        :: Buffer
+  , allocation :: Allocation
+  , allocator  :: Allocator
+  } deriving Generic

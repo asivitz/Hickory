@@ -19,14 +19,17 @@ import qualified Hickory.Vulkan.DescriptorSet as H
 import qualified Hickory.Vulkan.Monad as H
 import qualified Hickory.Vulkan.Types as H
 import Linear.Matrix ((!*!))
-import Linear ( M44, V2 (..), V4(..), V3(..))
+import Linear ( M44, V2 (..), V4(..), V3(..), identity)
 import Hickory.Math (perspectiveProjection, mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 import Hickory.Vulkan.Frame (FrameContext(..))
 import Hickory.Vulkan.Material (pipelineDefaults)
 import qualified Hickory.Vulkan.ForwardRenderTarget as H
+import qualified Hickory.Vulkan.Forward.Types as H
+import Hickory.Vulkan.Forward.Types (DrawCommand(..), RenderSettings(..), WorldGlobals(..), OverlayGlobals(..))
+import qualified Hickory.Vulkan.Forward.Renderer as H
+import Hickory.Color (white)
 
-import Hickory.Vulkan.Monad (drawMesh)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
 import Hickory.Types (Size)
@@ -36,10 +39,11 @@ import Acquire.Acquire (Acquire)
 data Resources = Resources
   { target              :: H.ForwardRenderTarget
   , square              :: H.BufferedMesh
-  , solidColorMaterial  :: H.BufferedUniformMaterial Uniform
-  , texturedMaterial    :: H.BufferedUniformMaterial Uniform
+  -- , solidColorMaterial  :: H.BufferedUniformMaterial Uniform
+  -- , texturedMaterial    :: H.BufferedUniformMaterial Uniform
   , starTex             :: H.PointedDescriptorSet
   , xTex                :: H.PointedDescriptorSet
+  , renderer            :: H.Renderer
   }
 
 data Uniform = Uniform
@@ -49,7 +53,7 @@ data Uniform = Uniform
 
 acquireResources :: Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 acquireResources _ _ vulkanResources swapchain = do
-  target <- H.withForwardRenderTarget vulkanResources swapchain []
+  -- target <- H.withForwardRenderTarget vulkanResources swapchain []
   square <- H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
           [ (H.Position, [ -0.5, -0.5, 1.0
@@ -67,6 +71,11 @@ acquireResources _ _ vulkanResources swapchain = do
                              , 1.0, 1.0
                              , 0.0, 1.0
                              ])
+          -- , (H.Normal, [ 0.0, 0.0, 1.0
+          --              , 0.0, 0.0, 1.0
+          --              , 0.0, 0.0, 1.0
+          --              , 0.0, 0.0, 1.0
+          --              ])
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
@@ -74,8 +83,9 @@ acquireResources _ _ vulkanResources swapchain = do
   starTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
   xTex    <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
-  solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources target [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader fragShader Nothing
-  texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources target [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader texFragShader (Just xTex)
+  -- solidColorMaterial <- H.withBufferedUniformMaterial vulkanResources target [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader fragShader Nothing
+  -- texturedMaterial   <- H.withBufferedUniformMaterial vulkanResources target [H.Position, H.Color, H.TextureCoord] pipelineDefaults vertShader texFragShader (Just xTex)
+  renderer <- H.withRenderer vulkanResources swapchain
   pure Resources {..}
 
 main :: IO ()
@@ -90,16 +100,38 @@ main = withWindow 800 800 "Vulkan Test" \win ->
           let
             screenRatio = 1
 
-            mat :: M44 Float
-            mat = perspectiveProjection screenRatio (pi / 2) 0.1 10
-              -- !*! mkRotation (V3 0 1 0) (realToFrac frameNumber * pi / 90 / 10)
+          H.addCommand $ DrawCommand
+            { modelMat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
+            , mesh = H.Buffered square
+            , color = white
+            , drawType = H.Static $ H.StaticMesh starTex (V2 1 1)
+            , lit = False
+            , castsShadow = False
+            , blend = True
+            }
 
-          drawMesh solidColorMaterial (Uniform mat) square Nothing id
+          H.addCommand $ DrawCommand
+            { modelMat = mkTranslation (V2 75 25) !*! mkScale (V2 20 20)
+            , mesh = H.Buffered square
+            , color = white
+            , drawType = H.Static $ H.StaticMesh xTex (V2 1 1)
+            , lit = False
+            , castsShadow = False
+            , blend = True
+            }
 
-          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 25 25) !*! mkScale (V2 20 20) :: M44 Float)) square (Just starTex) H.doBlend
-          drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*! mkTranslation (V2 75 25) !*! mkScale (V2 20 20) :: M44 Float)) square (Just xTex) H.doBlend
 
-      H.renderToForwardTarget target (V4 0 0 0 1) H.globalDefaults (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
+          -- drawMesh solidColorMaterial (Uniform mat) square Nothing id
+
+          -- drawMesh texturedMaterial (Uniform ( !*!  :: M44 Float)) square (Just starTex) H.doBlend
+          -- drawMesh texturedMaterial (Uniform (orthographicProjection 0 100 100 0 0 100 !*!  :: M44 Float)) square (Just xTex) H.doBlend
+
+      let settings = RenderSettings
+            { worldGlobals = H.worldGlobalDefaults { viewMat = identity, projMat = orthographicProjection 0 100 100 0 0 100 }
+            , overlayGlobals = OverlayGlobals identity identity
+            , clearColor = V4 0 0 0 1
+            }
+      H.renderToRenderer renderer settings (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
 
 {-- SHADERS --}
 

@@ -42,6 +42,7 @@ dependencies:
     - bytestring
     - containers
     - derive-storable
+    - fixed-vector
     - generic-lens
     - groom
     - hashable
@@ -128,7 +129,11 @@ library:
     - Hickory.Vulkan.Utils
     - Hickory.Vulkan.RenderPass
     - Hickory.Vulkan.ForwardRenderTarget
-    - Hickory.Vulkan.ObjectPicking
+    - Hickory.Vulkan.Forward.ObjectPicking
+    - Hickory.Vulkan.Forward.Renderer
+    - Hickory.Vulkan.Forward.Types
+    - Hickory.Vulkan.Forward.Lit
+    - Hickory.Vulkan.Forward.ShadowPass
     - Hickory.Vulkan.Types
 
 executables:

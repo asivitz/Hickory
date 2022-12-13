@@ -63,10 +63,11 @@ import Foreign.Ptr (castPtr)
 import Data.List (partition, sortOn)
 import Control.Monad (when)
 import Data.Foldable (for_)
-import Linear ( V4(..), V3(..), identity)
+import Linear ( V4(..), V3(..), identity, M44)
 import Data.Maybe
-import Hickory.Vulkan.RenderPass (withShadowRenderTarget, useRenderTarget, withLitRenderTarget, withSwapchainRenderTarget)
+-- import Hickory.Vulkan.RenderPass (withShadowRenderTarget, useRenderTarget, withLitRenderTarget, withSwapchainRenderTarget)
 
+{-
 withForwardRenderTarget :: VulkanResources -> Swapchain -> [DescriptorSpec] -> Acquire ForwardRenderTarget
 withForwardRenderTarget vulkanResources@VulkanResources {allocator} swapchain extraGlobalDescriptors = do
   shadowRenderTarget    <- withShadowRenderTarget vulkanResources
@@ -137,11 +138,12 @@ renderToForwardTarget ForwardRenderTarget {..} (V4 r g b a) globals postConstant
     renderCommands commandBuffer frameNumber selector (reverse blended)
     where
     (blended, sortOn (view #uuid . material) . reverse -> opaque) = partition (blend . meshOptions) commands
+    -}
 
-withPostProcessMaterial :: VulkanResources -> [RenderTarget] -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
-withPostProcessMaterial vulkanResources renderTargets globalDescriptorSet materialDescriptorSet =
-  withMaterial vulkanResources renderTargets (undefined :: Proxy PostConstants)
-    [] pipelineDefaults vertShader fragShader globalDescriptorSet materialDescriptorSet Nothing
+withPostProcessMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
+withPostProcessMaterial vulkanResources renderTarget globalDescriptorSet materialDescriptorSet =
+  withMaterial vulkanResources renderTarget (undefined :: Proxy PostConstants)
+    [] pipelineDefaults vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = [vert|
 #version 450
@@ -218,23 +220,6 @@ void main()
   outColor = vec4(color, 1.0);
 }
 |]
-
-
-data Globals = Globals
-  { lightTransform :: Mat44
-  , lightDirection :: V3 Scalar
-  , sunColor       :: V3 Scalar -- HDR
-  , ambientColor   :: V3 Scalar -- HDR
-  } deriving Generic
-    deriving anyclass GStorable
-
-globalDefaults :: Globals
-globalDefaults = Globals {..}
-  where
-  lightTransform = identity
-  lightDirection = V3 1 1 1
-  sunColor = V3 1 1 1
-  ambientColor = V3 1 1 1
 
 forState_ :: Monad m => [t] -> a -> (a -> t -> m a) -> m ()
 forState_ (x:xs) initialVal f = f initialVal x >>= flip (forState_ xs) f

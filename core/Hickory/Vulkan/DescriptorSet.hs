@@ -36,7 +36,7 @@ import Control.Lens (view, _1, (&))
 import System.FilePath.Lens (filename)
 import Data.Bits ((.|.))
 import VulkanMemoryAllocator (Allocation, Allocator, withMappedMemory)
-import Foreign (Storable, copyArray, castPtr, sizeOf, withArrayLen)
+import Foreign (Storable, copyArray, castPtr, sizeOf, withArrayLen, poke)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Exception (bracket)
 import Hickory.Vulkan.Mesh (withBuffer')
@@ -46,35 +46,37 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
 import Data.UUID.V4 (nextRandom)
-import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..))
 import Data.List (group, sort)
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
+descriptorSetBindings :: [DescriptorSpec] -> [DescriptorSetLayoutBinding]
+descriptorSetBindings specs = zip [0..] specs <&> \(i, spec) -> case spec of
+  ImageDescriptor is -> zero
+    { binding         = i
+    , descriptorCount = fromIntegral $ length is
+    , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+    , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
+    }
+  DepthImageDescriptor _ _ -> zero
+    { binding         = i
+    , descriptorCount = 1
+    , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+    , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
+    }
+  BufferDescriptor _ -> zero
+    { binding         = i
+    , descriptorCount = 1
+    , descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
+    , stageFlags      = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
+    }
 
 -- |Each texture is in a separately bound descriptor
 withDescriptorSet :: VulkanResources -> [DescriptorSpec] -> Acquire PointedDescriptorSet
 withDescriptorSet VulkanResources{..} specs = do
   let DeviceContext{..} = deviceContext
-      bindings' = zip [0..] specs <&> \(i, spec) -> case spec of
-        ImageDescriptor is -> zero
-          { binding         = i
-          , descriptorCount = fromIntegral $ length is
-          , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-          , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
-          }
-        DepthImageDescriptor _ _ -> zero
-          { binding         = i
-          , descriptorCount = 1
-          , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-          , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
-          }
-        BufferDescriptor _ -> zero
-          { binding         = i
-          , descriptorCount = 1
-          , descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
-          , stageFlags      = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
-          }
+      bindings' = descriptorSetBindings specs
   descriptorSetLayout <- withDescriptorSetLayout device zero
     -- bind textures as an array of sampled images
     { bindings = V.fromList bindings'
@@ -130,7 +132,7 @@ withDescriptorSet VulkanResources{..} specs = do
           , Writes.dstArrayElement = 0
           , Writes.descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
           , Writes.descriptorCount = 1
-          , Writes.bufferInfo      = [ zero { buffer = buffer, offset = 0, range = WHOLE_SIZE } ]
+          , Writes.bufferInfo      = [ zero { buffer = buffer, range = WHOLE_SIZE } ]
           }
   updateDescriptorSets device (V.fromList $ SomeStruct <$> writes) []
 
@@ -168,6 +170,15 @@ descriptorSetBinding :: FramedResource PointedDescriptorSet -> DescriptorSetBind
 descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Int) bds)
                            , fmap (view #descriptorSet) bds
                            )
+
+
+withDataBuffer :: forall a. Storable a => VulkanResources -> Int -> Acquire (DataBuffer a)
+withDataBuffer VulkanResources {..} num = do
+  (buf, allocation, _) <- withBuffer' allocator
+    BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
+    (fromIntegral $ sizeOf (undefined :: a) * num)
+  pure DataBuffer {..}
 
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Acquire (BufferDescriptorSet a)
 withBufferDescriptorSet VulkanResources{..} = do
@@ -221,8 +232,8 @@ withBufferDescriptorSet VulkanResources{..} = do
 
   pure BufferDescriptorSet {descriptorSet = pointedDescriptorSet, ..}
 
-uploadBufferDescriptor :: (MonadIO m, Storable a) => BufferDescriptorSet a -> m ()
-uploadBufferDescriptor BufferDescriptorSet {..} = liftIO do
+uploadBufferDescriptor' :: (MonadIO m, Storable a) => BufferDescriptorSet a -> m ()
+uploadBufferDescriptor' BufferDescriptorSet {..} = liftIO do
   atomicModifyIORef' queuedData ([],) >>= \case
     [] -> pure () -- noop if there's no data to push
     as -> do
@@ -230,3 +241,13 @@ uploadBufferDescriptor BufferDescriptorSet {..} = liftIO do
 
       withMappedMemory allocator alloc bracket \bptr ->
         withArrayLen (reverse as) \len dptr -> copyArray (castPtr bptr) dptr len
+
+uploadBufferDescriptorArray :: (MonadIO m, Storable a) => DataBuffer a -> [a] -> m ()
+uploadBufferDescriptorArray DataBuffer {..} as = liftIO do
+  withMappedMemory allocator allocation bracket \bptr ->
+    withArrayLen as \len dptr -> copyArray (castPtr bptr) dptr len
+
+uploadBufferDescriptor :: (MonadIO m, Storable a) => DataBuffer a -> a -> m ()
+uploadBufferDescriptor DataBuffer {..} a = liftIO do
+  withMappedMemory allocator allocation bracket \bufptr ->
+    poke (castPtr bufptr) a

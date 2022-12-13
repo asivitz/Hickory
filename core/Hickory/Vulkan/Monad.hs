@@ -26,7 +26,7 @@ import Data.Generics.Labels ()
 import Data.IORef (modifyIORef', readIORef)
 import Data.List (sortOn, mapAccumL)
 import Data.Map (Map, lookup)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 import Data.Text (Text, unpack)
 import Data.UUID (UUID)
 import Data.Word (Word32, Word64)
@@ -41,7 +41,7 @@ import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, attrLocation, Mesh(..), 
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Vulkan
   ( CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), Buffer, PrimitiveTopology(..)
-  , RenderPass
+  , RenderPass, DescriptorSetLayout
   )
 import qualified Data.Map as Map
 import qualified Data.Vector as V
@@ -52,7 +52,7 @@ import Acquire.Acquire (Acquire)
 import Data.Proxy (Proxy)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
-import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget, ForwardRenderTarget (..))
+import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget (..), ForwardRenderTarget (..))
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
@@ -63,18 +63,23 @@ data BufferedUniformMaterial uniform = BufferedUniformMaterial
 withBufferedUniformMaterial
   :: Storable uniform
   => VulkanResources
-  -> ForwardRenderTarget
+  -> RenderTarget
   -> [Attribute]
   -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
-  -> Maybe PointedDescriptorSet -- Per draw descriptor set
+  -> PointedDescriptorSet -- Global descriptor set
+  -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial uniform)
-withBufferedUniformMaterial vulkanResources ForwardRenderTarget {..} attributes pipelineOptions vert frag perDrawDescriptorSet = do
+withBufferedUniformMaterial vulkanResources renderTarget attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let
     materialSet = view #descriptorSet <$> descriptor
-  material <- withMaterial vulkanResources [shadowRenderTarget, litRenderTarget, swapchainRenderTarget] (undefined :: Proxy Word32) attributes pipelineOptions vert frag (doubleResource globalDescriptorSet) materialSet (doubleResource <$> perDrawDescriptorSet)
+  material <- withMaterial vulkanResources renderTarget (undefined :: Proxy Word32) attributes pipelineOptions vert frag
+    [ doubleResource globalDescriptorSet
+    , materialSet
+    ]
+    perDrawDescriptorSetLayout
   pure BufferedUniformMaterial {..}
 
 {- Batch IO Monad -}
@@ -165,6 +170,7 @@ data MeshOptions = MeshOptions
 newtype CommandT m a = CommandT { unCommandT :: StateT DrawCommands m a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState DrawCommands, MonadTrans)
 
+{-
 recordUniform :: (MonadIO m, BatchIOMonad m, FrameMonad m, Storable uniform) => FramedResource (BufferDescriptorSet uniform) -> uniform -> m Word32
 recordUniform bds uniform = do
   frameNumber <- frameNumber <$> askFrameContext
@@ -176,6 +182,7 @@ recordUniform bds uniform = do
   recordIO $ uploadBufferDescriptor matDesc
 
   pure uniformIndex
+  -}
 
 instance (MonadIO m, FrameMonad m, BatchIOMonad m) => CommandMonad (CommandT m) where
   recordDrawCommand meshOptions material uniformIndex drawCommand = CommandT do
@@ -286,6 +293,7 @@ textMesh font tc = Mesh { indices = Just (SV.fromList indices), vertices = [(Pos
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
   (indices, _numBlockIndices)   = squareIndices (fromIntegral numSquares)
 
+{-
 drawText
   :: (CommandMonad m, DynamicMeshMonad m, MonadIO m, Storable uniform)
   => BufferedUniformMaterial uniform
@@ -295,7 +303,9 @@ drawText
   -> PointedDescriptorSet
   -> m ()
 drawText material uniform font tc texDescriptorSet = drawDynamicMesh material uniform (textMesh font tc) (Just texDescriptorSet) doBlend
+-}
 
+{-
 -- |The mesh needs to supply, at a minimum, all the attributes required by the material
 drawDynamicMesh
   :: (CommandMonad m, MonadIO m, Storable uniform, DynamicMeshMonad m)
@@ -319,6 +329,7 @@ drawDynamicMesh BufferedUniformMaterial {..} uniform mesh drawBufferDescriptorSe
   recordDrawCommand (modifyMeshOptions defaultMeshOptions) material uniformIndex \commandBuffer -> do
     for_ drawBufferDescriptorSet $ cmdBindDrawDescriptorSet commandBuffer material
     cmdDrawBufferedMesh commandBuffer material mesh vertexSizeThusFar vertexBuffer (fromIntegral indexSizeThusFar) (Just indexBuffer)
+    -}
 
 defaultMeshOptions :: MeshOptions
 defaultMeshOptions = MeshOptions {..}
@@ -332,6 +343,7 @@ doBlend mo = mo { blend = True }
 doShadowMap :: MeshOptions -> MeshOptions
 doShadowMap mo = mo { shadowMap = True }
 
+{-
 -- |The mesh needs to supply, at a minimum, all the attributes required by the material
 drawMesh
   :: (CommandMonad m, MonadIO m, Storable uniform)
@@ -346,6 +358,7 @@ drawMesh BufferedUniformMaterial {..} uniform BufferedMesh {..} drawBufferDescri
   recordDrawCommand (modifyMeshOptions defaultMeshOptions) material uniformIndex $ \cb -> do
       for_ drawBufferDescriptorSet $ cmdBindDrawDescriptorSet cb material
       cmdDrawBufferedMesh cb material mesh 0 vertexBuffer 0 indexBuffer
+      -}
 
 cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
 cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer indexOffset mIndexBuffer = do

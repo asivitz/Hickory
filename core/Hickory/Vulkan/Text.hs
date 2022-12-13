@@ -5,8 +5,7 @@
 
 module Hickory.Vulkan.Text where
 
-import Vulkan (RenderPass, PrimitiveTopology (..))
-import Hickory.Vulkan.Vulkan (VulkanResources (..), Swapchain)
+import Hickory.Vulkan.Vulkan (VulkanResources (..))
 import Hickory.Vulkan.Mesh (Attribute (..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
@@ -16,11 +15,12 @@ import Linear (M44, V2)
 import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, ForwardRenderTarget)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget)
 import Hickory.Vulkan.Material (pipelineDefaults)
+import Vulkan (DescriptorSetLayout)
 
 data MSDFMatConstants = MSDFMatConstants
-  { modelViewMat  :: M44 Float
+  { modelMat      :: M44 Float
   , color         :: V4 Float
   , outlineColor  :: V4 Float
   , outlineSize   :: Float -- In pixels
@@ -29,8 +29,8 @@ data MSDFMatConstants = MSDFMatConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withMSDFMaterial :: VulkanResources -> ForwardRenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withMSDFMaterial vulkanResources renderTarget pds = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader fragShader (Just pds)
+withMSDFMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader fragShader globalPds (Just perDrawLayout )
   where
   vertShader :: ByteString
   vertShader = [vert|
@@ -44,7 +44,7 @@ withMSDFMaterial vulkanResources renderTarget pds = withBufferedUniformMaterial 
 
   struct Uniforms
   {
-    mat4 modelViewProjMatrix;
+    mat4 modelMat;
     vec4 color;
     vec4 outlineColor;
     float outlineSize;
@@ -54,10 +54,22 @@ withMSDFMaterial vulkanResources renderTarget pds = withBufferedUniformMaterial 
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
+  layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+    { mat4 viewMat;
+      mat4 projMat;
+      vec3 cameraPos;
+      mat4 lightTransform;
+      vec3 lightDirection;
+      vec3 sunColor;
+      vec3 ambientColor;
+    } globals;
 
   void main() {
       Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
-      gl_Position = uniforms.modelViewProjMatrix * vec4(inPosition, 1.0);
+      gl_Position = globals.projMat
+                  * globals.viewMat
+                  * uniforms.modelMat
+                  * vec4(inPosition, 1.0);
       texCoord = uniforms.tiling * inTexCoord;
   }
 
@@ -74,7 +86,7 @@ layout(location = 0) out vec4 outColor;
 
 struct Uniforms
 {
-  mat4 modelViewProjMatrix;
+  mat4 modelMat;
   vec4 color;
   vec4 outlineColor;
   float outlineSize;

@@ -30,7 +30,7 @@ import Vulkan
   , PipelineVertexInputStateCreateInfo(..), VertexInputBindingDescription, VertexInputAttributeDescription
   , BlendOp (..), BlendFactor (..)
   , PipelineDepthStencilStateCreateInfo(..)
-  , CompareOp (..), RenderPass
+  , CompareOp (..), RenderPass, DescriptorSetLayout
   )
 import Hickory.Vulkan.Vulkan (VulkanResources(..), DeviceContext (..), mkAcquire, mkAcquire, createVertShader, createFragShader)
 import Data.Vector as V
@@ -42,11 +42,9 @@ import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
-import Data.Maybe (maybeToList, fromMaybe)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
 import Hickory.Types (Size(..))
-import Data.Traversable (for)
 
 shadowDim :: Extent2D
 shadowDim = Extent2D 2048 2048
@@ -57,25 +55,23 @@ shadowMapSize = Size 2048 2048
 withMaterial
   :: forall f a. Storable a
   => VulkanResources
-  -> [RenderTarget]
+  -> RenderTarget
   -> f a -- Push Const proxy
   -> [Attribute]
   -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
-  -> FramedResource PointedDescriptorSet -- Descriptor sets bound globally
-  -> FramedResource PointedDescriptorSet -- Descriptor sets bound along with material
-  -> Maybe (FramedResource PointedDescriptorSet) -- Descriptor set bound per draw
+  -> [FramedResource PointedDescriptorSet]
+  -> Maybe DescriptorSetLayout
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
-  renderTargets
+  RenderTarget {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
   pipelineOptions vertShader fragShader
-  globalDescriptorSet
-  materialDescriptorSet
-  drawDescriptorSet
+  descriptorSets
+  perDrawDescriptorSetLayout
   = do
   let
     DeviceContext {..} = deviceContext
@@ -85,15 +81,14 @@ withMaterial
           , offset = 0
           , stageFlags = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
           }]
-      , setLayouts = V.fromList $ view #descriptorSetLayout . resourceForFrame (0 :: Int)
-                               <$> [ globalDescriptorSet
-                                   , materialDescriptorSet
-                                   ] Prelude.++ maybeToList drawDescriptorSet
+      , setLayouts = V.fromList $ (view #descriptorSetLayout . resourceForFrame (0 :: Int)
+                               <$> descriptorSets) Prelude.++ maybe [] pure perDrawDescriptorSetLayout
       }
+    (globalDescriptorSet : materialDescriptorSet : _) = descriptorSets
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
-  pipelines <- V.fromList <$> for renderTargets \RenderTarget{..} ->
-    withGraphicsPipeline bag renderPass 0 samples cullMode extent pipelineOptions vertShader (fromMaybe fragShader fragShaderOverride) pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+  pipeline <-
+    withGraphicsPipeline bag renderPass 0 samples cullMode extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
@@ -106,9 +101,9 @@ cmdBindDrawDescriptorSet :: MonadIO m => CommandBuffer -> Material a -> PointedD
 cmdBindDrawDescriptorSet commandBuffer Material {..} pds =
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 2 [view #descriptorSet pds] []
 
-cmdBindMaterial :: MonadIO m => Int -> (Material a -> Pipeline) -> CommandBuffer -> Material a -> m ()
-cmdBindMaterial frameNumber selector commandBuffer m@Material {..} = do
-  cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS (selector m)
+cmdBindMaterial :: MonadIO m => Int -> CommandBuffer -> Material a -> m ()
+cmdBindMaterial frameNumber commandBuffer Material {..} = do
+  cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
   where
   sets = fmap (view #descriptorSet . resourceForFrame frameNumber) [globalDescriptorSet, materialDescriptorSet]
@@ -118,6 +113,7 @@ cmdBindMaterial frameNumber selector commandBuffer m@Material {..} = do
 data PipelineOptions = PipelineOptions
   { primitiveTopology :: PrimitiveTopology
   , depthTestEnable   :: Bool
+  , blendEnable       :: Bool
   }
 
 pipelineDefaults :: PipelineOptions
@@ -125,6 +121,7 @@ pipelineDefaults = PipelineOptions {..}
   where
   primitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
   depthTestEnable = True
+  blendEnable     = True
 
 withGraphicsPipeline
   :: VulkanResources
