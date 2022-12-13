@@ -11,7 +11,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -32,12 +31,11 @@ import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget)
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!), identity)
+import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!))
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
 import qualified Graphics.UI.GLFW as GLFW
-import qualified Hickory.Graphics as H
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Control.Lens (view)
@@ -45,11 +43,9 @@ import Acquire.Acquire (Acquire)
 import qualified Data.ByteString.Lazy as BS
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
-import qualified Hickory.Vulkan.Text as H
 import qualified Hickory.Vulkan.Types as H
-import qualified Hickory.Vulkan.Material as H
-import qualified Hickory.Vulkan.RenderPass as H
-import qualified Hickory.Vulkan.ForwardRenderTarget as H
+import qualified Hickory.Vulkan.Forward.Types as H
+import qualified Hickory.Vulkan.Forward.Renderer as H
 
 import Control.Monad
 import Vulkan
@@ -57,24 +53,19 @@ import Vulkan
   , SamplerAddressMode(..)
   )
 
-import qualified Data.ByteString as B
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag, vert)
-
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
-import Hickory.Vulkan.Monad (drawMesh, useDynamicMesh, drawText)
+import Hickory.Vulkan.Monad (textMesh)
 import Data.Foldable (for_)
 import Foreign.Storable.Generic
 import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text (TextCommand(..), Font, makeFont, XAlign (..))
 import Hickory.Math.Vector (Scalar)
-import Hickory.Vulkan.Framing (FramedResource, frameResource, resourceForFrame)
 import qualified Hickory.Vulkan.Monad as H
 import Hickory.Vulkan.Frame (FrameContext, frameNumber)
-import qualified Hickory.Vulkan.RenderPass as H
-import qualified Hickory.Vulkan.DynamicMesh as H
-import Hickory.Color (white)
+import Hickory.Color (white, red)
+import Hickory.Vulkan.Forward.Types (WorldGlobals(..), OverlayGlobals(..), DrawCommand (..))
 
 -- ** GAMEPLAY **
 
@@ -135,15 +126,15 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 
 -- The resources used by our rendering function
 data Resources = Resources
-  { target              :: H.ForwardRenderTarget
-  , circleTex           :: H.PointedDescriptorSet
+  { circleTex           :: H.PointedDescriptorSet
   , fontTex             :: H.PointedDescriptorSet
   , square              :: H.BufferedMesh
-  , solidMaterial       :: H.BufferedUniformMaterial SolidColorUniform
-  , texturedMaterial    :: H.BufferedUniformMaterial TextureUniform
-  , msdfMaterial        :: H.BufferedUniformMaterial H.MSDFMatConstants
+  -- , solidMaterial       :: H.BufferedUniformMaterial SolidColorUniform
+  -- , texturedMaterial    :: H.BufferedUniformMaterial TextureUniform
+  -- , msdfMaterial        :: H.BufferedUniformMaterial H.MSDFMatConstants
   , font                :: Font
-  , dynamicMesh         :: FramedResource H.DynamicBufferedMesh
+  -- , dynamicMesh         :: FramedResource H.DynamicBufferedMesh
+  , renderer            :: H.Renderer
   }
 
 data SolidColorUniform = SolidColorUniform
@@ -160,7 +151,6 @@ newtype TextureUniform = TextureUniform
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
 loadResources path _size _inst vulkanResources swapchain = do
-  target <- H.withForwardRenderTarget vulkanResources swapchain []
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
   fontTex   <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/gidolinya.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
@@ -179,11 +169,6 @@ loadResources path _size _inst vulkanResources swapchain = do
           ]
     , indices = Just [0, 2, 1, 2, 0, 3]
     }
-  solidMaterial    <- H.withBufferedUniformMaterial vulkanResources target
-    [H.Position, H.TextureCoord] H.pipelineDefaults vertShader fragShader Nothing
-  texturedMaterial <- H.withBufferedUniformMaterial vulkanResources target
-    [H.Position, H.TextureCoord] H.pipelineDefaults texVertShader texFragShader (Just circleTex)
-  msdfMaterial <- H.withMSDFMaterial vulkanResources target fontTex
 
   -- gidolinya.json (font data) and gidolinya.png (font texture) were
   -- generated using https://github.com/Chlumsky/msdf-atlas-gen
@@ -192,41 +177,60 @@ loadResources path _size _inst vulkanResources swapchain = do
                 Left s -> error s
                 Right f -> f
 
-  -- We need a dynamic buffer per frame to write text mesh data
-  dynamicMesh <- frameResource $ H.withDynamicBufferedMesh vulkanResources 1000
+  renderer <- H.withRenderer vulkanResources swapchain
 
   pure $ Resources {..}
 
 -- Our render function
 renderGame :: MonadIO m => Size Scalar -> Model -> NominalDiffTime -> (Resources, FrameContext) -> m ()
-renderGame scrSize Model { playerPos, missiles } _gameTime (Resources {..}, frameContext)
+renderGame scrSize@(Size w _h) Model { playerPos, missiles } _gameTime (Resources {..}, frameContext)
   = H.runFrame frameContext
-  . H.runBatchIO
-  . useDynamicMesh (resourceForFrame (frameNumber frameContext) dynamicMesh)
-  $ H.renderToForwardTarget target (V4 0 0 0 1) H.globalDefaults (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
+  $ H.renderToRenderer renderer renderSettings (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
   where
+  renderSettings = H.RenderSettings
+    { worldGlobals = H.worldGlobalDefaults
+      { viewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
+      , projMat = shotMatrix (Ortho w 1 100 True) (aspectRatio scrSize)
+      }
+    , overlayGlobals = OverlayGlobals
+      { viewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
+      , projMat = shotMatrix (Ortho w 1 100 False) (aspectRatio scrSize)
+      }
+    , clearColor = V4 0 0 0 1
+    }
   litF = do
-    H.runMatrixT . H.xform (gameCameraMatrix scrSize) $ do
-      for_ missiles \(pos, _) -> H.xform (mkTranslation pos !*! mkScale (V2 5 5)) do
-        mat <- H.askMatrix
-        drawMesh texturedMaterial (TextureUniform mat) square (Just circleTex) H.doBlend
+    for_ missiles \(pos, _) ->
+      H.addCommand $ DrawCommand
+        { modelMat = mkTranslation pos !*! mkScale (V2 5 5)
+        , mesh = H.Buffered square
+        , color = white
+        , drawType = H.Static $ H.StaticMesh circleTex (V2 1 1)
+        , lit = False
+        , castsShadow = False
+        , blend = True
+        }
 
-      H.xform (mkTranslation playerPos !*! mkScale (V2 10 10)) do
-        mat <- H.askMatrix
-        drawMesh solidMaterial (SolidColorUniform mat (V4 1 0 0 1)) square Nothing id
+    H.addCommand $ DrawCommand
+      { modelMat = mkTranslation playerPos !*! mkScale (V2 10 10)
+      , mesh = H.Buffered square
+      , color = red
+      , drawType = H.Static $ H.StaticMesh circleTex (V2 1 1)
+      , lit = False
+      , castsShadow = False
+      , blend = False
+      }
 
   overlayF = do
-    H.runMatrixT . H.xform (uiCameraMatrix scrSize) $ do
-      H.xform (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12))) do
-        mat <- H.askMatrix
-        drawText msdfMaterial (H.MSDFMatConstants mat white white 0 2 (V2 1 1)) font (textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft } ) fontTex
-
-  gameCameraMatrix size@(Size w _h) =
-    let proj = Ortho w 1 100 True
-    in shotMatrix proj (aspectRatio size) !*! viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
-  uiCameraMatrix size@(Size w _h) =
-    let proj = Ortho w 1 100 False
-    in shotMatrix proj (aspectRatio size) !*! viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
+    let tc = textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft }
+    H.addCommand $ DrawCommand
+      { modelMat = mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12))
+      , mesh = H.Dynamic (textMesh font tc)
+      , color = white
+      , drawType = H.MSDF $ H.MSDFMesh fontTex white 0 2 (V2 1 1)
+      , lit = False
+      , castsShadow = False
+      , blend = False
+      }
 
 -- ** INPUT **
 
@@ -298,124 +302,3 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> do
     focused <- GLFW.getWindowFocused win
     -- don't consume CPU when the window isn't focused
     unless focused (threadDelay 100000)
-
-vertShader :: B.ByteString
-vertShader = [vert|
-  #version 450
-
-  layout(location = 0) in vec3 inPosition;
-
-  struct Uniforms
-  {
-    mat4 modelViewMatrix;
-    vec4 color;
-  };
-
-  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
-    Uniforms uniforms [128];
-  } ub;
-
-  layout( push_constant ) uniform constants
-  {
-    int uniformIdx;
-  } PushConstants;
-
-  void main() {
-      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-      gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
-  }
-
-|]
-
-fragShader :: B.ByteString
-fragShader = [frag|
-  #version 450
-
-  layout(location = 0) out vec4 outColor;
-
-  struct Uniforms
-  {
-    mat4 modelViewMatrix;
-    vec4 color;
-  };
-
-  layout (row_major, std140, set = 1, binding = 0) uniform UniformBlock {
-    Uniforms uniforms [128];
-  } ub;
-
-  layout( push_constant ) uniform constants
-  {
-    int uniformIdx;
-  } PushConstants;
-
-  void main() {
-    Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-    outColor = uniforms.color;
-  }
-
-|]
-
-texVertShader :: B.ByteString
-texVertShader = [vert|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
-
-  layout(location = 0) in vec3 inPosition;
-  layout(location = 3) in vec2 inTexCoord;
-
-  layout(location = 1) out vec2 texCoord;
-
-  struct Uniforms
-  {
-    mat4 modelViewMatrix;
-  };
-
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
-    Uniforms uniforms [128];
-  } ub;
-
-  layout( push_constant ) uniform constants
-  {
-    int uniformIdx;
-  } PushConstants;
-
-  void main() {
-      Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-      gl_Position = uniforms.modelViewMatrix * vec4(inPosition, 1.0);
-      texCoord = inTexCoord;
-  }
-
-|]
-
-texFragShader :: B.ByteString
-texFragShader = [frag|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
-  #extension GL_EXT_nonuniform_qualifier : require
-
-  layout(location = 1) in vec2 texCoord;
-
-  layout(set = 2, binding = 0) uniform sampler2D texSampler;
-
-  layout(location = 0) out vec4 outColor;
-
-  struct Uniforms
-  {
-    mat4 modelViewMatrix;
-  };
-
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock {
-    Uniforms uniforms [128];
-  } ub;
-
-  layout( push_constant ) uniform constants
-  {
-    int uniformIdx;
-  } PushConstants;
-
-  void main() {
-    Uniforms uniforms = ub.uniforms[PushConstants.uniformIdx];
-    outColor = texture(texSampler, texCoord);
-  }
-
-|]

@@ -37,8 +37,7 @@ import Control.Lens (view)
 import Acquire.Acquire (Acquire)
 
 data Resources = Resources
-  { target              :: H.ForwardRenderTarget
-  , square              :: H.BufferedMesh
+  { square              :: H.BufferedMesh
   -- , solidColorMaterial  :: H.BufferedUniformMaterial Uniform
   -- , texturedMaterial    :: H.BufferedUniformMaterial Uniform
   , starTex             :: H.PointedDescriptorSet
@@ -97,9 +96,6 @@ main = withWindow 800 800 "Vulkan Test" \win ->
         overlayF = do
           pure ()
         litF = do
-          let
-            screenRatio = 1
-
           H.addCommand $ DrawCommand
             { modelMat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
             , mesh = H.Buffered square

@@ -161,16 +161,13 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
 
 data BufferDescriptorSet a = BufferDescriptorSet
   { descriptorSet :: PointedDescriptorSet
-  , bufferPair    :: (Buffer, Allocation)
-  , queuedData    :: IORef [a]
-  , allocator     :: Allocator -- allocator used to create buffer
+  , dataBuffer    :: DataBuffer a
   } deriving (Generic)
 
 descriptorSetBinding :: FramedResource PointedDescriptorSet -> DescriptorSetBinding
 descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Int) bds)
                            , fmap (view #descriptorSet) bds
                            )
-
 
 withDataBuffer :: forall a. Storable a => VulkanResources -> Int -> Acquire (DataBuffer a)
 withDataBuffer VulkanResources {..} num = do
@@ -181,57 +178,15 @@ withDataBuffer VulkanResources {..} num = do
   pure DataBuffer {..}
 
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Acquire (BufferDescriptorSet a)
-withBufferDescriptorSet VulkanResources{..} = do
-  let DeviceContext {..} = deviceContext
-  descriptorSetLayout <- withDescriptorSetLayout device zero
-    { bindings = [ zero
-        { binding         = 0
-        , descriptorCount = 1
-        , descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
-        , stageFlags      = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
-        }
-        ]
-    }
-    Nothing mkAcquire
+withBufferDescriptorSet vulkanResources = do
+  -- TODO: Don't hardcode # of uniforms
+  dataBuffer <- withDataBuffer vulkanResources 2048
 
-  descriptorPool <- withDescriptorPool device zero
-    { maxSets   = 1
-    , poolSizes = [ DescriptorPoolSize DESCRIPTOR_TYPE_UNIFORM_BUFFER 1 ]
-    }
-    Nothing
-    mkAcquire
+  ds <-  withDescriptorSet vulkanResources [BufferDescriptor (buf dataBuffer)]
 
-  -- We use allocateDescriptorSets, rather than withDescriptorSets, b/c we
-  -- free all the memory at once via the descriptorPool
-  descriptorSet <- V.head <$> allocateDescriptorSets device zero
-    { descriptorPool = descriptorPool
-    , setLayouts     = [ descriptorSetLayout ]
-    }
+  pure BufferDescriptorSet {descriptorSet = ds, ..}
 
-  (buffer, alloc, _) <- withBuffer' allocator
-    BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    (fromIntegral $ sizeOf (undefined :: a) * 2048) -- There's got to be a better way than hardcoding # of uniforms allowed
-
-  let write = zero
-        { Writes.dstSet          = descriptorSet
-        , Writes.dstBinding      = 0
-        , Writes.dstArrayElement = 0
-        , Writes.descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
-        , Writes.descriptorCount = 1
-        , Writes.bufferInfo      = [ zero { buffer = buffer, offset = 0, range = WHOLE_SIZE } ]
-        }
-  updateDescriptorSets device [SomeStruct write] []
-
-  uuid <- liftIO nextRandom
-
-  let bufferPair = (buffer, alloc)
-      pointedDescriptorSet = PointedDescriptorSet {..}
-
-  queuedData <- liftIO $ newIORef []
-
-  pure BufferDescriptorSet {descriptorSet = pointedDescriptorSet, ..}
-
+{-
 uploadBufferDescriptor' :: (MonadIO m, Storable a) => BufferDescriptorSet a -> m ()
 uploadBufferDescriptor' BufferDescriptorSet {..} = liftIO do
   atomicModifyIORef' queuedData ([],) >>= \case
@@ -241,6 +196,7 @@ uploadBufferDescriptor' BufferDescriptorSet {..} = liftIO do
 
       withMappedMemory allocator alloc bracket \bptr ->
         withArrayLen (reverse as) \len dptr -> copyArray (castPtr bptr) dptr len
+        -}
 
 uploadBufferDescriptorArray :: (MonadIO m, Storable a) => DataBuffer a -> [a] -> m ()
 uploadBufferDescriptorArray DataBuffer {..} as = liftIO do

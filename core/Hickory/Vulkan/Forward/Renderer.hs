@@ -15,16 +15,13 @@ import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..))
 import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
-import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDRenderTarget, withObjectIDMaterial)
 import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, vertices, indices)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout)
-import Foreign (castPtr, copyArray, withArrayLen, Storable)
-import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor)
+import Foreign (Storable)
+import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, has, preview, to, (^.), (.~), (&))
 import Hickory.Vulkan.Framing (doubleResource, resourceForFrame, frameResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet)
-import VulkanMemoryAllocator (withMappedMemory)
-import Control.Exception (bracket)
 import Data.List (partition)
 import Control.Monad.State.Strict (execStateT)
 import Data.Traversable (for)
@@ -34,6 +31,7 @@ import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedM
 import Data.Functor.Identity (runIdentity)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
+import GHC.Word (Word32)
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -98,8 +96,8 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
 
     useRenderTarget shadowRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex do
       let shadowCommands = filter castsShadow drawCommands
-      renderMaterialCommands frameContext staticShadowMaterial   $ selectStaticCommands shadowCommands
-      renderMaterialCommands frameContext animatedShadowMaterial $ selectAnimatedCommands shadowCommands
+      renderMaterialCommandsAndUpload frameContext staticShadowMaterial   $ selectStaticCommands shadowCommands
+      renderMaterialCommandsAndUpload frameContext animatedShadowMaterial $ selectAnimatedCommands shadowCommands
 
     let V4 r g b a = clearColor
     useRenderTarget litRenderTarget commandBuffer
@@ -111,19 +109,25 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
           (litOpaque, unlitOpaque)      = partition lit opaque
           (litBlended, unlitBlended)    = partition lit blended
 
-      renderMaterialCommands frameContext linesWorldMaterial       $ selectLinesCommands opaque
-      renderMaterialCommands frameContext staticLitWorldMaterial   $ selectStaticCommands litOpaque
-      renderMaterialCommands frameContext staticUnlitWorldMaterial $ selectStaticCommands unlitOpaque
-      renderMaterialCommands frameContext animatedLitWorldMaterial $ selectAnimatedCommands litOpaque
+      linesUnisOpaque       <- renderMaterialCommands frameContext linesWorldMaterial 0       $ selectLinesCommands opaque
+      staticLitUnisOpaque   <- renderMaterialCommands frameContext staticLitWorldMaterial 0   $ selectStaticCommands litOpaque
+      staticUnlitUnisOpaque <- renderMaterialCommands frameContext staticUnlitWorldMaterial 0 $ selectStaticCommands unlitOpaque
+      animUnisOpaque        <- renderMaterialCommands frameContext animatedLitWorldMaterial 0 $ selectAnimatedCommands litOpaque
       -- renderMaterialCommands frameContext animatedUnlitWorldMaterial $ selectAnimatedCommands unlitOpaque
-      renderMaterialCommands frameContext msdfWorldMaterial        $ selectMSDFCommands opaque
+      msdfUnisOpaque         <- renderMaterialCommands frameContext msdfWorldMaterial 0      $ selectMSDFCommands opaque
 
-      renderMaterialCommands frameContext linesWorldMaterial       $ selectLinesCommands blended
-      renderMaterialCommands frameContext staticLitWorldMaterial   $ selectStaticCommands litBlended
-      renderMaterialCommands frameContext staticUnlitWorldMaterial $ selectStaticCommands unlitBlended
-      renderMaterialCommands frameContext animatedLitWorldMaterial $ selectAnimatedCommands blended
+      linesUnisBlended       <- renderMaterialCommands frameContext linesWorldMaterial (length linesUnisOpaque) $ selectLinesCommands blended
+      staticLitUnisBlended   <- renderMaterialCommands frameContext staticLitWorldMaterial (length staticLitUnisOpaque) $ selectStaticCommands litBlended
+      staticUnlitUnisBlended <- renderMaterialCommands frameContext staticUnlitWorldMaterial (length staticUnlitUnisOpaque) $ selectStaticCommands unlitBlended
+      animUnisBlended        <- renderMaterialCommands frameContext animatedLitWorldMaterial (length animUnisOpaque) $ selectAnimatedCommands blended
       -- renderMaterialCommands frameContext animatedUnlitWorldMaterial $ selectAnimatedCommands unlitBlended
-      renderMaterialCommands frameContext msdfWorldMaterial        $ selectMSDFCommands blended
+      msdfUnisBlended        <- renderMaterialCommands frameContext msdfWorldMaterial (length msdfUnisOpaque) $ selectMSDFCommands blended
+
+      uploadUniformsBuffer frameContext linesWorldMaterial (linesUnisOpaque ++ linesUnisBlended)
+      uploadUniformsBuffer frameContext staticLitWorldMaterial (staticLitUnisOpaque ++ staticLitUnisBlended)
+      uploadUniformsBuffer frameContext staticUnlitWorldMaterial (staticUnlitUnisOpaque ++ staticUnlitUnisBlended)
+      uploadUniformsBuffer frameContext animatedLitWorldMaterial (animUnisOpaque ++ animUnisBlended)
+      uploadUniformsBuffer frameContext msdfWorldMaterial (msdfUnisOpaque ++ msdfUnisBlended)
 
     useRenderTarget swapchainRenderTarget commandBuffer [] swapchainImageIndex do
       cmdBindMaterial frameNumber commandBuffer postProcessMaterial
@@ -131,8 +135,8 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
       liftIO $ cmdDraw commandBuffer 3 1 0 0
 
       let overlayCommands = recordCommandBuffer overlayF
-      renderMaterialCommands frameContext staticOverlayMaterial $ selectStaticCommands overlayCommands
-      renderMaterialCommands frameContext msdfOverlayMaterial   $ selectMSDFCommands overlayCommands
+      renderMaterialCommandsAndUpload frameContext staticOverlayMaterial $ selectStaticCommands overlayCommands
+      renderMaterialCommandsAndUpload frameContext msdfOverlayMaterial   $ selectMSDFCommands overlayCommands
   where
   selectAnimatedCommands :: [DrawCommand] -> [(DrawCommand, (AnimatedConstants, Maybe PointedDescriptorSet))]
   selectAnimatedCommands = mapMaybe (\c -> (c,) <$> preview (#drawType . #_Animated . to (mkUniform c)) c)
@@ -178,12 +182,12 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
         , color = color
         }
 
-renderMaterialCommands :: (MonadIO m, DynamicMeshMonad m, Storable uniform) => FrameContext -> BufferedUniformMaterial uniform -> [(DrawCommand, (uniform, Maybe PointedDescriptorSet))] -> m ()
-renderMaterialCommands _ _ [] = pure ()
-renderMaterialCommands FrameContext {..} BufferedUniformMaterial {..} commands = do
+renderMaterialCommands :: (MonadIO m, DynamicMeshMonad m, Integral i) => FrameContext -> BufferedUniformMaterial uniform -> i -> [(DrawCommand, (uniform, Maybe PointedDescriptorSet))] -> m [uniform]
+renderMaterialCommands _ _ _ [] = pure []
+renderMaterialCommands FrameContext {..} BufferedUniformMaterial {..} startIdx commands = do
   cmdBindMaterial frameNumber commandBuffer material
 
-  uniforms <- for (zip commands [0..]) \((DrawCommand {..}, (uniform, drawDS)), i) -> do
+  for (zip commands [fromIntegral startIdx..]) \((DrawCommand {..}, (uniform, drawDS)), i) -> do
     cmdPushMaterialConstants commandBuffer material i
     for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
     case mesh of
@@ -201,9 +205,18 @@ renderMaterialCommands FrameContext {..} BufferedUniformMaterial {..} commands =
 
     pure uniform
 
-  let BufferDescriptorSet { bufferPair, allocator } = resourceForFrame frameNumber descriptor
+uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial a -> [a] -> m ()
+uploadUniformsBuffer FrameContext {..} BufferedUniformMaterial {..} uniforms = do
+  let BufferDescriptorSet { dataBuffer } = resourceForFrame frameNumber descriptor
 
-  let (_, alloc) = bufferPair
+  uploadBufferDescriptorArray dataBuffer uniforms
 
-  liftIO $ withMappedMemory allocator alloc bracket \bptr ->
-    withArrayLen uniforms \len dptr -> copyArray (castPtr bptr) dptr len
+renderMaterialCommandsAndUpload
+  :: (MonadIO m, DynamicMeshMonad m, Storable a)
+  => FrameContext
+  -> BufferedUniformMaterial a
+  -> [(DrawCommand, (a, Maybe PointedDescriptorSet))]
+  -> m ()
+renderMaterialCommandsAndUpload frameContext mat commands
+  = renderMaterialCommands frameContext mat 0 commands
+  >>= uploadUniformsBuffer frameContext mat
