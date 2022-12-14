@@ -1,19 +1,20 @@
 {-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), unCommandT, StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), CommandT, DrawType (..), addCommand)
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand)
 import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain (..), mkAcquire, DeviceContext (..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.ForwardRenderTarget (withPostProcessMaterial)
-import Linear (V4 (..), transpose, inv33, _m33, V2 (..))
+import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!))
 import Hickory.Vulkan.Monad (FrameMonad, askFrameContext, material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Hickory.Vulkan.Types (PostConstants(..), RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf)
+import Hickory.Vulkan.Types (PostConstants(..), RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, attributes)
 import Hickory.Vulkan.Frame (FrameContext(..))
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer)
 import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial)
-import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial)
+import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, shadowMapSize)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
 import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, vertices, indices)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout)
@@ -23,17 +24,19 @@ import Control.Lens (view, has, preview, to, (^.), (.~), (&))
 import Hickory.Vulkan.Framing (doubleResource, resourceForFrame, frameResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet)
 import Data.List (partition)
-import Control.Monad.State.Strict (execStateT)
 import Data.Traversable (for)
 import Data.Maybe (mapMaybe)
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
-import Data.Functor.Identity (runIdentity)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget)
 import Linear.Matrix (M44)
 import Hickory.Text (TextCommand(..))
+import Control.Monad (when)
+import Hickory.Types (aspectRatio)
+import Hickory.Camera (shotMatrix, Projection (..))
+import Hickory.Math (viewDirection)
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -42,8 +45,9 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   swapchainRenderTarget    <- withSwapchainRenderTarget vulkanResources swapchain
   objectIDRenderTarget     <- withObjectIDRenderTarget vulkanResources swapchain
 
-  globalWorldBuffer   <- withDataBuffer vulkanResources 1
-  globalOverlayBuffer <- withDataBuffer vulkanResources 1
+  globalShadowPassBuffer   <- withDataBuffer vulkanResources 1
+  globalWorldBuffer        <- withDataBuffer vulkanResources 1
+  globalOverlayBuffer      <- withDataBuffer vulkanResources 1
 
   globalWorldDescriptorSet <- withDescriptorSet vulkanResources
     [ BufferDescriptor (buf globalWorldBuffer)
@@ -53,13 +57,17 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     [ BufferDescriptor (buf globalOverlayBuffer)
     ]
 
+  globalShadowPassDescriptorSet <- withDescriptorSet vulkanResources
+    [ BufferDescriptor (buf globalShadowPassBuffer)
+    ]
+
   imageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
 
   objectIDMaterial         <- withObjectIDMaterial vulkanResources objectIDRenderTarget globalWorldDescriptorSet
-  staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderTarget globalWorldDescriptorSet
-  animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderTarget globalWorldDescriptorSet
+  staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderTarget globalShadowPassDescriptorSet
+  animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderTarget globalShadowPassDescriptorSet
   staticLitWorldMaterial   <- withStaticLitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
   staticUnlitWorldMaterial <- withStaticUnlitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
   animatedLitWorldMaterial <- withAnimatedLitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
@@ -85,16 +93,22 @@ renderToRenderer :: (FrameMonad m, MonadIO m) => Renderer -> RenderSettings -> P
 renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF = do
   frameContext@FrameContext {..} <- askFrameContext
   useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
-    uploadBufferDescriptor globalWorldBuffer worldGlobals
+    let lightView = viewDirection (V3 0 10 20) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
+        lightProj = shotMatrix (Ortho 100 0.1 45 True) (aspectRatio shadowMapSize)
+    uploadBufferDescriptor globalWorldBuffer
+      $ worldGlobals
+      & #lightTransform .~ (lightProj !*! lightView)
+    uploadBufferDescriptor globalShadowPassBuffer
+      $ worldGlobals
+      & #viewMat .~ lightView
+      & #projMat .~ lightProj
+      -- TODO: Dynamic based on camera pos/target
+
     uploadBufferDescriptor globalOverlayBuffer $ worldGlobals
                                                & #viewMat .~ (overlayGlobals ^. #viewMat)
                                                & #projMat .~ (overlayGlobals ^. #projMat)
 
-    let
-      recordCommandBuffer :: Command () -> [DrawCommand]
-      recordCommandBuffer = runIdentity . flip execStateT mempty . unCommandT
-
-    let drawCommands = recordCommandBuffer litF
+    let drawCommands = runCommand litF
 
     useRenderTarget shadowRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex do
       let shadowCommands = filter castsShadow drawCommands
@@ -136,7 +150,7 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
       liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postConstants
       liftIO $ cmdDraw commandBuffer 3 1 0 0
 
-      let overlayCommands = recordCommandBuffer overlayF
+      let overlayCommands = runCommand overlayF
       renderMaterialCommandsAndUpload frameContext staticOverlayMaterial $ selectStaticCommands overlayCommands
       renderMaterialCommandsAndUpload frameContext msdfOverlayMaterial   $ selectMSDFCommands overlayCommands
   where
@@ -191,9 +205,10 @@ renderMaterialCommands FrameContext {..} BufferedUniformMaterial {..} startIdx c
 
   for (zip commands [fromIntegral startIdx..]) \((DrawCommand {..}, (uniform, drawDS)), i) -> do
     cmdPushMaterialConstants commandBuffer material i
-    for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
+    when (hasPerDrawDescriptorSet material) do
+      for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
     case mesh of
-      Buffered BufferedMesh {..} -> cmdDrawBufferedMesh commandBuffer material mesh 0 vertexBuffer 0 indexBuffer
+      Buffered BufferedMesh {mesh = mesh', ..} -> cmdDrawBufferedMesh commandBuffer material mesh' 0 vertexBuffer 0 indexBuffer
       Dynamic dyn -> do
         meshes <- getMeshes
         addMesh dyn
@@ -224,14 +239,14 @@ renderMaterialCommandsAndUpload frameContext mat commands
   >>= uploadUniformsBuffer frameContext mat
 
 drawText
-  :: Monad m
+  :: CommandMonad m
   => TextRenderer
   -> M44 Float
   -> V4 Float
   -> V4 Float
   -> Float
   -> TextCommand
-  -> CommandT m ()
+  -> m ()
 drawText (font, fontTex, sdfPixelRange) mat color outlineColor outlineSize tc =
   addCommand $ DrawCommand
     { modelMat = mat

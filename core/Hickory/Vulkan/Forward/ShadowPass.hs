@@ -39,12 +39,16 @@ import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Shaderc (vert)
 import Hickory.Vulkan.Mesh (Attribute(..))
 import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants)
+import Hickory.Types (Size(..))
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
 
 shadowDim :: Extent2D
 shadowDim = Extent2D 2048 2048
+
+shadowMapSize :: Size Int
+shadowMapSize = Size 2048 2048
 
 withShadowRenderTarget :: VulkanResources -> Acquire RenderTarget
 withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do
@@ -120,6 +124,7 @@ staticVertShader = [vert|
     mat4 modelMat;
     mat3 normalMat;
     vec4 color;
+    vec2 tiling;
   };
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;

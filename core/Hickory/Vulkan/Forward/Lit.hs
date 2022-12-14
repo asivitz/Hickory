@@ -171,6 +171,7 @@ struct Uniforms
   mat4 modelMat;
   mat3 normalMat;
   vec4 color;
+  vec2 tiling;
 };
 
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
@@ -214,7 +215,7 @@ void main() {
 
     light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
-    surfaceColor = vec4(1.0,1.0,1.0,1.0);
+    surfaceColor = uniforms.color;
     texCoord = inTexCoord;
     shadowCoord = biasMat * globals.lightTransform * worldPosition;
 }
@@ -317,7 +318,7 @@ void main()
 
     gl_Position = globals.projMat
                 * globals.viewMat
-                * modelPos;
+                * worldPosition;
 
     /* Lighting */
     vec3 lightDirection = normalize(globals.lightDirection);
@@ -326,7 +327,7 @@ void main()
 
     vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
-    surfaceColor = uniforms.colors[int(inMaterialIndex)];
+    surfaceColor = uniforms.color * uniforms.colors[int(inMaterialIndex)];
     float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
 
     vec3 halfAngle = normalize(directionToLight + viewDirection);

@@ -33,6 +33,7 @@ data Material a = Material
   -- constant range doesn't match between materials, this can get unbound :(
   , globalDescriptorSet    :: FramedResource PointedDescriptorSet
   , pipeline               :: Pipeline
+  , hasPerDrawDescriptorSet :: Bool
   } deriving Generic
 
 data PointedDescriptorSet = PointedDescriptorSet

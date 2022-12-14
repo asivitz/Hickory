@@ -44,6 +44,7 @@ import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
+import Data.Maybe (isJust)
 
 withMaterial
   :: forall f a. Storable a
@@ -68,6 +69,7 @@ withMaterial
   = do
   let
     DeviceContext {..} = deviceContext
+    hasPerDrawDescriptorSet = isJust perDrawDescriptorSetLayout
     pipelineLayoutCreateInfo = zero
       { pushConstantRanges = [ PushConstantRange
           { size = fromIntegral $ sizeOf (undefined :: a)

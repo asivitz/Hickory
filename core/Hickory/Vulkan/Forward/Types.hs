@@ -1,6 +1,8 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -14,17 +16,14 @@ import qualified Data.Vector.Fixed.Storable as VFS
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial)
 import Hickory.Vulkan.Forward.ObjectPicking (ObjectIDConstants)
-import Control.Monad.Trans (MonadTrans)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.State.Class (MonadState)
-import Control.Monad.State.Strict (StateT)
 import Foreign.Storable.Generic (GStorable)
 import Hickory.Vulkan.Text (MSDFMatConstants)
 import Hickory.Vulkan.Framing (FramedResource)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..))
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity (..))
 import Hickory.Math (Scalar)
-import Control.Monad.State.Class (modify)
+import Control.Monad.Writer.Class (MonadWriter)
+import Control.Monad.Writer.Strict (MonadWriter(..), WriterT (..), Writer)
 
 data Renderer = Renderer
   { swapchainRenderTarget  :: !RenderTarget
@@ -47,6 +46,7 @@ data Renderer = Renderer
   , msdfOverlayMaterial   :: !(BufferedUniformMaterial MSDFMatConstants)
 
   , postProcessMaterial    :: !(Material PostConstants)
+  , globalShadowPassBuffer :: !(DataBuffer WorldGlobals)
   , globalWorldBuffer      :: !(DataBuffer WorldGlobals)
   , globalOverlayBuffer    :: !(DataBuffer WorldGlobals)
   , dynamicMesh            :: FramedResource DynamicBufferedMesh
@@ -160,10 +160,15 @@ worldGlobalDefaults = WorldGlobals {..}
 
 -- Monad
 
-newtype CommandT m a = CommandT { unCommandT :: StateT [DrawCommand] m a }
-  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState [DrawCommand], MonadTrans)
+-- newtype CommandT m a = CommandT { unCommandT :: StateT [DrawCommand] m a }
+  -- deriving newtype (Functor, Applicative, Monad, MonadIO, MonadState [DrawCommand], MonadTrans)
 
-type Command = CommandT Identity
+type CommandMonad m = MonadWriter [DrawCommand] m
+type Command a = Writer [DrawCommand] a
+type CommandT = WriterT [DrawCommand]
 
-addCommand :: Monad m => DrawCommand -> CommandT m ()
-addCommand = modify . (:)
+runCommand :: Command a -> [DrawCommand]
+runCommand = snd . runIdentity . runWriterT
+
+addCommand :: CommandMonad m => DrawCommand -> m ()
+addCommand = tell . pure

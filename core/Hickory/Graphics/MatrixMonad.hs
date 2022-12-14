@@ -15,6 +15,7 @@ import Control.Monad.Reader (ReaderT(..), MonadReader, ask, local, lift, mapRead
 import Hickory.Math
 import Linear ((!*!), identity)
 import Control.Monad.Trans (MonadTrans)
+import Control.Monad.Writer.Class (MonadWriter (..))
 
 class Monad m => MatrixMonad m where
   xform :: Mat44 -> m a -> m a
@@ -32,6 +33,11 @@ mapMatrixT f = MatrixT . mapReaderT f . unMatrixT
 instance MonadReader r m => MonadReader r (MatrixT m) where
   ask = lift ask
   local f = mapMatrixT id . local f
+
+instance MonadWriter w m => MonadWriter w (MatrixT m) where
+  tell   = lift . tell
+  listen = mapMatrixT id . listen
+  pass   = mapMatrixT id . pass
 
 runMatrixT :: MatrixT m a -> m a
 runMatrixT = flip runReaderT identity . unMatrixT

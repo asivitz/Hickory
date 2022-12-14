@@ -363,7 +363,7 @@ drawMesh BufferedUniformMaterial {..} uniform BufferedMesh {..} drawBufferDescri
 cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
 cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer indexOffset mIndexBuffer = do
   let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) vertexOffset (sortOn (attrLocation . fst) (vertices mesh))
-      bindOffsets = V.fromList $ attributes <&> \a -> fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in material")
+      bindOffsets = V.fromList $ attributes <&> \a -> fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in mesh")
                                                     $ Prelude.lookup a meshOffsets
       buffers = V.fromList $ vertexBuffer <$ attributes
 
