@@ -178,9 +178,9 @@ withGraphicsPipeline
           , rasterizationSamples = samples
           }
       , depthStencilState = Just $ zero
-        { depthTestEnable       = depthTestEnable
+        { depthTestEnable       = True
         , depthWriteEnable      = True
-        , depthCompareOp        = COMPARE_OP_LESS
+        , depthCompareOp        = if depthTestEnable then COMPARE_OP_LESS else COMPARE_OP_ALWAYS
         , depthBoundsTestEnable = False
         , stencilTestEnable     = False
         }
