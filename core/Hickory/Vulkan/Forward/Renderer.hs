@@ -6,7 +6,7 @@ module Hickory.Vulkan.Forward.Renderer where
 import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand)
 import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain (..), mkAcquire, DeviceContext (..))
 import Acquire.Acquire (Acquire)
-import Hickory.Vulkan.ForwardRenderTarget (withPostProcessMaterial)
+import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
 import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!))
 import Hickory.Vulkan.Monad (FrameMonad, askFrameContext, material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)

@@ -18,9 +18,8 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE PatternSynonyms #-}
 
-import GHC.Generics (Generic)
 import Control.Concurrent (threadDelay)
-import Control.Monad.IO.Class ( MonadIO, MonadIO(liftIO) )
+import Control.Monad.IO.Class ( MonadIO )
 import Data.Maybe (maybeToList)
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
@@ -31,7 +30,7 @@ import Hickory.FRP.Historical (historical)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget)
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), M44, V4(..), (!*!))
+import Linear ( V2(..), V3(..), (^*), V4(..), (!*!))
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
@@ -40,7 +39,6 @@ import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Control.Lens (view)
 import Acquire.Acquire (Acquire)
-import qualified Data.ByteString.Lazy as BS
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
@@ -57,16 +55,15 @@ import Vulkan
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
-import Hickory.Vulkan.Monad (textMesh)
 import Data.Foldable (for_)
-import Foreign.Storable.Generic
 import Hickory.Graphics.DrawText (textcommand)
-import Hickory.Text (TextCommand(..), Font, makeFont, XAlign (..))
+import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
 import qualified Hickory.Vulkan.Monad as H
 import Hickory.Vulkan.Frame (FrameContext, frameNumber)
 import Hickory.Color (white, red)
 import Hickory.Vulkan.Forward.Types (WorldGlobals(..), OverlayGlobals(..), DrawCommand (..))
+import qualified Hickory.Vulkan.StockMesh as H
 
 -- ** GAMEPLAY **
 
@@ -139,21 +136,7 @@ loadResources path _size _inst vulkanResources swapchain = do
   renderer <- H.withRenderer vulkanResources swapchain
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
-  square <- H.withBufferedMesh vulkanResources $ H.Mesh
-    { vertices =
-          [ (H.Position, [ -0.5, -0.5, 0.0
-                         ,  0.5, -0.5, 0.0
-                         ,  0.5,  0.5, 0.0
-                         , -0.5,  0.5, 0.0
-                         ])
-          , (H.TextureCoord, [ 0.0, 0.0
-                             , 1.0, 0.0
-                             , 1.0, 1.0
-                             , 0.0, 1.0
-                             ])
-          ]
-    , indices = Just [0, 2, 1, 2, 0, 3]
-    }
+  square <- H.withSquareMesh vulkanResources
 
   -- gidolinya.json (font data) and gidolinya.png (font texture) were
   -- generated using https://github.com/Chlumsky/msdf-atlas-gen

@@ -124,11 +124,11 @@ library:
     - Hickory.Vulkan.DynamicMesh
     - Hickory.Vulkan.Framing
     - Hickory.Vulkan.Frame
-    - Hickory.Vulkan.OffscreenTarget
     - Hickory.Vulkan.Instance
     - Hickory.Vulkan.Utils
     - Hickory.Vulkan.RenderPass
-    - Hickory.Vulkan.ForwardRenderTarget
+    - Hickory.Vulkan.StockMesh
+    - Hickory.Vulkan.PostProcessing
     - Hickory.Vulkan.Forward.ObjectPicking
     - Hickory.Vulkan.Forward.Renderer
     - Hickory.Vulkan.Forward.Types
