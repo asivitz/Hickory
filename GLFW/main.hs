@@ -72,6 +72,7 @@ main = withWindow 800 800 "Vulkan Test" \win ->
             , lit = False
             , castsShadow = False
             , blend = True
+            , ident = Nothing
             }
 
           H.addCommand $ DrawCommand
@@ -82,6 +83,7 @@ main = withWindow 800 800 "Vulkan Test" \win ->
             , lit = False
             , castsShadow = False
             , blend = True
+            , ident = Nothing
             }
 
       let settings = RenderSettings

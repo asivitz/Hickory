@@ -116,8 +116,8 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
     }
 
 data ObjectIDConstants = ObjectIDConstants
-  { modelViewProjMat :: M44 Float
-  , objectID         :: Int
+  { modelMat :: M44 Float
+  , objectID :: Int
   } deriving Generic
     deriving anyclass GStorable
 

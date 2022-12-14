@@ -171,6 +171,7 @@ renderGame scrSize@(Size w _h) Model { playerPos, missiles } (Resources {..}, fr
         , lit = False
         , castsShadow = False
         , blend = True
+        , ident = Nothing
         }
 
     H.addCommand $ DrawCommand
@@ -181,6 +182,7 @@ renderGame scrSize@(Size w _h) Model { playerPos, missiles } (Resources {..}, fr
       , lit = False
       , castsShadow = False
       , blend = False
+      , ident = Nothing
       }
 
   overlayF = do

@@ -74,6 +74,7 @@ data DrawCommand = DrawCommand
   , lit         :: Bool
   , castsShadow :: Bool
   , blend       :: Bool
+  , ident       :: Maybe Int
   } deriving Generic
 
 data DrawType
