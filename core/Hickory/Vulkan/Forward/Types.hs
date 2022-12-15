@@ -24,6 +24,7 @@ import Data.Functor.Identity (Identity (..))
 import Hickory.Math (Scalar)
 import Control.Monad.Writer.Class (MonadWriter)
 import Control.Monad.Writer.Strict (MonadWriter(..), WriterT (..), Writer)
+import Hickory.Vulkan.RenderTarget (ImageBuffer)
 
 data Renderer = Renderer
   { swapchainRenderTarget  :: !RenderTarget
@@ -50,6 +51,7 @@ data Renderer = Renderer
   , globalWorldBuffer      :: !(DataBuffer WorldGlobals)
   , globalOverlayBuffer    :: !(DataBuffer WorldGlobals)
   , dynamicMesh            :: FramedResource DynamicBufferedMesh
+  , objectPickingImageBuffer :: FramedResource ImageBuffer
   } deriving Generic
 
 -- params: targ, shaders

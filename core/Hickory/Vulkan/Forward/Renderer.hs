@@ -17,7 +17,7 @@ import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMater
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, shadowMapSize)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
 import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, vertices, indices)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout)
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..))
 import Foreign (Storable)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4)
@@ -30,19 +30,20 @@ import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget, ObjectIDConstants (..))
 import Linear.Matrix (M44)
-import Hickory.Text (TextCommand(..))
+import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless)
 import Hickory.Types (aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..))
-import Hickory.Math (viewDirection)
+import Hickory.Math.Matrix ( viewDirection )
 import Data.Word (Word32)
 import Data.IORef (modifyIORef, newIORef, readIORef, IORef)
 import Data.UUID (UUID)
-import Control.Monad.State.Class (MonadState, put)
+import Control.Monad.State.Class ( MonadState, put, get )
 import Control.Monad.State.Strict (evalStateT)
 import qualified Data.UUID as UUID
-import Control.Monad.State.Class (get)
 import Data.Maybe (isJust)
+import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
+import Hickory.Math (Scalar)
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -51,9 +52,9 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   swapchainRenderTarget    <- withSwapchainRenderTarget vulkanResources swapchain
   objectIDRenderTarget     <- withObjectIDRenderTarget vulkanResources swapchain
 
-  globalShadowPassBuffer   <- withDataBuffer vulkanResources 1
-  globalWorldBuffer        <- withDataBuffer vulkanResources 1
-  globalOverlayBuffer      <- withDataBuffer vulkanResources 1
+  globalShadowPassBuffer   <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalWorldBuffer        <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalOverlayBuffer      <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   globalWorldDescriptorSet <- withDescriptorSet vulkanResources
     [ BufferDescriptor (buf globalWorldBuffer)
@@ -93,6 +94,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 1000
 
+  objectPickingImageBuffer <- frameResource $ withImageBuffer vulkanResources objectIDRenderTarget
+
   pure Renderer {..}
 
 data RegisteredMaterial const extra
@@ -123,6 +126,9 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
 
     useRenderTarget objectIDRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
       processIDRenderPass frameContext (Universal objectIDMaterial ()) $ filter (isJust . ident) drawCommands
+
+
+    liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame frameNumber objectPickingImageBuffer)
 
     useRenderTarget shadowRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex do
       processRenderPass frameContext
@@ -368,9 +374,12 @@ processIDCommand frameContext
     Just i ->
       go objectConfig $ (,Nothing) ObjectIDConstants
         { modelMat = modelMat
-        , objectID = i
+        , objectID = fromIntegral i
         }
     _ -> pure ()
 
   where
   go = submitCommand frameContext dc
+
+pickObjectID :: FrameContext -> Renderer -> (Scalar,Scalar) -> IO Int
+pickObjectID FrameContext {..} Renderer{..} = fmap fromIntegral . readPixel (resourceForFrame (frameNumber - 1) objectPickingImageBuffer)

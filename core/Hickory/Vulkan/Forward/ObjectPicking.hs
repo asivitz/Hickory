@@ -29,7 +29,7 @@ import Acquire.Acquire (Acquire)
 import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
-import Data.Bits (zeroBits)
+import Data.Bits (zeroBits, Bits ((.|.)))
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types
@@ -41,6 +41,7 @@ import Linear (M44)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Shaderc (vert)
 import Hickory.Vulkan.Mesh (Attribute(..))
+import Data.Word (Word32)
 
 -- For e.g. mouse picking objects in scene
 withObjectIDRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
@@ -54,7 +55,7 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits
   depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
 
-  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat IMAGE_USAGE_COLOR_ATTACHMENT_BIT extent samples
+  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
   objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
@@ -112,12 +113,13 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    -- , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    , finalLayout    = IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
     }
 
 data ObjectIDConstants = ObjectIDConstants
   { modelMat :: M44 Float
-  , objectID :: Int
+  , objectID :: Word32
   } deriving Generic
     deriving anyclass GStorable
 

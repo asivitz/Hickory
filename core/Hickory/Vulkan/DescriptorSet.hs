@@ -22,10 +22,10 @@ import Vulkan
   , updateDescriptorSets
   , DescriptorImageInfo(..)
   , Format (..), ImageLayout (..), allocateDescriptorSets
-  , DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer
+  , DescriptorSetLayout, DescriptorSet
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Filter
-  , pattern IMAGE_ASPECT_COLOR_BIT, Sampler, SamplerAddressMode
+  , pattern IMAGE_ASPECT_COLOR_BIT, SamplerAddressMode
   )
 import qualified Vulkan as Writes (WriteDescriptorSet(..))
 import Data.Functor ((<&>))
@@ -35,13 +35,12 @@ import Vulkan.CStruct.Extends (SomeStruct(..))
 import Control.Lens (view, _1, (&))
 import System.FilePath.Lens (filename)
 import Data.Bits ((.|.))
-import VulkanMemoryAllocator (Allocation, Allocator, withMappedMemory)
+import VulkanMemoryAllocator (withMappedMemory)
 import Foreign (Storable, copyArray, castPtr, sizeOf, withArrayLen, poke)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Exception (bracket)
 import Hickory.Vulkan.Mesh (withBuffer')
 import GHC.Generics (Generic)
-import Data.IORef (IORef, newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
@@ -169,10 +168,10 @@ descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Int) bd
                            , fmap (view #descriptorSet) bds
                            )
 
-withDataBuffer :: forall a. Storable a => VulkanResources -> Int -> Acquire (DataBuffer a)
-withDataBuffer VulkanResources {..} num = do
+withDataBuffer :: forall a. Storable a => VulkanResources -> Int -> BufferUsageFlagBits -> Acquire (DataBuffer a)
+withDataBuffer VulkanResources {..} num usageBits = do
   (buf, allocation, _) <- withBuffer' allocator
-    BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    usageBits
     (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
     (fromIntegral $ sizeOf (undefined :: a) * num)
   pure DataBuffer {..}
@@ -180,7 +179,7 @@ withDataBuffer VulkanResources {..} num = do
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Acquire (BufferDescriptorSet a)
 withBufferDescriptorSet vulkanResources = do
   -- TODO: Don't hardcode # of uniforms
-  dataBuffer <- withDataBuffer vulkanResources 2048
+  dataBuffer <- withDataBuffer vulkanResources 2048 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   ds <-  withDescriptorSet vulkanResources [BufferDescriptor (buf dataBuffer)]
 

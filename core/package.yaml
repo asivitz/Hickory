@@ -129,6 +129,7 @@ library:
     - Hickory.Vulkan.RenderPass
     - Hickory.Vulkan.StockMesh
     - Hickory.Vulkan.PostProcessing
+    - Hickory.Vulkan.RenderTarget
     - Hickory.Vulkan.Forward.ObjectPicking
     - Hickory.Vulkan.Forward.Renderer
     - Hickory.Vulkan.Forward.Types
