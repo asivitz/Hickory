@@ -191,8 +191,8 @@ packOBJ :: WavefrontOBJ -> [WavefrontOBJ -> Face -> [V.Vector GLfloat]] -> (SV.V
 packOBJ obj@WavefrontOBJ { objFaces } fs = (SV.convert verts, V.length objFaces * 3)
   where
   verts :: V.Vector GLfloat
-  verts = V.concatMap (\face -> V.concat . fmap V.concat . transpose $ map ($face) packFuns) faces
-  packFuns = map ($obj) fs
+  verts = V.concatMap (\face -> V.concat . fmap V.concat . transpose $ map ($ face) packFuns) faces
+  packFuns = map ($ obj) fs
   faces = fmap elValue objFaces
 
 eachFaceIndex :: (WavefrontOBJ -> FaceIndex -> V.Vector GLfloat) -> WavefrontOBJ -> Face -> [V.Vector GLfloat]
