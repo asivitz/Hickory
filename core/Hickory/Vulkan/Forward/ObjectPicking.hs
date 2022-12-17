@@ -30,7 +30,7 @@ import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits (zeroBits, Bits ((.|.)))
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
+import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), withMaterial)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
@@ -42,6 +42,8 @@ import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Shaderc (vert)
 import Hickory.Vulkan.Mesh (Attribute(..))
 import Data.Word (Word32)
+import Hickory.Vulkan.Framing (FramedResource(..))
+import Data.Proxy (Proxy)
 
 -- For e.g. mouse picking objects in scene
 withObjectIDRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
@@ -58,7 +60,7 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
   objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
   frameBuffer <- createFramebuffer device renderPass extent [depthImageView, objIDImageView]
   let frameBuffers = V.replicate 3 frameBuffer
@@ -113,8 +115,8 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    -- , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    , finalLayout    = IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    -- , finalLayout    = IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
     }
 
 data ObjectIDConstants = ObjectIDConstants
@@ -175,3 +177,52 @@ withObjectIDMaterial vulkanResources renderTarget globalDS
     outColor = objectID;
   }
   |]
+
+withObjectHighlightMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
+withObjectHighlightMaterial vulkanResources renderTarget globalDescriptorSet materialDescriptorSet =
+  withMaterial vulkanResources renderTarget (undefined :: Proxy Word32)
+    [] pipelineDefaults { depthTestEnable = False } vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+  where
+  vertShader = [vert|
+#version 450
+
+layout (location = 0) out vec2 texCoordsVarying;
+
+void main()
+{
+    texCoordsVarying = vec2(gl_VertexIndex & 2, (gl_VertexIndex << 1) & 2 );
+    gl_Position = vec4(texCoordsVarying * 2.0f + -1.0f, 1.0f, 1.0f);
+}
+
+|]
+  fragShader = [frag|
+#version 450
+#extension GL_EXT_scalar_block_layout : require
+
+layout (location = 0) in vec2 texCoordsVarying;
+layout (location = 0) out vec4 outColor;
+
+layout( push_constant, scalar ) uniform constants
+{
+  int objId;
+} PushConstants;
+
+layout (set = 1, binding = 0) uniform usampler2D textureSampler;
+
+void main()
+{
+  float count = 0;
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(0,  0)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2, -2)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2,  0)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2,  2)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 0,  2)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2,  2)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2,  0)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2, -2)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 0, -2)).r == PushConstants.objId);
+
+  vec3 col = vec3(1.0, 0.5, 0.0);
+  outColor = mix(vec4(col, 0), vec4(col, 1), smoothstep(0, 0.5, 0.5 - abs(count/9 - 0.5)));
+}
+|]

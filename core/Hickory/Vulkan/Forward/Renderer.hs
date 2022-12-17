@@ -3,7 +3,7 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand)
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObj)
 import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain (..), mkAcquire, DeviceContext (..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -28,7 +28,7 @@ import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget, ObjectIDConstants (..))
+import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget, ObjectIDConstants (..), withObjectHighlightMaterial)
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless)
@@ -90,7 +90,12 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     [ view #descriptorSpec litRenderTarget
     ]
 
+  objHighlightDescriptorSet <- withDescriptorSet vulkanResources
+    [ view #descriptorSpec objectIDRenderTarget
+    ]
+
   postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderTarget (doubleResource globalWorldDescriptorSet) (doubleResource postMaterialDescriptorSet)
+  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderTarget (doubleResource globalWorldDescriptorSet) (doubleResource objHighlightDescriptorSet)
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 1000
 
@@ -128,8 +133,6 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
       processIDRenderPass frameContext (Universal objectIDMaterial ()) $ filter (isJust . ident) drawCommands
 
 
-    liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame frameNumber objectPickingImageBuffer)
-
     useRenderTarget shadowRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex do
       processRenderPass frameContext
         ( Universal animatedShadowMaterial ()
@@ -151,6 +154,13 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
         , Universal linesWorldMaterial ()
         ) drawCommands
 
+      case highlightObj of
+        i | i > 0 -> do
+          cmdBindMaterial frameNumber commandBuffer objHighlightMaterial
+          liftIO $ cmdPushMaterialConstants commandBuffer objHighlightMaterial (fromIntegral i)
+          liftIO $ cmdDraw commandBuffer 3 1 0 0
+        _ -> pure ()
+
     useRenderTarget swapchainRenderTarget commandBuffer [] swapchainImageIndex do
       cmdBindMaterial frameNumber commandBuffer postProcessMaterial
       liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postConstants
@@ -162,6 +172,8 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
         , Universal msdfOverlayMaterial ()
         , NullMat
         ) $ runCommand overlayF
+    liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame frameNumber objectPickingImageBuffer)
+
 
 type MaterialConfig c = RegisteredMaterial c (IORef [c])
 

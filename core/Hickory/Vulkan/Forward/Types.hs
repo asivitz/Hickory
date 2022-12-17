@@ -25,6 +25,7 @@ import Hickory.Math (Scalar)
 import Control.Monad.Writer.Class (MonadWriter)
 import Control.Monad.Writer.Strict (MonadWriter(..), WriterT (..), Writer)
 import Hickory.Vulkan.RenderTarget (ImageBuffer)
+import GHC.Word (Word32)
 
 data Renderer = Renderer
   { swapchainRenderTarget  :: !RenderTarget
@@ -42,6 +43,7 @@ data Renderer = Renderer
   -- , animatedUnlitWorldMaterial :: !(BufferedUniformMaterial AnimatedConstants)
   , msdfWorldMaterial          :: !(BufferedUniformMaterial MSDFMatConstants)
   , linesWorldMaterial         :: !(BufferedUniformMaterial StaticConstants)
+  , objHighlightMaterial    :: !(Material Word32)
 
   , staticOverlayMaterial :: !(BufferedUniformMaterial StaticConstants)
   , msdfOverlayMaterial   :: !(BufferedUniformMaterial MSDFMatConstants)
@@ -130,6 +132,7 @@ data RenderSettings = RenderSettings
   { clearColor     :: V4 Scalar
   , worldGlobals   :: WorldGlobals
   , overlayGlobals :: OverlayGlobals
+  , highlightObj   :: Int
   }
 
 data WorldGlobals = WorldGlobals
@@ -159,7 +162,6 @@ worldGlobalDefaults = WorldGlobals {..}
   lightDirection = V3 1 1 1
   sunColor = V3 1 1 1
   ambientColor = V3 1 1 1
-
 
 -- Monad
 
