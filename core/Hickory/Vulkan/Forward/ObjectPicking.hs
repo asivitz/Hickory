@@ -65,7 +65,8 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
   frameBuffer <- createFramebuffer device renderPass extent [depthImageView, objIDImageView]
   let frameBuffers = V.replicate 3 frameBuffer
       cullMode = CULL_MODE_FRONT_BIT
-      descriptorSpec = ImageDescriptor [(objIDImage,sampler)]
+      descriptorSpecs = [ ImageDescriptor [(objIDImage,sampler)]
+                        ]
 
   pure RenderTarget {..}
   where
@@ -202,27 +203,23 @@ void main()
 layout (location = 0) in vec2 texCoordsVarying;
 layout (location = 0) out vec4 outColor;
 
-layout( push_constant, scalar ) uniform constants
-{
-  int objId;
-} PushConstants;
-
 layout (set = 1, binding = 0) uniform usampler2D textureSampler;
 
 void main()
 {
+  uint center = texture(textureSampler, texCoordsVarying).r;
+
   float count = 0;
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(0,  0)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2, -2)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2,  0)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2,  2)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 0,  2)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2,  2)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2,  0)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2, -2)).r == PushConstants.objId);
-  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 0, -2)).r == PushConstants.objId);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2, -2)).r != center);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2,  0)).r != center);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2(-2,  2)).r != center);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 0,  2)).r != center);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2,  2)).r != center);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2,  0)).r != center);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 2, -2)).r != center);
+  count += float(textureOffset(textureSampler, texCoordsVarying, ivec2( 0, -2)).r != center);
 
   vec3 col = vec3(1.0, 0.5, 0.0);
-  outColor = mix(vec4(col, 0), vec4(col, 1), smoothstep(0, 0.5, 0.5 - abs(count/9 - 0.5)));
+  outColor = mix(vec4(col, 0), vec4(col, 1), smoothstep(0, 0.5, count/8));
 }
 |]

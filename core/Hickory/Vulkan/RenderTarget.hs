@@ -18,13 +18,13 @@ import Hickory.Math (Scalar)
 import Vulkan.Zero (Zero(..))
 import Vulkan.CStruct.Extends (SomeStruct(..))
 
-withImageBuffer :: VulkanResources -> RenderTarget -> Acquire ImageBuffer
-withImageBuffer vulkanResources RenderTarget {..} = do
+withImageBuffer :: VulkanResources -> RenderTarget -> Int -> Acquire ImageBuffer
+withImageBuffer vulkanResources RenderTarget {..} descIdx = do
   buffer <- withDataBuffer vulkanResources (fromIntegral $ w*h) BUFFER_USAGE_TRANSFER_DST_BIT
   pure ImageBuffer {..}
   where
   Extent2D w h = extent
-  viewableImage = case descriptorSpec of
+  viewableImage = case descriptorSpecs !! descIdx of
     ImageDescriptor [(vi, _sampler)] -> vi
     _ -> error "Can't only copy image from image descriptor of one image"
   region = BufferImageCopy
@@ -44,7 +44,6 @@ withImageBuffer vulkanResources RenderTarget {..} = do
 -- Copying the whole image, so addressing x,y is (y * rowLength + x) * texelSize
 copyDescriptorImageToBuffer :: CommandBuffer -> ImageBuffer -> IO ()
 copyDescriptorImageToBuffer cb ImageBuffer {..} = do
-
   let barrier :: ImageMemoryBarrier '[]
       barrier = zero
         { oldLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -62,7 +61,7 @@ copyDescriptorImageToBuffer cb ImageBuffer {..} = do
           , layerCount = 1
           }
         }
-  -- Transition image to TRANSFER layout
+  -- Transition image to TRANSFER layout. Might not be needed depending on usage
   cmdPipelineBarrier cb PIPELINE_STAGE_TRANSFER_BIT PIPELINE_STAGE_TRANSFER_BIT zero [] [] [SomeStruct barrier]
 
   cmdCopyImageToBuffer cb img IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL buf [ region ]

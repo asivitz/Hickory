@@ -16,12 +16,12 @@ import Linear (V3)
 import Foreign.Storable.Generic (GStorable)
 
 data RenderTarget = RenderTarget
-  { renderPass     :: !RenderPass
-  , frameBuffers   :: !(V.Vector Framebuffer)
-  , descriptorSpec :: DescriptorSpec
-  , extent         :: !Extent2D
-  , samples        :: !SampleCountFlagBits
-  , cullMode       :: !CullModeFlagBits
+  { renderPass      :: !RenderPass
+  , frameBuffers    :: !(V.Vector Framebuffer)
+  , descriptorSpecs :: [DescriptorSpec]
+  , extent          :: !Extent2D
+  , samples         :: !SampleCountFlagBits
+  , cullMode        :: !CullModeFlagBits
   } deriving Generic
 
 data Material a = Material

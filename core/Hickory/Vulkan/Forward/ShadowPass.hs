@@ -66,7 +66,7 @@ withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceC
 
   shadowFrameBuffer <- createFramebuffer device renderPass shadowDim [shadowmapImageView]
   let frameBuffers = V.replicate 3 shadowFrameBuffer
-      descriptorSpec = DepthImageDescriptor image sampler
+      descriptorSpecs = [DepthImageDescriptor image sampler]
       extent = shadowDim
       cullMode = CULL_MODE_FRONT_BIT
       samples = SAMPLE_COUNT_1_BIT

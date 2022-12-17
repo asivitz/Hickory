@@ -61,10 +61,9 @@ withSwapchainRenderTarget VulkanResources { deviceContext = DeviceContext{..} } 
   frameBuffers <- for images \(ViewableImage _img imgView _format) ->
     createFramebuffer device renderPass extent [imgView]
 
-  let descriptorSpec = undefined -- TODO: Handle swapchain targets more gracefully
+  let descriptorSpecs = []
       cullMode = CULL_MODE_BACK_BIT
       samples = SAMPLE_COUNT_1_BIT
-      fragShaderOverride = Nothing
 
   pure RenderTarget {..}
   where

@@ -73,8 +73,7 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
   let frameBuffers = V.replicate 3 frameBuffer
-      -- targetImages = V.fromList [(image, sampler)]
-      descriptorSpec = ImageDescriptor [(resolveImage,sampler)]
+      descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)]]
       cullMode = CULL_MODE_BACK_BIT
       samples = maxSampleCount
   pure RenderTarget {..}

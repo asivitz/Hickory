@@ -31,9 +31,11 @@ data Renderer = Renderer
   { swapchainRenderTarget  :: !RenderTarget
   , shadowRenderTarget     :: !RenderTarget
   , litRenderTarget        :: !RenderTarget
-  , objectIDRenderTarget   :: !RenderTarget
+  , pickingRenderTarget   :: !RenderTarget
+  , currentSelectionRenderTarget   :: !RenderTarget
   -- Pipelines
-  , objectIDMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
+  , pickingMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
+  , currentSelectionMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
   , staticShadowMaterial   :: !(BufferedUniformMaterial StaticConstants)
   , animatedShadowMaterial :: !(BufferedUniformMaterial AnimatedConstants)
 
@@ -132,7 +134,7 @@ data RenderSettings = RenderSettings
   { clearColor     :: V4 Scalar
   , worldGlobals   :: WorldGlobals
   , overlayGlobals :: OverlayGlobals
-  , highlightObj   :: Int
+  , highlightObjs  :: [Int]
   }
 
 data WorldGlobals = WorldGlobals

@@ -3,7 +3,7 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObj)
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs)
 import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain (..), mkAcquire, DeviceContext (..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -20,7 +20,7 @@ import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, vertices, indices)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..))
 import Foreign (Storable)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
-import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4)
+import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, ix, (^?!))
 import Hickory.Vulkan.Framing (doubleResource, resourceForFrame, frameResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet)
 import Data.List (partition, sortOn)
@@ -50,16 +50,17 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   shadowRenderTarget       <- withShadowRenderTarget vulkanResources
   litRenderTarget          <- withLitRenderTarget vulkanResources swapchain
   swapchainRenderTarget    <- withSwapchainRenderTarget vulkanResources swapchain
-  objectIDRenderTarget     <- withObjectIDRenderTarget vulkanResources swapchain
+  pickingRenderTarget          <- withObjectIDRenderTarget vulkanResources swapchain
+  currentSelectionRenderTarget <- withObjectIDRenderTarget vulkanResources swapchain
 
   globalShadowPassBuffer   <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
   globalWorldBuffer        <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
   globalOverlayBuffer      <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   globalWorldDescriptorSet <- withDescriptorSet vulkanResources
-    [ BufferDescriptor (buf globalWorldBuffer)
-    , descriptorSpec shadowRenderTarget
-    ]
+    ( BufferDescriptor (buf globalWorldBuffer)
+    : descriptorSpecs shadowRenderTarget
+    )
   globalOverlayDescriptorSet <- withDescriptorSet vulkanResources
     [ BufferDescriptor (buf globalOverlayBuffer)
     ]
@@ -72,7 +73,9 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
 
-  objectIDMaterial         <- withObjectIDMaterial vulkanResources objectIDRenderTarget globalWorldDescriptorSet
+  pickingMaterial          <- withObjectIDMaterial vulkanResources pickingRenderTarget globalWorldDescriptorSet
+  currentSelectionMaterial <- withObjectIDMaterial vulkanResources currentSelectionRenderTarget globalWorldDescriptorSet
+
   staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderTarget globalShadowPassDescriptorSet
   animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderTarget globalShadowPassDescriptorSet
   staticLitWorldMaterial   <- withStaticLitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
@@ -87,11 +90,11 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
 
   postMaterialDescriptorSet <- withDescriptorSet vulkanResources
-    [ view #descriptorSpec litRenderTarget
+    [ litRenderTarget ^?! (#descriptorSpecs . ix 0)
     ]
 
   objHighlightDescriptorSet <- withDescriptorSet vulkanResources
-    [ view #descriptorSpec objectIDRenderTarget
+    [ currentSelectionRenderTarget ^?! (#descriptorSpecs . ix 0)
     ]
 
   postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderTarget (doubleResource globalWorldDescriptorSet) (doubleResource postMaterialDescriptorSet)
@@ -99,7 +102,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 1000
 
-  objectPickingImageBuffer <- frameResource $ withImageBuffer vulkanResources objectIDRenderTarget
+  objectPickingImageBuffer <- frameResource $ withImageBuffer vulkanResources pickingRenderTarget 0
 
   pure Renderer {..}
 
@@ -129,9 +132,11 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
 
     let drawCommands = runCommand litF
 
-    useRenderTarget objectIDRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
-      processIDRenderPass frameContext (Universal objectIDMaterial ()) $ filter (isJust . ident) drawCommands
+    useRenderTarget pickingRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
+      processIDRenderPass frameContext (Universal pickingMaterial ()) $ filter (isJust . ident) drawCommands
 
+    useRenderTarget currentSelectionRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
+      processIDRenderPass frameContext (Universal currentSelectionMaterial ()) $ filter ((\x -> x `elem` map Just highlightObjs) . ident) drawCommands
 
     useRenderTarget shadowRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex do
       processRenderPass frameContext
@@ -154,10 +159,9 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
         , Universal linesWorldMaterial ()
         ) drawCommands
 
-      case highlightObj of
-        i | i > 0 -> do
+      case highlightObjs of
+        (_:_) -> do
           cmdBindMaterial frameNumber commandBuffer objHighlightMaterial
-          liftIO $ cmdPushMaterialConstants commandBuffer objHighlightMaterial (fromIntegral i)
           liftIO $ cmdDraw commandBuffer 3 1 0 0
         _ -> pure ()
 
@@ -174,9 +178,7 @@ renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF =
         ) $ runCommand overlayF
     liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame frameNumber objectPickingImageBuffer)
 
-
 type MaterialConfig c = RegisteredMaterial c (IORef [c])
-
 
 regMatToConfig :: RegisteredMaterial a () -> IO (MaterialConfig a)
 regMatToConfig = \case
