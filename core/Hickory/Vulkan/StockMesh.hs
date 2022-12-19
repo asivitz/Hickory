@@ -2,13 +2,13 @@
 
 module Hickory.Vulkan.StockMesh where
 
-import Hickory.Vulkan.Vulkan (VulkanResources)
 import Acquire.Acquire (Acquire)
 import qualified Data.Vector.Storable as SV
-import Hickory.Vulkan.Mesh (BufferedMesh, Mesh (..), Attribute (..), withBufferedMesh)
+import Hickory.Vulkan.Mesh (withBufferedMesh)
 import Data.Word (Word32)
 import Linear (V3 (..), V2 (..), normalize)
 import Data.Foldable (toList)
+import Hickory.Vulkan.Types (VulkanResources, BufferedMesh, Mesh (..), Attribute (..))
 
 withSquareMesh :: VulkanResources -> Acquire BufferedMesh
 withSquareMesh vulkanResources = withBufferedMesh vulkanResources $ Mesh

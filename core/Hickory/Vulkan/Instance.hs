@@ -9,12 +9,12 @@ import Vulkan
   , Instance
   , InstanceCreateInfo (..)
   , withInstance
-  , pattern API_VERSION_1_2, InstanceCreateFlagBits (..), SurfaceKHR, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..), enumerateInstanceExtensionProperties, layerName, extensionName, enumerateInstanceLayerProperties
+  , pattern API_VERSION_1_2, InstanceCreateFlagBits (..), enumerateInstanceExtensionProperties, layerName, extensionName, enumerateInstanceLayerProperties
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
 import qualified Data.ByteString as B
-import Hickory.Vulkan.Vulkan (VulkanResources (..), DeviceContext (..), withStandardAllocator, withLogicalDevice, mkAcquire)
+import Hickory.Vulkan.Vulkan (mkAcquire)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.List as DL
@@ -48,13 +48,3 @@ withStandardInstance (DL.nub -> desiredExtensions) (DL.nub -> desiredLayers) = d
       }
 
   withInstance instanceCreateInfo Nothing mkAcquire
-
-withVulkanResources :: Instance -> SurfaceKHR -> Acquire VulkanResources
-withVulkanResources inst surface = do
-  deviceContext@DeviceContext {..} <- withLogicalDevice inst surface
-  allocator <- withStandardAllocator inst physicalDevice device
-  shortLivedCommandPool <-
-    let commandPoolCreateInfo :: CommandPoolCreateInfo
-        commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_TRANSIENT_BIT }
-    in withCommandPool device commandPoolCreateInfo Nothing mkAcquire
-  pure VulkanResources {..}

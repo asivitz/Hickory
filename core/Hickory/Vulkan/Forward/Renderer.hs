@@ -1,22 +1,21 @@
-{-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
+{-# LANGUAGE DataKinds, OverloadedLists, OverloadedLabels #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs)
-import Hickory.Vulkan.Vulkan (VulkanResources(..), Swapchain (..), mkAcquire, DeviceContext (..))
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..))
+import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
 import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!))
 import Hickory.Vulkan.Monad (FrameMonad, askFrameContext, material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Hickory.Vulkan.Types (PostConstants(..), RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..))
-import Hickory.Vulkan.Frame (FrameContext(..))
+import Hickory.Vulkan.Types (PostConstants(..), RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices)
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer)
 import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, shadowMapSize)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
-import Hickory.Vulkan.Mesh (BufferedMesh (..), vsizeOf, vertices, indices)
+import Hickory.Vulkan.Mesh (vsizeOf)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..))
 import Foreign (Storable)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
@@ -53,20 +52,25 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   pickingRenderTarget          <- withObjectIDRenderTarget vulkanResources swapchain
   currentSelectionRenderTarget <- withObjectIDRenderTarget vulkanResources swapchain
 
+  globalBuffer             <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
   globalShadowPassBuffer   <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
   globalWorldBuffer        <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
   globalOverlayBuffer      <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
-  globalWorldDescriptorSet <- withDescriptorSet vulkanResources
-    ( BufferDescriptor (buf globalWorldBuffer)
-    : descriptorSpecs shadowRenderTarget
-    )
+  globalWorldDescriptorSet <- withDescriptorSet vulkanResources $
+    [ BufferDescriptor (buf globalBuffer)
+    , BufferDescriptor (buf globalWorldBuffer)
+    ]
+    ++
+    descriptorSpecs shadowRenderTarget
   globalOverlayDescriptorSet <- withDescriptorSet vulkanResources
-    [ BufferDescriptor (buf globalOverlayBuffer)
+    [ BufferDescriptor (buf globalBuffer)
+    , BufferDescriptor (buf globalOverlayBuffer)
     ]
 
   globalShadowPassDescriptorSet <- withDescriptorSet vulkanResources
-    [ BufferDescriptor (buf globalShadowPassBuffer)
+    [ BufferDescriptor (buf globalBuffer)
+    , BufferDescriptor (buf globalShadowPassBuffer)
     ]
 
   imageSetLayout <- withDescriptorSetLayout device zero
@@ -111,12 +115,13 @@ data RegisteredMaterial const extra
   | Universal (BufferedUniformMaterial const) extra
   | LitAndUnlit (BufferedUniformMaterial const, extra) (BufferedUniformMaterial const, extra)
 
-renderToRenderer :: (FrameMonad m, MonadIO m) => Renderer -> RenderSettings -> PostConstants -> Command () -> Command () -> m ()
-renderToRenderer Renderer {..} RenderSettings {..} postConstants litF overlayF = do
-  frameContext@FrameContext {..} <- askFrameContext
+renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> PostConstants -> Command () -> Command () -> m ()
+renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} postConstants litF overlayF = do
   useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
     let lightView = viewDirection (V3 0 10 20) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
         lightProj = shotMatrix (Ortho 100 0.1 45 True) (aspectRatio shadowMapSize)
+    uploadBufferDescriptor globalBuffer
+      $ Globals frameNumber
     uploadBufferDescriptor globalWorldBuffer
       $ worldGlobals
       & #lightTransform .~ (lightProj !*! lightView)

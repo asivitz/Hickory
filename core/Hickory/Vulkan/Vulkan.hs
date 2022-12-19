@@ -27,14 +27,14 @@ import Vulkan
   , PhysicalDeviceProperties (..)
   , PhysicalDeviceType (..)
   , PresentModeKHR (..)
-  , Queue
+
   , QueueFlagBits (..)
   , SharingMode (..)
   , SurfaceCapabilitiesKHR(..)
   , SurfaceFormatKHR(..)
   , SurfaceKHR
   , SwapchainCreateInfoKHR(..)
-  , SwapchainKHR
+
   , enumerateDeviceExtensionProperties
   , enumeratePhysicalDevices
   , getDeviceQueue
@@ -56,7 +56,7 @@ import Vulkan
   , ImageLayout (..)
   , ImageView
   , Image
-  , CommandPool
+
   , physicalDeviceHandle
   , deviceHandle
   , instanceHandle
@@ -85,43 +85,12 @@ import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
 import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr)
 import qualified Data.ByteString as B
-import GHC.Generics (Generic)
 import Acquire.Acquire (Acquire (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.List as DL
 import Data.Foldable (for_)
 import Data.Bits ((.|.))
-
-data VulkanResources = VulkanResources
-  { deviceContext         :: DeviceContext
-  , allocator             :: Allocator
-  , shortLivedCommandPool :: CommandPool -- For, e.g., mem copy commands
-  }
-
-data DeviceContext = DeviceContext
-  { device            :: Device
-  , surfaceFormat     :: SurfaceFormatKHR
-  , graphicsQueue     :: Queue
-  , presentQueue      :: Queue
-  , graphicsFamilyIdx :: Word32
-  , presentFamilyIdx  :: Word32
-  , physicalDevice    :: PhysicalDevice
-  , presentMode       :: PresentModeKHR
-  , maxSampleCount    :: SampleCountFlagBits
-  }
-
-data Swapchain = Swapchain
-  { imageFormat       :: SurfaceFormatKHR
-  , swapchainHandle   :: SwapchainKHR
-  , images            :: V.Vector ViewableImage
-  , extent            :: Extent2D
-  }
-
-data ViewableImage = ViewableImage
-  { image     :: Image
-  , imageView :: ImageView
-  , format    :: Format
-  } deriving Generic
+import Hickory.Vulkan.Types (DeviceContext(..), Swapchain (..), VulkanResources (..), ViewableImage (..))
 
 {- DEVICE CREATION -}
 
@@ -241,9 +210,8 @@ withLogicalDevice inst surface = do
 
   pure $ DeviceContext {..}
 
-withSwapchain :: VulkanResources -> SurfaceKHR -> (Int, Int) -> Acquire Swapchain
-withSwapchain vr@VulkanResources {..} surface (fbWidth, fbHeight) = do
-  let dc@DeviceContext{..} = deviceContext
+withSwapchain :: DeviceContext -> SurfaceKHR -> (Int, Int) -> Acquire Swapchain
+withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
   capabilities <- getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
 
   let

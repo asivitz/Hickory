@@ -19,12 +19,13 @@ import Linear.Matrix ((!*!))
 import Linear ( M44, V2 (..), V4(..), V3(..), identity)
 import Hickory.Math (mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
-import Hickory.Vulkan.Frame (FrameContext(..))
 import qualified Hickory.Vulkan.Forward.Types as H
 import Hickory.Vulkan.Forward.Types (DrawCommand(..), RenderSettings(..), WorldGlobals(..), OverlayGlobals(..))
+import Hickory.Vulkan.Types (VulkanResources(..), Swapchain(..))
 import qualified Hickory.Vulkan.Forward.Renderer as H
 import qualified Hickory.Vulkan.StockMesh as H
 import Hickory.Color (white)
+import Control.Monad.IO.Class (liftIO)
 
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
@@ -46,49 +47,49 @@ data Uniform = Uniform
   } deriving Generic
     deriving anyclass GStorable
 
-acquireResources :: Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
-acquireResources _ _ vulkanResources swapchain = do
+acquireResources :: VulkanResources -> Acquire Resources
+acquireResources vulkanResources = do
   square  <- H.withSquareMesh vulkanResources
   starTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
   xTex    <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
-  renderer <- H.withRenderer vulkanResources swapchain
   pure Resources {..}
 
 main :: IO ()
-main = withWindow 800 800 "Vulkan Test" \win ->
-  runFrames win acquireResources \Resources {..} frameContext@FrameContext {..} -> H.runFrame frameContext
-    . H.runBatchIO
-    $ do
-      let
-        overlayF = do
-          pure ()
-        litF = do
-          H.addCommand $ DrawCommand
-            { modelMat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
-            , mesh = H.Buffered square
-            , color = white
-            , drawType = H.Static $ H.StaticMesh starTex (V2 1 1)
-            , lit = False
-            , castsShadow = False
-            , blend = True
-            , ident = Nothing
-            }
+main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
+  vulkanResources <- initGLFWVulkan win
+  Resources {..} <- acquireResources vulkanResources
+  liftIO $ runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer fc -> do
+    let
+      overlayF = do
+        pure ()
+      litF = do
+        H.addCommand $ DrawCommand
+          { modelMat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
+          , mesh = H.Buffered square
+          , color = white
+          , drawType = H.Static $ H.StaticMesh starTex (V2 1 1)
+          , lit = False
+          , castsShadow = False
+          , blend = True
+          , ident = Nothing
+          }
 
-          H.addCommand $ DrawCommand
-            { modelMat = mkTranslation (V2 75 25) !*! mkScale (V2 20 20)
-            , mesh = H.Buffered square
-            , color = white
-            , drawType = H.Static $ H.StaticMesh xTex (V2 1 1)
-            , lit = False
-            , castsShadow = False
-            , blend = True
-            , ident = Nothing
-            }
+        H.addCommand $ DrawCommand
+          { modelMat = mkTranslation (V2 75 25) !*! mkScale (V2 20 20)
+          , mesh = H.Buffered square
+          , color = white
+          , drawType = H.Static $ H.StaticMesh xTex (V2 1 1)
+          , lit = False
+          , castsShadow = False
+          , blend = True
+          , ident = Nothing
+          }
 
-      let settings = RenderSettings
-            { worldGlobals = H.worldGlobalDefaults { viewMat = identity, projMat = orthographicProjection 0 100 100 0 0 100 }
-            , overlayGlobals = OverlayGlobals identity identity
-            , clearColor = V4 0 0 0 1
-            }
-      H.renderToRenderer renderer settings (H.PostConstants 0 (V3 1 1 1) 1 0 frameNumber) litF overlayF
+    let settings = RenderSettings
+          { worldGlobals = H.worldGlobalDefaults { viewMat = identity, projMat = orthographicProjection 0 100 100 0 0 100 }
+          , overlayGlobals = OverlayGlobals identity identity
+          , clearColor = V4 0 0 0 1
+          , highlightObjs = []
+          }
+    H.renderToRenderer fc renderer settings (H.PostConstants 0 (V3 1 1 1) 1 0) litF overlayF

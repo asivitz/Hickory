@@ -7,7 +7,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Hickory.Vulkan.Monad where
 
@@ -30,10 +29,9 @@ import Foreign (Storable)
 import Hickory.Graphics.DrawText (squareIndices)
 import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..), BufferDescriptorSet(..), withBufferDescriptorSet)
-import Hickory.Vulkan.Frame (FrameContext (..))
 import Hickory.Vulkan.Framing (FramedResource, frameResource, doubleResource)
 import Hickory.Vulkan.Material (withMaterial, PipelineOptions)
-import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, Mesh(..), numVerts, Attribute(Position, TextureCoord))
+import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Vulkan
   ( CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), Buffer
@@ -41,13 +39,12 @@ import Vulkan
   )
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
-import Hickory.Vulkan.Vulkan (VulkanResources)
 import qualified Data.ByteString as B
 import Acquire.Acquire (Acquire)
 import Data.Proxy (Proxy)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
-import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget (..))
+import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
@@ -110,24 +107,6 @@ runFrame fc = flip runReaderT fc . unFrameT
 mapFrameT :: (m a -> n b) -> FrameT m a -> FrameT n b
 mapFrameT f = FrameT . mapReaderT f . unFrameT
 
-{- Global Descriptor Monad -}
-
-class Monad m => GlobalDescriptorMonad m where
-  askDescriptorSet :: m TextureDescriptorSet
-
-useGlobalDecriptorSet :: (FrameMonad m, MonadIO m) => TextureDescriptorSet -> GlobalDescriptorT m a -> m a
-useGlobalDecriptorSet tds f = flip runReaderT tds . unGlobalDescriptorT $ do
-  f
-
-newtype GlobalDescriptorT m a = GlobalDescriptorT { unGlobalDescriptorT :: ReaderT TextureDescriptorSet m a }
-  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
-
-instance Monad m => GlobalDescriptorMonad (GlobalDescriptorT m) where
-  askDescriptorSet = GlobalDescriptorT ask
-
-mapGlobalDescriptorT :: (m a -> n b) -> GlobalDescriptorT m a -> GlobalDescriptorT n b
-mapGlobalDescriptorT f = GlobalDescriptorT . mapReaderT f . unGlobalDescriptorT
-
 {- Dynamic Mesh Monad -}
 
 class Monad m => DynamicMeshMonad m where
@@ -161,7 +140,6 @@ mapDynamicMeshT f = DynamicMeshT . mapStateT' (mapReaderT f) . unDynamicMeshT
 
 {- Transitive Instances -}
 
-instance {-# OVERLAPPABLE #-} (MonadTrans t, GlobalDescriptorMonad m, Monad (t m)) => GlobalDescriptorMonad (t m) where askDescriptorSet = lift askDescriptorSet
 instance {-# OVERLAPPABLE #-} (MonadTrans t, FrameMonad m, Monad (t m))            => FrameMonad (t m)   where askFrameContext = lift askFrameContext
 instance {-# OVERLAPPABLE #-} (MonadTrans t, BatchIOMonad m, Monad (t m))          => BatchIOMonad (t m) where recordIO = lift . recordIO
 instance {-# OVERLAPPABLE #-} (MonadTrans t, DynamicMeshMonad m, Monad (t m))      => DynamicMeshMonad (t m) where
@@ -173,10 +151,6 @@ instance MonadReader r m => MonadReader r (DynamicMeshT m) where
   ask = lift ask
   local f = mapDynamicMeshT id . local f
 
-instance MonadReader r m => MonadReader r (GlobalDescriptorT m) where
-  ask = lift ask
-  local f = mapGlobalDescriptorT id . local f
-
 instance MonadReader r m => MonadReader r (FrameT m) where
   ask = lift ask
   local f = mapFrameT id . local f
@@ -186,11 +160,6 @@ instance MonadReader r m => MonadReader r (BatchIOT m) where
   local f = BatchIOT . mapWriterT id . unBatchIOT . local f
 
 {- Utilities -}
-
-getTexIdx :: GlobalDescriptorMonad m => Text -> m Word32
-getTexIdx name = do
-  TextureDescriptorSet {..} <- askDescriptorSet
-  pure . fromIntegral $ fromMaybe (error $ "Can't find texture '" ++ unpack name ++ "' in material") $ V.elemIndex name textureNames
 
 packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a
 packVecs = SV.fromList . concatMap toList

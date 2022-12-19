@@ -18,12 +18,12 @@ import Vulkan
 import Foreign (alloca, nullPtr, peek)
 import qualified Data.ByteString as B
 import Hickory.Types (Size (..))
-import Hickory.Vulkan.Frame (FrameContext)
-import Hickory.Vulkan.Utils (buildFrameFunction)
+import Hickory.Vulkan.Utils (buildFrameFunction, initVulkan)
 import Control.Monad.Fix (fix)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import Platforms.GLFW.DearImGui (initDearImGui, renderDearImGui)
+import Hickory.Vulkan.Types (VulkanResources, FrameContext, Swapchain)
 
 {- GLFW -}
 
@@ -58,32 +58,36 @@ withWindowSurface inst window = mkAcquire create release
       res        -> error $ "Error when creating window surface: " ++ show res
   release surf = destroySurfaceKHR inst surf Nothing
 
+initGLFWVulkan :: GLFW.Window -> Acquire VulkanResources
+initGLFWVulkan win = do
+  glfwReqExts <- liftIO $ GLFW.getRequiredInstanceExtensions >>= mapM B.packCString
+  initVulkan glfwReqExts (`withWindowSurface` win)
+
 runFrames
   :: GLFW.Window
-  -> (Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
-  -> (userRes -> FrameContext -> IO ()) -- ^ Execute a frame
+  -> VulkanResources
+  -> (Swapchain -> Acquire renderer) -- ^ Acquire renderer
+  -> (renderer -> FrameContext -> IO ()) -- ^ Execute a frame
   -> IO ()
-runFrames win acquireUserResources f = do
-  glfwReqExts <- GLFW.getRequiredInstanceExtensions >>= mapM B.packCString
-  runAcquire do
-    let imguiAcquire size inst vr swap =
-          (,) <$> initDearImGui win inst vr swap
-              <*> acquireUserResources size inst vr swap
-        imguiRender (imguiRes, userRes) frameContext = do
-          renderDearImGui imguiRes frameContext do
-            f userRes frameContext
+runFrames win vulkanResources acquireRenderer f = do
+  let imguiAcquire swap =
+        (,) <$> initDearImGui win vulkanResources swap
+            <*> acquireRenderer swap
+      imguiRender (imguiRes, userRes) frameContext = do
+        renderDearImGui imguiRes frameContext do
+          f userRes frameContext
 
-    -- TODO: Option to turn off dear-imgui?
-    -- (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
-    (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) imguiAcquire imguiRender
+  -- TODO: Option to turn off dear-imgui?
+  -- (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
+  (exeFrame, cleanup) <- buildFrameFunction vulkanResources (uncurry Size <$> GLFW.getFramebufferSize win) imguiAcquire imguiRender
 
-    let
-      glfwRunFrame = do
-        GLFW.pollEvents
-        exeFrame
-        GLFW.windowShouldClose win
+  let
+    glfwRunFrame = do
+      GLFW.pollEvents
+      exeFrame
+      GLFW.windowShouldClose win
 
-    fix \rec -> liftIO glfwRunFrame >>= \case
-      False -> rec
-      True -> pure ()
-    liftIO cleanup
+  fix \rec -> liftIO glfwRunFrame >>= \case
+    False -> rec
+    True -> pure ()
+  liftIO cleanup

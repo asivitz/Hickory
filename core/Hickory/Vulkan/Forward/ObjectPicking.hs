@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Forward.ObjectPicking where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, ViewableImage(..), Swapchain (..), VulkanResources (..), DeviceContext (..), withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -40,7 +40,6 @@ import Foreign.Storable.Generic (GStorable)
 import Linear (M44)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Shaderc (vert)
-import Hickory.Vulkan.Mesh (Attribute(..))
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource(..))
 import Data.Proxy (Proxy)
@@ -147,7 +146,7 @@ withObjectIDMaterial vulkanResources renderTarget globalDS
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 
-  layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     { mat4 viewMat;
       mat4 projMat;
       mat4 lightTransform;

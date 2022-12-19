@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE DuplicateRecordFields  #-}
 {-# LANGUAGE DataKinds, PatternSynonyms  #-}
@@ -14,8 +13,7 @@ import Data.Functor ((<&>))
 import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle, CommandBuffer
   )
 import Foreign (sizeOf, (.|.), castPtr)
-import GHC.Generics (Generic)
-import Hickory.Vulkan.Vulkan (VulkanResources (..), DeviceContext (..), mkAcquire, runAcquire)
+import Hickory.Vulkan.Vulkan (mkAcquire, runAcquire)
 import Vulkan.Zero (zero)
 import VulkanMemoryAllocator (AllocationCreateInfo(requiredFlags), Allocator, Allocation, AllocationInfo, withMappedMemory)
 import qualified VulkanMemoryAllocator as VMA
@@ -25,32 +23,13 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
-
-data Mesh = Mesh
-  { vertices :: [(Attribute, SV.Vector Float)]
-  , indices :: Maybe (SV.Vector Word32)
-  } deriving (Generic, Show)
-
-data BufferedMesh = BufferedMesh
-  { mesh         :: Mesh
-  , vertexBuffer :: Buffer
-  , indexBuffer  :: Maybe Buffer
-  }
+import Hickory.Vulkan.Types (Mesh (..), Attribute (..), VulkanResources (..), DeviceContext (..), BufferedMesh (..))
 
 writeMeshToFile :: FilePath -> Mesh -> IO ()
 writeMeshToFile = encodeFile
 
 loadMeshFromFile :: FilePath -> IO Mesh
 loadMeshFromFile = decodeFile
-
-data Attribute
-  = Position
-  | Normal
-  | TextureCoord
-  | Color
-  | BoneIndex
-  | MaterialIndex
-  deriving (Bounded, Enum, Generic, Show, Eq)
 
 instance Binary Attribute
 instance Binary Mesh

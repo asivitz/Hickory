@@ -5,7 +5,7 @@
 module Hickory.Vulkan.Material where
 
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Mesh (Attribute(..), bindingDescriptions, attributeDescriptions, attrLocation)
+import Hickory.Vulkan.Mesh (bindingDescriptions, attributeDescriptions, attrLocation)
 import qualified Data.ByteString as B
 import Foreign (sizeOf, castPtr, with, (.|.), Storable)
 import Vulkan
@@ -32,7 +32,7 @@ import Vulkan
   , PipelineDepthStencilStateCreateInfo(..)
   , CompareOp (..), RenderPass, DescriptorSetLayout
   )
-import Hickory.Vulkan.Vulkan (VulkanResources(..), DeviceContext (..), mkAcquire, mkAcquire, createVertShader, createFragShader)
+import Hickory.Vulkan.Vulkan (mkAcquire, mkAcquire, createVertShader, createFragShader)
 import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.UUID.V4 (nextRandom)
@@ -43,7 +43,7 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..), VulkanResources (..), Attribute, DeviceContext (..))
 import Data.Maybe (isJust)
 
 withMaterial

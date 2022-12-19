@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE QuasiQuotes, DerivingStrategies #-}
-{-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DataKinds, OverloadedLists #-}
 
 module Hickory.Vulkan.RenderPass where
 
@@ -9,7 +9,7 @@ module Hickory.Vulkan.RenderPass where
 -- (Only needed really if we need to take advantage of subpasses for
 -- performance benefits.)
 
-import Hickory.Vulkan.Vulkan (mkAcquire, ViewableImage(..), Swapchain (..), VulkanResources (..), DeviceContext (..))
+import Hickory.Vulkan.Vulkan (mkAcquire)
 import qualified Vulkan
 import Vulkan
   ( Device

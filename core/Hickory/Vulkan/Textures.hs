@@ -6,7 +6,7 @@ import Vulkan
   ( Extent2D(..)
   , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer
   )
-import Hickory.Vulkan.Vulkan (VulkanResources(..), DeviceContext (..), runAcquire, mkAcquire)
+import Hickory.Vulkan.Vulkan (runAcquire, mkAcquire)
 import qualified Codec.Picture as Png
 import qualified Codec.Picture.Extra as Png
 import Data.Word (Word8, Word32)
@@ -20,6 +20,7 @@ import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Acquire.Acquire (Acquire)
+import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..))
 
 withTextureImage :: VulkanResources -> FilePath -> Acquire Image
 withTextureImage bag@VulkanResources { allocator } path = do

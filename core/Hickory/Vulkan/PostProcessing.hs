@@ -4,7 +4,6 @@
 
 module Hickory.Vulkan.PostProcessing where
 
-import Hickory.Vulkan.Vulkan (VulkanResources (..))
 import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Material (withMaterial, pipelineDefaults)
@@ -37,13 +36,16 @@ void main()
 layout (location = 0) in vec2 texCoordsVarying;
 layout (location = 0) out vec4 outColor;
 
+layout (row_major, scalar, set = 0, binding = 0) uniform Globals
+  { int frameNumber;
+  } globals;
+
 layout( push_constant, scalar ) uniform constants
 {
   float exposure;
   vec3 colorShift;
   float saturation;
   float filmGrain;
-  int frameNumber;
 } PushConstants;
 
 layout (set = 1, binding = 0) uniform sampler2D textureSampler;
@@ -83,7 +85,7 @@ void main()
          * sin( (3.14 / 180)
               * ( texCoordsVarying.x * 360
                 + texCoordsVarying.y * 36
-                * PushConstants.frameNumber
+                * globals.frameNumber
                 )
               )
          );

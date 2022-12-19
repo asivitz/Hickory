@@ -15,12 +15,13 @@ import Hickory.Types
 import Hickory.Platform
 import Linear.V2 (V2(V2))
 import Hickory.FRP.CoreEvents (CoreEventGenerators, coreEventGenerators)
-import Hickory.Vulkan.Vulkan (VulkanResources, Swapchain, unWrapAcquire)
-import Hickory.Vulkan.Frame (FrameContext)
-import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern EXT_METAL_SURFACE_EXTENSION_NAME, Instance )
+import Hickory.Vulkan.Vulkan (unWrapAcquire)
+import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern EXT_METAL_SURFACE_EXTENSION_NAME)
 import Vulkan.Zero (Zero(..))
-import Hickory.Vulkan.Utils (buildFrameFunction)
+import Hickory.Vulkan.Utils (buildFrameFunction, initVulkan)
 import Acquire.Acquire (Acquire)
+import Hickory.Vulkan.Types (VulkanResources(..), Swapchain (..), FrameContext (..))
+import Control.Monad.IO.Class (liftIO)
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
@@ -31,26 +32,29 @@ foreign export ccall "draw"        draw       :: StablePtr (IO (),a) -> IO ()
 
 type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), TouchData))
 
-type RenderInit resources
-  =  Size Int
-  -> Instance
-  -> VulkanResources
+type RenderInit renderer
+  =  VulkanResources
   -> Swapchain
-  -> Acquire resources
+  -> Acquire renderer
 
-type DrawInit resources gamedata
-  =  CoreEventGenerators (resources, FrameContext)
+type DrawInit renderer gamedata
+  =  VulkanResources
+  -> CoreEventGenerators (renderer, FrameContext)
   -> (gamedata -> IO ())
   -> IO gamedata
-  -> IO ()
+  -> Acquire ()
+
+initIOSVulkan :: Ptr CAMetalLayer -> Acquire VulkanResources
+initIOSVulkan layerPtr = do
+  let reqExts = [EXT_METAL_SURFACE_EXTENSION_NAME]
+      mkSurface instnce = createMetalSurfaceEXT instnce zero { layer = layerPtr } Nothing
+  initVulkan reqExts mkSurface
 
 mkDrawInit
-  :: RenderInit resources        -- Loads assets from a given folder and provides data for use in game/render loop
-  -> DrawInit resources gamedata -- Initializes logic/draw system
+  :: RenderInit renderer        -- Creates renderer
+  -> DrawInit renderer gamedata -- Initializes logic/draw system
   -> CDrawInit
 mkDrawInit ri di layerPtr w h = do
-  let mkSurface inst = createMetalSurfaceEXT inst zero { layer = layerPtr } Nothing
-
   td           <- initTouchData
   inputPoller  <- makeInputPoller (touchFunc td)
   timePoller   <- makeTimePoller
@@ -58,12 +62,13 @@ mkDrawInit ri di layerPtr w h = do
 
   (coreEvProc, evGens) <- coreEventGenerators inputPoller timePoller wSizeRef
   ((exeFrame, cleanupUserRes), cleanupVulkan)
-    <- unWrapAcquire
-     $ buildFrameFunction [EXT_METAL_SURFACE_EXTENSION_NAME] (pure $ Size (fromIntegral w) (fromIntegral h)) mkSurface ri
-                          \userRes frameContext -> do
-                            coreEvProc (userRes, frameContext)
+    <- unWrapAcquire do
+      vulkanResources <- initIOSVulkan layerPtr
+      di vulkanResources evGens (error "Can't write state") (error "Can't load state")
+      liftIO $ buildFrameFunction vulkanResources (pure $ Size (fromIntegral w) (fromIntegral h)) (ri vulkanResources)
+                          \renderer frameContext -> do
+                            coreEvProc (renderer, frameContext)
 
-  di evGens (error "Can't write state") (error "Can't load state")
   newStablePtr (exeFrame, td)
 
 resourcesPath :: IO String
@@ -120,7 +125,7 @@ touchFunc touchData handleRawInput = pure $ do
   let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (V2 x y, time)) ident hsh) curhash moves
 
   -- Broadcast a loc event for touches held over from last frame
-  handleRawInput (InputTouchesLoc (map (\(ident, (loc, _)) -> (loc, ident)) (HashMap.toList hash')))
+  handleRawInput (InputTouchesLoc (map (\(ident, (loc', _)) -> (loc', ident)) (HashMap.toList hash')))
 
   -- Add new touches
   handleRawInput (InputTouchesDown (map (\(ident, x, y, _time) -> (V2 x y, ident)) downs))

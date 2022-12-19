@@ -9,18 +9,20 @@ import Vulkan
   , SurfaceKHR
   , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
   , pattern KHR_SURFACE_EXTENSION_NAME
-  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
   )
 import Hickory.Types (Size (..))
-import Hickory.Vulkan.Framing (resourceForFrame, FramedResource (..), frameResource)
-import Hickory.Vulkan.Frame (drawFrame, FrameContext, Frame (..), withFrame)
+import Hickory.Vulkan.Framing (resourceForFrame, frameResource)
+import Hickory.Vulkan.Frame (drawFrame, withFrame)
 import Data.ByteString (ByteString)
 import Data.IORef (newIORef, atomicModifyIORef, readIORef, IORef, writeIORef)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
-import Hickory.Vulkan.Instance (withStandardInstance, withVulkanResources, validationLayers)
+import Hickory.Vulkan.Instance (withStandardInstance, validationLayers)
+import Vulkan.Zero (zero)
+import Hickory.Vulkan.Types (DeviceContext(..), VulkanResources (..), Swapchain, FrameContext)
 
-initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire (Instance, VulkanResources, FramedResource Frame, (Int,Int) -> Acquire Swapchain)
+initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire VulkanResources
 initVulkan extensions surfCreate = do
   let defaultExtensions = [ "VK_EXT_debug_utils"
                           , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
@@ -29,19 +31,27 @@ initVulkan extensions surfCreate = do
                           ]
   inst            <- withStandardInstance (extensions ++ defaultExtensions) validationLayers
   surface         <- surfCreate inst
-  vulkanResources <- withVulkanResources inst surface
-  frames          <- frameResource $ withFrame (deviceContext vulkanResources)
-  pure (inst, vulkanResources, frames, withSwapchain vulkanResources surface)
+
+  deviceContext@DeviceContext {..} <- withLogicalDevice inst surface
+  allocator <- withStandardAllocator inst physicalDevice device
+  shortLivedCommandPool <-
+    let commandPoolCreateInfo :: CommandPoolCreateInfo
+        commandPoolCreateInfo = zero { queueFamilyIndex = graphicsFamilyIdx, flags = COMMAND_POOL_CREATE_TRANSIENT_BIT }
+    in withCommandPool device commandPoolCreateInfo Nothing mkAcquire
+
+
+  frames <- frameResource $ withFrame deviceContext
+
+  let acquireSwapchain = withSwapchain deviceContext surface
+  pure VulkanResources {..}
 
 buildFrameFunction
-  :: [ByteString] -- ^ Extensions
+  :: VulkanResources
   -> IO (Size Int) -- ^ Query framebuffer size
-  -> (Instance -> Acquire SurfaceKHR)
-  -> (Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire userRes) -- ^ Acquire user resources
+  -> (Swapchain -> Acquire userRes) -- ^ Acquire user resources
   -> (userRes -> FrameContext -> IO ()) -- ^ Run with frame context
-  -> Acquire (IO (), IO ()) -- ^ (Execute a frame, Cleanup user res)
-buildFrameFunction extensions queryFbSize acqSurface acqUserRes exeFrame = do
-  (inst, vulkanResources, frames, swapchainCreate) <- initVulkan extensions acqSurface
+  -> IO (IO (), IO ()) -- ^ (Execute a frame, Cleanup user res)
+buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes exeFrame = do
   frameCounter :: IORef Int <- liftIO $ newIORef 0
 
   -- When the window is resized, we have to rebuild the swapchain
@@ -49,14 +59,14 @@ buildFrameFunction extensions queryFbSize acqSurface acqUserRes exeFrame = do
   let
     acquireDynamicResources = do
       (Size w h) <- liftIO queryFbSize
-      swapchain <- swapchainCreate (w,h)
-      userResources <- acqUserRes (Size w h) inst vulkanResources swapchain
+      swapchain <- acquireSwapchain (w,h)
+      userResources <- acqUserRes swapchain
       pure (swapchain, userResources)
 
-  dynamicResources <- liftIO $ unWrapAcquire acquireDynamicResources >>= newIORef
+  dynamicResources <- unWrapAcquire acquireDynamicResources >>= newIORef
 
   let
-    waitForIdleDevice = deviceWaitIdle (device (deviceContext vulkanResources))
+    waitForIdleDevice = deviceWaitIdle (device deviceContext)
     runASingleFrame = do
       frameNumber <- atomicModifyIORef frameCounter (\a -> (a+1,a+1))
       let frame = resourceForFrame frameNumber frames

@@ -28,10 +28,10 @@ import Control.Monad (void)
 import Data.Traversable (for)
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import qualified Data.Vector as V
-import Hickory.Vulkan.Frame (FrameContext(..))
 import DearImGui.GLFW (glfwNewFrame, glfwShutdown)
 import DearImGui.GLFW.Vulkan (glfwInitForVulkan)
 import Graphics.UI.GLFW (Window)
+import Hickory.Vulkan.Types (FrameContext(..), VulkanResources (..), Swapchain (..), DeviceContext (..), ViewableImage (..))
 
 data ImGuiResources = ImGuiResources
   { renderPass   :: RenderPass
@@ -57,8 +57,8 @@ renderDearImGui ImGuiResources {..} FrameContext {..} f = do
     drawData <- getDrawData
     vulkanRenderDrawData drawData commandBuffer Nothing
 
-initDearImGui :: Window -> Instance -> VulkanResources -> Swapchain -> Acquire ImGuiResources
-initDearImGui window inst vulkanResources@VulkanResources {..} Swapchain {..} = do
+initDearImGui :: Window -> VulkanResources -> Swapchain -> Acquire ImGuiResources
+initDearImGui window vulkanResources@VulkanResources {..} Swapchain {..} = do
   _imguiContext <- mkAcquire (liftIO createContext) (liftIO . destroyContext)
   let
     DeviceContext {..} = deviceContext

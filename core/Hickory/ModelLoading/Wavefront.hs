@@ -16,19 +16,19 @@ import qualified Data.HashMap.Strict as Map
 import Control.Monad.State.Strict (State, execState, modify, gets)
 import Data.Hashable (Hashable(..))
 import Hickory.Graphics.Shader (Shader)
-import qualified Hickory.Vulkan.Mesh as HM
+import qualified Hickory.Vulkan.Types as V
 
 loadWavefront :: FilePath -> IO WavefrontOBJ
 loadWavefront path = Wavefront.fromFile path >>= \case
   Left err -> error err
   Right obj -> pure obj
 
-wavefrontToMesh :: WavefrontOBJ -> HM.Mesh
-wavefrontToMesh obj@WavefrontOBJ {..} = HM.Mesh {..}
+wavefrontToMesh :: WavefrontOBJ -> V.Mesh
+wavefrontToMesh obj@WavefrontOBJ {..} = V.Mesh {..}
   where
-  positions = (HM.Position, SV.convert $ V.concatMap (packLocations obj) allFaceIndices)
-  normals   = (HM.Normal, SV.convert $ V.concatMap (packNormals obj) allFaceIndices)
-  uvs       = (HM.TextureCoord, SV.convert $ V.concatMap (packTexCoords obj) allFaceIndices)
+  positions = (V.Position, SV.convert $ V.concatMap (packLocations obj) allFaceIndices)
+  normals   = (V.Normal, SV.convert $ V.concatMap (packNormals obj) allFaceIndices)
+  uvs       = (V.TextureCoord, SV.convert $ V.concatMap (packTexCoords obj) allFaceIndices)
   indices   = Just . SV.convert $ V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
   vertices  = [positions, normals, uvs]
 
@@ -36,7 +36,7 @@ wavefrontToMesh obj@WavefrontOBJ {..} = HM.Mesh {..}
   allFaceIndices :: V.Vector FaceIndex
   allFaceIndices = V.fromList . nub . concat $ faces <&> \(Face one two three xtras) -> one : two : three : xtras
 
-loadWavefrontMesh :: FilePath -> IO HM.Mesh
+loadWavefrontMesh :: FilePath -> IO V.Mesh
 loadWavefrontMesh = fmap wavefrontToMesh . loadWavefront
 
 --

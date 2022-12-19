@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Forward.Lit where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, ViewableImage(..), Swapchain (..), VulkanResources (..), DeviceContext (..), withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -37,7 +37,6 @@ import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
-import Hickory.Vulkan.Mesh (Attribute(..))
 import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants)
 
 depthFormat :: Format
@@ -175,7 +174,7 @@ struct Uniforms
 
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
 layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
     vec3 cameraPos;
@@ -235,8 +234,8 @@ layout(location = 3) in vec4 surfaceColor;
 layout(location = 0) out vec4 outColor;
 
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-layout (set = 0, binding = 1) uniform sampler2DShadow shadowMap;
-layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+layout (set = 0, binding = 2) uniform sampler2DShadow shadowMap;
+layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
     vec3 cameraPos;
@@ -292,7 +291,7 @@ struct Uniforms {
 
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
 layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
     vec3 cameraPos;
@@ -363,7 +362,7 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-  layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     { mat4 viewMat;
       mat4 projMat;
       vec3 cameraPos;
@@ -427,7 +426,7 @@ struct Uniforms
 
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
 layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
     vec3 cameraPos;

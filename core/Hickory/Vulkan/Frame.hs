@@ -16,9 +16,9 @@ import Vulkan
   , FenceCreateInfo(..)
   , FenceCreateFlagBits (..)
   , CommandBuffer(..)
-  , Semaphore
-  , Fence
-  , CommandPool
+
+
+
   , Rect2D (..)
   , SubmitInfo(..)
   , PresentInfoKHR(..), resetCommandBuffer, acquireNextImageKHR, useCommandBuffer, queueSubmit, queuePresentKHR, ClearValue (..), ClearColorValue (..), waitForFences, resetFences, Result (..)
@@ -26,36 +26,18 @@ import Vulkan
   , RenderingInfo(..)
   , RenderingAttachmentInfo(..)
   , cmdBeginRenderingKHR
-  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D, SampleCountFlagBits (..)
+  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Linear (V4(..))
-import Hickory.Vulkan.Vulkan (DeviceContext (..), VulkanResources (..), Swapchain (..), mkAcquire, ViewableImage (..))
+import Hickory.Vulkan.Vulkan (mkAcquire)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Word (Word32)
 import Control.Exception (SomeException, handle, throw)
-
--- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
-data Frame = Frame
-  { imageAvailableSemaphore :: Semaphore
-  , renderFinishedSemaphore :: Semaphore
-  , inFlightFence           :: Fence
-  , commandPool             :: CommandPool
-  , commandBuffer           :: CommandBuffer
-  }
-
--- |User accessible context to render a given frame
-data FrameContext = FrameContext
-  { extent              :: Extent2D      -- swapchain extent
-  , colorImage          :: ViewableImage -- swapchain color image for this frame (to be presented on screen)
-  , commandBuffer       :: CommandBuffer -- commandbuffer to render this frame
-  , frameNumber         :: Int           -- used to index FramedResources
-  , swapchainImageIndex :: Word32
-  }
+import Hickory.Vulkan.Types (DeviceContext(..), Frame (..), ViewableImage, VulkanResources (..), Swapchain (..), FrameContext (..))
 
 {- FRAME -}
 

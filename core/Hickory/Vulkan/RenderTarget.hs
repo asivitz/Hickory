@@ -5,8 +5,7 @@
 module Hickory.Vulkan.RenderTarget where
 
 import Vulkan (Format(..), BufferImageCopy (..), ImageSubresourceLayers (..), CommandBuffer, ImageAspectFlagBits (..), Offset3D (..), ImageLayout (..), cmdCopyImageToBuffer, Extent2D (..), Extent3D (..), BufferUsageFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageMemoryBarrier(..), ImageSubresourceRange (..), AccessFlagBits (..), PipelineStageFlagBits (..), cmdPipelineBarrier)
-import Hickory.Vulkan.Vulkan (ViewableImage(..), VulkanResources)
-import Hickory.Vulkan.Types (DescriptorSpec(..), RenderTarget (..), DataBuffer (..))
+import Hickory.Vulkan.Types (DescriptorSpec(..), RenderTarget (..), DataBuffer (..), VulkanResources, ViewableImage (..))
 import VulkanMemoryAllocator (withMappedMemory)
 import Foreign (peek, plusPtr)
 import Control.Exception (bracket)

@@ -3,15 +3,15 @@ module Hickory.Vulkan.DynamicMesh where
 
 import VulkanMemoryAllocator (Allocation, withMappedMemory, Allocator)
 import Vulkan (Buffer, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..))
-import Hickory.Vulkan.Vulkan (VulkanResources (..))
 import Data.Word (Word32)
-import Hickory.Vulkan.Mesh (withBuffer', attrStride, Mesh, indices, pack)
+import Hickory.Vulkan.Mesh (withBuffer', attrStride, pack)
 import Foreign ((.|.), sizeOf, copyArray, castPtr)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Vector.Storable as SV
 import Control.Exception (bracket)
 import Data.Maybe (mapMaybe)
 import Acquire.Acquire (Acquire)
+import Hickory.Vulkan.Types (VulkanResources(..), Mesh, indices)
 
 data DynamicBufferedMesh = DynamicBufferedMesh
   { vertexBufferPair :: (Buffer, Allocation)

@@ -10,7 +10,7 @@ import Vulkan.Zero (zero)
 import Data.Text (Text, pack)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Hickory.Vulkan.Vulkan (VulkanResources (..), DeviceContext (..), with2DImageView, ViewableImage (..), mkAcquire)
+import Hickory.Vulkan.Vulkan (with2DImageView, mkAcquire)
 import Vulkan
   ( ShaderStageFlagBits (..)
   , withDescriptorPool
@@ -45,7 +45,7 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
 import Data.UUID.V4 (nextRandom)
-import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..))
 import Data.List (group, sort)
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)

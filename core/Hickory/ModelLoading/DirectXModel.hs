@@ -12,7 +12,7 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
 
 import Hickory.ModelLoading.DirectX (MeshTextureCoords(..))
-import qualified Hickory.Vulkan.Mesh as HM
+import qualified Hickory.Vulkan.Types as V
 import Hickory.Math.Vector (Scalar)
 
 {-
@@ -33,7 +33,7 @@ directxToModelData obj@WavefrontOBJ {..} = ModelData {..}
 -}
 
 data ThreeDModel = ThreeDModel
-  { packedMesh :: HM.Mesh
+  { packedMesh :: V.Mesh
   , frame      :: Maybe DX.Frame
   , mesh       :: DX.Mesh
   , extents    :: (V3 Scalar, V3 Scalar)
@@ -105,14 +105,14 @@ packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshNormals, 
   indices          = V.convert (UV.map fromIntegral faces)
   -}
 
-xToMesh :: DX.Mesh -> HM.Mesh
-xToMesh DX.Mesh {..} = HM.Mesh meshVerts (Just meshIndices)
+xToMesh :: DX.Mesh -> V.Mesh
+xToMesh DX.Mesh {..} = V.Mesh meshVerts (Just meshIndices)
   where
-  positions     = (HM.Position, SV.fromList $ packVertices vertices)
-  normals       = (HM.Normal,   SV.fromList $ packNormals faces (DX.normals meshNormals))
-  uvs           = (HM.TextureCoord, SV.convert $ textureCoords meshTextureCoords)
-  material_idxs = (HM.MaterialIndex, SV.fromList $ packMaterialIndices faces (DX.faceIndexes meshMaterialList))
-  boneIndices   = (HM.BoneIndex,) . SV.fromList <$> traverse
+  positions     = (V.Position, SV.fromList $ packVertices vertices)
+  normals       = (V.Normal,   SV.fromList $ packNormals faces (DX.normals meshNormals))
+  uvs           = (V.TextureCoord, SV.convert $ textureCoords meshTextureCoords)
+  material_idxs = (V.MaterialIndex, SV.fromList $ packMaterialIndices faces (DX.faceIndexes meshMaterialList))
+  boneIndices   = (V.BoneIndex,) . SV.fromList <$> traverse
     (\i -> fromIntegral <$> findIndex (\DX.SkinWeights { DX.vertexIndices } -> UV.elem i vertexIndices) skinWeights)
     [0 .. (UV.length vertices - 1)]
   meshVerts     = catMaybes [Just positions, Just normals, Just uvs, boneIndices, Just material_idxs]

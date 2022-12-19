@@ -19,7 +19,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 import Control.Concurrent (threadDelay)
-import Control.Monad.IO.Class ( MonadIO )
+import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Maybe (maybeToList)
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
@@ -48,22 +48,20 @@ import qualified Hickory.Vulkan.Forward.Renderer as H
 
 import Control.Monad
 import Vulkan
-  ( pattern FILTER_LINEAR, Instance
+  ( pattern FILTER_LINEAR
   , SamplerAddressMode(..)
   )
 
 import Hickory.Vulkan.Vulkan
-import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
 import Data.Foldable (for_)
 import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
-import qualified Hickory.Vulkan.Monad as H
-import Hickory.Vulkan.Frame (FrameContext, frameNumber)
 import Hickory.Color (white, red)
 import Hickory.Vulkan.Forward.Types (WorldGlobals(..), OverlayGlobals(..), DrawCommand (..))
 import qualified Hickory.Vulkan.StockMesh as H
+import Platforms.GLFW.Vulkan (initGLFWVulkan)
 
 -- ** GAMEPLAY **
 
@@ -126,14 +124,12 @@ adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
 data Resources = Resources
   { circleTex           :: H.PointedDescriptorSet
   , square              :: H.BufferedMesh
-  , renderer            :: H.Renderer
   , textRenderer        :: H.TextRenderer
   }
 
 -- Load meshes, textures, materials, fonts, etc.
-loadResources :: String -> Size Int -> Instance -> VulkanResources -> Swapchain -> Acquire Resources
-loadResources path _size _inst vulkanResources swapchain = do
-  renderer <- H.withRenderer vulkanResources swapchain
+loadResources :: String -> H.VulkanResources -> Acquire Resources
+loadResources path vulkanResources = do
   circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
 
   square <- H.withSquareMesh vulkanResources
@@ -145,10 +141,9 @@ loadResources path _size _inst vulkanResources swapchain = do
   pure $ Resources {..}
 
 -- Our render function
-renderGame :: MonadIO m => Size Scalar -> Model -> (Resources, FrameContext) -> m ()
-renderGame scrSize@(Size w _h) Model { playerPos, missiles } (Resources {..}, frameContext)
-  = H.runFrame frameContext
-  $ H.renderToRenderer renderer renderSettings (H.PostConstants 0 (V3 1 1 1) 1 0 (frameNumber frameContext)) litF overlayF
+renderGame :: MonadIO m => Resources -> Size Scalar -> Model -> (H.Renderer, H.FrameContext) -> m ()
+renderGame Resources {..} scrSize@(Size w _h) Model { playerPos, missiles } (renderer, frameContext)
+  = H.renderToRenderer frameContext renderer renderSettings (H.PostConstants 0 (V3 1 1 1) 1 0) litF overlayF
   where
   renderSettings = H.RenderSettings
     { worldGlobals = H.worldGlobalDefaults
@@ -160,6 +155,7 @@ renderGame scrSize@(Size w _h) Model { playerPos, missiles } (Resources {..}, fr
       , projMat = shotMatrix (Ortho w 1 100 False) (aspectRatio scrSize)
       }
     , clearColor = V4 0 0 0 1
+    , highlightObjs = []
     }
   litF = do
     for_ missiles \(pos, _) ->
@@ -221,8 +217,8 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
 
 -- Build the FRP network
-buildNetwork :: CoreEventGenerators (Resources, FrameContext) -> IO ()
-buildNetwork evGens = do
+buildNetwork :: Resources -> CoreEventGenerators (H.Renderer, H.FrameContext) -> IO ()
+buildNetwork res evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
 
@@ -240,18 +236,20 @@ buildNetwork evGens = do
 
     -- every time we get a 'render' event tick, draw the screen
     B.reactimate
-      (renderGame <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <@> eRender coreEvents)
+      (renderGame res <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <@> eRender coreEvents)
 
 main :: IO ()
-main = GLFWV.withWindow 750 750 "Demo" \win -> do
+main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
+  vulkanResources <- initGLFWVulkan win
+  res <- loadResources "Example/Shooter/assets/" vulkanResources
   -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
-  (coreEvProc, evGens) <- glfwCoreEventGenerators win
+  (coreEvProc, evGens) <- liftIO $ glfwCoreEventGenerators win
 
   -- build and run the FRP network
-  buildNetwork evGens
+  liftIO $ buildNetwork res evGens
 
-  GLFWV.runFrames win (loadResources "Example/Shooter/assets/") \resources frameContext -> do
-    coreEvProc (resources, frameContext)
+  liftIO $ GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
+    coreEvProc (renderer, frameContext)
 
     focused <- GLFW.getWindowFocused win
     -- don't consume CPU when the window isn't focused

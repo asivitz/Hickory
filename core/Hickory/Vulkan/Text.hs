@@ -6,8 +6,6 @@
 
 module Hickory.Vulkan.Text where
 
-import Hickory.Vulkan.Vulkan (VulkanResources (..))
-import Hickory.Vulkan.Mesh (Attribute (..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import GHC.Generics (Generic)
@@ -16,7 +14,7 @@ import Linear (M44, V2)
 import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, VulkanResources, Attribute (..))
 import Hickory.Vulkan.Material (pipelineDefaults)
 import Vulkan (DescriptorSetLayout, SamplerAddressMode (..), Filter (..))
 import Hickory.Text (Font(..), makeFont)
@@ -71,7 +69,7 @@ withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBuff
 
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-  layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     { mat4 viewMat;
       mat4 projMat;
       vec3 cameraPos;

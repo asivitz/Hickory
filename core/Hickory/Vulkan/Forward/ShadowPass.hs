@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Forward.ShadowPass where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, ViewableImage(..), VulkanResources (..), DeviceContext (..), withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -37,7 +37,6 @@ import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Shaderc (vert)
-import Hickory.Vulkan.Mesh (Attribute(..))
 import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants)
 import Hickory.Types (Size(..))
 
@@ -130,7 +129,7 @@ staticVertShader = [vert|
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 
-  layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     { mat4 viewMat;
       mat4 projMat;
       vec3 cameraPos;
@@ -174,7 +173,7 @@ animatedVertShader = [vert|
   layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
   layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 
-  layout (row_major, scalar, set = 0, binding = 0) uniform GlobalUniform
+  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     { mat4 viewMat;
       mat4 projMat;
       vec3 cameraPos;

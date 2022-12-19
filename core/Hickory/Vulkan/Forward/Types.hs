@@ -9,8 +9,7 @@
 
 module Hickory.Vulkan.Forward.Types where
 
-import Hickory.Vulkan.Mesh (BufferedMesh, Mesh)
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, Material, PostConstants, DataBuffer)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, Material, PostConstants, DataBuffer, BufferedMesh, Mesh)
 import Linear (M44, V4, V2, M33, V3 (..), identity)
 import qualified Data.Vector.Fixed.Storable as VFS
 import GHC.Generics (Generic)
@@ -51,6 +50,7 @@ data Renderer = Renderer
   , msdfOverlayMaterial   :: !(BufferedUniformMaterial MSDFMatConstants)
 
   , postProcessMaterial    :: !(Material PostConstants)
+  , globalBuffer           :: !(DataBuffer Globals)
   , globalShadowPassBuffer :: !(DataBuffer WorldGlobals)
   , globalWorldBuffer      :: !(DataBuffer WorldGlobals)
   , globalOverlayBuffer    :: !(DataBuffer WorldGlobals)
@@ -71,6 +71,11 @@ data Renderer = Renderer
 -- world: unlit shaders, lines
 -- overlay: unlit shaders, static params
 -- overlay: unlit shaders, msdf
+
+data Globals = Globals
+  { frameNumber :: Int
+  } deriving Generic
+    deriving anyclass GStorable
 
 data DrawCommand = DrawCommand
   { modelMat    :: M44 Float
