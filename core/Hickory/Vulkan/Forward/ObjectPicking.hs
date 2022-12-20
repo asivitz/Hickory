@@ -63,7 +63,7 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
 
   frameBuffer <- createFramebuffer device renderPass extent [depthImageView, objIDImageView]
   let frameBuffers = V.replicate 3 frameBuffer
-      cullMode = CULL_MODE_FRONT_BIT
+      cullMode = CULL_MODE_BACK_BIT
       descriptorSpecs = [ ImageDescriptor [(objIDImage,sampler)]
                         ]
 
