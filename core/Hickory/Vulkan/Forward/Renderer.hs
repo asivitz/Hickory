@@ -8,9 +8,9 @@ import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
 import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!))
-import Hickory.Vulkan.Monad (FrameMonad, askFrameContext, material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
+import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Hickory.Vulkan.Types (PostConstants(..), RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices)
+import Hickory.Vulkan.Types (RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices)
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer)
 import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, shadowMapSize)
@@ -115,8 +115,8 @@ data RegisteredMaterial const extra
   | Universal (BufferedUniformMaterial const) extra
   | LitAndUnlit (BufferedUniformMaterial const, extra) (BufferedUniformMaterial const, extra)
 
-renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> PostConstants -> Command () -> Command () -> m ()
-renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} postConstants litF overlayF = do
+renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
+renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
     let lightView = viewDirection (V3 0 10 20) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
         lightProj = shotMatrix (Ortho 100 0.1 45 True) (aspectRatio shadowMapSize)
@@ -172,7 +172,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
 
     useRenderTarget swapchainRenderTarget commandBuffer [] swapchainImageIndex do
       cmdBindMaterial frameNumber commandBuffer postProcessMaterial
-      liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postConstants
+      liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postSettings
       liftIO $ cmdDraw commandBuffer 3 1 0 0
 
       processRenderPass frameContext

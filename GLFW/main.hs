@@ -89,7 +89,8 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
     let settings = RenderSettings
           { worldGlobals = H.worldGlobalDefaults { viewMat = identity, projMat = orthographicProjection 0 100 100 0 0 100 }
           , overlayGlobals = OverlayGlobals identity identity
+          , postSettings = H.postDefaults
           , clearColor = V4 0 0 0 1
           , highlightObjs = []
           }
-    H.renderToRenderer fc renderer settings (H.PostConstants 0 (V3 1 1 1) 1 0) litF overlayF
+    H.renderToRenderer fc renderer settings litF overlayF

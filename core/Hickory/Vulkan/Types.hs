@@ -10,7 +10,7 @@ import Data.UUID (UUID)
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Framing (FramedResource)
 import VulkanMemoryAllocator (Allocation, Allocator)
-import Linear (V3)
+import Linear (V3 (..))
 import Foreign.Storable.Generic (GStorable)
 import GHC.Word (Word32)
 import Acquire.Acquire (Acquire)
@@ -143,3 +143,11 @@ data DataBuffer a = DataBuffer
   , allocation :: Allocation
   , allocator  :: Allocator
   } deriving Generic
+
+postDefaults :: PostConstants
+postDefaults = PostConstants
+  { exposure    = 0
+  , colorShift  = V3 1 1 1
+  , saturation  = 1
+  , filmGrain   = 0
+  }

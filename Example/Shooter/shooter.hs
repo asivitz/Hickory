@@ -143,7 +143,7 @@ loadResources path vulkanResources = do
 -- Our render function
 renderGame :: MonadIO m => Resources -> Size Scalar -> Model -> (H.Renderer, H.FrameContext) -> m ()
 renderGame Resources {..} scrSize@(Size w _h) Model { playerPos, missiles } (renderer, frameContext)
-  = H.renderToRenderer frameContext renderer renderSettings (H.PostConstants 0 (V3 1 1 1) 1 0) litF overlayF
+  = H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
   renderSettings = H.RenderSettings
     { worldGlobals = H.worldGlobalDefaults
@@ -154,6 +154,7 @@ renderGame Resources {..} scrSize@(Size w _h) Model { playerPos, missiles } (ren
       { viewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
       , projMat = shotMatrix (Ortho w 1 100 False) (aspectRatio scrSize)
       }
+    , postSettings = H.postDefaults
     , clearColor = V4 0 0 0 1
     , highlightObjs = []
     }

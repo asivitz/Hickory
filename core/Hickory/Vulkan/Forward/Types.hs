@@ -139,6 +139,7 @@ data RenderSettings = RenderSettings
   { clearColor     :: V4 Scalar
   , worldGlobals   :: WorldGlobals
   , overlayGlobals :: OverlayGlobals
+  , postSettings   :: PostConstants
   , highlightObjs  :: [Int]
   }
 
