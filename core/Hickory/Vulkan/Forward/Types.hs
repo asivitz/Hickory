@@ -81,6 +81,7 @@ data DrawCommand = DrawCommand
   { modelMat    :: M44 Float
   , mesh        :: MeshType
   , color       :: V4 Float
+  , specularity :: Float
   , drawType    :: DrawType
   , lit         :: Bool
   , castsShadow :: Bool
@@ -119,19 +120,21 @@ data MSDFMesh = MSDFMesh
   }
 
 data StaticConstants = StaticConstants
-  { modelMat  :: M44 Float
-  , normalMat :: M33 Float
-  , color     :: V4 Float
-  , tiling    :: V2 Float
+  { modelMat    :: M44 Float
+  , normalMat   :: M33 Float
+  , color       :: V4 Float
+  , specularity :: Float
+  , tiling      :: V2 Float
   } deriving Generic
     deriving anyclass GStorable
 
 data AnimatedConstants = AnimatedConstants
-  { modelMat  :: M44 Float
-  , normalMat :: M33 Float
-  , color     :: V4 Float
-  , boneMat   :: VFS.Vec 32 (M44 Float)
-  , colors    :: VFS.Vec 6 (V4 Float)
+  { modelMat    :: M44 Float
+  , normalMat   :: M33 Float
+  , color       :: V4 Float
+  , specularity :: Float
+  , boneMat     :: VFS.Vec 32 (M44 Float)
+  , colors      :: VFS.Vec 6 (V4 Float)
   } deriving Generic
     deriving anyclass GStorable
 

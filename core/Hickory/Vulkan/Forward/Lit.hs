@@ -169,6 +169,7 @@ struct Uniforms
   mat4 modelMat;
   mat3 normalMat;
   vec4 color;
+  float specularity;
   vec2 tiling;
 };
 
@@ -209,7 +210,7 @@ void main() {
 
 
     vec3 halfAngle = normalize(directionToLight + viewDirection);
-    float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), 8);
+    float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), uniforms.specularity);
 
     light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
@@ -285,6 +286,7 @@ struct Uniforms {
   mat4 modelMat;
   mat3 normalMat;
   vec4 color;
+  float specularity;
   mat4 boneMat[32];
   vec4 colors[6];
 };
@@ -329,7 +331,7 @@ void main()
     float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
 
     vec3 halfAngle = normalize(directionToLight + viewDirection);
-    float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), 8);
+    float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), uniforms.specularity);
 
     light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
@@ -357,6 +359,7 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
     mat4 modelMat;
     mat3 normalMat;
     vec4 color;
+    float specularity;
     vec2 tiling;
   };
 
@@ -394,6 +397,7 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
     mat4 modelMat;
     mat3 normalMat;
     vec4 color;
+    float specularity;
     vec2 tiling;
   };
 
@@ -421,6 +425,7 @@ struct Uniforms
   mat4 modelMat;
   mat3 normalMat;
   vec4 color;
+  float specularity;
   vec2 tiling;
 };
 
@@ -460,6 +465,7 @@ struct Uniforms
   mat4 modelMat;
   mat3 normalMat;
   vec4 color;
+  float specularity;
   vec2 tiling;
 };
 

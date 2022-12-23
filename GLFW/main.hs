@@ -1,27 +1,24 @@
 {-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
 {-# LANGUAGE DataKinds, OverloadedLists, QuasiQuotes, TypeApplications, DerivingStrategies, DeriveGeneric, DeriveAnyClass, OverloadedLabels #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Main where
 
 import Vulkan
-  ( pattern FILTER_LINEAR, Instance
+  ( pattern FILTER_LINEAR
   , SamplerAddressMode(..)
   )
 
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
-import qualified Hickory.Vulkan.Mesh as H
 import qualified Hickory.Vulkan.DescriptorSet as H
-import qualified Hickory.Vulkan.Monad as H
 import qualified Hickory.Vulkan.Types as H
 import Linear.Matrix ((!*!))
-import Linear ( M44, V2 (..), V4(..), V3(..), identity)
+import Linear ( M44, V2 (..), V4(..), identity)
 import Hickory.Math (mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 import qualified Hickory.Vulkan.Forward.Types as H
 import Hickory.Vulkan.Forward.Types (DrawCommand(..), RenderSettings(..), WorldGlobals(..), OverlayGlobals(..))
-import Hickory.Vulkan.Types (VulkanResources(..), Swapchain(..))
+import Hickory.Vulkan.Types (VulkanResources(..))
 import qualified Hickory.Vulkan.Forward.Renderer as H
 import qualified Hickory.Vulkan.StockMesh as H
 import Hickory.Color (white)
@@ -29,17 +26,13 @@ import Control.Monad.IO.Class (liftIO)
 
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
-import Hickory.Types (Size)
 import Control.Lens (view)
 import Acquire.Acquire (Acquire)
 
 data Resources = Resources
   { square              :: H.BufferedMesh
-  -- , solidColorMaterial  :: H.BufferedUniformMaterial Uniform
-  -- , texturedMaterial    :: H.BufferedUniformMaterial Uniform
   , starTex             :: H.PointedDescriptorSet
   , xTex                :: H.PointedDescriptorSet
-  , renderer            :: H.Renderer
   }
 
 data Uniform = Uniform
@@ -73,6 +66,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           , castsShadow = False
           , blend = True
           , ident = Nothing
+          , specularity = 1
           }
 
         H.addCommand $ DrawCommand
@@ -84,6 +78,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           , castsShadow = False
           , blend = True
           , ident = Nothing
+          , specularity = 1
           }
 
     let settings = RenderSettings

@@ -119,7 +119,7 @@ renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings ->
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
     let lightView = viewDirection (V3 0 10 20) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
-        lightProj = shotMatrix (Ortho 100 0.1 45 True) (aspectRatio shadowMapSize)
+        lightProj = shotMatrix (Ortho 100 1.0 85 True) (aspectRatio shadowMapSize)
     uploadBufferDescriptor globalBuffer
       $ Globals frameNumber
     uploadBufferDescriptor globalWorldBuffer
@@ -268,6 +268,7 @@ drawText (font, fontTex, sdfPixelRange) mat color outlineColor outlineSize tc =
     , castsShadow = False
     , blend = True
     , ident = Nothing
+    , specularity = 8
     }
 
 -- Main Command Processor
@@ -336,21 +337,24 @@ processCommand frameContext
   Animated AnimatedMesh {..} -> go animatedConfig $ (,Just albedo) AnimatedConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
-    , color = color
-    , boneMat = boneMat
-    , colors = colors
+    , color
+    , boneMat
+    , colors
+    , specularity
     }
   Static StaticMesh {..} -> go staticConfig $ (, Just albedo) StaticConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
     , color = color
     , tiling = tiling
+    , specularity
     }
   Lines -> go linesConfig $ (, Nothing) StaticConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
     , color = color
     , tiling = V2 1 1
+    , specularity
     }
   MSDF MSDFMesh {..} -> go msdfConfig $ (, Just tex) MSDFMatConstants
     { modelMat  = modelMat

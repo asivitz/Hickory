@@ -123,6 +123,7 @@ staticVertShader = [vert|
     mat4 modelMat;
     mat3 normalMat;
     vec4 color;
+    float specularity;
     vec2 tiling;
   };
 
@@ -166,6 +167,7 @@ animatedVertShader = [vert|
     mat4 modelMat;
     mat3 normalMat;
     vec4 color;
+    float specularity;
     mat4 boneMat[32];
     vec4 colors[6];
   };
