@@ -98,7 +98,7 @@ objectDrawCommand Object {..} = do
   mesh <- getMeshMay model
   tex' <- case tex of
     Just t -> pure t
-    _ -> getTexture "white.png"
+    _ -> getTexture "white"
   mesh' <- case mesh of
     Just m -> pure m
     _ -> getMesh "cube"
@@ -126,7 +126,7 @@ editorOverlayView scrSize CameraState {..} cursorLoc selected mode = do
   objCenter = project scrSize (projMat !*! viewMat !*! mkTranslation (avgObjTranslation selected)) zero
   drawArr p1 p2 = do
     squareMesh <- getMesh "cube"
-    tex        <- getTexture "white.png"
+    tex        <- getTexture "white"
     for_ [0..num] \i -> H.addCommand $ H.DrawCommand
       { modelMat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
       , mesh = Buffered squareMesh

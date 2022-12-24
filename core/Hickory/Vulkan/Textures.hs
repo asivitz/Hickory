@@ -21,13 +21,10 @@ import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..))
+import Codec.Picture (Pixel(..), PixelRGBA8)
 
-withTextureImage :: VulkanResources -> FilePath -> Acquire Image
-withTextureImage bag@VulkanResources { allocator } path = do
-  Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
-    Left s -> error $ printf "Can't load image at path %s: %s" path s
-    Right dynImage -> pure . Png.flipVertically $ Png.convertRGBA8 dynImage
-
+withImageFromArray :: VulkanResources -> Int -> Int -> SV.Vector (PixelBaseComponent PixelRGBA8) -> Acquire Image
+withImageFromArray bag@VulkanResources { allocator } width height dat = do
   let bufferSize = fromIntegral $ SV.length dat * sizeOf (undefined :: Word8)
 
   let imageCreateInfo :: ImageCreateInfo '[]
@@ -64,6 +61,14 @@ withTextureImage bag@VulkanResources { allocator } path = do
     withSingleTimeCommands bag $ transitionImageLayout image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
   pure image
+
+withTextureImage :: VulkanResources -> FilePath -> Acquire Image
+withTextureImage bag path = do
+  Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
+    Left s -> error $ printf "Can't load image at path %s: %s" path s
+    Right dynImage -> pure . Png.flipVertically $ Png.convertRGBA8 dynImage
+
+  withImageFromArray bag width height dat
 
 copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> m ()
 copyBufferToImage bag buffer image width height = withSingleTimeCommands bag \commandBuffer -> do

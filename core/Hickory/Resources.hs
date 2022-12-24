@@ -19,13 +19,14 @@ import Vulkan (Filter (..), SamplerAddressMode (..))
 import Hickory.Vulkan.Types (PointedDescriptorSet (..), BufferedMesh (..), VulkanResources)
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
-import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet)
+import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
 import System.FilePath.Lens (extension)
 import Control.Monad.Reader.Class (MonadReader)
 import Data.Maybe (fromMaybe)
 import Control.Applicative ((<|>))
 import System.Directory (doesFileExist)
 import Hickory.Vulkan.StockMesh (withCubeMesh, withSquareMesh)
+import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
 
 type ResourceStore a b = (a -> Acquire (Maybe b), IORef (Map.HashMap a (b, IO ())))
 
@@ -89,6 +90,9 @@ withResourcesStore vulkanResources path = do
       False -> pure Nothing
 
   liftIO do
+    loadResource' textures ("white", FILTER_LINEAR ,SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE) do
+      des <- withWhiteImageDescriptor vulkanResources
+      withDescriptorSet vulkanResources [des]
     loadResource' meshes "square" (withSquareMesh vulkanResources)
     loadResource' meshes "cube" (withCubeMesh vulkanResources)
 

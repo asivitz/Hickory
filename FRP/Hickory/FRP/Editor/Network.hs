@@ -321,7 +321,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams initialSc
   let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
   cameraState <- viewManip objectEditingMaskedEvents
 
-  let defaultObject CameraState {..} = Object (mkTransformationMat identity focusPos) white "cube" "white.png" True True False 8
+  let defaultObject CameraState {..} = Object (mkTransformationMat identity focusPos) white "cube" "white" True True False 8
       eAddObj = (\o m -> (nextObjId m, o)) <$> (defaultObject <$> cameraState) <*> objects
         <@ B.filterE (==Key'A) (keyDown coreEvents)
       eDupeObjs = recalcIds <$> objects <*> selectedObjects <@ (B.whenE (keyHeldB coreEvents Key'LeftShift) $ B.filterE (==Key'D) (keyDown coreEvents))
