@@ -267,8 +267,8 @@ mkObjectChangeEvent coreEvents ResourcesStore {..} editorState selectedObjects e
   eca@EditorChangeEvents {..} <- mkChangeEvents coreEvents editorState
 
   B.reactimate $ writeEditorState eca <$> ePopulateEditorState
-  B.reactimate $ loadResource meshes <$> fst modelChange
-  B.reactimate $ (\t -> loadResource textures (t,FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> fst textureChange
+  B.reactimate $ (\m -> loadResource meshes m ()) <$> fst modelChange
+  B.reactimate $ (\t -> loadResource textures t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> fst textureChange
 
   pure $ unionFirst
     [ (\os v -> os & traversed . #transform . translation .~ v) <$> selectedObjects <@> fst posChange
@@ -297,8 +297,8 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams initialSc
 
   initialScene <- liftIO do
    objs <- read <$> readFile initialSceneFile
-   for_ objs \Object {..} -> loadResource (resourcesStore ^. #meshes) model
-   for_ objs \Object {..} -> loadResource (resourcesStore ^. #textures) (texture, FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+   for_ objs \Object {..} -> loadResource (resourcesStore ^. #meshes) model ()
+   for_ objs \Object {..} -> loadResource (resourcesStore ^. #textures) texture (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
    pure objs
   eReplaceObjects <- B.execute $ fmap read . liftIO . readFile <$> eLoadScene
 

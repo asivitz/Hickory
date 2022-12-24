@@ -22,48 +22,47 @@ import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
 import System.FilePath.Lens (extension)
 import Control.Monad.Reader.Class (MonadReader)
-import Data.Maybe (fromMaybe)
-import Control.Applicative ((<|>))
+import Data.Maybe (fromMaybe, listToMaybe)
 import System.Directory (doesFileExist)
 import Hickory.Vulkan.StockMesh (withCubeMesh, withSquareMesh)
 import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
 
-type ResourceStore a b = (a -> Acquire (Maybe b), IORef (Map.HashMap a (b, IO ())))
+type ResourceStore a b options = (a -> options -> Acquire (Maybe b), IORef (Map.HashMap a (b, IO ())))
 
-newResourceStore :: (Eq a, Hashable a) => (a -> Acquire (Maybe b)) -> IO (ResourceStore a b)
+newResourceStore :: (Eq a, Hashable a) => (a -> options -> Acquire (Maybe b)) -> IO (ResourceStore a b options)
 newResourceStore f = (f,) <$> newIORef mempty
 
-cleanupStore :: ResourceStore a b -> IO ()
+cleanupStore :: ResourceStore a b options -> IO ()
 cleanupStore (_,ref) = do
   m <- readIORef ref
   sequence_ $ snd . snd <$> Map.toList m
 
-loadResource :: (Show a, Eq a, Hashable a) => ResourceStore a b -> a -> IO ()
-loadResource (f,ref) k = do
+loadResource :: (Show a, Eq a, Hashable a) => ResourceStore a b options -> a -> options -> IO ()
+loadResource (f,ref) k options = do
   m <- readIORef ref
   unless (Map.member k m) do
-    unWrapAcquire (f k) >>= \case
+    unWrapAcquire (f k options) >>= \case
       (Just res, cleanup) -> liftIO $ modifyIORef' ref $ Map.insert k (res, cleanup)
       (Nothing, cleanup) -> cleanup
 
-loadResource' :: (Eq a, Hashable a) => ResourceStore a b -> a -> Acquire b -> IO ()
+loadResource' :: (Eq a, Hashable a) => ResourceStore a b options -> a -> Acquire b -> IO ()
 loadResource' (_,ref) k f = do
   res <- unWrapAcquire f
   liftIO $ modifyIORef' ref $ Map.insert k res
 
-getResources :: ResourceStore a b -> IO (Map.HashMap a b)
+getResources :: ResourceStore a b options -> IO (Map.HashMap a b)
 getResources = fmap (Map.map fst) . readIORef . snd
 
 data ResourcesStore = ResourcesStore
-  { meshes     :: ResourceStore String BufferedMesh
-  , textures   :: ResourceStore (String, Filter, SamplerAddressMode) PointedDescriptorSet
-  , fonts      :: ResourceStore String TextRenderer
-  , animations :: ResourceStore String ThreeDModel
+  { meshes     :: ResourceStore String BufferedMesh ()
+  , textures   :: ResourceStore String PointedDescriptorSet (Filter, SamplerAddressMode)
+  , fonts      :: ResourceStore String TextRenderer Float
+  , animations :: ResourceStore String ThreeDModel ()
   } deriving (Generic)
 
 data Resources = Resources
   { meshes     :: Map.HashMap String BufferedMesh
-  , textures   :: Map.HashMap (String, Filter, SamplerAddressMode) PointedDescriptorSet
+  , textures   :: Map.HashMap String PointedDescriptorSet
   , fonts      :: Map.HashMap String TextRenderer
   , animations :: Map.HashMap String ThreeDModel
   } deriving (Generic)
@@ -73,13 +72,13 @@ instance Hashable Filter where hashWithSalt s (Filter i) = hashWithSalt s i
 
 withResourcesStore :: VulkanResources -> FilePath -> Acquire ResourcesStore
 withResourcesStore vulkanResources path = do
-  textures <- liftIO $ newResourceStore \(name, imageFilter, addressMode) -> do
+  textures <- liftIO $ newResourceStore \name (imageFilter, addressMode) -> do
     let fp = path ++ "/images/" ++ name
     liftIO (doesFileExist fp) >>= \case
       True -> fmap Just $ view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(path ++ "images/" ++ name, imageFilter, addressMode)]
       False -> pure Nothing
 
-  meshes <- liftIO $ newResourceStore \name -> do
+  meshes <- liftIO $ newResourceStore \name _ -> do
     let fp = path ++ "/models/" ++ name
     liftIO (doesFileExist fp) >>= \case
       True ->
@@ -90,20 +89,20 @@ withResourcesStore vulkanResources path = do
       False -> pure Nothing
 
   liftIO do
-    loadResource' textures ("white", FILTER_LINEAR ,SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE) do
+    loadResource' textures "white" do
       des <- withWhiteImageDescriptor vulkanResources
       withDescriptorSet vulkanResources [des]
     loadResource' meshes "square" (withSquareMesh vulkanResources)
     loadResource' meshes "cube" (withCubeMesh vulkanResources)
 
-  fonts <- liftIO $ newResourceStore \name -> do
+  fonts <- liftIO $ newResourceStore \name msdfDist -> do
     let fontfp = path ++ "/fonts/" ++ name ++ ".json"
         imagefp = path ++ "/images/" ++ name ++ ".png"
     liftIO ((&&) <$> doesFileExist fontfp <*> doesFileExist imagefp) >>= \case
-      True -> Just <$> withTextRenderer vulkanResources fontfp imagefp 20
+      True -> Just <$> withTextRenderer vulkanResources fontfp imagefp msdfDist
       False -> pure Nothing
 
-  animations <- liftIO $ newResourceStore \name -> do
+  animations <- liftIO $ newResourceStore \name _ -> do
     let fp = path ++ "/models/" ++ name
     liftIO $ doesFileExist fp >>= \case
       True -> Just <$> loadModelFromX fp
@@ -138,11 +137,7 @@ getTexture name = fromMaybe (error $ "Can't find texture: " ++ name) <$> getText
 getTextureMay :: MonadReader Resources m => String -> m (Maybe PointedDescriptorSet)
 getTextureMay name = do
   ts <- view #textures
-  pure $
-        Map.lookup (name, FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE) ts
-    <|> Map.lookup (name, FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE) ts
-    <|> Map.lookup (name, FILTER_LINEAR, SAMPLER_ADDRESS_MODE_REPEAT) ts
-    <|> Map.lookup (name, FILTER_NEAREST, SAMPLER_ADDRESS_MODE_REPEAT) ts
+  pure $ Map.lookup name ts
 
 getFont :: MonadReader Resources m => String -> m TextRenderer
 getFont name = fromMaybe (error $ "Can't find font: " ++ name) <$> getFontMay name
@@ -151,6 +146,11 @@ getFontMay :: MonadReader Resources m => String -> m (Maybe TextRenderer)
 getFontMay name = do
   ms <- view #fonts
   pure $ Map.lookup name ms
+
+getSomeFont :: MonadReader Resources m => m TextRenderer
+getSomeFont = do
+  fs <- view #fonts
+  pure $ fromMaybe (error "No font loaded") . listToMaybe . Map.elems $ fs
 
 getAnimation :: MonadReader Resources m => String -> m ThreeDModel
 getAnimation name = fromMaybe (error $ "Can't find animation: " ++ name) <$> getAnimationMay name

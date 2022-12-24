@@ -7,42 +7,35 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE PatternSynonyms #-}
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, liftIO )
-import Data.Maybe (maybeToList)
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
 import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
-import Hickory.FRP.Game (timeStep)
+import Hickory.FRP.Game (gameNetwork)
 import Hickory.FRP.UI (topLeft)
-import Hickory.FRP.Historical (historical)
 import Hickory.Input
-import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget)
+import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..))
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), V4(..), (!*!))
+import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero)
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
-import Control.Lens (view)
 import Acquire.Acquire (Acquire)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
-import qualified Hickory.Vulkan.Text as H
 import qualified Hickory.Vulkan.Forward.Types as H
 import qualified Hickory.Vulkan.Forward.Renderer as H
 
@@ -53,15 +46,17 @@ import Vulkan
   )
 
 import Hickory.Vulkan.Vulkan
-import qualified Hickory.Vulkan.DescriptorSet as H
 import Data.Foldable (for_)
 import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Color (white, red)
 import Hickory.Vulkan.Forward.Types (WorldGlobals(..), OverlayGlobals(..), DrawCommand (..))
-import qualified Hickory.Vulkan.StockMesh as H
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
+import Hickory.FRP.Combinators (unionAll)
+import Data.Bool (bool)
+import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
+import Control.Monad.Reader (ReaderT (..))
 
 -- ** GAMEPLAY **
 
@@ -69,33 +64,37 @@ type Vec = V2 Scalar
 
 -- Our game data
 data Model = Model
-  { playerPos       :: Vec
-  , playerMoveDir   :: Vec
-  , firingDirection :: Vec
-  , missiles        :: [(Vec, Vec)]
+  { playerPos :: Vec
+  , playerDir :: Vec
+  , missiles  :: [(Vec, Vec)]
   }
 
--- All the possible inputs
-data Msg = Fire | AddMove Vec | SubMove Vec
+instance Interpolatable Model where
+  glerp fr a b = (if fr > 0.5 then b else a)
+    { playerPos = glerp fr (playerPos a) (playerPos b)
+    }
+
+-- Input messages
+data Msg = Fire
 
 -- By default, our firingDirection is to the right
 newGame :: Model
-newGame = Model (V2 0 0) (V2 0 0) (V2 1 0) []
+newGame = Model (V2 0 0) (V2 0 0) []
 
-stepF :: (NominalDiffTime, [Msg]) -> Model -> Model
-stepF (delta, msgs) mdl = foldr stepMsg (physics delta mdl) msgs
+-- Move our game state forward in time
+stepF :: Vec -> (NominalDiffTime, [Msg]) -> Model -> (Model, [()])
+stepF moveDir (delta, msgs) mdl = (,[]) $ foldr stepMsg (physics delta moveDir mdl) msgs
 
--- Change the game model by processing some input
+-- Process an input message
 stepMsg :: Msg -> Model -> Model
-stepMsg msg model@Model { playerPos, firingDirection, missiles } = case msg of
-  Fire -> model { missiles = (playerPos, firingDirection) : missiles }
-  AddMove dir -> adjustMoveDir dir model
-  SubMove dir -> adjustMoveDir (- dir) model
+stepMsg msg model@Model { playerPos, playerDir, missiles } = case msg of
+  Fire -> model { missiles = (playerPos, playerDir) : missiles }
 
--- Step the world forward by some small delta
-physics :: NominalDiffTime -> Model -> Model
-physics (realToFrac -> delta) model@Model { playerPos, playerMoveDir, missiles } = model
-  { playerPos = playerPos + (playerMoveDir ^* (delta * playerMovementSpeed))
+-- Step the world forward by some small delta, using the input state
+physics :: NominalDiffTime -> Vec -> Model -> Model
+physics (realToFrac -> delta) movedir model@Model { .. } = model
+  { playerPos = playerPos + (movedir ^* (delta * playerMovementSpeed))
+  , playerDir = if vnull movedir then playerDir else movedir
   , missiles = filter missileInBounds $
       map (\(pos, dir) -> (pos + (dir ^* (delta * missileMovementSpeed)), dir)) missiles
   }
@@ -111,38 +110,24 @@ missileMovementSpeed = 200
 missileInBounds :: (Vec, Vec) -> Bool
 missileInBounds (pos, _) = norm pos < 500
 
-adjustMoveDir :: Vec -> Model -> Model
-adjustMoveDir dir model@Model { playerMoveDir, firingDirection } =
-  model { playerMoveDir = newMoveDir
-        , firingDirection = if vnull newMoveDir then firingDirection else newMoveDir
-        }
-  where newMoveDir = playerMoveDir + dir
-
 -- ** RENDERING **
 
--- The resources used by our rendering function
-data Resources = Resources
-  { circleTex           :: H.PointedDescriptorSet
-  , square              :: H.BufferedMesh
-  , textRenderer        :: H.TextRenderer
-  }
-
 -- Load meshes, textures, materials, fonts, etc.
-loadResources :: String -> H.VulkanResources -> Acquire Resources
+loadResources :: String -> H.VulkanResources -> Acquire ResourcesStore
 loadResources path vulkanResources = do
-  circleTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [(path ++ "images/circle.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
+  resourcesStore@ResourcesStore{..} <- withResourcesStore vulkanResources path
+  liftIO do
+    loadResource textures "circle.png" (FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
 
-  square <- H.withSquareMesh vulkanResources
+    -- gidolinya.json (font data) and gidolinya.png (font texture) were
+    -- generated using https://github.com/Chlumsky/msdf-atlas-gen
+    loadResource fonts "gidolinya" 2
 
-  -- gidolinya.json (font data) and gidolinya.png (font texture) were
-  -- generated using https://github.com/Chlumsky/msdf-atlas-gen
-  textRenderer <- H.withTextRenderer vulkanResources (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
-
-  pure $ Resources {..}
+  pure resourcesStore
 
 -- Our render function
-renderGame :: MonadIO m => Resources -> Size Scalar -> Model -> (H.Renderer, H.FrameContext) -> m ()
-renderGame Resources {..} scrSize@(Size w _h) Model { playerPos, missiles } (renderer, frameContext)
+renderGame :: (MonadIO m) => Resources -> Size Scalar -> Model -> (H.Renderer, H.FrameContext) -> m ()
+renderGame res scrSize@(Size w _h) Model { playerPos, missiles } (renderer, frameContext)
   = H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
   renderSettings = H.RenderSettings
@@ -158,7 +143,9 @@ renderGame Resources {..} scrSize@(Size w _h) Model { playerPos, missiles } (ren
     , clearColor = V4 0 0 0 1
     , highlightObjs = []
     }
-  litF = do
+  litF = flip runReaderT res do
+    square <- getMesh "square"
+    circleTex <- getTexture "circle.png"
     for_ missiles \(pos, _) ->
       H.addCommand $ DrawCommand
         { modelMat = mkTranslation pos !*! mkScale (V2 5 5)
@@ -184,15 +171,12 @@ renderGame Resources {..} scrSize@(Size w _h) Model { playerPos, missiles } (ren
       , specularity = 1
       }
 
-  overlayF = do
+  overlayF = flip runReaderT res do
+    textRenderer <- getSomeFont
     H.drawText textRenderer (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12)))
       white white 0 $ textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft }
 
 -- ** INPUT **
-
--- Translating raw input to game input
-isMoveKey :: Key -> Bool
-isMoveKey key = key `elem` ([Key'Up, Key'Down, Key'Left, Key'Right] :: [Key])
 
 moveKeyVec :: Key -> Vec
 moveKeyVec key = case key of
@@ -201,20 +185,6 @@ moveKeyVec key = case key of
   Key'Left  -> V2 (-1) 0
   Key'Right -> V2 1 0
   _ -> V2 0 0
-
-procKeyDown :: Key -> Maybe Msg
-procKeyDown k =
-  if isMoveKey k
-  then Just $ AddMove (moveKeyVec k)
-  else case k of
-    Key'Space -> Just Fire
-    _ -> Nothing
-
-procKeyUp :: Key -> Maybe Msg
-procKeyUp k =
-  if isMoveKey k
-  then Just $ SubMove (moveKeyVec k)
-  else Nothing
 
 physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
@@ -225,17 +195,25 @@ buildNetwork res evGens = do
   B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
 
-    -- Player inputs
-    let inputs = mconcat [ maybeToList . procKeyDown <$> keyDown coreEvents
-                         , maybeToList . procKeyUp   <$> keyUp coreEvents
-                         ]
+    -- Input state
+    let moveDir = fmap sum . sequenceA $
+          (\k -> bool zero (moveKeyVec k) <$> keyHeldB coreEvents k)
+          <$> ([ Key'Up, Key'Down, Key'Left, Key'Right ] :: [Key])
 
-    -- Collect a frame of input
-    (_frameFraction, eFrame) <- timeStep physicsTimeStep inputs (eTime coreEvents)
+    -- Input events
+    let inputs = unionAll
+          [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
+          ]
 
-    -- Step the game model forward every frame
-    mdlPair <- historical newGame (stepF <$> eFrame) B.never
-    let mdl = snd <$> mdlPair
+    -- Run the game network
+    (mdl, _, _) <- gameNetwork
+      physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
+      Key'Escape -- Key to pause game for debugging
+      coreEvents
+      newGame -- Initial game state
+      B.never -- Event to load a game state
+      inputs -- Event containing inputs. Gathered every step interval and passed to step function.
+      (stepF <$> moveDir) -- Game state step function
 
     -- every time we get a 'render' event tick, draw the screen
     B.reactimate
@@ -244,12 +222,14 @@ buildNetwork res evGens = do
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
   vulkanResources <- initGLFWVulkan win
-  res <- loadResources "Example/Shooter/assets/" vulkanResources
+  resStore <- loadResources "Example/Shooter/assets/" vulkanResources
   -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
   (coreEvProc, evGens) <- liftIO $ glfwCoreEventGenerators win
 
   -- build and run the FRP network
-  liftIO $ buildNetwork res evGens
+  liftIO do
+    res <- getResourcesStoreResources resStore
+    buildNetwork res evGens
 
   liftIO $ GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
     coreEvProc (renderer, frameContext)
