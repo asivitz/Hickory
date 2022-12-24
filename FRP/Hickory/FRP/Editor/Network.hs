@@ -440,8 +440,8 @@ renderSettings size@(Size w _h) GraphicsParams {..} clearColor viewMat projMat c
     , ambientColor = ambientLight ^* ambientStrength
     }
   , overlayGlobals = OverlayGlobals
-    { viewMat = viewDirection (V3 0 0 0) (V3 0 0 (-1)) (V3 0 1 0)
-    , projMat = shotMatrix (Ortho (realToFrac w) 0.1 100 True) (aspectRatio size)
+    { viewMat = viewTarget zero (V3 0 0 1) (V3 0 (-1) 0)
+    , projMat = shotMatrix (Ortho (realToFrac w) 0 1 False) (aspectRatio size)
     }
   , postSettings = H.PostConstants exposure colorShift saturation filmGrain
   , clearColor = clearColor

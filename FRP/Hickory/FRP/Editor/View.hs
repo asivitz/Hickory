@@ -5,9 +5,9 @@ module Hickory.FRP.Editor.View where
 
 import qualified Hickory.Graphics as H
 import Hickory.Color (rgba, black)
-import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar)
+import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
 import Hickory.Types (Size (..))
-import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, V4 (..), norm)
+import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
 import Control.Monad.Reader (ask, MonadReader)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
@@ -18,7 +18,7 @@ import Hickory.Graphics (askMatrix)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.General (project)
 import Hickory.Resources (Resources, getTextureMay, getMeshMay, getTexture, getMesh)
-import Hickory.Vulkan.Forward.Types (CommandMonad)
+import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
 import Control.Lens ((.~), (&), (^.), set)
 import Control.Monad (when)
 import Data.Foldable (for_)
@@ -124,32 +124,24 @@ editorOverlayView scrSize CameraState {..} cursorLoc selected mode = do
     Just OTranslate -> pure ()
   where
   objCenter = project scrSize (projMat !*! viewMat !*! mkTranslation (avgObjTranslation selected)) zero
-  drawArr p1 p2 = H.runMatrixT do
-    let
-        drawArrowHead = False
-        fill = True
-        width = 10
-        repetition = 1/5
-        startBuffer = 0
-        endBuffer   = 0
-        outlineWidth = 0
-        flipMesh = False
-        -- options = ArrowOptions {..}
-    pure ()
-
-    -- H.xform (sizePosRotMat (Size (realToFrac len) width) (v2tov3 midpoint 0) ang) do
-    --   (if flipMesh then flipY else id) do
-    --     squareMesh <- getMesh "square"
-    --     tex <- getTexture "dashed.png"
-    --     mat <- H.askMatrix
-    --     H.addCommand $ H.DrawCommand
-    --       { modelMat = mat
-    --       , mesh = H.Buffered squareMesh
-    --       , color = black
-    --       , drawType = H.MSDF $ H.MSDFMesh tex color outlineWidth 36 (V2 (realToFrac (len * 0.4 * repetition)) 1)
-    --       , lit = False
-    --       , castsShadow = False
-    --       , blend = True
-    --       , ident = Nothing
-    --       , specularity = 0
-    --       }
+  drawArr p1 p2 = do
+    squareMesh <- getMesh "cube"
+    tex        <- getTexture "white.png"
+    for_ [0..num] \i -> H.addCommand $ H.DrawCommand
+      { modelMat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
+      , mesh = Buffered squareMesh
+      , color = black
+      , drawType = Static StaticMesh { albedo = tex, tiling = V2 1 1}
+      , lit = False
+      , castsShadow = False
+      , blend = False
+      , ident = Nothing
+      , specularity = 0
+      }
+    where
+    diff = p2 - p1
+    num = norm diff / stride
+    stride = on + off
+    on = 8
+    off = 4
+    width = 3
