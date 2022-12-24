@@ -34,8 +34,17 @@ dependencies:
     - hashable
     - Hickory
     - lens
+    - dear-imgui
+    - text
+    - generic-lens
+    - extra
+    - mtl
+    - vulkan
+    - vector
+    - safe
 
 library:
+  source-dirs: ./
   exposed-modules:
     - Hickory.FRP.Combinators
     - Hickory.FRP.Historical
@@ -43,3 +52,5 @@ library:
     - Hickory.FRP.Game
     - Hickory.FRP.UI
     - Hickory.FRP
+    - Hickory.FRP.Editor
+    - Hickory.FRP.DearImGUIHelpers
