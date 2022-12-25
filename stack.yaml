@@ -1,7 +1,7 @@
 # For more information, see: https://github.com/commercialhaskell/stack/blob/release/doc/yaml_configuration.md
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
-resolver: lts-18.20
+resolver: lts-20.4
 
 # Local packages, usually specified by relative directory name
 packages:
@@ -15,7 +15,7 @@ allow-newer: true
 
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
-- reactive-banana-1.2.2.0
+- reactive-banana-1.3.1.0
 - wavefront-0.7.1.4
 - vulkan-3.23
 - vulkan-utils-0.5.10.1
@@ -25,7 +25,8 @@ extra-deps:
 # - dear-imgui-2.1.0
 - git: https://github.com/asivitz/dear-imgui.hs.git
   commit: e70d6a9e1353433983e2369ae3aeba526eaaa6bd
-- aeson-deriving-0.1.1.2
+- git: https://github.com/fieldstrength/aeson-deriving.git
+  commit: e6e1f5066ebf1f37c10687e9bc90e5b0d3b22b0c
 
 # Override default flag values for local packages and extra-deps
 flags:

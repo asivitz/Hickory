@@ -120,7 +120,7 @@ velocityTargetLayer targets touchEvs tickEv = do
     genEv VelocityObject { item, velocity = Just _, posHistory = (_, v) :<| _ } = Just (Just item, TouchEvent (-1) v Up)
     genEv VelocityObject { velocity = Just _, posHistory = Seq.Empty } = Nothing
     move vo@VelocityObject { velocity = Nothing }  = vo
-    move vo@VelocityObject { velocity = Just vel, posHistory = ph@ ((time', v') :<| _) }
+    move vo@VelocityObject { velocity = Just vel, posHistory = ph@((time', v') :<| _) }
       = vo { velocity = Just (vel ^* max 0 (1 - realToFrac time * dampening))
            , posHistory = (time' + time, v' + (vel ^* realToFrac time)) :<| ph }
     move VelocityObject { posHistory = Seq.Empty } = error "Impossible"
