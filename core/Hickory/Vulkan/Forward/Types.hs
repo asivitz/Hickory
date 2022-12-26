@@ -56,6 +56,8 @@ data Renderer = Renderer
   , globalOverlayBuffer    :: !(DataBuffer WorldGlobals)
   , dynamicMesh            :: FramedResource DynamicBufferedMesh
   , objectPickingImageBuffer :: FramedResource ImageBuffer
+
+  , shadowMapDescriptorSet :: PointedDescriptorSet
   } deriving Generic
 
 -- params: targ, shaders

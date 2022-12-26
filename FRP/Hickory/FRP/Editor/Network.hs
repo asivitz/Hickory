@@ -42,6 +42,8 @@ import Hickory.Resources (ResourcesStore (..), loadResource', getResourcesStoreR
 import Safe (maximumMay, headMay)
 import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
+import Extra (ifM)
+import System.Directory.Extra (doesFileExist)
 
 editorFOV :: Floating a => a
 editorFOV = pi/4
@@ -54,9 +56,9 @@ editorProjMat :: Size Int -> Scalar -> CameraViewMode -> Mat44
 editorProjMat (aspectRatio -> scrRat) width = \case
   OrthoTop   -> orthoMat
   OrthoFront -> orthoMat
-  PerspView  -> shotMatrix (Perspective editorFOV 0.1 1000) scrRat
+  PerspView  -> shotMatrix (Perspective editorFOV 0.1 100) scrRat
   where
-  orthoMat = shotMatrix (Ortho width 0.1 1000 True) scrRat
+  orthoMat = shotMatrix (Ortho width 0.1 100 True) scrRat
 
 viewManip :: CoreEvents a -> B.MomentIO (B.Behavior CameraState)
 viewManip coreEvents = mdo
@@ -92,17 +94,17 @@ viewManip coreEvents = mdo
 
       eRotateCamera :: B.Event (Scalar,Scalar) = B.whenE ((==Rotate) <$> mode) $((,) <$> captured <@> clickMove ) <&> \(Just (start, _, ((zang,ele),_)), v) ->
         let V2 vx vy = v - start
-        in (zang - vx / 100, ele + vy / 100)
+        in (zang - vx / 100, ele - vy / 100)
 
   captured :: B.Behavior (Maybe (V2 Scalar, V3 Scalar, ((Scalar, Scalar), Scalar))) <- B.stepper Nothing $ unionFirst
     [ (\cfp ct ps -> Just (ps, cfp, ct)) <$> cameraFocusPos <*> cameraTriple <@> clickStart
     , Nothing <$ clickEnd
     ]
 
-  cameraAngles <- B.stepper (pi/4, pi/4) $ unionFirst
+  cameraAngles <- B.stepper (-pi/4, -3*pi/4) $ unionFirst
     [ eRotateCamera
-    , (0, pi/2) <$ eOrthoTop
-    , (0, 0) <$ eOrthoFront
+    , (0, pi) <$ eOrthoTop
+    , (0, -pi/2) <$ eOrthoFront
     ]
   cameraZoom     :: B.Behavior Scalar      <- B.stepper 20 eZoomCamera
   cameraFocusPos :: B.Behavior (V3 Scalar) <- B.stepper (V3 0 0 0) eRepositionCamera
@@ -110,7 +112,7 @@ viewManip coreEvents = mdo
   let buildCameraAngleVec ((zang,ele),zoom) = (^* zoom)
         . rotate (axisAngle (V3 0 0 1) zang)
         . rotate (axisAngle (V3 1 0 0) ele)
-        $ V3 0 (-1) 0
+        $ V3 0 0 1
 
   cameraViewMode <- B.stepper PerspView $ unionFirst
     [ OrthoTop   <$ eOrthoTop
@@ -121,7 +123,7 @@ viewManip coreEvents = mdo
   let up = cameraAngles <&> \(zang,ele)
         -> rotate (axisAngle (V3 0 0 1) zang)
          . rotate (axisAngle (V3 1 0 0) ele)
-         $ V3 0 0 1
+         $ V3 0 (-1) 0
 
   let cameraAngleVec :: B.Behavior (V3 Scalar) = buildCameraAngleVec <$> cameraTriple
       cameraFocusPlaneHeight = (\z -> tan (editorFOV / 2) * z * 2) <$> cameraZoom
@@ -296,7 +298,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams initialSc
   sceneFile <- B.stepper initialSceneFile eLoadScene
 
   initialScene <- liftIO do
-   objs <- read <$> readFile initialSceneFile
+   objs <- maybe mempty read <$> (ifM (doesFileExist initialSceneFile) (Just <$> readFile initialSceneFile) (pure Nothing))
    for_ objs \Object {..} -> loadResource (resourcesStore ^. #meshes) model ()
    for_ objs \Object {..} -> loadResource (resourcesStore ^. #textures) texture (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
    pure objs

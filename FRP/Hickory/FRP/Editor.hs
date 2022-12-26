@@ -6,6 +6,7 @@ module Hickory.FRP.Editor
   , GraphicsParams(..)
   , Object(..)
   , objectDrawCommand
+  , defaultGraphicsParams
   ) where
 
 import Hickory.FRP.Editor.Network

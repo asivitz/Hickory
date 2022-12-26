@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedLabels #-}
+
 module Hickory.FRP.Editor.Post where
 
 import DearImGui
@@ -8,7 +10,7 @@ import DearImGui
       menuItem,
       dragFloat3,
       dragFloat,
-      colorEdit3 )
+      colorEdit3, ImVec2 (..), ImVec4 (..), image )
 import Data.IORef ( IORef, readIORef, newIORef )
 import GHC.Generics (Generic)
 import Hickory.FRP.DearImGUIHelpers (imVec3ToV3, tripleToV3, v3ToImVec3, v3ToTriple, myWithWindow)
@@ -16,6 +18,10 @@ import Control.Monad.Extra (whenM)
 import Hickory.Math (Scalar)
 import Linear (V3 (..))
 import Control.Monad (void)
+import Hickory.Vulkan.Forward.Types (Renderer(..))
+import Vulkan (Extent3D(..), Extent2D (..), objectTypeAndHandle)
+import Foreign (with, castPtr, wordPtrToPtr, WordPtr(..))
+import Control.Lens (view)
 
 data PostEditorState = PostEditorState
   { exposureRef        :: IORef Float
@@ -81,8 +87,8 @@ mkPostEditorState GraphicsParams {..} = do
 
   pure PostEditorState {..}
 
-drawPostUI :: PostEditorState -> IO ()
-drawPostUI pes@PostEditorState {..} = do
+drawPostUI :: PostEditorState -> Renderer -> IO ()
+drawPostUI pes@PostEditorState {..} Renderer {..}= do
   myWithWindow "Post Processing" do
     withMenuBarOpen do
       withMenuOpen "File" do
@@ -98,3 +104,13 @@ drawPostUI pes@PostEditorState {..} = do
     void $ colorEdit3 "Sun Light" sunLightRef
     void $ dragFloat "Sun Strength" sunStrengthRef 0.1 0 10
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100
+
+    let Extent2D w h = view #extent shadowRenderTarget
+        desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet shadowMapDescriptorSet)
+        imagePtr = wordPtrToPtr (WordPtr $ fromIntegral desSetHandle)
+    with (ImVec2 (realToFrac w / 4) (realToFrac h / 4)) \sizeptr ->
+      with (ImVec2 0 0) \uv0 ->
+      with (ImVec2 1 1) \uv1 ->
+      with (ImVec4 1 1 1 1) \tintCol ->
+      with (ImVec4 0 0 0 0) \borderCol ->
+        image (castPtr imagePtr) sizeptr uv0 uv1 tintCol borderCol

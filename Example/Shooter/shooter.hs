@@ -19,7 +19,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
-import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
+import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators, maskCoreEvents)
 import Hickory.FRP.Game (gameNetwork)
 import Hickory.FRP.UI (topLeft)
 import Hickory.Input
@@ -57,6 +57,7 @@ import Hickory.FRP.Combinators (unionAll)
 import Data.Bool (bool)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
 import Control.Monad.Reader (ReaderT (..))
+import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams)
 
 -- ** GAMEPLAY **
 
@@ -190,9 +191,12 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/60
 
 -- Build the FRP network
-buildNetwork :: Resources -> CoreEventGenerators (H.Renderer, H.FrameContext) -> IO ()
-buildNetwork res evGens = do
-  B.actuate <=< B.compile $ mdo
+buildNetwork :: H.VulkanResources -> CoreEventGenerators (H.Renderer, H.FrameContext) -> Acquire ()
+buildNetwork vulkanResources evGens = do
+  resStore <- loadResources "Example/Shooter/assets/" vulkanResources
+  res <- liftIO $ getResourcesStoreResources resStore
+
+  liftIO $ B.actuate <=< B.compile $ mdo
     coreEvents <- mkCoreEvents evGens
 
     -- Input state
@@ -205,31 +209,34 @@ buildNetwork res evGens = do
           [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
           ]
 
-    -- Run the game network
-    (mdl, _, _) <- gameNetwork
-      physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
-      Key'Escape -- Key to pause game for debugging
-      coreEvents
-      newGame -- Initial game state
-      B.never -- Event to load a game state
-      inputs -- Event containing inputs. Gathered every step interval and passed to step function.
-      (stepF <$> moveDir) -- Game state step function
+    bEditorMode  <- B.accumB False (not <$ B.filterE (== Key'E) (keyDown coreEvents))
+    _ <- editorNetwork vulkanResources resStore (maskCoreEvents bEditorMode coreEvents) (pure defaultGraphicsParams) "main.scene" B.never
 
-    -- every time we get a 'render' event tick, draw the screen
-    B.reactimate
-      (renderGame res <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <@> eRender coreEvents)
+    do
+      let gameEvents = maskCoreEvents (not <$> bEditorMode) coreEvents
+
+      -- Run the game network
+      (mdl, _, _) <- gameNetwork
+        physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
+        Key'Escape -- Key to pause game for debugging
+        gameEvents
+        newGame -- Initial game state
+        B.never -- Event to load a game state
+        inputs -- Event containing inputs. Gathered every step interval and passed to step function.
+        (stepF <$> moveDir) -- Game state step function
+
+      -- every time we get a 'render' event tick, draw the screen
+      B.reactimate
+        (renderGame res <$> (fmap realToFrac <$> scrSizeB gameEvents) <*> mdl <@> eRender gameEvents)
 
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
   vulkanResources <- initGLFWVulkan win
-  resStore <- loadResources "Example/Shooter/assets/" vulkanResources
   -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
   (coreEvProc, evGens) <- liftIO $ glfwCoreEventGenerators win
 
   -- build and run the FRP network
-  liftIO do
-    res <- getResourcesStoreResources resStore
-    buildNetwork res evGens
+  buildNetwork vulkanResources evGens
 
   liftIO $ GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
     coreEvProc (renderer, frameContext)

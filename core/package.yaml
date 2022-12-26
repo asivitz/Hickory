@@ -26,6 +26,7 @@ default-extensions:
     - ViewPatterns
     - BlockArguments
     - RecordWildCards
+    - GHC2021
 
 dependencies:
     - JuicyPixels
@@ -71,6 +72,9 @@ when:
       cc-options:         -F/System/Library/Frameworks
 
 library:
+  verbatim:
+    default-language: GHC2021
+
   exposed-modules:
     - Hickory.Camera
     - Hickory.Color
@@ -137,10 +141,13 @@ library:
     - Hickory.Vulkan.Forward.Types
     - Hickory.Vulkan.Forward.Lit
     - Hickory.Vulkan.Forward.ShadowPass
+    - Hickory.Vulkan.Forward.DrawingPrimitives
     - Hickory.Vulkan.Types
 
 executables:
   pack-model:
+    verbatim:
+      default-language: GHC2021
     source-dirs:
       - pack-model/
     main: main.hs
@@ -150,6 +157,8 @@ executables:
 
 tests:
     hickory-test:
+        verbatim:
+          default-language: GHC2021
         main:            Main.hs
         source-dirs:     test
         dependencies:

@@ -7,7 +7,7 @@ import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
-import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!))
+import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/))
 import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices)
@@ -33,7 +33,7 @@ import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless)
 import Hickory.Types (aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..))
-import Hickory.Math.Matrix ( viewDirection )
+import Hickory.Math.Matrix ( viewDirection , viewTarget, perspectiveProjection)
 import Data.Word (Word32)
 import Data.IORef (modifyIORef, newIORef, readIORef, IORef)
 import Data.UUID (UUID)
@@ -42,7 +42,7 @@ import Control.Monad.State.Strict (evalStateT)
 import qualified Data.UUID as UUID
 import Data.Maybe (isJust)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
-import Hickory.Math (Scalar)
+import Hickory.Math (Scalar, orthographicProjection)
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -72,6 +72,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     [ BufferDescriptor (buf globalBuffer)
     , BufferDescriptor (buf globalShadowPassBuffer)
     ]
+
+  -- For debugging
+  shadowMapDescriptorSet <- withDescriptorSet vulkanResources $
+    descriptorSpecs shadowRenderTarget
 
   imageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
@@ -115,11 +119,35 @@ data RegisteredMaterial const extra
   | Universal (BufferedUniformMaterial const) extra
   | LitAndUnlit (BufferedUniformMaterial const, extra) (BufferedUniformMaterial const, extra)
 
+ndcBoundaryPoints :: Num a => [V4 a]
+ndcBoundaryPoints =
+  [ V4 (-1) (-1) 0 1
+  , V4 (-1)   1  0 1
+  , V4   1    1  0 1
+  , V4   1  (-1) 0 1
+  , V4 (-1) (-1) 1 1
+  , V4 (-1)   1  1 1
+  , V4   1    1  1 1
+  , V4   1  (-1) 1 1
+  ]
+
+viewBoundaryFromInvProjection :: forall a. (Fractional a, Num a, Ord a) => M44 a -> (a, a, a, a)
+viewBoundaryFromInvProjection m =  (l,r,b,t)
+  where
+  frustumPoints = (\v -> v ^/ (v ^. _w)) . (m !*) <$> ndcBoundaryPoints
+  l = minimum . fmap (^. _x) $ frustumPoints
+  r = maximum . fmap (^. _x) $ frustumPoints
+  b = maximum . fmap (^. _y) $ frustumPoints
+  t = minimum . fmap (^. _y) $ frustumPoints
+
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
-    let lightView = viewDirection (V3 0 10 20) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
-        lightProj = shotMatrix (Ortho 100 1.0 85 True) (aspectRatio shadowMapSize)
+    let lightView = viewDirection (V3 0 0 0) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
+        -- lightProj = shotMatrix (Ortho 100 1.0 85 True) (aspectRatio shadowMapSize)
+        invvp = inv44 $ (worldGlobals ^. #projMat) !*! (worldGlobals ^. #viewMat)
+        (l,r,b,t) = viewBoundaryFromInvProjection (lightView !*! invvp)
+        lightProj = orthographicProjection l r b t 0.1 40
     uploadBufferDescriptor globalBuffer
       $ Globals frameNumber
     uploadBufferDescriptor globalWorldBuffer

@@ -1,13 +1,14 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Hickory.FRP.Editor.View where
 
 import qualified Hickory.Graphics as H
-import Hickory.Color (rgba, black)
-import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
+import Hickory.Color (rgba, black, blue, white)
+import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle, viewTarget, perspectiveProjection, viewDirection)
 import Hickory.Types (Size (..))
-import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
+import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, _w, _xyz, V4 (..), norm, normalize, (^*), unit, M44, inv44, (^/), (!*))
 import Control.Monad.Reader (ask, MonadReader)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
@@ -22,7 +23,10 @@ import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..
 import Control.Lens ((.~), (&), (^.), set)
 import Control.Monad (when)
 import Data.Foldable (for_)
-
+import qualified Data.Vector.Storable as SV
+import qualified Hickory.Vulkan.Types as H
+import Hickory.Vulkan.Forward.DrawingPrimitives (drawLine, drawPoint, drawFrustum)
+import Hickory.Vulkan.Forward.Renderer (ndcBoundaryPoints)
 
 editorWorldView :: (MonadReader Resources m, CommandMonad m) => CameraState -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView CameraState {..} selected objects manipMode = H.runMatrixT do
@@ -75,6 +79,17 @@ editorWorldView CameraState {..} selected objects manipMode = H.runMatrixT do
   do
     for_ (Map.toList objects) \(k, o) -> do
       objectDrawCommand o >>= H.addCommand . set #ident (Just k)
+
+
+  do
+    let lightDir = V3 5.7 (-2.6) (-6.0)
+        testM :: M44 Scalar
+        testM = perspectiveProjection 1 (pi/4) 1 10 !*! viewTarget (V3 5 5 5) (V3 5 10 5) (V3 0 0 1)
+    drawFrustum white testM
+    H.xform (viewDirection zero lightDir (V3 0 0 1)) do
+      drawFrustum white testM
+    H.xform (mkTranslation (V3 10 10 10)) do
+      drawLine blue 0 lightDir
 
   where
   snapVec by = fmap (snap by)
