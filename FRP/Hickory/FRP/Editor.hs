@@ -5,11 +5,12 @@ module Hickory.FRP.Editor
   , drawPostUI
   , GraphicsParams(..)
   , Object(..)
-  , objectDrawCommand
+  , drawObject
   , defaultGraphicsParams
   , Component(..)
   , Attribute(..)
   , SomeAttribute(..)
+  , withAttrVal
   ) where
 
 import Hickory.FRP.Editor.Network

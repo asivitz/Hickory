@@ -5,6 +5,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 
 module Hickory.FRP.Editor.Types where
 
@@ -19,18 +20,19 @@ import Hickory.Math (Scalar, Mat44)
 import Data.Text (Text)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
-import Hickory.Vulkan.Forward.Types (DrawCommand, Command, CommandT)
+import Hickory.Vulkan.Forward.Types (CommandT, CommandMonad)
 import Text.Read.Lex (Lexeme(..))
 import qualified Text.Read.Lex as Lex
 import GHC.Read (Read (..))
 import Text.ParserCombinators.ReadPrec (lift)
 import Text.ParserCombinators.ReadP (readS_to_P, between, string, skipSpaces)
-import Hickory.Graphics (MatrixT(..))
+import Hickory.Graphics (MatrixT(..), MatrixMonad)
 import Hickory.Resources (Resources)
-import Control.Monad.Reader (ReaderT)
-import Data.Functor.Identity (Identity)
+import Control.Monad.Reader (ReaderT, MonadReader)
+import Data.Functor.Identity (Identity (..))
 import Data.Functor.Const (Const)
-import Data.Bifunctor (Bifunctor)
+import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
+import qualified Data.HashMap.Strict as Map
 
 data CameraMoveMode = Pan | Rotate | Zoom
   deriving Eq
@@ -64,37 +66,79 @@ data Object = Object
   } deriving (Generic, Show, Read)
 
 data Component = Component
-  { name       :: String
-  , attributes :: [SomeAttribute (Const String)]
-  , draw       :: [SomeAttribute Identity] -> MatrixT (ReaderT Resources (CommandT Identity)) ()
-  } deriving Generic
+  { attributes :: [SomeAttribute (Const String)]
+  , draw       :: forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => HashMap String (SomeAttribute Identity) -> m ()
+  }
 
-data Attribute a contents where
-  StringAttribute :: contents -> Attribute String contents
-  FloatAttribute  :: contents -> Attribute Float contents
-  IntAttribute    :: contents -> Attribute Int contents
-  BoolAttribute   :: contents -> Attribute Bool contents
+class Attr a where
+  mkAttr :: Attribute a
 
-data SomeAttribute container = forall a. SomeAttribute { unSomeAttribute :: Attribute a (container a) }
+instance Attr String where mkAttr = StringAttribute
+instance Attr Float  where mkAttr = FloatAttribute
+instance Attr Int    where mkAttr = IntAttribute
+instance Attr Bool   where mkAttr = BoolAttribute
+
+withAttrVal :: forall a b. Attr a => HashMap String (SomeAttribute Identity) -> String -> (a -> b) -> b
+withAttrVal attrs name f = case Map.lookup name attrs of
+  Just (SomeAttribute attr (Identity v)) -> case eqAttr attr (mkAttr :: Attribute a) of
+    Just HRefl -> f v
+    Nothing -> error "Wrong type for attribute"
+  Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
+
+data Attribute a where
+  StringAttribute :: Attribute String
+  FloatAttribute  :: Attribute Float
+  IntAttribute    :: Attribute Int
+  BoolAttribute   :: Attribute Bool
+
+typeOfAttr :: forall a. Attribute a -> TypeRep a
+typeOfAttr = \case
+  StringAttribute -> typeRep
+  FloatAttribute  -> typeRep
+  IntAttribute    -> typeRep
+  BoolAttribute   -> typeRep
+
+data AttrClasses a where
+  -- Provides proof of a type having certain instances
+  AttrClasses :: Eq a => AttrClasses a
+
+-- Prove that each attribute has some necessary instances
+proveAttrClasses :: Attribute a -> AttrClasses a
+proveAttrClasses = \case
+  StringAttribute -> AttrClasses
+  FloatAttribute  -> AttrClasses
+  IntAttribute    -> AttrClasses
+  BoolAttribute   -> AttrClasses
+
+eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
+eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
+
+data SomeAttribute contents = forall a. SomeAttribute { attr :: Attribute a, contents :: contents a }
 
 instance Show (SomeAttribute Identity) where
-  show (SomeAttribute x) = "SomeAttribute (" ++ case x of
-    StringAttribute contents -> "StringAttribute (" ++ show contents ++ "))"
-    FloatAttribute contents  -> "FloatAttribute ("  ++ show contents ++ "))"
-    IntAttribute contents    -> "IntAttribute ("    ++ show contents ++ "))"
-    BoolAttribute contents   -> "BoolAttribute ("   ++ show contents ++ "))"
+  show (SomeAttribute attr val) = "SomeAttribute " ++ case attr of
+    StringAttribute -> "StringAttribute (" ++ show val ++ ""
+    FloatAttribute  -> "FloatAttribute ("  ++ show val ++ ")"
+    IntAttribute    -> "IntAttribute ("    ++ show val ++ ")"
+    BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
 
 instance Read (SomeAttribute Identity) where
   readPrec = lift do
     Lex.expect (Ident "SomeAttribute")
     let pars = between (skipSpaces >> string "(") (skipSpaces >> string ")")
-    pars do
-      Lex.lex >>= \case
-        Ident "StringAttribute" -> SomeAttribute . StringAttribute <$> pars (readS_to_P (reads @(Identity String)))
-        Ident "FloatAttribute"  -> SomeAttribute . FloatAttribute  <$> pars (readS_to_P (reads @(Identity Float)))
-        Ident "IntAttribute"    -> SomeAttribute . IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
-        Ident "BoolAttribute"   -> SomeAttribute . BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
-        _ -> fail "Invalid attribute type"
+    Lex.lex >>= \case
+      Ident "StringAttribute" -> SomeAttribute StringAttribute <$> pars (readS_to_P (reads @(Identity String)))
+      Ident "FloatAttribute"  -> SomeAttribute FloatAttribute  <$> pars (readS_to_P (reads @(Identity Float)))
+      Ident "IntAttribute"    -> SomeAttribute IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
+      Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
+      _ -> fail "Invalid attribute type"
+
+defaultAttrVal :: Attribute a -> a
+defaultAttrVal = \case
+  StringAttribute -> ""
+  FloatAttribute -> 0
+  IntAttribute -> 0
+  BoolAttribute -> False
 
 data EditorState = EditorState
   { posRef         :: IORef (Float, Float, Float)

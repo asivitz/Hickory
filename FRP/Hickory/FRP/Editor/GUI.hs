@@ -1,27 +1,28 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 
 module Hickory.FRP.Editor.GUI where
 
 import qualified Reactive.Banana.Frameworks as B
 import qualified Data.HashMap.Strict as Map
-import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, ImVec4 (..), checkbox, dragFloat, withComboOpen, selectable, button)
+import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, ImVec4 (..), checkbox, dragFloat, withComboOpen, selectable, button, dragInt)
 import Control.Monad.Extra (whenM)
 import Data.Bits (zeroBits)
 import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
-import Data.IORef (newIORef, modifyIORef', readIORef, IORef)
+import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
 import Hickory.FRP.DearImGUIHelpers (myWithWindow)
 import Data.Functor (void)
 import Control.Monad (when)
 import Data.Text (pack)
 import Data.Foldable (for_, traverse_)
-import Data.List (find, nub, delete)
+import Data.List (nub, delete)
 import Data.Functor.Const (Const(..))
-import Control.Lens (view)
 import Data.Maybe (fromMaybe)
 import Data.Traversable (for)
+import Type.Reflection (type (:~~:) (..))
 
 drawMainEditorUI :: EditorState -> FilePath -> HashMap Int Object -> HashMap Int Object -> B.Handler Int -> IO ()
 drawMainEditorUI EditorState {..} sceneFile selected objects guiPickObjectID =
@@ -47,7 +48,7 @@ drawMainEditorUI EditorState {..} sceneFile selected objects guiPickObjectID =
       when open do
         treePop
 
-drawObjectEditorUI :: [Component] -> EditorState -> HashMap Int Object -> IO ()
+drawObjectEditorUI :: HashMap String Component -> EditorState -> HashMap Int Object -> IO ()
 drawObjectEditorUI componentDefs EditorState {..} objects = do
   myWithWindow "Object" do
     withCollapsingHeaderOpen "Transform" zeroBits do
@@ -64,30 +65,31 @@ drawObjectEditorUI componentDefs EditorState {..} objects = do
 
     readIORef componentsRef >>= traverse_ \comp ->
       withCollapsingHeaderOpen (pack comp) zeroBits do
-        let Component {..} = fromMaybe (error "Can't find component def") $ find ((==comp) . view #name) componentDefs
+        let Component {..} = fromMaybe (error "Can't find component def") $ Map.lookup comp componentDefs
         whenM (button "Delete") do
           modifyIORef' componentsRef (delete comp)
-          -- for_ attributes \(SomeAttribute x) -> case x of
-          --   FloatAttribute (Const attrName) -> do
-          --     let ref :: IORef Float = case Map.lookup (comp, attrName) componentData of
-          --                 Just (SomeAttribute (FloatAttribute r)) -> r
-          --                 Nothing -> error "Can't find attribute ref"
-
-        for_ attributes \(SomeAttribute x) -> case x of
-          FloatAttribute (Const attrName) -> do
-            let ref :: IORef Float = case Map.lookup (comp, attrName) componentData of
-                        Just (SomeAttribute (FloatAttribute r)) -> r
-                        Nothing -> error "Can't find attribute ref"
-            void $ dragFloat (pack attrName) ref 1 0 1000
-          _ -> pure ()
+          for_ attributes \(SomeAttribute _attr (Const attrName)) ->
+            case Map.lookup (comp, attrName) componentData of
+              Nothing -> error "Can't find attribute ref" :: IO ()
+              Just (SomeAttribute attr' ref) -> writeIORef ref (defaultAttrVal attr')
+        for_ attributes \(SomeAttribute attr (Const attrName)) ->
+          case Map.lookup (comp, attrName) componentData of
+            Nothing -> error "Can't find attribute ref" :: IO ()
+            Just (SomeAttribute attr' ref) -> case eqAttr attr attr' of
+              Just HRefl -> case attr of
+                FloatAttribute  -> void $ dragFloat (pack attrName) ref 1 0 1000
+                IntAttribute    -> void $ dragInt   (pack attrName) ref 1 0 1000
+                -- StringAttribute -> void $ inputText (pack attrName) ref 30
+                BoolAttribute   -> void $ checkbox (pack attrName) ref
+              Nothing -> error "Attribute types don't match"
 
     withComboOpen "AddComponent" "Select" do
-      for_ componentDefs \Component {..} ->
+      for_ (Map.keys componentDefs) \name ->
         selectable (pack name) >>= \case
           True -> modifyIORef' componentsRef (nub . (++ [name]))
           False -> pure ()
 
-mkEditorState :: [Component] -> IO EditorState
+mkEditorState :: HashMap String Component -> IO EditorState
 mkEditorState componentDefs = do
   posRef <- newIORef (0,0,0)
   rotRef <- newIORef (0,0,0)
@@ -100,11 +102,8 @@ mkEditorState componentDefs = do
   blendRef <- newIORef False
   specularityRef <- newIORef 8
   componentsRef <- newIORef []
-  componentData <- Map.fromList . concat <$> for componentDefs \Component{..} ->
-    for attributes \(SomeAttribute a) -> case a of
-      StringAttribute (Const attrName) -> ((name, attrName),) . SomeAttribute . StringAttribute <$> newIORef ""
-      FloatAttribute (Const attrName)  -> ((name, attrName),) . SomeAttribute . FloatAttribute  <$> newIORef 0
-      IntAttribute (Const attrName)    -> ((name, attrName),) . SomeAttribute . IntAttribute    <$> newIORef 0
-      BoolAttribute (Const attrName)   -> ((name, attrName),) . SomeAttribute . BoolAttribute   <$> newIORef False
+  componentData <- Map.fromList . concat <$> for (Map.toList componentDefs) \(name, Component{..}) ->
+    for attributes \(SomeAttribute attr (Const attrName)) ->
+      (\x -> ((name, attrName), SomeAttribute attr x)) <$> newIORef (defaultAttrVal  attr)
 
   pure EditorState {..}

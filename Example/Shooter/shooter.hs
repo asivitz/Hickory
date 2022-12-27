@@ -57,8 +57,10 @@ import Hickory.FRP.Combinators (unionAll)
 import Data.Bool (bool)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
 import Control.Monad.Reader (ReaderT (..))
-import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams, Component (..), Attribute (..), SomeAttribute (..))
+import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams, Component (..), Attribute (..), SomeAttribute (..), withAttrVal)
 import Hickory.Vulkan.Forward.DrawingPrimitives (drawFrustum, drawPoint)
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as Map
 
 -- ** GAMEPLAY **
 
@@ -201,17 +203,16 @@ buildNetwork vulkanResources evGens = do
     coreEvents <- mkCoreEvents evGens
 
     -- Input state
-    let moveDir = fmap sum . sequenceA $
-          (\k -> bool zero (moveKeyVec k) <$> keyHeldB coreEvents k)
-          <$> ([ Key'Up, Key'Down, Key'Left, Key'Right ] :: [Key])
+    let moveDir = fmap sum (traverse (\k -> bool zero (moveKeyVec k) <$> keyHeldB coreEvents k) ([ Key'Up, Key'Down, Key'Left, Key'Right ] :: [Key]))
 
     -- Input events
     let inputs = unionAll
           [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
           ]
-        components :: [Component] =
-          [ Component "Frustum" [ SomeAttribute $ FloatAttribute "Near"] \_ -> do
-              let proj = perspectiveProjection 1 (pi/4) 1 10
+        components :: HashMap String Component = Map.fromList
+          [ ("Frustum",) $ Component [ SomeAttribute FloatAttribute "Near"] \attrs ->
+            withAttrVal attrs "Near" \near -> do
+              let proj = perspectiveProjection 1 (pi/4) near 10
               drawFrustum white proj
               drawPoint white (V3 0 0 0)
           ]

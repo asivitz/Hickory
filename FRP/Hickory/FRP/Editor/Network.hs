@@ -12,7 +12,7 @@ import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents, maskCoreEvent
 import qualified Reactive.Banana.Frameworks as B
 import Reactive.Banana ((<@>), (<@), liftA2)
 import Hickory.Color (white)
-import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar, Mat44, viewDirection)
+import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar, Mat44)
 import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..))
 import Hickory.FRP.UI (trackTouches, TouchChange(..))
@@ -25,7 +25,7 @@ import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Forward.Renderer (pickObjectID, renderToRenderer)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, v3ToTriple, v4ToImVec4, imVec4ToV4)
-import Control.Lens (traversed, Bifunctor (..), (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix)
+import Control.Lens (traversed, (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix, (?~))
 import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
@@ -43,12 +43,12 @@ import Hickory.Resources (ResourcesStore (..), loadResource', getResourcesStoreR
 import Safe (maximumMay, headMay)
 import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
-import Extra (ifM)
 import System.Directory.Extra (doesFileExist)
 import Data.Functor.Const (Const(..))
 import Data.Traversable (for)
-import Data.IORef (newIORef)
 import Data.Functor.Identity (Identity(..))
+import Type.Reflection ((:~~:)(..))
+import Control.Monad.Extra (ifM)
 
 editorFOV :: Floating a => a
 editorFOV = pi/4
@@ -237,21 +237,14 @@ writeEditorState EditorChangeEvents {..} Object {..} = do
   setVal specularityChange specularity
   setVal componentsChange  (Map.keys components)
 
-  for_ (Map.toList componentChanges) \((compName, attrName), SomeAttribute change) -> (\x -> x :: IO ()) $ case change of
-    StringAttribute ch -> case components ^? ix compName . ix attrName of
-      Just (SomeAttribute (StringAttribute (Identity v))) -> setVal ch v
-      _ -> setVal ch ""
-    FloatAttribute ch -> case components ^? ix compName . ix attrName of
-      Just (SomeAttribute (FloatAttribute (Identity v))) -> setVal ch v
-      _ -> setVal ch 0
-    IntAttribute ch -> case components ^? ix compName . ix attrName of
-      Just (SomeAttribute (IntAttribute (Identity v))) -> setVal ch v
-      _ -> setVal ch 0
-    BoolAttribute ch -> case components ^? ix compName . ix attrName of
-      Just (SomeAttribute (BoolAttribute (Identity v))) -> setVal ch v
-      _ -> setVal ch False
+  for_ (Map.toList componentChanges) \((compName, attrName), SomeAttribute attr change) ->
+    case components ^? ix compName . ix attrName of
+      Just (SomeAttribute attr' (Identity v)) -> case eqAttr attr attr' of
+        Just HRefl -> setVal change v
+        Nothing -> error "Attributes don't match"
+      _ -> setVal change (defaultAttrVal attr)
 
-mkChangeEvents :: [Component] -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
+mkChangeEvents :: HashMap String Component -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
 mkChangeEvents componentDefs coreEvents EditorState {..} = do
   posChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents posRef
   scaChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents scaRef
@@ -265,21 +258,14 @@ mkChangeEvents componentDefs coreEvents EditorState {..} = do
   specularityChange <- refChangeEvent coreEvents specularityRef
   componentsChange <- refChangeEvent coreEvents componentsRef
 
-  componentChanges <- Map.fromList . concat <$> for componentDefs \Component{..} ->
-    for attributes \(SomeAttribute a) -> case a of
-      StringAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
-        Just (SomeAttribute (StringAttribute ref)) -> ((name, attrName),) . SomeAttribute . StringAttribute <$> refChangeEvent coreEvents ref
-        _ -> error "Can't find attribute ref"
-      FloatAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
-        Just (SomeAttribute (FloatAttribute ref)) -> ((name, attrName),) . SomeAttribute . FloatAttribute <$> refChangeEvent coreEvents ref
-        _ -> error "Can't find attribute ref"
-      IntAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
-        Just (SomeAttribute (IntAttribute ref)) -> ((name, attrName),) . SomeAttribute . IntAttribute <$> refChangeEvent coreEvents ref
-        _ -> error "Can't find attribute ref"
-      BoolAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
-        Just (SomeAttribute (BoolAttribute ref)) -> ((name, attrName),) . SomeAttribute . BoolAttribute <$> refChangeEvent coreEvents ref
-        _ -> error "Can't find attribute ref"
-
+  componentChanges <- Map.fromList . concat <$> for (Map.toList componentDefs) \(name, Component{..}) ->
+    for attributes \(SomeAttribute attr (Const attrName)) ->
+      case Map.lookup (name, attrName) componentData of
+        Just (SomeAttribute attr' ref) -> case eqAttr attr attr' of
+          Just HRefl -> case proveAttrClasses attr of
+            AttrClasses -> ((name, attrName),) . SomeAttribute attr <$> refChangeEvent coreEvents ref
+          _ -> error "Can't find attribute ref"
+        _ -> error "Attribute types don't match"
   pure EditorChangeEvents {..}
 
 setScale :: (Floating a, Epsilon a) => V3 a -> M44 a -> M44 a
@@ -295,7 +281,7 @@ setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (mat
        * axisAngle (V3 1 0 0) rx
 
 mkObjectChangeEvent
-  :: [Component]
+  :: HashMap String Component
   -> CoreEvents a
   -> ResourcesStore
   -> EditorState
@@ -309,15 +295,8 @@ mkObjectChangeEvent componentDefs coreEvents ResourcesStore {..} editorState sel
   B.reactimate $ (\m -> loadResource meshes m ()) <$> ev modelChange
   B.reactimate $ (\t -> loadResource textures t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> ev textureChange
 
-  let -- sv (SomeAttribute ((Identity _)) v = SomeAttribute (Identity v)
-      compEvs :: [B.Event (HashMap Int Object)] = Map.toList componentChanges <&> \((compName, attrName), SomeAttribute val) -> case val of
-        StringAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (StringAttribute (Identity v))))
-          <$> selectedObjects <@> ev ch
-        FloatAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (FloatAttribute (Identity v))))
-          <$> selectedObjects <@> ev ch
-        IntAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (IntAttribute (Identity v))))
-          <$> selectedObjects <@> ev ch
-        BoolAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (BoolAttribute (Identity v))))
+  let compEvs :: [B.Event (HashMap Int Object)] = Map.toList componentChanges <&> \((compName, attrName), SomeAttribute attr ch) ->
+        (\os v -> os & traversed . #components . at compName . _Just . at attrName ?~ SomeAttribute attr (Identity v))
           <$> selectedObjects <@> ev ch
 
   pure $ unionFirst $
@@ -342,7 +321,7 @@ editorNetwork
   -> ResourcesStore
   -> CoreEvents (Renderer, FrameContext)
   -> B.Behavior GraphicsParams
-  -> [Component]
+  -> HashMap String Component
   -> FilePath
   -> B.Event FilePath
   -> B.MomentIO (B.Behavior [Object])
@@ -351,7 +330,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
   sceneFile <- B.stepper initialSceneFile eLoadScene
 
   initialScene <- liftIO do
-   objs <- maybe mempty read <$> (ifM (doesFileExist initialSceneFile) (Just <$> readFile initialSceneFile) (pure Nothing))
+   objs <- maybe mempty read <$> ifM (doesFileExist initialSceneFile) (Just <$> readFile initialSceneFile) (pure Nothing)
    for_ objs \Object {..} -> loadResource (resourcesStore ^. #meshes) model ()
    for_ objs \Object {..} -> loadResource (resourcesStore ^. #textures) texture (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
    pure objs
@@ -436,7 +415,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
 
   let
       worldRender :: (MonadReader Resources m, CommandMonad m) => B.Behavior (m ())
-      worldRender = editorWorldView <$> cameraState <*> selectedObjects <*> objects <*> manipMode
+      worldRender = editorWorldView componentDefs <$> cameraState <*> selectedObjects <*> objects <*> manipMode
       overlayRender :: (MonadReader Resources m, CommandMonad m) => B.Behavior (m ())
       overlayRender = editorOverlayView <$> scrSizeB coreEvents <*> cameraState <*> cursorLoc <*> selectedObjects <*> (fmap fst <$> manipMode)
 

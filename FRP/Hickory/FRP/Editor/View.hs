@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedRecordDot #-}
 
 module Hickory.FRP.Editor.View where
 
@@ -8,28 +7,25 @@ import qualified Hickory.Graphics as H
 import Hickory.Color (rgba, black, blue, white)
 import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle, viewTarget, perspectiveProjection, viewDirection)
 import Hickory.Types (Size (..))
-import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, _w, _xyz, V4 (..), norm, normalize, (^*), unit, M44, inv44, (^/), (!*))
-import Control.Monad.Reader (ask, MonadReader)
+import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit, M44)
+import Control.Monad.Reader (MonadReader)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
 import qualified Hickory.Vulkan.Forward.Types as H
 import Data.HashMap.Strict (HashMap)
--- import Render.PlayUtils (ArrowOptions(..), drawArrow)
 import Hickory.Graphics (askMatrix)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.General (project)
 import Hickory.Resources (Resources, getTextureMay, getMeshMay, getTexture, getMesh)
 import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
-import Control.Lens ((.~), (&), (^.), set)
+import Control.Lens ((.~), (&), (^.), set, each)
 import Control.Monad (when)
 import Data.Foldable (for_)
-import qualified Data.Vector.Storable as SV
-import qualified Hickory.Vulkan.Types as H
-import Hickory.Vulkan.Forward.DrawingPrimitives (drawLine, drawPoint, drawFrustum)
-import Hickory.Vulkan.Forward.Renderer (ndcBoundaryPoints)
+import Hickory.Vulkan.Forward.DrawingPrimitives (drawLine, drawFrustum)
+import Control.Monad.Writer.Strict (execWriterT, tell)
 
-editorWorldView :: (MonadReader Resources m, CommandMonad m) => CameraState -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
-editorWorldView CameraState {..} selected objects manipMode = H.runMatrixT do
+editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> CameraState -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
+editorWorldView componentDefs CameraState {..} selected objects manipMode = H.runMatrixT do
   let coordinateRotation =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
         !*! case viewMode of
@@ -78,8 +74,8 @@ editorWorldView CameraState {..} selected objects manipMode = H.runMatrixT do
 
   do
     for_ (Map.toList objects) \(k, o) -> do
-      objectDrawCommand o >>= H.addCommand . set #ident (Just k)
-
+      dcs <- execWriterT $ drawObject componentDefs o
+      tell $ set (each . #ident) (Just k) dcs -- censor hangs for some reason. so we run/write back
 
   do
     let lightDir = V3 5.7 (-2.6) (-6.0)
@@ -107,8 +103,8 @@ editorWorldView CameraState {..} selected objects manipMode = H.runMatrixT do
       , specularity = 0
       }
 
-objectDrawCommand :: MonadReader Resources m => Object -> m H.DrawCommand
-objectDrawCommand Object {..} = do
+drawObject :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> Object -> m ()
+drawObject componentDefs Object {..} = do
   tex <- getTextureMay texture
   mesh <- getMeshMay model
   tex' <- case tex of
@@ -118,7 +114,12 @@ objectDrawCommand Object {..} = do
     Just m -> pure m
     _ -> getMesh "cube"
 
-  pure $ H.DrawCommand
+  H.runMatrixT . H.xform transform $ do
+    for_ (Map.toList components) \(compName, vals) -> case Map.lookup compName componentDefs of
+      Just Component {..} -> draw vals
+      Nothing -> error "Can't find component definition"
+
+  H.addCommand H.DrawCommand
     { modelMat = transform
     , mesh = H.Buffered mesh'
     , color
