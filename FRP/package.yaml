@@ -44,6 +44,8 @@ dependencies:
     - safe
 
 library:
+  verbatim:
+    default-language: GHC2021
   source-dirs: ./
   exposed-modules:
     - Hickory.FRP.Combinators

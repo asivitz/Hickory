@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 
 module Hickory.FRP.Editor.Network where
 
@@ -24,7 +25,7 @@ import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Forward.Renderer (pickObjectID, renderToRenderer)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, v3ToTriple, v4ToImVec4, imVec4ToV4)
-import Control.Lens (traversed, Bifunctor (..), (^.), (&), (%~), (<&>), view, _1, _3, (.~))
+import Control.Lens (traversed, Bifunctor (..), (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix)
 import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
@@ -44,6 +45,10 @@ import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
 import Extra (ifM)
 import System.Directory.Extra (doesFileExist)
+import Data.Functor.Const (Const(..))
+import Data.Traversable (for)
+import Data.IORef (newIORef)
+import Data.Functor.Identity (Identity(..))
 
 editorFOV :: Floating a => a
 editorFOV = pi/4
@@ -220,29 +225,60 @@ objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
 
 writeEditorState :: EditorChangeEvents -> Object -> IO ()
 writeEditorState EditorChangeEvents {..} Object {..} = do
-  snd posChange (transform ^. translation)
-  snd rotChange (matEuler transform)
-  snd scaChange (matScale transform)
-  snd colorChange color
-  snd modelChange model
-  snd textureChange texture
-  snd litChange lit
-  snd castsShadowChange castsShadow
-  snd blendChange blend
-  snd specularityChange specularity
+  setVal posChange (transform ^. translation)
+  setVal rotChange (matEuler transform)
+  setVal scaChange (matScale transform)
+  setVal colorChange color
+  setVal modelChange model
+  setVal textureChange texture
+  setVal litChange lit
+  setVal castsShadowChange castsShadow
+  setVal blendChange blend
+  setVal specularityChange specularity
+  setVal componentsChange  (Map.keys components)
 
-mkChangeEvents :: CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
-mkChangeEvents coreEvents EditorState {..} = do
-  posChange   <- bimap (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents posRef
-  scaChange   <- bimap (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents scaRef
-  rotChange   <- bimap (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents rotRef
-  colorChange <- bimap (fmap imVec4ToV4) (.v4ToImVec4) <$> refChangeEvent coreEvents colorRef
-  modelChange <- bimap (fmap unpack)     (.pack)       <$> refChangeEvent coreEvents modelRef
-  textureChange     <- bimap (fmap unpack) (.pack)     <$> refChangeEvent coreEvents textureRef
+  for_ (Map.toList componentChanges) \((compName, attrName), SomeAttribute change) -> (\x -> x :: IO ()) $ case change of
+    StringAttribute ch -> case components ^? ix compName . ix attrName of
+      Just (SomeAttribute (StringAttribute (Identity v))) -> setVal ch v
+      _ -> setVal ch ""
+    FloatAttribute ch -> case components ^? ix compName . ix attrName of
+      Just (SomeAttribute (FloatAttribute (Identity v))) -> setVal ch v
+      _ -> setVal ch 0
+    IntAttribute ch -> case components ^? ix compName . ix attrName of
+      Just (SomeAttribute (IntAttribute (Identity v))) -> setVal ch v
+      _ -> setVal ch 0
+    BoolAttribute ch -> case components ^? ix compName . ix attrName of
+      Just (SomeAttribute (BoolAttribute (Identity v))) -> setVal ch v
+      _ -> setVal ch False
+
+mkChangeEvents :: [Component] -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
+mkChangeEvents componentDefs coreEvents EditorState {..} = do
+  posChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents posRef
+  scaChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents scaRef
+  rotChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents rotRef
+  colorChange <- bimapEditorChange (fmap imVec4ToV4) (.v4ToImVec4) <$> refChangeEvent coreEvents colorRef
+  modelChange <- bimapEditorChange (fmap unpack)     (.pack)       <$> refChangeEvent coreEvents modelRef
+  textureChange     <- bimapEditorChange (fmap unpack) (.pack)     <$> refChangeEvent coreEvents textureRef
   litChange         <- refChangeEvent coreEvents litRef
   castsShadowChange <- refChangeEvent coreEvents castsShadowRef
   blendChange       <- refChangeEvent coreEvents blendRef
   specularityChange <- refChangeEvent coreEvents specularityRef
+  componentsChange <- refChangeEvent coreEvents componentsRef
+
+  componentChanges <- Map.fromList . concat <$> for componentDefs \Component{..} ->
+    for attributes \(SomeAttribute a) -> case a of
+      StringAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
+        Just (SomeAttribute (StringAttribute ref)) -> ((name, attrName),) . SomeAttribute . StringAttribute <$> refChangeEvent coreEvents ref
+        _ -> error "Can't find attribute ref"
+      FloatAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
+        Just (SomeAttribute (FloatAttribute ref)) -> ((name, attrName),) . SomeAttribute . FloatAttribute <$> refChangeEvent coreEvents ref
+        _ -> error "Can't find attribute ref"
+      IntAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
+        Just (SomeAttribute (IntAttribute ref)) -> ((name, attrName),) . SomeAttribute . IntAttribute <$> refChangeEvent coreEvents ref
+        _ -> error "Can't find attribute ref"
+      BoolAttribute (Const attrName) -> case Map.lookup (name, attrName) componentData of
+        Just (SomeAttribute (BoolAttribute ref)) -> ((name, attrName),) . SomeAttribute . BoolAttribute <$> refChangeEvent coreEvents ref
+        _ -> error "Can't find attribute ref"
 
   pure EditorChangeEvents {..}
 
@@ -259,42 +295,59 @@ setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (mat
        * axisAngle (V3 1 0 0) rx
 
 mkObjectChangeEvent
-  :: CoreEvents a
+  :: [Component]
+  -> CoreEvents a
   -> ResourcesStore
   -> EditorState
   -> B.Behavior (HashMap Int Object)
   -> B.Event Object
   -> B.MomentIO (B.Event (HashMap Int Object))
-mkObjectChangeEvent coreEvents ResourcesStore {..} editorState selectedObjects ePopulateEditorState = do
-  eca@EditorChangeEvents {..} <- mkChangeEvents coreEvents editorState
+mkObjectChangeEvent componentDefs coreEvents ResourcesStore {..} editorState selectedObjects ePopulateEditorState = do
+  eca@EditorChangeEvents {..} <- mkChangeEvents componentDefs coreEvents editorState
 
   B.reactimate $ writeEditorState eca <$> ePopulateEditorState
-  B.reactimate $ (\m -> loadResource meshes m ()) <$> fst modelChange
-  B.reactimate $ (\t -> loadResource textures t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> fst textureChange
+  B.reactimate $ (\m -> loadResource meshes m ()) <$> ev modelChange
+  B.reactimate $ (\t -> loadResource textures t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> ev textureChange
 
-  pure $ unionFirst
-    [ (\os v -> os & traversed . #transform . translation .~ v) <$> selectedObjects <@> fst posChange
-    , (\os v -> os & traversed . #transform %~ setScale v)      <$> selectedObjects <@> fst scaChange
-    , (\os v -> os & traversed . #transform %~ setRotation v)   <$> selectedObjects <@> fst rotChange
-    , (\os v -> os & traversed . #color .~ v)                   <$> selectedObjects <@> fst colorChange
-    , (\os v -> os & traversed . #model .~ v)                   <$> selectedObjects <@> fst modelChange
-    , (\os v -> os & traversed . #texture .~ v)                 <$> selectedObjects <@> fst textureChange
-    , (\os v -> os & traversed . #lit .~ v)                     <$> selectedObjects <@> fst litChange
-    , (\os v -> os & traversed . #castsShadow .~ v)             <$> selectedObjects <@> fst castsShadowChange
-    , (\os v -> os & traversed . #blend .~ v)                   <$> selectedObjects <@> fst blendChange
-    , (\os v -> os & traversed . #specularity .~ v)             <$> selectedObjects <@> fst specularityChange
-    ]
+  let -- sv (SomeAttribute ((Identity _)) v = SomeAttribute (Identity v)
+      compEvs :: [B.Event (HashMap Int Object)] = Map.toList componentChanges <&> \((compName, attrName), SomeAttribute val) -> case val of
+        StringAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (StringAttribute (Identity v))))
+          <$> selectedObjects <@> ev ch
+        FloatAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (FloatAttribute (Identity v))))
+          <$> selectedObjects <@> ev ch
+        IntAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (IntAttribute (Identity v))))
+          <$> selectedObjects <@> ev ch
+        BoolAttribute ch -> (\os v -> os & traversed . #components . at compName . _Just . at attrName .~ Just (SomeAttribute (BoolAttribute (Identity v))))
+          <$> selectedObjects <@> ev ch
+
+  pure $ unionFirst $
+    [ (\os v -> os & traversed . #transform . translation .~ v) <$> selectedObjects <@> ev posChange
+    , (\os v -> os & traversed . #transform %~ setScale v)      <$> selectedObjects <@> ev scaChange
+    , (\os v -> os & traversed . #transform %~ setRotation v)   <$> selectedObjects <@> ev rotChange
+    , (\os v -> os & traversed . #color .~ v)                   <$> selectedObjects <@> ev colorChange
+    , (\os v -> os & traversed . #model .~ v)                   <$> selectedObjects <@> ev modelChange
+    , (\os v -> os & traversed . #texture .~ v)                 <$> selectedObjects <@> ev textureChange
+    , (\os v -> os & traversed . #lit .~ v)                     <$> selectedObjects <@> ev litChange
+    , (\os v -> os & traversed . #castsShadow .~ v)             <$> selectedObjects <@> ev castsShadowChange
+    , (\os v -> os & traversed . #blend .~ v)                   <$> selectedObjects <@> ev blendChange
+    , (\os v -> os & traversed . #specularity .~ v)             <$> selectedObjects <@> ev specularityChange
+    , (\os v -> os & traversed . #components %~ syncMap v) <$> selectedObjects <@> ev componentsChange
+    ] ++ compEvs
+  where
+  syncMap ks m = let om = Map.fromList $ (,mempty) <$> ks
+                 in Map.intersection (Map.union m om) om
 
 editorNetwork
   :: H.VulkanResources
   -> ResourcesStore
   -> CoreEvents (Renderer, FrameContext)
   -> B.Behavior GraphicsParams
+  -> [Component]
   -> FilePath
   -> B.Event FilePath
   -> B.MomentIO (B.Behavior [Object])
-editorNetwork vulkanResources resourcesStore coreEvents graphicsParams initialSceneFile eLoadScene = mdo
-  editorState <- liftIO mkEditorState
+editorNetwork vulkanResources resourcesStore coreEvents graphicsParams componentDefs initialSceneFile eLoadScene = mdo
+  editorState <- liftIO (mkEditorState componentDefs)
   sceneFile <- B.stepper initialSceneFile eLoadScene
 
   initialScene <- liftIO do
@@ -323,7 +376,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams initialSc
   let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
   cameraState <- viewManip objectEditingMaskedEvents
 
-  let defaultObject CameraState {..} = Object (mkTransformationMat identity focusPos) white "cube" "white" True True False 8
+  let defaultObject CameraState {..} = Object (mkTransformationMat identity focusPos) white "cube" "white" True True False 8 mempty
       eAddObj = (\o m -> (nextObjId m, o)) <$> (defaultObject <$> cameraState) <*> objects
         <@ B.filterE (==Key'A) (keyDown coreEvents)
       eDupeObjs = recalcIds <$> objects <*> selectedObjects <@ (B.whenE (keyHeldB coreEvents Key'LeftShift) $ B.filterE (==Key'D) (keyDown coreEvents))
@@ -401,10 +454,10 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams initialSc
     <*> (flip runReaderT <$> resources <*> overlayRender)
     <@> eRender coreEvents
 
-  ePropertyEditedObjects :: B.Event (HashMap Int Object) <- mkObjectChangeEvent coreEvents resourcesStore editorState selectedObjects ePopulateEditorState
+  ePropertyEditedObjects :: B.Event (HashMap Int Object) <- mkObjectChangeEvent componentDefs coreEvents resourcesStore editorState selectedObjects ePopulateEditorState
 
   B.reactimate $ drawMainEditorUI editorState <$> sceneFile <*> selectedObjects <*> objects <*> pure guiPickObjectID <@ eRender coreEvents
-  B.reactimate $ drawObjectEditorUI editorState <$> B.filterE (not . Map.null) (selectedObjects <@ eRender coreEvents)
+  B.reactimate $ drawObjectEditorUI componentDefs editorState <$> B.filterE (not . Map.null) (selectedObjects <@ eRender coreEvents)
 
   pure $ Map.elems <$> objects
 

@@ -23,7 +23,7 @@ import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators
 import Hickory.FRP.Game (gameNetwork)
 import Hickory.FRP.UI (topLeft)
 import Hickory.Input
-import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..))
+import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..), perspectiveProjection)
 import Hickory.Types
 import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero)
 import Linear.Metric
@@ -57,7 +57,8 @@ import Hickory.FRP.Combinators (unionAll)
 import Data.Bool (bool)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
 import Control.Monad.Reader (ReaderT (..))
-import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams)
+import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams, Component (..), Attribute (..), SomeAttribute (..))
+import Hickory.Vulkan.Forward.DrawingPrimitives (drawFrustum, drawPoint)
 
 -- ** GAMEPLAY **
 
@@ -208,9 +209,15 @@ buildNetwork vulkanResources evGens = do
     let inputs = unionAll
           [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
           ]
+        components :: [Component] =
+          [ Component "Frustum" [ SomeAttribute $ FloatAttribute "Near"] \_ -> do
+              let proj = perspectiveProjection 1 (pi/4) 1 10
+              drawFrustum white proj
+              drawPoint white (V3 0 0 0)
+          ]
 
     bEditorMode  <- B.accumB False (not <$ B.filterE (== Key'E) (keyDown coreEvents))
-    _ <- editorNetwork vulkanResources resStore (maskCoreEvents bEditorMode coreEvents) (pure defaultGraphicsParams) "main.scene" B.never
+    _ <- editorNetwork vulkanResources resStore (maskCoreEvents bEditorMode coreEvents) (pure defaultGraphicsParams) components "main.scene" B.never
 
     do
       let gameEvents = maskCoreEvents (not <$> bEditorMode) coreEvents

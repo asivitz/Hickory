@@ -9,7 +9,7 @@ import Hickory.FRP.Combinators (unionFirst)
 import Linear (M44, column, (!*), V3 (..), V2 (..), V4 (..), norm, _x, _y, _z)
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, readIORef, writeIORef)
-import Hickory.FRP.Editor.Types (EditorChange)
+import Hickory.FRP.Editor.Types (EditorChange(..))
 import Control.Lens ((^.))
 
 -- Move this into better general use modules
@@ -29,7 +29,7 @@ refChangeEvent coreEvents ref = do
     [ (\newVal acc -> (if newVal == acc then Nothing else Just newVal,newVal)) <$> e
     , (\newVal _acc -> (Nothing, newVal)) <$> ePushedVal
     ]
-  pure (B.filterJust ev, \x -> pushVal x >> writeIORef ref x)
+  pure $ EditorChange (B.filterJust ev) (\x -> pushVal x >> writeIORef ref x)
 
 matScale :: Floating a => M44 a -> V3 a
 matScale m = V3 (norm $ m ^. column _x) (norm $ m ^. column _y) (norm $ m ^. column _z)
