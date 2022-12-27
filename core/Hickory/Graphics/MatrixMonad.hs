@@ -19,10 +19,11 @@ import Control.Monad.Writer.Class (MonadWriter (..))
 
 class Monad m => MatrixMonad m where
   xform :: Mat44 -> m a -> m a
+  clearXform :: m a -> m a
   askMatrix :: m Mat44
 
-withXForm :: MatrixMonad m => Mat44 -> (Mat44 -> m a) -> m a
-withXForm mat f = xform mat $ askMatrix >>= f
+withXform :: MatrixMonad m => Mat44 -> (Mat44 -> m a) -> m a
+withXform mat f = xform mat $ askMatrix >>= f
 
 newtype MatrixT m a = MatrixT { unMatrixT :: ReaderT Mat44 m a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
@@ -45,3 +46,4 @@ runMatrixT = flip runReaderT identity . unMatrixT
 instance Monad m => MatrixMonad (MatrixT m) where
   xform trans (MatrixT matf) = MatrixT $ local (!*! trans) matf
   askMatrix = MatrixT ask
+  clearXform (MatrixT matf) = MatrixT $ local (const identity) matf

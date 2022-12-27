@@ -77,16 +77,6 @@ editorWorldView componentDefs CameraState {..} selected objects manipMode = H.ru
       dcs <- execWriterT $ drawObject componentDefs o
       tell $ set (each . #ident) (Just k) dcs -- censor hangs for some reason. so we run/write back
 
-  do
-    let lightDir = V3 5.7 (-2.6) (-6.0)
-        testM :: M44 Scalar
-        testM = perspectiveProjection 1 (pi/4) 1 10 !*! viewTarget (V3 5 5 5) (V3 5 10 5) (V3 0 0 1)
-    drawFrustum white testM
-    H.xform (viewDirection zero lightDir (V3 0 0 1)) do
-      drawFrustum white testM
-    H.xform (mkTranslation (V3 10 10 10)) do
-      drawLine blue 0 lightDir
-
   where
   snapVec by = fmap (snap by)
   snap by x = let r = x `div'` by in realToFrac r * by

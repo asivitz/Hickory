@@ -1,10 +1,10 @@
 module Hickory.Vulkan.Forward.DrawingPrimitives where
 
-import Linear (M44, V3 (..), V4, (!*!), _w, _xyz, (!*), inv44, (^/))
+import Linear (M44, V3 (..), V4, (!*!), _w, _xyz, (!*), inv44, (^/), V2 (..))
 import Hickory.Vulkan.Forward.Types
 import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
-import Hickory.Resources (getMesh, Resources (..))
+import Hickory.Resources (getMesh, Resources (..), getTexture)
 import Control.Monad.Reader.Class (MonadReader)
 import Hickory.Math (mkTranslation, mkScale)
 import Hickory.Graphics (askMatrix, MatrixMonad)
@@ -31,12 +31,13 @@ drawLine color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
 drawPoint :: (CommandMonad m, MonadReader Resources m, MatrixMonad m) => V4 Float -> V3 Float -> m ()
 drawPoint color p = do
   cube <- getMesh "cube"
+  whiteTex <- getTexture "white"
   mat <- askMatrix
   addCommand $ DrawCommand
     { modelMat = mat !*! mkScale (V3 0.1 0.1 0.1) !*! mkTranslation p
     , mesh = Buffered cube
     , color = color
-    , drawType = Lines
+    , drawType = Static $ StaticMesh whiteTex (V2 1 1)
     , lit = False
     , castsShadow = False
     , blend = False

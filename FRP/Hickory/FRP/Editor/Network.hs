@@ -61,9 +61,9 @@ editorProjMat :: Size Int -> Scalar -> CameraViewMode -> Mat44
 editorProjMat (aspectRatio -> scrRat) width = \case
   OrthoTop   -> orthoMat
   OrthoFront -> orthoMat
-  PerspView  -> shotMatrix (Perspective editorFOV 0.1 100) scrRat
+  PerspView  -> shotMatrix (Perspective editorFOV 0.1 400) scrRat
   where
-  orthoMat = shotMatrix (Ortho width 0.1 100 True) scrRat
+  orthoMat = shotMatrix (Ortho width 0.1 400 True) scrRat
 
 viewManip :: CoreEvents a -> B.MomentIO (B.Behavior CameraState)
 viewManip coreEvents = mdo
