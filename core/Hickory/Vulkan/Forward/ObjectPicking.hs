@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, PatternSynonyms, QuasiQuotes  #-}
+{-# LANGUAGE DataKinds, PatternSynonyms, QuasiQuotes, TemplateHaskell  #-}
 {-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, DerivingStrategies, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
@@ -31,7 +31,6 @@ import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits (zeroBits, Bits ((.|.)))
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), withMaterial)
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
@@ -39,10 +38,12 @@ import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)
 import Linear (M44)
 import Data.ByteString (ByteString)
-import Vulkan.Utils.ShaderQQ.GLSL.Shaderc (vert)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource(..))
 import Data.Proxy (Proxy)
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
+import Data.String.QM (qm)
+import Hickory.Vulkan.Forward.ShaderDefinitions
 
 -- For e.g. mouse picking objects in scene
 withObjectIDRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
@@ -130,61 +131,52 @@ withObjectIDMaterial vulkanResources renderTarget globalDS
   = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) vertShader fragShader globalDS Nothing
   where
   vertShader :: ByteString
-  vertShader = [vert|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
+  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$globalsDef
 
-  layout(location = 0) in vec3 inPosition;
-  layout(location = 0) out uint objectID;
+layout(location = 0) in vec3 inPosition;
+layout(location = 0) out uint objectID;
 
-  struct Uniforms
-  {
-    mat4 modelMat;
-    uint objectID;
-  };
+struct Uniforms
+{
+  mat4 modelMat;
+  uint objectID;
+};
 
-  layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
+layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
+layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 
-  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
-    { mat4 viewMat;
-      mat4 projMat;
-      mat4 lightTransform;
-      vec3 lightDirection;
-      vec3 sunColor;
-      vec3 ambientColor;
-    } globals;
+void main() {
+    Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
+    gl_Position = globals.projMat
+                * globals.viewMat
+                * uniforms.modelMat
+                * vec4(inPosition, 1.0);
+    objectID = uniforms.objectID;
+}
 
-  void main() {
-      Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
-      gl_Position = globals.projMat
-                  * globals.viewMat
-                  * uniforms.modelMat
-                  * vec4(inPosition, 1.0);
-      objectID = uniforms.objectID;
-  }
-
-|]
+|])
 
   fragShader :: ByteString
-  fragShader = [frag|
-  #version 450
+  fragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
 
-  layout(location = 0) flat in uint objectID;
-  layout(location = 0) out uint outColor;
+layout(location = 0) flat in uint objectID;
+layout(location = 0) out uint outColor;
 
-  void main() {
-    outColor = objectID;
-  }
-  |]
+void main() {
+  outColor = objectID;
+}
+|])
 
 withObjectHighlightMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withObjectHighlightMaterial vulkanResources renderTarget globalDescriptorSet materialDescriptorSet =
   withMaterial vulkanResources renderTarget (undefined :: Proxy Word32)
     [] pipelineDefaults { depthTestEnable = False } vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
-  vertShader = [vert|
-#version 450
+  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
 
 layout (location = 0) out vec2 texCoordsVarying;
 
@@ -194,10 +186,9 @@ void main()
     gl_Position = vec4(texCoordsVarying * 2.0f + -1.0f, 1.0f, 1.0f);
 }
 
-|]
-  fragShader = [frag|
-#version 450
-#extension GL_EXT_scalar_block_layout : require
+|])
+  fragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
 
 layout (location = 0) in vec2 texCoordsVarying;
 layout (location = 0) out vec4 outColor;
@@ -221,4 +212,4 @@ void main()
   vec3 col = vec3(1.0, 0.5, 0.0);
   outColor = mix(vec4(col, 0), vec4(col, 1), smoothstep(0, 0.5, count/8));
 }
-|]
+|])

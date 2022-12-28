@@ -142,6 +142,7 @@ library:
     - Hickory.Vulkan.Forward.Lit
     - Hickory.Vulkan.Forward.ShadowPass
     - Hickory.Vulkan.Forward.DrawingPrimitives
+    - Hickory.Vulkan.Forward.ShaderDefinitions
     - Hickory.Vulkan.Types
 
 executables:

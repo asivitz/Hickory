@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE QuasiQuotes, DerivingStrategies #-}
+{-# LANGUAGE QuasiQuotes, TemplateHaskell, DerivingStrategies #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
 module Hickory.Vulkan.Forward.Lit where
@@ -34,10 +34,12 @@ import Data.Bits ((.|.), zeroBits)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Data.ByteString (ByteString)
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
+import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
 import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants)
+import Hickory.Vulkan.Forward.ShaderDefinitions
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -151,9 +153,10 @@ withAnimatedLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord, BoneIndex, MaterialIndex] pipelineDefaults animatedLitVertShader litFragShader globalPDS (Just perDrawLayout)
 
 staticLitVertShader :: ByteString
-staticLitVertShader = [vert|
-#version 450
-#extension GL_EXT_scalar_block_layout : require
+staticLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$globalsDef
+$staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
@@ -164,27 +167,6 @@ layout(location = 1) out vec2 texCoord;
 layout(location = 2) out vec4 shadowCoord;
 layout(location = 3) out vec4 surfaceColor;
 
-struct Uniforms
-{
-  mat4 modelMat;
-  mat3 normalMat;
-  vec4 color;
-  float specularity;
-  vec2 tiling;
-};
-
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
-  { mat4 viewMat;
-    mat4 projMat;
-    vec3 cameraPos;
-    mat4 lightTransform;
-    vec3 lightDirection;
-    vec3 sunColor;
-    vec3 ambientColor;
-  } globals;
-
 const mat4 biasMat = mat4(
   0.5, 0.0, 0.0, 0.0,
   0.0, 0.5, 0.0, 0.0,
@@ -192,7 +174,6 @@ const mat4 biasMat = mat4(
   0.5, 0.5, 0.0, 1.0 );
 
 void main() {
-    Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
 
     vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
 
@@ -219,12 +200,12 @@ void main() {
     shadowCoord = biasMat * globals.lightTransform * worldPosition;
 }
 
-|]
+|])
 
 litFragShader :: ByteString
-litFragShader = [frag|
-#version 450
-#extension GL_EXT_scalar_block_layout : require
+litFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
+$globalsDef
 // #extension GL_EXT_nonuniform_qualifier : require
 
 layout(location = 0) in vec3 light;
@@ -234,17 +215,7 @@ layout(location = 3) in vec4 surfaceColor;
 
 layout(location = 0) out vec4 outColor;
 
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
 layout (set = 0, binding = 2) uniform sampler2DShadow shadowMap;
-layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
-  { mat4 viewMat;
-    mat4 projMat;
-    vec3 cameraPos;
-    mat4 lightTransform;
-    vec3 lightDirection;
-    vec3 sunColor;
-    vec3 ambientColor;
-  } globals;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 void main() {
@@ -264,12 +235,13 @@ void main() {
 
   outColor = vec4((shadow * light + globals.ambientColor) * texColor.rgb * surfaceColor.rgb, texColor.a * surfaceColor.a);
 }
-|]
+|])
 
 animatedLitVertShader :: ByteString
-animatedLitVertShader = [vert|
-#version 450
-#extension GL_EXT_scalar_block_layout : require
+animatedLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$globalsDef
+$animatedUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
@@ -282,27 +254,6 @@ layout(location = 1) out vec2 texCoord;
 layout(location = 2) out vec4 shadowCoord;
 layout(location = 3) out vec4 surfaceColor;
 
-struct Uniforms {
-  mat4 modelMat;
-  mat3 normalMat;
-  vec4 color;
-  float specularity;
-  mat4 boneMat[32];
-  vec4 colors[6];
-};
-
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
-  { mat4 viewMat;
-    mat4 projMat;
-    vec3 cameraPos;
-    mat4 lightTransform;
-    vec3 lightDirection;
-    vec3 sunColor;
-    vec3 ambientColor;
-  } globals;
-
 const mat4 biasMat = mat4(
   0.5, 0.0, 0.0, 0.0,
   0.0, 0.5, 0.0, 0.0,
@@ -311,7 +262,6 @@ const mat4 biasMat = mat4(
 
 void main()
 {
-    Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
 
     vec4 modelPos = uniforms.boneMat[int(inBoneIndex)] * vec4(inPosition,1.0);
     vec4 worldPosition = uniforms.modelMat * modelPos;
@@ -337,7 +287,7 @@ void main()
 
     shadowCoord = biasMat * globals.lightTransform * worldPosition;
 }
-|]
+|])
 
 withStaticUnlitMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
 withStaticUnlitMaterial vulkanResources renderTarget globalPDS perDrawLayout
@@ -348,135 +298,69 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
   where
   pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
   lineVertShader :: ByteString
-  lineVertShader = [vert|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
+  lineVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+  $header
+  $globalsDef
+  $staticUniformsDef
 
   layout(location = 0) in vec3 inPosition;
 
-  struct Uniforms
-  {
-    mat4 modelMat;
-    mat3 normalMat;
-    vec4 color;
-    float specularity;
-    vec2 tiling;
-  };
-
-  layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
-    { mat4 viewMat;
-      mat4 projMat;
-      vec3 cameraPos;
-      mat4 lightTransform;
-      vec3 lightDirection;
-      vec3 sunColor;
-      vec3 ambientColor;
-    } globals;
-
   void main() {
-      Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
       gl_Position = globals.projMat
                   * globals.viewMat
                   * uniforms.modelMat
                   * vec4(inPosition, 1.0);
   }
 
-  |]
+  |])
 
   lineFragShader :: ByteString
-  lineFragShader = [frag|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
+  lineFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+  $header
+  $staticUniformsDef
 
   layout(location = 0) out vec4 outColor;
 
-  struct Uniforms
-  {
-    mat4 modelMat;
-    mat3 normalMat;
-    vec4 color;
-    float specularity;
-    vec2 tiling;
-  };
-
-  layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-
   void main() {
-    Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
     outColor = uniforms.color;
   }
 
-  |]
+  |])
 
 staticUnlitVertShader :: ByteString
-staticUnlitVertShader = [vert|
-#version 450
-#extension GL_EXT_scalar_block_layout : require
+staticUnlitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$globalsDef
+$staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;
 layout(location = 1) out vec2 texCoord;
 
-struct Uniforms
-{
-  mat4 modelMat;
-  mat3 normalMat;
-  vec4 color;
-  float specularity;
-  vec2 tiling;
-};
-
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
-  { mat4 viewMat;
-    mat4 projMat;
-    vec3 cameraPos;
-    mat4 lightTransform;
-    vec3 lightDirection;
-    vec3 sunColor;
-    vec3 ambientColor;
-  } globals;
 
 void main() {
-    Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
-    texCoord = uniforms.tiling * inTexCoord;
-    gl_Position = globals.projMat
-                * globals.viewMat
-                * uniforms.modelMat
-                * vec4(inPosition, 1.0);
+  texCoord = uniforms.tiling * inTexCoord;
+  gl_Position = globals.projMat
+              * globals.viewMat
+              * uniforms.modelMat
+              * vec4(inPosition, 1.0);
 }
 
-|]
+|])
 
 unlitFragShader :: ByteString
-unlitFragShader = [frag|
-#version 450
-#extension GL_EXT_scalar_block_layout : require
+unlitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
+$staticUniformsDef
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) in vec2 texCoord;
 
-struct Uniforms
-{
-  mat4 modelMat;
-  mat3 normalMat;
-  vec4 color;
-  float specularity;
-  vec2 tiling;
-};
-
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 void main() {
-  Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
   vec4 texColor = texture(texSampler, texCoord);
   outColor = uniforms.color * texColor;
 }
 
-|]
+|])
