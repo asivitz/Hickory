@@ -23,9 +23,9 @@ import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators
 import Hickory.FRP.Game (gameNetwork)
 import Hickory.FRP.UI (topLeft)
 import Hickory.Input
-import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..), perspectiveProjection)
+import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..), perspectiveProjection, viewDirection, orthographicProjection)
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero)
+import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero, M44)
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
@@ -50,7 +50,7 @@ import Data.Foldable (for_)
 import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
-import Hickory.Color (white, red)
+import Hickory.Color (white, red, blue)
 import Hickory.Vulkan.Forward.Types (WorldGlobals(..), OverlayGlobals(..), DrawCommand (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.FRP.Combinators (unionAll)
@@ -58,9 +58,10 @@ import Data.Bool (bool)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
 import Control.Monad.Reader (ReaderT (..))
 import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams, Component (..), Attribute (..), SomeAttribute (..), withAttrVal)
-import Hickory.Vulkan.Forward.DrawingPrimitives (drawFrustum, drawPoint)
+import Hickory.Vulkan.Forward.DrawingPrimitives (drawFrustum, drawPoint, drawLine)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as Map
+import qualified Hickory.Graphics as H
 
 -- ** GAMEPLAY **
 

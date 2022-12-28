@@ -131,14 +131,16 @@ ndcBoundaryPoints =
   , V4   1  (-1) 1 1
   ]
 
-viewBoundaryFromInvProjection :: forall a. (Fractional a, Num a, Ord a) => M44 a -> (a, a, a, a)
-viewBoundaryFromInvProjection m =  (l,r,b,t)
+viewBoundaryFromInvProjection :: forall a. (Fractional a, Num a, Ord a) => M44 a -> (a, a, a, a, a, a)
+viewBoundaryFromInvProjection m =  (l,r,b,t,n,f)
   where
   frustumPoints = (\v -> v ^/ (v ^. _w)) . (m !*) <$> ndcBoundaryPoints
   l = minimum . fmap (^. _x) $ frustumPoints
   r = maximum . fmap (^. _x) $ frustumPoints
   b = maximum . fmap (^. _y) $ frustumPoints
   t = minimum . fmap (^. _y) $ frustumPoints
+  n = minimum . fmap (^. _z) $ frustumPoints
+  f = maximum . fmap (^. _z) $ frustumPoints
 
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
@@ -146,8 +148,8 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     let lightView = viewDirection (V3 0 0 0) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
         -- lightProj = shotMatrix (Ortho 100 1.0 85 True) (aspectRatio shadowMapSize)
         invvp = inv44 $ (worldGlobals ^. #projMat) !*! (worldGlobals ^. #viewMat)
-        (l,r,b,t) = viewBoundaryFromInvProjection (lightView !*! invvp)
-        lightProj = orthographicProjection l r b t 0.1 40
+        (l,r,b,t,n,f) = viewBoundaryFromInvProjection (lightView !*! invvp)
+        lightProj = orthographicProjection l r b t n f -- TODO: Near plane should take into account objects outside the camera
     uploadBufferDescriptor globalBuffer
       $ Globals frameNumber
     uploadBufferDescriptor globalWorldBuffer
@@ -333,7 +335,7 @@ processRenderPass fc mps commands = do
   flip evalStateT UUID.nil do
     -- Sort opaque by material to minimize binding
     for_ (sortOn identifyDCMat opaque) $ processCommand fc config
-    -- Render blended in order to maintain visual layering
+    -- Render blended in order to maintain visual layering TODO: Should sort by distance to camera instead
     for_ blended $ processCommand fc config
 
   -- IORefs are now bursting full of uniform goodness. Here comes the airplane. Yum!
