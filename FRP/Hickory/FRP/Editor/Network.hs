@@ -47,7 +47,7 @@ import Data.Traversable (for)
 import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Control.Monad.Extra (ifM)
-import Hickory.FRP.Camera (CameraState (..), cameraFocusPlaneSize, omniscientCamera, project)
+import Hickory.FRP.Camera (CameraState (..), cameraFocusPlaneSize, omniscientCamera, project, cameraViewMat, cameraProjMat)
 
 objectManip :: CoreEvents a -> B.Behavior CameraState -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -330,8 +330,8 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
       overlayRender = editorOverlayView <$> scrSizeB coreEvents <*> cameraState <*> cursorLoc <*> selectedObjects <*> (fmap fst <$> manipMode)
 
   let bRenderSettings = renderSettings <$> scrSizeB coreEvents <*> graphicsParams <*> pure (V4 0.07 0.07 0.07 1)
-        <*> (view #viewMat <$> cameraState)
-        <*> (view #projMat <$> cameraState)
+        <*> (cameraViewMat <$> cameraState)
+        <*> (cameraProjMat <$> scrSizeB coreEvents <*> cameraState)
         <*> (cameraState <&> \CameraState{..} -> focusPos - angleVec)
         <*> selectedObjectIDs
 

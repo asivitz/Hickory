@@ -4,6 +4,8 @@ module Hickory.FRP.Camera
   , cameraFocusPlaneSize
   , omniscientCamera
   , project
+  , cameraViewMat
+  , cameraProjMat
   ) where
 
 import Hickory.FRP.Camera.Omniscient

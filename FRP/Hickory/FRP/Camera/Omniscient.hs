@@ -31,9 +31,7 @@ data CameraViewMode = OrthoTop | OrthoFront | PerspView
   deriving Eq
 
 data CameraState = CameraState
-  { viewMat  :: Mat44
-  , projMat  :: Mat44
-  , viewMode :: CameraViewMode
+  { viewMode :: CameraViewMode
   , focusPos :: V3 Scalar
   , angleVec :: V3 Scalar
   , up       :: V3 Scalar
@@ -106,9 +104,7 @@ omniscientCamera coreEvents = mdo
 
   let cameraAngleVec :: B.Behavior (V3 Scalar) = buildCameraAngleVec <$> cameraTriple
 
-  let viewMat = mkViewMat <$> cameraFocusPos <*> cameraAngleVec <*> up
-      projMat = mkProjMat <$> scrSizeB coreEvents <*> cameraAngleVec <*> cameraViewMode
-  pure $ CameraState <$> viewMat <*> projMat <*> cameraViewMode <*> cameraFocusPos <*> cameraAngleVec <*> up
+  pure $ CameraState <$> cameraViewMode <*> cameraFocusPos <*> cameraAngleVec <*> up
 
 cameraFocusPlaneSize :: Size Int -> V3 Scalar -> Size Scalar
 cameraFocusPlaneSize (aspectRatio -> scrRat) angleVec = Size cameraFocusPlaneWidth cameraFocusPlaneHeight
@@ -133,9 +129,15 @@ mkProjMat size@(aspectRatio -> scrRat) angleVec = \case
   orthoMat = shotMatrix (Ortho width 0.1 400 True) scrRat
   (Size width _) = cameraFocusPlaneSize size angleVec
 
+cameraViewMat :: CameraState -> Mat44
+cameraViewMat CameraState {..} = mkViewMat focusPos angleVec up
+
+cameraProjMat :: Size Int -> CameraState -> Mat44
+cameraProjMat size CameraState {..} = mkProjMat size angleVec viewMode
+
 project :: Size Int -> CameraState -> V3 Scalar -> V2 Scalar
-project (Size scrW scrH) CameraState {..} v =
+project size@(Size scrW scrH) cs v =
   V2 (rlerp (x/w) (-1) 1 * realToFrac scrW) (rlerp (y/w) (-1) 1 * realToFrac scrH)
   where
-  mat = projMat !*! viewMat
+  mat = cameraProjMat size cs !*! cameraViewMat cs
   V4 x y _ w = mat !* v3tov4 v 1
