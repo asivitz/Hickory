@@ -27,7 +27,7 @@ import Hickory.Camera (Projection(..), shotMatrix)
 data CameraMoveMode = Pan | Rotate | Zoom
   deriving Eq
 
-data CameraViewMode = OrthoTop | OrthoFront | PerspView
+data CameraViewMode = OrthoTop | OrthoFront | OrthoRight | OrthoLeft | OrthoBack | PerspView
   deriving Eq
 
 data CameraState = CameraState
@@ -42,7 +42,10 @@ omniscientCamera coreEvents = mdo
   (eChanges, _bTouches) <- trackTouches (concatTouchEvents coreEvents)
 
   let eOrthoTop = B.filterE (==Key'0) $ keyDown coreEvents
-  let eOrthoFront = B.filterE (==Key'1) $ keyDown coreEvents
+      eOrthoFront = B.filterE (==Key'1) $ keyDown coreEvents
+      eOrthoRight = B.filterE (==Key'2) $ keyDown coreEvents
+      eOrthoLeft  = B.filterE (==Key'3) $ keyDown coreEvents
+      eOrthoBack  = B.filterE (==Key'4) $ keyDown coreEvents
 
   let mode = (\cmd shift -> if cmd then Zoom else if shift then Pan else Rotate) <$> keyHeldB coreEvents Key'LeftSuper <*> keyHeldB coreEvents Key'LeftShift
 
@@ -82,6 +85,9 @@ omniscientCamera coreEvents = mdo
     [ eRotateCamera
     , (0, pi) <$ eOrthoTop
     , (0, -pi/2) <$ eOrthoFront
+    , (pi/2, -pi/2) <$ eOrthoRight
+    , (-pi/2, -pi/2) <$ eOrthoLeft
+    , (pi, -pi/2) <$ eOrthoBack
     ]
   cameraZoom     :: B.Behavior Scalar      <- B.stepper 20 eZoomCamera
   cameraFocusPos :: B.Behavior (V3 Scalar) <- B.stepper (V3 0 0 0) eRepositionCamera
@@ -94,6 +100,9 @@ omniscientCamera coreEvents = mdo
   cameraViewMode <- B.stepper PerspView $ unionFirst
     [ OrthoTop   <$ eOrthoTop
     , OrthoFront <$ eOrthoFront
+    , OrthoLeft  <$ eOrthoLeft
+    , OrthoRight <$ eOrthoRight
+    , OrthoBack  <$ eOrthoBack
     , PerspView  <$ eRotateCamera
     ]
 
@@ -119,12 +128,10 @@ mkViewMat :: V3 Scalar -> V3 Scalar -> V3 Scalar -> Mat44 -- used to build the s
 mkViewMat center towardCenter up
     = viewTarget (center - towardCenter) center up
 
-
 mkProjMat :: Size Int -> V3 Scalar -> CameraViewMode -> Mat44
-mkProjMat size@(aspectRatio -> scrRat) angleVec = \case
-  OrthoTop   -> orthoMat
-  OrthoFront -> orthoMat
-  PerspView  -> shotMatrix (Perspective camFov 0.1 400) scrRat
+mkProjMat size@(aspectRatio -> scrRat) angleVec viewMode = if isOrthographicViewMode viewMode
+  then orthoMat
+  else shotMatrix (Perspective camFov 0.1 400) scrRat
   where
   orthoMat = shotMatrix (Ortho width 0.1 400 True) scrRat
   (Size width _) = cameraFocusPlaneSize size angleVec
@@ -141,3 +148,11 @@ project size@(Size scrW scrH) cs v =
   where
   mat = cameraProjMat size cs !*! cameraViewMat cs
   V4 x y _ w = mat !* v3tov4 v 1
+
+isOrthographicViewMode :: CameraViewMode -> Bool
+isOrthographicViewMode = \case
+  PerspView -> False
+  _ -> True
+
+isOrthographic :: CameraState -> Bool
+isOrthographic  = isOrthographicViewMode . viewMode

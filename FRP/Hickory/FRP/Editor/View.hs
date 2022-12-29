@@ -4,10 +4,10 @@
 module Hickory.FRP.Editor.View where
 
 import qualified Hickory.Graphics as H
-import Hickory.Color (rgba, black)
+import Hickory.Color (rgba, black, green, red, blue)
 import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
 import Hickory.Types (Size (..))
-import Linear (identity, V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
+import Linear (V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
 import Control.Monad.Reader (MonadReader)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
@@ -21,45 +21,47 @@ import Control.Lens ((.~), (&), (^.), set, each)
 import Control.Monad (when)
 import Data.Foldable (for_)
 import Control.Monad.Writer.Strict (execWriterT, tell)
-import Hickory.FRP.Camera (CameraState(..), project, CameraViewMode (..))
+import Hickory.FRP.Camera (CameraState(..), project, isOrthographic)
 
 editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> CameraState -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
-editorWorldView componentDefs CameraState {..} selected objects manipMode = H.runMatrixT do
-  let coordinateRotation =
+editorWorldView componentDefs cs@CameraState {..} selected objects manipMode = H.runMatrixT do
+  let zBias =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
-        !*! case viewMode of
-        OrthoFront -> mkRotation (V3 1 0 0) (pi/2)
-        _ -> identity
   linesMesh <- getMesh "lines"
   lineMesh <- getMesh "line"
-  H.xform coordinateRotation do
-    do
-      let lineColor = V4 0.11 0.11 0.11 1
-      H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0)) do
-        mat <- askMatrix
-        drawLines mat linesMesh lineColor
+  let drawCoordinatePlane c1 c2 = do
+        -- H.xform coordinateRotation do
+          do
+            let lineColor = V4 0.11 0.11 0.11 1
+            H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0)) do
+              mat <- askMatrix
+              drawLines mat linesMesh lineColor
 
-      H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0) !*! mkRotation (V3 0 0 1) (pi/2)) do
-        mat <- askMatrix
-        drawLines mat linesMesh lineColor
+            H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0) !*! mkRotation (V3 0 0 1) (pi/2)) do
+              mat <- askMatrix
+              drawLines mat linesMesh lineColor
 
-    H.xform (mkScale (V3 10 10 10)) do
-      let lineColor = V4 0.2 0.2 0.2 1
-      H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0)) do
-        mat <- askMatrix
-        drawLines mat linesMesh lineColor
+          H.xform (mkScale (V3 10 10 10)) do
+            let lineColor = V4 0.2 0.2 0.2 1
+            H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0)) do
+              mat <- askMatrix
+              drawLines mat linesMesh lineColor
 
-      H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0) !*! mkRotation (V3 0 0 1) (pi/2)) do
-        mat <- askMatrix
-        drawLines mat linesMesh lineColor
+            H.xform (mkTranslation (snapVec 1 focusPos & _z .~ 0) !*! mkRotation (V3 0 0 1) (pi/2)) do
+              mat <- askMatrix
+              drawLines mat linesMesh lineColor
 
-    do
-      mat <- askMatrix
-      drawLines mat lineMesh (rgba 1 0 0 1)
+          do
+            mat <- askMatrix
+            drawLines mat lineMesh c1
 
-    H.xform (mkRotation (V3 0 0 1) (pi/2)) do
-      mat <- askMatrix
-      drawLines mat lineMesh (rgba 0 1 0 1)
+          H.xform (mkRotation (V3 0 0 1) (pi/2)) do
+            mat <- askMatrix
+            drawLines mat lineMesh c2
+  H.xform zBias $ drawCoordinatePlane red green
+  when (isOrthographic cs) do
+    H.xform (zBias !*! mkRotation (V3 1 0 0) (pi/2)) $ drawCoordinatePlane red blue
+    H.xform (zBias !*! mkRotation (V3 0 0 1) (pi/2) !*! mkRotation (V3 1 0 0) (pi/2)) $ drawCoordinatePlane green blue
   case manipMode of
     Nothing -> pure ()
     Just (_, axes) -> when (norm axes < norm (V3 1 1 1)) do

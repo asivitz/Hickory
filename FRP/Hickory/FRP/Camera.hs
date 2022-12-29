@@ -1,11 +1,11 @@
 module Hickory.FRP.Camera
   ( CameraState(..)
-  , CameraViewMode(..)
   , cameraFocusPlaneSize
   , omniscientCamera
   , project
   , cameraViewMat
   , cameraProjMat
+  , isOrthographic
   ) where
 
 import Hickory.FRP.Camera.Omniscient
