@@ -1,5 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE DuplicateRecordFields #-}
@@ -10,47 +8,31 @@
 module Hickory.FRP.Editor.Types where
 
 import qualified Reactive.Banana as B
-import Hickory.Types (Size (..))
 import Linear (M44, (^/), translation, V3, V4)
 import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)
 import GHC.Generics (Generic)
 import Control.Lens (traversed, toListOf)
-import Hickory.Math (Scalar, Mat44)
+import Hickory.Math (Scalar)
 import Data.Text (Text)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
-import Hickory.Vulkan.Forward.Types (CommandT, CommandMonad)
+import Hickory.Vulkan.Forward.Types (CommandMonad)
 import Text.Read.Lex (Lexeme(..))
 import qualified Text.Read.Lex as Lex
 import GHC.Read (Read (..))
 import Text.ParserCombinators.ReadPrec (lift)
 import Text.ParserCombinators.ReadP (readS_to_P, between, string, skipSpaces)
-import Hickory.Graphics (MatrixT(..), MatrixMonad)
+import Hickory.Graphics (MatrixMonad)
 import Hickory.Resources (Resources)
-import Control.Monad.Reader (ReaderT, MonadReader)
+import Control.Monad.Reader (MonadReader)
 import Data.Functor.Identity (Identity (..))
 import Data.Functor.Const (Const)
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 
-data CameraMoveMode = Pan | Rotate | Zoom
-  deriving Eq
-
-data CameraViewMode = OrthoTop | OrthoFront | PerspView
-  deriving Eq
-
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
-
-data CameraState = CameraState
-  { viewMat  :: Mat44
-  , projMat  :: Mat44
-  , viewMode :: CameraViewMode
-  , focusPos :: V3 Scalar
-  , angleVec :: V3 Scalar
-  , up       :: V3 Scalar
-  } deriving Generic
 
 data Object = Object
   { transform   :: M44 Scalar

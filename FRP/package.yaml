@@ -55,4 +55,5 @@ library:
     - Hickory.FRP.UI
     - Hickory.FRP
     - Hickory.FRP.Editor
+    - Hickory.FRP.Camera
     - Hickory.FRP.DearImGUIHelpers

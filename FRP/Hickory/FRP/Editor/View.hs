@@ -4,10 +4,10 @@
 module Hickory.FRP.Editor.View where
 
 import qualified Hickory.Graphics as H
-import Hickory.Color (rgba, black, blue, white)
-import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle, viewTarget, perspectiveProjection, viewDirection)
+import Hickory.Color (rgba, black)
+import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
 import Hickory.Types (Size (..))
-import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit, M44)
+import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
 import Control.Monad.Reader (MonadReader)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
@@ -21,8 +21,9 @@ import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..
 import Control.Lens ((.~), (&), (^.), set, each)
 import Control.Monad (when)
 import Data.Foldable (for_)
-import Hickory.Vulkan.Forward.DrawingPrimitives (drawLine, drawFrustum)
 import Control.Monad.Writer.Strict (execWriterT, tell)
+import Hickory.FRP.Camera (CameraState(..))
+import Hickory.FRP.Camera.Omniscient (CameraViewMode (..))
 
 editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> CameraState -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView componentDefs CameraState {..} selected objects manipMode = H.runMatrixT do

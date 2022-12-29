@@ -6,20 +6,18 @@
 
 module Hickory.FRP.Editor.Network where
 
--- import Render.Common (RenderMonadNoMatrix)
 import qualified Reactive.Banana as B
-import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents, maskCoreEvents)
+import Hickory.FRP.CoreEvents (CoreEvents (..), maskCoreEvents)
 import qualified Reactive.Banana.Frameworks as B
 import Reactive.Banana ((<@>), (<@), liftA2)
 import Hickory.Color (white)
 import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar, Mat44)
 import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..))
-import Hickory.FRP.UI (trackTouches, TouchChange(..))
-import Data.Maybe (mapMaybe, fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Hickory.FRP.Combinators (unionFirst)
 import Hickory.Input (Key(..))
-import Linear (rotate, axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero)
+import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Forward.Renderer (pickObjectID, renderToRenderer)
@@ -49,99 +47,7 @@ import Data.Traversable (for)
 import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Control.Monad.Extra (ifM)
-
-editorFOV :: Floating a => a
-editorFOV = pi/4
-
-editorViewMat :: V3 Scalar -> V3 Scalar -> V3 Scalar -> Mat44 -- used to build the shadowmap
-editorViewMat center towardCenter up
-    = viewTarget (center - towardCenter) center up
-
-editorProjMat :: Size Int -> V3 Scalar -> CameraViewMode -> Mat44
-editorProjMat size@(aspectRatio -> scrRat) angleVec = \case
-  OrthoTop   -> orthoMat
-  OrthoFront -> orthoMat
-  PerspView  -> shotMatrix (Perspective editorFOV 0.1 400) scrRat
-  where
-  orthoMat = shotMatrix (Ortho width 0.1 400 True) scrRat
-  (Size width _) = cameraFocusPlaneSize size angleVec
-
-viewManip :: CoreEvents a -> B.MomentIO (B.Behavior CameraState)
-viewManip coreEvents = mdo
-  (eChanges, _bTouches) <- trackTouches (concatTouchEvents coreEvents)
-
-  let eOrthoTop = B.filterE (==Key'0) $ keyDown coreEvents
-  let eOrthoFront = B.filterE (==Key'1) $ keyDown coreEvents
-
-  let mode = (\cmd shift -> if cmd then Zoom else if shift then Pan else Rotate) <$> keyHeldB coreEvents Key'LeftSuper <*> keyHeldB coreEvents Key'LeftShift
-
-  let clickMove = B.filterJust $ fmap headMay $ eChanges <&> mapMaybe \case
-        LocTouch _ 0 v -> Just v
-        _ -> Nothing
-      clickStart = B.filterJust $ fmap headMay $ eChanges <&> mapMaybe \case
-        AddTouch _ 0 v -> Just v
-        _ -> Nothing
-      clickEnd = B.filterJust $ fmap headMay $ eChanges <&> mapMaybe \case
-        AddTouch _ 0 v -> Just v
-        _ -> Nothing
-
-      eRepositionCamera :: B.Event (V3 Scalar) = B.whenE ((==Pan) <$> mode) $
-        let f (Size scrW scrH) upv (Size orthoW orthoH) (Just (start, focusPos, triple)) v =
-              let angle = buildCameraAngleVec triple
-                  xaxis = normalize $ cross (normalize angle) upv
-                  yaxis = normalize $ cross xaxis (normalize angle)
-                  (V2 vx vy) = v - start
-              in focusPos - xaxis ^* (vx / realToFrac scrW * orthoW) + yaxis ^* (vy / realToFrac scrH * orthoH)
-        in f <$> scrSizeB coreEvents <*> up <*> (cameraFocusPlaneSize <$> scrSizeB coreEvents <*> cameraAngleVec) <*> captured <@> clickMove
-
-      eZoomCamera :: B.Event Scalar = B.whenE ((==Zoom) <$> mode) $ ((,) <$> captured <@> clickMove ) <&> \(Just (start, _, (_,zoom)), v) ->
-        let V2 _vx vy = v - start
-        in zoom - vy / 10
-
-      eRotateCamera :: B.Event (Scalar,Scalar) = B.whenE ((==Rotate) <$> mode) $ ((,) <$> captured <@> clickMove ) <&> \(Just (start, _, ((zang,ele),_)), v) ->
-        let V2 vx vy = v - start
-        in (zang - vx / 100, ele - vy / 100)
-
-  captured :: B.Behavior (Maybe (V2 Scalar, V3 Scalar, ((Scalar, Scalar), Scalar))) <- B.stepper Nothing $ unionFirst
-    [ (\cfp ct ps -> Just (ps, cfp, ct)) <$> cameraFocusPos <*> cameraTriple <@> clickStart
-    , Nothing <$ clickEnd
-    ]
-
-  cameraAngles <- B.stepper (-pi/4, -3*pi/4) $ unionFirst
-    [ eRotateCamera
-    , (0, pi) <$ eOrthoTop
-    , (0, -pi/2) <$ eOrthoFront
-    ]
-  cameraZoom     :: B.Behavior Scalar      <- B.stepper 20 eZoomCamera
-  cameraFocusPos :: B.Behavior (V3 Scalar) <- B.stepper (V3 0 0 0) eRepositionCamera
-  let cameraTriple = (,) <$> cameraAngles <*> cameraZoom
-  let buildCameraAngleVec ((zang,ele),zoom) = (^* zoom)
-        . rotate (axisAngle (V3 0 0 1) zang)
-        . rotate (axisAngle (V3 1 0 0) ele)
-        $ V3 0 0 1
-
-  cameraViewMode <- B.stepper PerspView $ unionFirst
-    [ OrthoTop   <$ eOrthoTop
-    , OrthoFront <$ eOrthoFront
-    , PerspView  <$ eRotateCamera
-    ]
-
-  let up = cameraAngles <&> \(zang,ele)
-        -> rotate (axisAngle (V3 0 0 1) zang)
-         . rotate (axisAngle (V3 1 0 0) ele)
-         $ V3 0 (-1) 0
-
-  let cameraAngleVec :: B.Behavior (V3 Scalar) = buildCameraAngleVec <$> cameraTriple
-
-  let viewMat = editorViewMat <$> cameraFocusPos <*> cameraAngleVec <*> up
-      projMat = editorProjMat <$> scrSizeB coreEvents <*> cameraAngleVec <*> cameraViewMode
-  pure $ CameraState <$> viewMat <*> projMat <*> cameraViewMode <*> cameraFocusPos <*> cameraAngleVec <*> up
-
-cameraFocusPlaneSize :: Size Int -> V3 Scalar -> Size Scalar
-cameraFocusPlaneSize (aspectRatio -> scrRat) angleVec = Size cameraFocusPlaneWidth cameraFocusPlaneHeight
-  where
-  cameraFocusPlaneHeight = tan (editorFOV / 2) * norm angleVec * 2
-  cameraFocusPlaneWidth = cameraFocusPlaneHeight * scrRat
+import Hickory.FRP.Camera (CameraState (..), cameraFocusPlaneSize, omniscientCamera)
 
 objectManip :: CoreEvents a -> B.Behavior CameraState -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -357,7 +263,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
   resources <- B.fromPoll . getResourcesStoreResources $ resourcesStore
 
   let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
-  cameraState <- viewManip objectEditingMaskedEvents
+  cameraState <- omniscientCamera objectEditingMaskedEvents
 
   let defaultObject CameraState {..} = Object (mkTransformationMat identity focusPos) white "cube" "white" True True False 8 mempty
       eAddObj = (\o m -> (nextObjId m, o)) <$> (defaultObject <$> cameraState) <*> objects
