@@ -28,7 +28,7 @@ import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
-import Hickory.FRP.Editor.General (mkCursorLoc, matEuler, matScale, refChangeEvent, project)
+import Hickory.FRP.Editor.General (mkCursorLoc, matEuler, matScale, refChangeEvent)
 import Hickory.Vulkan.Types (FrameContext)
 import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldGlobals(..), worldGlobalDefaults)
 import Data.Text (unpack, pack)
@@ -47,7 +47,7 @@ import Data.Traversable (for)
 import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Control.Monad.Extra (ifM)
-import Hickory.FRP.Camera (CameraState (..), cameraFocusPlaneSize, omniscientCamera)
+import Hickory.FRP.Camera (CameraState (..), cameraFocusPlaneSize, omniscientCamera, project)
 
 objectManip :: CoreEvents a -> B.Behavior CameraState -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -92,8 +92,8 @@ objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
       eScaleObject :: B.Event (HashMap Int Object) = B.filterJust $ B.whenE ((==Just OScale) <$> mode) $
         let
           f _ _ Nothing _ _ = Nothing
-          f ss CameraState {..} (Just (objects, start)) axes v =
-              let objv = project ss (projMat !*! viewMat !*! mkTranslation (avgObjTranslation objects)) zero
+          f ss cs (Just (objects, start)) axes v =
+              let objv = project ss cs (avgObjTranslation objects)
                   ratio = norm (v - objv) / norm (start - objv)
               in Just $ objects & traversed . #transform %~ (!*! mkScale ((\fr -> glerp fr 1 ratio) <$> axes))
         in f <$> scrSizeB coreEvents <*> cameraState <*> captured <*> activeAxes <@> (fst . head <$> eTouchesLoc coreEvents)
@@ -101,8 +101,8 @@ objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
       eRotateObject :: B.Event (HashMap Int Object) = B.filterJust $ B.whenE ((==Just ORotate) <$> mode) $
         let
           f _ _ Nothing _ = Nothing
-          f ss CameraState {..} (Just (objects, start)) v =
-              let objv = project ss (projMat !*! viewMat !*! mkTranslation (avgObjTranslation objects)) zero
+          f ss cs@CameraState {..} (Just (objects, start)) v =
+              let objv = project ss cs (avgObjTranslation objects)
                   angle = negate $ v2angle (v - objv) (start - objv)
               in Just $ objects & traversed . #transform %~ (\tr ->
                 mkTranslation (tr ^. translation)

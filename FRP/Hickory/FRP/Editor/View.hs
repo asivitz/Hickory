@@ -7,7 +7,7 @@ import qualified Hickory.Graphics as H
 import Hickory.Color (rgba, black)
 import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
 import Hickory.Types (Size (..))
-import Linear (identity, V3 (..), V2 (..), zero, (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
+import Linear (identity, V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
 import Control.Monad.Reader (MonadReader)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
@@ -15,15 +15,13 @@ import qualified Hickory.Vulkan.Forward.Types as H
 import Data.HashMap.Strict (HashMap)
 import Hickory.Graphics (askMatrix)
 import Hickory.FRP.Editor.Types
-import Hickory.FRP.Editor.General (project)
 import Hickory.Resources (Resources, getTextureMay, getMeshMay, getTexture, getMesh)
 import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
 import Control.Lens ((.~), (&), (^.), set, each)
 import Control.Monad (when)
 import Data.Foldable (for_)
 import Control.Monad.Writer.Strict (execWriterT, tell)
-import Hickory.FRP.Camera (CameraState(..))
-import Hickory.FRP.Camera.Omniscient (CameraViewMode (..))
+import Hickory.FRP.Camera (CameraState(..), project, CameraViewMode (..))
 
 editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> CameraState -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView componentDefs CameraState {..} selected objects manipMode = H.runMatrixT do
@@ -123,14 +121,14 @@ drawObject componentDefs Object {..} = do
     }
 
 editorOverlayView :: (MonadReader Resources m, CommandMonad m) => Size Int -> CameraState -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
-editorOverlayView scrSize CameraState {..} cursorLoc selected mode = do
+editorOverlayView scrSize cs cursorLoc selected mode = do
   case mode of
     Nothing -> pure ()
     Just OScale     -> drawArr objCenter cursorLoc
     Just ORotate    -> drawArr objCenter cursorLoc
     Just OTranslate -> pure ()
   where
-  objCenter = project scrSize (projMat !*! viewMat !*! mkTranslation (avgObjTranslation selected)) zero
+  objCenter = project scrSize cs (avgObjTranslation selected)
   drawArr p1 p2 = do
     squareMesh <- getMesh "cube"
     tex        <- getTexture "white"

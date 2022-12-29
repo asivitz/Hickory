@@ -12,13 +12,13 @@ import qualified Reactive.Banana as B
 import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents)
 import qualified Reactive.Banana.Frameworks as B
 import Reactive.Banana ((<@>))
-import Hickory.Math (Scalar, Mat44, viewTarget)
+import Hickory.Math (Scalar, Mat44, viewTarget, v3tov4, rlerp)
 import Hickory.Types (Size (..), aspectRatio)
 import Hickory.FRP.UI (trackTouches, TouchChange(..))
 import Data.Maybe (mapMaybe)
 import Hickory.FRP.Combinators (unionFirst)
 import Hickory.Input (Key(..))
-import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross, norm)
+import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross, norm, V4 (..), (!*!), (!*))
 import Control.Lens ((<&>))
 import Safe (headMay)
 import GHC.Generics (Generic)
@@ -132,3 +132,10 @@ mkProjMat size@(aspectRatio -> scrRat) angleVec = \case
   where
   orthoMat = shotMatrix (Ortho width 0.1 400 True) scrRat
   (Size width _) = cameraFocusPlaneSize size angleVec
+
+project :: Size Int -> CameraState -> V3 Scalar -> V2 Scalar
+project (Size scrW scrH) CameraState {..} v =
+  V2 (rlerp (x/w) (-1) 1 * realToFrac scrW) (rlerp (y/w) (-1) 1 * realToFrac scrH)
+  where
+  mat = projMat !*! viewMat
+  V4 x y _ w = mat !* v3tov4 v 1

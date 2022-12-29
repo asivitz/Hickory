@@ -14,10 +14,6 @@ import Control.Lens ((^.))
 
 -- Move this into better general use modules
 
-project :: (Fractional a, Real a) => Size Int -> M44 a -> V3 a -> V2 a
-project (Size scrW scrH) mat v = let V4 x y _ w = mat !* v3tov4 v 1
-                      in V2 (rlerp (x/w) (-1) 1 * realToFrac scrW) (rlerp (y/w) (-1) 1 * realToFrac scrH)
-
 refChangeEvent :: (Eq a) => CoreEvents b -> IORef a -> B.MomentIO (EditorChange a)
 refChangeEvent coreEvents ref = do
   val <- liftIO $ readIORef ref
