@@ -49,7 +49,6 @@ data CameraState = CameraState
   , viewMode :: CameraViewMode
   , focusPos :: V3 Scalar
   , angleVec :: V3 Scalar
-  , focusPlaneSize :: Size Scalar
   , up       :: V3 Scalar
   } deriving Generic
 

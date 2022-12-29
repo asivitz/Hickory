@@ -57,13 +57,14 @@ editorViewMat :: V3 Scalar -> V3 Scalar -> V3 Scalar -> Mat44 -- used to build t
 editorViewMat center towardCenter up
     = viewTarget (center - towardCenter) center up
 
-editorProjMat :: Size Int -> Scalar -> CameraViewMode -> Mat44
-editorProjMat (aspectRatio -> scrRat) width = \case
+editorProjMat :: Size Int -> V3 Scalar -> CameraViewMode -> Mat44
+editorProjMat size@(aspectRatio -> scrRat) angleVec = \case
   OrthoTop   -> orthoMat
   OrthoFront -> orthoMat
   PerspView  -> shotMatrix (Perspective editorFOV 0.1 400) scrRat
   where
   orthoMat = shotMatrix (Ortho width 0.1 400 True) scrRat
+  (Size width _) = cameraFocusPlaneSize size angleVec
 
 viewManip :: CoreEvents a -> B.MomentIO (B.Behavior CameraState)
 viewManip coreEvents = mdo
@@ -91,13 +92,13 @@ viewManip coreEvents = mdo
                   yaxis = normalize $ cross xaxis (normalize angle)
                   (V2 vx vy) = v - start
               in focusPos - xaxis ^* (vx / realToFrac scrW * orthoW) + yaxis ^* (vy / realToFrac scrH * orthoH)
-        in f <$> scrSizeB coreEvents <*> up <*> cameraFocusPlaneSize <*> captured <@> clickMove
+        in f <$> scrSizeB coreEvents <*> up <*> (cameraFocusPlaneSize <$> scrSizeB coreEvents <*> cameraAngleVec) <*> captured <@> clickMove
 
-      eZoomCamera :: B.Event Scalar = B.whenE ((==Zoom) <$> mode) $((,) <$> captured <@> clickMove ) <&> \(Just (start, _, (_,zoom)), v) ->
+      eZoomCamera :: B.Event Scalar = B.whenE ((==Zoom) <$> mode) $ ((,) <$> captured <@> clickMove ) <&> \(Just (start, _, (_,zoom)), v) ->
         let V2 _vx vy = v - start
         in zoom - vy / 10
 
-      eRotateCamera :: B.Event (Scalar,Scalar) = B.whenE ((==Rotate) <$> mode) $((,) <$> captured <@> clickMove ) <&> \(Just (start, _, ((zang,ele),_)), v) ->
+      eRotateCamera :: B.Event (Scalar,Scalar) = B.whenE ((==Rotate) <$> mode) $ ((,) <$> captured <@> clickMove ) <&> \(Just (start, _, ((zang,ele),_)), v) ->
         let V2 vx vy = v - start
         in (zang - vx / 100, ele - vy / 100)
 
@@ -131,13 +132,16 @@ viewManip coreEvents = mdo
          $ V3 0 (-1) 0
 
   let cameraAngleVec :: B.Behavior (V3 Scalar) = buildCameraAngleVec <$> cameraTriple
-      cameraFocusPlaneHeight = (\z -> tan (editorFOV / 2) * z * 2) <$> cameraZoom
-      cameraFocusPlaneWidth = (\(aspectRatio -> scrRat) height -> height * scrRat) <$> scrSizeB coreEvents <*> cameraFocusPlaneHeight
-      cameraFocusPlaneSize = Size <$> cameraFocusPlaneWidth <*> cameraFocusPlaneHeight
 
   let viewMat = editorViewMat <$> cameraFocusPos <*> cameraAngleVec <*> up
-      projMat = editorProjMat <$> scrSizeB coreEvents <*> cameraFocusPlaneWidth <*> cameraViewMode
-  pure $ CameraState <$> viewMat <*> projMat <*> cameraViewMode <*> cameraFocusPos <*> cameraAngleVec <*> cameraFocusPlaneSize <*> up
+      projMat = editorProjMat <$> scrSizeB coreEvents <*> cameraAngleVec <*> cameraViewMode
+  pure $ CameraState <$> viewMat <*> projMat <*> cameraViewMode <*> cameraFocusPos <*> cameraAngleVec <*> up
+
+cameraFocusPlaneSize :: Size Int -> V3 Scalar -> Size Scalar
+cameraFocusPlaneSize (aspectRatio -> scrRat) angleVec = Size cameraFocusPlaneWidth cameraFocusPlaneHeight
+  where
+  cameraFocusPlaneHeight = tan (editorFOV / 2) * norm angleVec * 2
+  cameraFocusPlaneWidth = cameraFocusPlaneHeight * scrRat
 
 objectManip :: CoreEvents a -> B.Behavior CameraState -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -170,11 +174,11 @@ objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
         let
           f :: Size Int -> CameraState -> Maybe (HashMap Int Object, V2 Scalar) -> V3 Scalar -> V2 Scalar -> Maybe (HashMap Int Object)
           f _ _ Nothing _ _ = Nothing
-          f (Size scrW scrH) CameraState {..} (Just (objects, start)) axes v =
+          f size@(Size scrW scrH) CameraState {..} (Just (objects, start)) axes v =
               let yaxis = up
                   xaxis = cross (normalize angleVec) (normalize up)
                   (V2 vx vy) = v - start
-                  Size focusW focusH = focusPlaneSize
+                  Size focusW focusH = cameraFocusPlaneSize size angleVec
               in Just $ objects & traversed . #transform %~
                 (mkTranslation (liftA2 (*) axes (xaxis ^* (vx / realToFrac scrW * focusW) - yaxis ^* (vy / realToFrac scrH * focusH))) !*!)
         in f <$> scrSizeB coreEvents <*> cameraState <*> captured <*> activeAxes <@> (fst . head <$> eTouchesLoc coreEvents)
