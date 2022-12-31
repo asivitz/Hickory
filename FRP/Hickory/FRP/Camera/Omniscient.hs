@@ -12,17 +12,17 @@ import qualified Reactive.Banana as B
 import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents)
 import qualified Reactive.Banana.Frameworks as B
 import Reactive.Banana ((<@>))
-import Hickory.Math (Scalar, Mat44, viewTarget, v3tov4, rlerp)
-import Hickory.Types (Size (..), aspectRatio)
+import Hickory.Math (Scalar)
+import Hickory.Types (Size (..))
 import Hickory.FRP.UI (trackTouches, TouchChange(..))
 import Data.Maybe (mapMaybe)
 import Hickory.FRP.Combinators (unionFirst)
 import Hickory.Input (Key(..))
-import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross, norm, V4 (..), (!*!), (!*))
+import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross)
 import Control.Lens ((<&>))
 import Safe (headMay)
-import GHC.Generics (Generic)
-import Hickory.Camera (Projection(..), shotMatrix)
+import Hickory.FRP.Camera.Types (Camera(..), perspectiveFocusPlaneSize)
+import Hickory.Camera (Projection(..))
 
 data CameraMoveMode = Pan | Rotate | Zoom
   deriving Eq
@@ -30,14 +30,7 @@ data CameraMoveMode = Pan | Rotate | Zoom
 data CameraViewMode = OrthoTop | OrthoFront | OrthoRight | OrthoLeft | OrthoBack | PerspView
   deriving Eq
 
-data CameraState = CameraState
-  { viewMode :: CameraViewMode
-  , focusPos :: V3 Scalar
-  , angleVec :: V3 Scalar
-  , up       :: V3 Scalar
-  } deriving Generic
-
-omniscientCamera :: CoreEvents a -> B.MomentIO (B.Behavior CameraState)
+omniscientCamera :: CoreEvents a -> B.MomentIO (B.Behavior Camera)
 omniscientCamera coreEvents = mdo
   (eChanges, _bTouches) <- trackTouches (concatTouchEvents coreEvents)
 
@@ -66,7 +59,7 @@ omniscientCamera coreEvents = mdo
                   yaxis = normalize $ cross xaxis (normalize angle)
                   (V2 vx vy) = v - start
               in focusPos - xaxis ^* (vx / realToFrac scrW * orthoW) + yaxis ^* (vy / realToFrac scrH * orthoH)
-        in f <$> scrSizeB coreEvents <*> up <*> (cameraFocusPlaneSize <$> scrSizeB coreEvents <*> cameraAngleVec) <*> captured <@> clickMove
+        in f <$> scrSizeB coreEvents <*> up <*> orthoSize <*> captured <@> clickMove
 
       eZoomCamera :: B.Event Scalar = B.whenE ((==Zoom) <$> mode) $ ((,) <$> captured <@> clickMove ) <&> \(Just (start, _, (_,zoom)), v) ->
         let V2 _vx vy = v - start
@@ -113,46 +106,19 @@ omniscientCamera coreEvents = mdo
 
   let cameraAngleVec :: B.Behavior (V3 Scalar) = buildCameraAngleVec <$> cameraTriple
 
-  pure $ CameraState <$> cameraViewMode <*> cameraFocusPos <*> cameraAngleVec <*> up
+      projection = let f (Size width _) = \case
+                        True -> Ortho width 0.1 400 True
+                        False -> Perspective camFov 0.1 400
+                   in f <$> orthoSize <*> (isOrthographicViewMode <$> cameraViewMode)
 
-cameraFocusPlaneSize :: Size Int -> V3 Scalar -> Size Scalar
-cameraFocusPlaneSize (aspectRatio -> scrRat) angleVec = Size cameraFocusPlaneWidth cameraFocusPlaneHeight
-  where
-  cameraFocusPlaneHeight = tan (camFov / 2) * norm angleVec * 2
-  cameraFocusPlaneWidth = cameraFocusPlaneHeight * scrRat
+      orthoSize = perspectiveFocusPlaneSize <$> scrSizeB coreEvents <*> cameraAngleVec <*> pure camFov
 
-camFov :: Floating a => a
-camFov = pi/4
-
-mkViewMat :: V3 Scalar -> V3 Scalar -> V3 Scalar -> Mat44 -- used to build the shadowmap
-mkViewMat center towardCenter up
-    = viewTarget (center - towardCenter) center up
-
-mkProjMat :: Size Int -> V3 Scalar -> CameraViewMode -> Mat44
-mkProjMat size@(aspectRatio -> scrRat) angleVec viewMode = if isOrthographicViewMode viewMode
-  then orthoMat
-  else shotMatrix (Perspective camFov 0.1 400) scrRat
-  where
-  orthoMat = shotMatrix (Ortho width 0.1 400 True) scrRat
-  (Size width _) = cameraFocusPlaneSize size angleVec
-
-cameraViewMat :: CameraState -> Mat44
-cameraViewMat CameraState {..} = mkViewMat focusPos angleVec up
-
-cameraProjMat :: Size Int -> CameraState -> Mat44
-cameraProjMat size CameraState {..} = mkProjMat size angleVec viewMode
-
-project :: Size Int -> CameraState -> V3 Scalar -> V2 Scalar
-project size@(Size scrW scrH) cs v =
-  V2 (rlerp (x/w) (-1) 1 * realToFrac scrW) (rlerp (y/w) (-1) 1 * realToFrac scrH)
-  where
-  mat = cameraProjMat size cs !*! cameraViewMat cs
-  V4 x y _ w = mat !* v3tov4 v 1
+  pure $ Camera <$> cameraFocusPos <*> cameraAngleVec <*> up <*> projection
 
 isOrthographicViewMode :: CameraViewMode -> Bool
 isOrthographicViewMode = \case
   PerspView -> False
   _ -> True
 
-isOrthographic :: CameraState -> Bool
-isOrthographic  = isOrthographicViewMode . viewMode
+camFov :: Floating a => a
+camFov = pi/4

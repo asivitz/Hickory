@@ -5,6 +5,7 @@ module Hickory.Camera where
 import Hickory.Math.Vector
 import Hickory.Math.Matrix
 import Linear (V3, lerp)
+import GHC.Generics (Generic)
 
 data Projection = Perspective
   { fov :: Scalar
@@ -16,7 +17,7 @@ data Projection = Perspective
   , near :: Scalar
   , far :: Scalar
   , shouldCenter :: Bool
-  } deriving (Show)
+  } deriving (Generic, Show)
 
 shotMatrix :: Projection -> Scalar -> Mat44
 shotMatrix Perspective { fov, nearPlane, farPlane } screenRatio =

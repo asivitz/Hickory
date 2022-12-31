@@ -21,10 +21,10 @@ import Control.Lens ((.~), (&), (^.), set, each)
 import Control.Monad (when)
 import Data.Foldable (for_)
 import Control.Monad.Writer.Strict (execWriterT, tell)
-import Hickory.FRP.Camera (CameraState(..), project, isOrthographic)
+import Hickory.FRP.Camera (Camera(..), project, isOrthographic)
 
-editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> CameraState -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
-editorWorldView componentDefs cs@CameraState {..} selected objects manipMode = H.runMatrixT do
+editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
+editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runMatrixT do
   let zBias =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
   linesMesh <- getMesh "lines"
@@ -122,7 +122,7 @@ drawObject componentDefs Object {..} = do
     , specularity
     }
 
-editorOverlayView :: (MonadReader Resources m, CommandMonad m) => Size Int -> CameraState -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
+editorOverlayView :: (MonadReader Resources m, CommandMonad m) => Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView scrSize cs cursorLoc selected mode = do
   case mode of
     Nothing -> pure ()

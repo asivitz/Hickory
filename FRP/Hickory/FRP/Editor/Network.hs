@@ -47,9 +47,9 @@ import Data.Traversable (for)
 import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Control.Monad.Extra (ifM)
-import Hickory.FRP.Camera (CameraState (..), cameraFocusPlaneSize, omniscientCamera, project, cameraViewMat, cameraProjMat)
+import Hickory.FRP.Camera (Camera(..), cameraFocusPlaneSize, omniscientCamera, project, cameraViewMat, cameraProjMat)
 
-objectManip :: CoreEvents a -> B.Behavior CameraState -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
+objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
   let eSelectMode :: B.Event (Maybe (ObjectManipMode, HashMap Int Object))
       eSelectMode = unionFirst
@@ -78,13 +78,13 @@ objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
   let
       eMoveObject :: B.Event (HashMap Int Object) = B.filterJust $ B.whenE ((==Just OTranslate) <$> mode) $
         let
-          f :: Size Int -> CameraState -> Maybe (HashMap Int Object, V2 Scalar) -> V3 Scalar -> V2 Scalar -> Maybe (HashMap Int Object)
+          f :: Size Int -> Camera -> Maybe (HashMap Int Object, V2 Scalar) -> V3 Scalar -> V2 Scalar -> Maybe (HashMap Int Object)
           f _ _ Nothing _ _ = Nothing
-          f size@(Size scrW scrH) CameraState {..} (Just (objects, start)) axes v =
+          f size@(Size scrW scrH) cam@Camera {..} (Just (objects, start)) axes v =
               let yaxis = up
                   xaxis = cross (normalize angleVec) (normalize up)
                   (V2 vx vy) = v - start
-                  Size focusW focusH = cameraFocusPlaneSize size angleVec
+                  Size focusW focusH = cameraFocusPlaneSize size cam
               in Just $ objects & traversed . #transform %~
                 (mkTranslation (liftA2 (*) axes (xaxis ^* (vx / realToFrac scrW * focusW) - yaxis ^* (vy / realToFrac scrH * focusH))) !*!)
         in f <$> scrSizeB coreEvents <*> cameraState <*> captured <*> activeAxes <@> (fst . head <$> eTouchesLoc coreEvents)
@@ -101,7 +101,7 @@ objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
       eRotateObject :: B.Event (HashMap Int Object) = B.filterJust $ B.whenE ((==Just ORotate) <$> mode) $
         let
           f _ _ Nothing _ = Nothing
-          f ss cs@CameraState {..} (Just (objects, start)) v =
+          f ss cs@Camera {..} (Just (objects, start)) v =
               let objv = project ss cs (avgObjTranslation objects)
                   angle = negate $ v2angle (v - objv) (start - objv)
               in Just $ objects & traversed . #transform %~ (\tr ->
@@ -265,7 +265,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
   let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
   cameraState <- omniscientCamera objectEditingMaskedEvents
 
-  let defaultObject CameraState {..} = Object (mkTransformationMat identity focusPos) white "cube" "white" True True False 8 mempty
+  let defaultObject Camera {..} = Object (mkTransformationMat identity focusPos) white "cube" "white" True True False 8 mempty
       eAddObj = (\o m -> (nextObjId m, o)) <$> (defaultObject <$> cameraState) <*> objects
         <@ B.filterE (==Key'A) (keyDown coreEvents)
       eDupeObjs = recalcIds <$> objects <*> selectedObjects <@ (B.whenE (keyHeldB coreEvents Key'LeftShift) $ B.filterE (==Key'D) (keyDown coreEvents))
@@ -332,7 +332,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
   let bRenderSettings = renderSettings <$> scrSizeB coreEvents <*> graphicsParams <*> pure (V4 0.07 0.07 0.07 1)
         <*> (cameraViewMat <$> cameraState)
         <*> (cameraProjMat <$> scrSizeB coreEvents <*> cameraState)
-        <*> (cameraState <&> \CameraState{..} -> focusPos - angleVec)
+        <*> (cameraState <&> \Camera {..} -> focusPos - angleVec)
         <*> selectedObjectIDs
 
   let runRender renSettings litF overlayF (renderer, frameContext)

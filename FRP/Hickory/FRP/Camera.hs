@@ -1,5 +1,5 @@
 module Hickory.FRP.Camera
-  ( CameraState(..)
+  ( Camera(..)
   , cameraFocusPlaneSize
   , omniscientCamera
   , project
@@ -9,3 +9,4 @@ module Hickory.FRP.Camera
   ) where
 
 import Hickory.FRP.Camera.Omniscient
+import Hickory.FRP.Camera.Types
