@@ -21,8 +21,7 @@ import Hickory.Input (Key(..))
 import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross)
 import Control.Lens ((<&>))
 import Safe (headMay)
-import Hickory.FRP.Camera.Types (Camera(..), perspectiveFocusPlaneSize)
-import Hickory.Camera (Projection(..))
+import Hickory.Camera (Projection(..), Camera (..), perspectiveFocusPlaneSize)
 
 data CameraMoveMode = Pan | Rotate | Zoom
   deriving Eq

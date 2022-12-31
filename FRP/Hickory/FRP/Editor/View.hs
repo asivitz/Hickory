@@ -21,7 +21,7 @@ import Control.Lens ((.~), (&), (^.), set, each)
 import Control.Monad (when)
 import Data.Foldable (for_)
 import Control.Monad.Writer.Strict (execWriterT, tell)
-import Hickory.FRP.Camera (Camera(..), project, isOrthographic)
+import Hickory.Camera (Camera(..), project, isOrthographic)
 
 editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runMatrixT do

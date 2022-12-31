@@ -10,7 +10,7 @@
 module Hickory.Vulkan.Forward.Types where
 
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, Material, PostConstants, DataBuffer, BufferedMesh, Mesh)
-import Linear (M44, V4, V2, M33, V3 (..), identity)
+import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
 import qualified Data.Vector.Fixed.Storable as VFS
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial)
@@ -25,12 +25,13 @@ import Control.Monad.Writer.Class (MonadWriter)
 import Control.Monad.Writer.Strict (MonadWriter(..), WriterT (..), Writer)
 import Hickory.Vulkan.RenderTarget (ImageBuffer)
 import GHC.Word (Word32)
+import Hickory.Camera (Camera(..), Projection (..))
 
 data Renderer = Renderer
   { swapchainRenderTarget  :: !RenderTarget
   , shadowRenderTarget     :: !RenderTarget
   , litRenderTarget        :: !RenderTarget
-  , pickingRenderTarget   :: !RenderTarget
+  , pickingRenderTarget    :: !RenderTarget
   , currentSelectionRenderTarget   :: !RenderTarget
   -- Pipelines
   , pickingMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
@@ -142,16 +143,16 @@ data AnimatedConstants = AnimatedConstants
 
 data RenderSettings = RenderSettings
   { clearColor     :: V4 Scalar
-  , worldGlobals   :: WorldGlobals
+  , worldSettings  :: WorldSettings
   , overlayGlobals :: OverlayGlobals
   , postSettings   :: PostConstants
   , highlightObjs  :: [Int]
-  }
+  } deriving Generic
 
 data WorldGlobals = WorldGlobals
   { viewMat        :: M44 Scalar
   , projMat        :: M44 Scalar
-  , cameraPos      :: V3 Scalar
+  , camPos         :: V3 Scalar
   , lightTransform :: M44 Scalar
   , lightDirection :: V3 Scalar
   , sunColor       :: V3 Scalar -- HDR
@@ -165,12 +166,18 @@ data OverlayGlobals = OverlayGlobals
   } deriving Generic
     deriving anyclass GStorable
 
-worldGlobalDefaults :: WorldGlobals
-worldGlobalDefaults = WorldGlobals {..}
+data WorldSettings = WorldSettings
+  { camera :: Camera
+  , lightTransform :: M44 Scalar
+  , lightDirection :: V3 Scalar
+  , sunColor       :: V3 Scalar -- HDR
+  , ambientColor   :: V3 Scalar -- HDR
+  } deriving Generic
+
+worldSettingsDefaults :: WorldSettings
+worldSettingsDefaults = WorldSettings {..}
   where
-  viewMat = identity
-  projMat = identity
-  cameraPos = V3 0 0 0
+  camera = Camera zero (V3 (-1) (-1) (-1)) (V3 0 0 1) (Perspective (pi/4) 0.1 100)
   lightTransform = identity
   lightDirection = V3 1 1 1
   sunColor = V3 1 1 1

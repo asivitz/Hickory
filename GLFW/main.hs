@@ -1,5 +1,5 @@
 {-# LANGUAGE BlockArguments, LambdaCase, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE DataKinds, OverloadedLists, QuasiQuotes, TypeApplications, DerivingStrategies, DeriveGeneric, DeriveAnyClass, OverloadedLabels #-}
+{-# LANGUAGE DataKinds, OverloadedLists, TypeApplications, DerivingStrategies, DeriveGeneric, DeriveAnyClass, OverloadedLabels #-}
 
 module Main where
 
@@ -13,11 +13,12 @@ import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.DescriptorSet as H
 import qualified Hickory.Vulkan.Types as H
 import Linear.Matrix ((!*!))
-import Linear ( M44, V2 (..), V4(..), identity)
+import Linear ( M44, V2 (..), V3(..), V4(..), identity)
 import Hickory.Math (mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
+import Hickory.Camera (Camera(..), Projection(..))
 import qualified Hickory.Vulkan.Forward.Types as H
-import Hickory.Vulkan.Forward.Types (DrawCommand(..), RenderSettings(..), WorldGlobals(..), OverlayGlobals(..))
+import Hickory.Vulkan.Forward.Types (DrawCommand(..), RenderSettings(..), WorldSettings(..), OverlayGlobals(..))
 import Hickory.Vulkan.Types (VulkanResources(..))
 import qualified Hickory.Vulkan.Forward.Renderer as H
 import qualified Hickory.Vulkan.StockMesh as H
@@ -82,7 +83,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           }
 
     let settings = RenderSettings
-          { worldGlobals = H.worldGlobalDefaults { viewMat = identity, projMat = orthographicProjection 0 100 100 0 0 100 }
+          { worldSettings = H.worldSettingsDefaults { camera = Camera (V3 50 50 0) (V3 0 0 (1)) (V3 0 (-1) 0) (Ortho 100 0 100 True) }
           , overlayGlobals = OverlayGlobals identity identity
           , postSettings = H.postDefaults
           , clearColor = V4 0 0 0 1

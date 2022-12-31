@@ -11,9 +11,9 @@ import Hickory.FRP.CoreEvents (CoreEvents (..), maskCoreEvents)
 import qualified Reactive.Banana.Frameworks as B
 import Reactive.Banana ((<@>), (<@), liftA2)
 import Hickory.Color (white)
-import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar, Mat44)
+import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar)
 import Hickory.Types (Size (..), aspectRatio)
-import Hickory.Camera (shotMatrix, Projection (..))
+import Hickory.Camera (shotMatrix, Projection (..), Camera (..), project, cameraFocusPlaneSize)
 import Data.Maybe (fromMaybe, isJust)
 import Hickory.FRP.Combinators (unionFirst)
 import Hickory.Input (Key(..))
@@ -30,7 +30,7 @@ import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorSta
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
 import Hickory.FRP.Editor.General (mkCursorLoc, matEuler, matScale, refChangeEvent)
 import Hickory.Vulkan.Types (FrameContext)
-import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldGlobals(..), worldGlobalDefaults)
+import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults)
 import Data.Text (unpack, pack)
 import Vulkan (SamplerAddressMode (..), Filter (..))
 import Control.Monad.Reader (ReaderT(..), MonadReader)
@@ -47,7 +47,7 @@ import Data.Traversable (for)
 import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Control.Monad.Extra (ifM)
-import Hickory.FRP.Camera (Camera(..), cameraFocusPlaneSize, omniscientCamera, project, cameraViewMat, cameraProjMat)
+import Hickory.FRP.Camera (omniscientCamera)
 
 objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -330,9 +330,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
       overlayRender = editorOverlayView <$> scrSizeB coreEvents <*> cameraState <*> cursorLoc <*> selectedObjects <*> (fmap fst <$> manipMode)
 
   let bRenderSettings = renderSettings <$> scrSizeB coreEvents <*> graphicsParams <*> pure (V4 0.07 0.07 0.07 1)
-        <*> (cameraViewMat <$> cameraState)
-        <*> (cameraProjMat <$> scrSizeB coreEvents <*> cameraState)
-        <*> (cameraState <&> \Camera {..} -> focusPos - angleVec)
+        <*> cameraState
         <*> selectedObjectIDs
 
   let runRender renSettings litF overlayF (renderer, frameContext)
@@ -372,12 +370,10 @@ quaternionToEuler (Quaternion w (V3 x y z)) = V3 roll pitch yaw
   cosy_cosp = 1 - 2 * (y * y + z * z)
   yaw = atan2 siny_cosp cosy_cosp
 
-renderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Mat44 -> Mat44 -> V3 Scalar -> [Int] -> RenderSettings
-renderSettings size@(Size w _h) GraphicsParams {..} clearColor viewMat projMat camPos selectedObjIds = RenderSettings
-  { worldGlobals = worldGlobalDefaults
-    { viewMat = viewMat
-    , projMat = projMat
-    , cameraPos      = camPos
+renderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Camera -> [Int] -> RenderSettings
+renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedObjIds = RenderSettings
+  { worldSettings = worldSettingsDefaults
+    { camera
     , lightTransform = identity
     , lightDirection = sunDirection
     , sunColor = sunLight ^* sunStrength

@@ -9,8 +9,7 @@ import Data.Fixed (mod')
 import Data.Functor ((<&>))
 import Hickory.Input (Key(..))
 import Hickory.FRP.Editor.General (mkCursorLoc)
-import Hickory.FRP.Camera.Types (Camera(..))
-import Hickory.Camera (Projection(..))
+import Hickory.Camera (Projection(..), Camera (..))
 
 firstPersonCamera :: MonadMoment m => CoreEvents a -> m (Behavior Camera)
 firstPersonCamera coreEvents = do

@@ -3,7 +3,7 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..))
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..))
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -13,10 +13,10 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices)
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer)
 import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial)
-import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, shadowMapSize)
+import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
 import Hickory.Vulkan.Mesh (vsizeOf)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..))
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..))
 import Foreign (Storable)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, ix, (^?!))
@@ -31,9 +31,9 @@ import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDR
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless)
-import Hickory.Types (aspectRatio)
-import Hickory.Camera (shotMatrix, Projection (..))
-import Hickory.Math.Matrix ( viewDirection , viewTarget, perspectiveProjection)
+import Hickory.Types (Size (..))
+import Hickory.Camera (cameraViewMat, cameraPos, cameraProjMat)
+import Hickory.Math.Matrix ( viewDirection )
 import Data.Word (Word32)
 import Data.IORef (modifyIORef, newIORef, readIORef, IORef)
 import Data.UUID (UUID)
@@ -145,11 +145,16 @@ viewBoundaryFromInvProjection m =  (l,r,b,t,n,f)
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
-    let lightView = viewDirection (V3 0 0 0) (worldGlobals ^. #lightDirection) (V3 0 0 1) -- Trying to get the whole scene in view of the sun
+    let WorldSettings {..} = worldSettings
+        Extent2D w h = extent
+        lightView = viewDirection (V3 0 0 0) lightDirection (V3 0 0 1) -- Trying to get the whole scene in view of the sun
         -- lightProj = shotMatrix (Ortho 100 1.0 85 True) (aspectRatio shadowMapSize)
-        invvp = inv44 $ (worldGlobals ^. #projMat) !*! (worldGlobals ^. #viewMat)
+        projMat = cameraProjMat (Size (fromIntegral w) (fromIntegral h)) camera
+        viewMat = cameraViewMat camera
+        invvp = inv44 $ projMat !*! viewMat
         (l,r,b,t,n,f) = viewBoundaryFromInvProjection (lightView !*! invvp)
         lightProj = orthographicProjection l r b t n f -- TODO: Near plane should take into account objects outside the camera
+        worldGlobals = WorldGlobals { camPos = cameraPos camera, ..}
     uploadBufferDescriptor globalBuffer
       $ Globals frameNumber
     uploadBufferDescriptor globalWorldBuffer
