@@ -71,16 +71,17 @@ drawObjectEditorUI componentDefs EditorState {..} objects = do
           for_ attributes \(SomeAttribute _attr (Const attrName)) ->
             case Map.lookup (comp, attrName) componentData of
               Nothing -> error "Can't find attribute ref" :: IO ()
-              Just (SomeAttribute attr' ref) -> writeIORef ref (defaultAttrVal attr')
+              Just (SomeAttributeRef attr' ref) -> writeIORef ref (toAttrRefType $ defaultAttrVal attr')
         for_ attributes \(SomeAttribute attr (Const attrName)) ->
           case Map.lookup (comp, attrName) componentData of
             Nothing -> error "Can't find attribute ref" :: IO ()
-            Just (SomeAttribute attr' ref) -> case eqAttr attr attr' of
+            Just (SomeAttributeRef attr' ref) -> case eqAttr attr attr' of
               Just HRefl -> case attr of
                 FloatAttribute  -> void $ dragFloat (pack attrName) ref 1 0 1000
                 IntAttribute    -> void $ dragInt   (pack attrName) ref 1 0 1000
-                -- StringAttribute -> void $ inputText (pack attrName) ref 30
+                StringAttribute -> void $ inputText (pack attrName) ref 30
                 BoolAttribute   -> void $ checkbox (pack attrName) ref
+                V3Attribute     -> void $ dragFloat3 (pack attrName) ref 1 1 1
               Nothing -> error "Attribute types don't match"
 
     withComboOpen "AddComponent" "Select" do
@@ -104,6 +105,6 @@ mkEditorState componentDefs = do
   componentsRef <- newIORef []
   componentData <- Map.fromList . concat <$> for (Map.toList componentDefs) \(name, Component{..}) ->
     for attributes \(SomeAttribute attr (Const attrName)) ->
-      (\x -> ((name, attrName), SomeAttribute attr x)) <$> newIORef (defaultAttrVal  attr)
+      (\x -> ((name, attrName), SomeAttributeRef attr x)) <$> newIORef (toAttrRefType $ defaultAttrVal attr)
 
   pure EditorState {..}

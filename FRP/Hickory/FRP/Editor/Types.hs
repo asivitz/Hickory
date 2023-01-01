@@ -3,18 +3,18 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Hickory.FRP.Editor.Types where
 
 import qualified Reactive.Banana as B
-import Linear (M44, (^/), translation, V3, V4)
+import Linear (M44, (^/), translation, V3(..), V4)
 import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)
 import GHC.Generics (Generic)
 import Control.Lens (traversed, toListOf)
 import Hickory.Math (Scalar)
-import Data.Text (Text)
+import Data.Text (Text, pack, unpack)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
 import Hickory.Vulkan.Forward.Types (CommandMonad)
@@ -30,6 +30,8 @@ import Data.Functor.Identity (Identity (..))
 import Data.Functor.Const (Const)
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
+import Data.Kind (Type)
+import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3)
 
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
@@ -51,26 +53,30 @@ data Component = Component
   , draw       :: forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => HashMap String (SomeAttribute Identity) -> m ()
   }
 
+-- Types which have an 'attribute' representation in the editor
 class Attr a where
   mkAttr :: Attribute a
 
-instance Attr String where mkAttr = StringAttribute
+  -- Sometimes the storage type differs (e.g. DearIMGui represents Vec3s as a float triple)
+  type AttrRef a :: Type
+  type AttrRef a = a
+
+instance Attr String where
+  mkAttr = StringAttribute
+  type AttrRef String = Text
 instance Attr Float  where mkAttr = FloatAttribute
 instance Attr Int    where mkAttr = IntAttribute
 instance Attr Bool   where mkAttr = BoolAttribute
-
-withAttrVal :: forall a b. Attr a => HashMap String (SomeAttribute Identity) -> String -> (a -> b) -> b
-withAttrVal attrs name f = case Map.lookup name attrs of
-  Just (SomeAttribute attr (Identity v)) -> case eqAttr attr (mkAttr :: Attribute a) of
-    Just HRefl -> f v
-    Nothing -> error "Wrong type for attribute"
-  Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
+instance Attr (V3 Scalar) where
+  mkAttr = V3Attribute
+  type AttrRef (V3 Scalar) = (Float, Float, Float)
 
 data Attribute a where
   StringAttribute :: Attribute String
   FloatAttribute  :: Attribute Float
   IntAttribute    :: Attribute Int
   BoolAttribute   :: Attribute Bool
+  V3Attribute     :: Attribute (V3 Scalar)
 
 typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
@@ -78,10 +84,11 @@ typeOfAttr = \case
   FloatAttribute  -> typeRep
   IntAttribute    -> typeRep
   BoolAttribute   -> typeRep
+  V3Attribute     -> typeRep
 
 data AttrClasses a where
   -- Provides proof of a type having certain instances
-  AttrClasses :: Eq a => AttrClasses a
+  AttrClasses :: (Eq a, Eq (AttrRef a)) => AttrClasses a
 
 -- Prove that each attribute has some necessary instances
 proveAttrClasses :: Attribute a -> AttrClasses a
@@ -90,11 +97,15 @@ proveAttrClasses = \case
   FloatAttribute  -> AttrClasses
   IntAttribute    -> AttrClasses
   BoolAttribute   -> AttrClasses
+  V3Attribute     -> AttrClasses
 
+-- Check if two attributes have the same type
 eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
 eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
 
-data SomeAttribute contents = forall a. SomeAttribute { attr :: Attribute a, contents :: contents a }
+data SomeAttribute contents = forall a. Attr a => SomeAttribute    { attr :: Attribute a, contents :: contents a }
+-- Need a separate type for Refs because unsaturated type families can't be used as arguments
+data SomeAttributeRef       = forall a. Attr a => SomeAttributeRef { attr :: Attribute a, contents :: IORef (AttrRef a) }
 
 instance Show (SomeAttribute Identity) where
   show (SomeAttribute attr val) = "SomeAttribute " ++ case attr of
@@ -102,6 +113,7 @@ instance Show (SomeAttribute Identity) where
     FloatAttribute  -> "FloatAttribute ("  ++ show val ++ ")"
     IntAttribute    -> "IntAttribute ("    ++ show val ++ ")"
     BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
+    V3Attribute     -> "V3Attribute ("   ++ show val ++ ")"
 
 instance Read (SomeAttribute Identity) where
   readPrec = lift do
@@ -112,7 +124,16 @@ instance Read (SomeAttribute Identity) where
       Ident "FloatAttribute"  -> SomeAttribute FloatAttribute  <$> pars (readS_to_P (reads @(Identity Float)))
       Ident "IntAttribute"    -> SomeAttribute IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
       Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
+      Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Scalar))))
       _ -> fail "Invalid attribute type"
+
+-- Look up the value for an attribute
+withAttrVal :: forall a b. Attr a => HashMap String (SomeAttribute Identity) -> String -> (a -> b) -> b
+withAttrVal attrs name f = case Map.lookup name attrs of
+  Just (SomeAttribute attr (Identity v)) -> case eqAttr attr (mkAttr :: Attribute a) of
+    Just HRefl -> f v
+    Nothing -> error "Wrong type for attribute"
+  Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
@@ -120,6 +141,25 @@ defaultAttrVal = \case
   FloatAttribute -> 0
   IntAttribute -> 0
   BoolAttribute -> False
+  V3Attribute -> V3 1 0 0
+
+-- Convert to the storage representation of an attribute
+toAttrRefType :: forall a. Attr a => a -> AttrRef a
+toAttrRefType a = case mkAttr :: Attribute a of
+  StringAttribute -> pack a
+  V3Attribute     -> v3ToTriple a
+  IntAttribute    -> a
+  FloatAttribute  -> a
+  BoolAttribute   -> a
+
+-- Convert from the storage representation of an attribute
+fromAttrRefType :: forall a. Attr a => AttrRef a -> a
+fromAttrRefType a = case mkAttr :: Attribute a of
+  StringAttribute -> unpack a
+  V3Attribute     -> tripleToV3 a
+  IntAttribute    -> a
+  FloatAttribute  -> a
+  BoolAttribute   -> a
 
 data EditorState = EditorState
   { posRef         :: IORef (Float, Float, Float)
@@ -133,9 +173,11 @@ data EditorState = EditorState
   , blendRef       :: IORef Bool
   , specularityRef :: IORef Scalar
   , componentsRef  :: IORef [String]
-  , componentData  :: HashMap (String,String) (SomeAttribute IORef)
+  , componentData  :: HashMap (String,String) SomeAttributeRef
   }
 
+-- Event when the attribute val changes, and a way to push val changes
+-- without firing an event
 data EditorChange a = EditorChange
   { ev     :: B.Event a
   , setVal :: a -> IO ()

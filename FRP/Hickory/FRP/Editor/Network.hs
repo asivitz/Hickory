@@ -171,9 +171,9 @@ mkChangeEvents componentDefs coreEvents EditorState {..} = do
   componentChanges <- Map.fromList . concat <$> for (Map.toList componentDefs) \(name, Component{..}) ->
     for attributes \(SomeAttribute attr (Const attrName)) ->
       case Map.lookup (name, attrName) componentData of
-        Just (SomeAttribute attr' ref) -> case eqAttr attr attr' of
+        Just (SomeAttributeRef attr' ref) -> case eqAttr attr attr' of
           Just HRefl -> case proveAttrClasses attr of
-            AttrClasses -> ((name, attrName),) . SomeAttribute attr <$> refChangeEvent coreEvents ref
+            AttrClasses -> ((name, attrName),) . SomeAttribute attr . bimapEditorChange (fmap fromAttrRefType) (.toAttrRefType) <$> refChangeEvent coreEvents ref
           _ -> error "Can't find attribute ref"
         _ -> error "Attribute types don't match"
   pure EditorChangeEvents {..}
