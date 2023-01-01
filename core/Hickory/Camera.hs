@@ -58,7 +58,7 @@ data Camera = Camera
   , angleVec     :: V3 Scalar
   , up           :: V3 Scalar
   , projection   :: Projection
-  } deriving Generic
+  } deriving (Generic, Show)
 
 perspectiveFocusPlaneSize :: Size Int -> V3 Scalar -> Scalar -> Size Scalar
 perspectiveFocusPlaneSize (aspectRatio -> scrRat) angleVec fov = Size cameraFocusPlaneWidth cameraFocusPlaneHeight
