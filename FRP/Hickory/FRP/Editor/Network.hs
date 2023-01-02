@@ -234,8 +234,9 @@ editorNetwork
   -> HashMap String Component
   -> FilePath
   -> B.Event FilePath
+  -> (forall m. (MonadReader Resources m, CommandMonad m) => [Object] -> m ()) -- Extra, optional, global drawing function
   -> B.MomentIO (B.Behavior [Object])
-editorNetwork vulkanResources resourcesStore coreEvents graphicsParams componentDefs initialSceneFile eLoadScene = mdo
+editorNetwork vulkanResources resourcesStore coreEvents graphicsParams componentDefs initialSceneFile eLoadScene xtraView = mdo
   editorState <- liftIO (mkEditorState componentDefs)
   sceneFile <- B.stepper initialSceneFile eLoadScene
 
@@ -337,7 +338,7 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
         = renderToRenderer frameContext renderer renSettings litF overlayF
   B.reactimate $ runRender
     <$> bRenderSettings
-    <*> (flip runReaderT <$> resources <*> worldRender)
+    <*> (flip runReaderT <$> resources <*> ((>>) <$> worldRender <*> (xtraView <$> (Map.elems <$> objects))))
     <*> (flip runReaderT <$> resources <*> overlayRender)
     <@> eRender coreEvents
 

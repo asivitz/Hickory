@@ -108,7 +108,7 @@ drawObject componentDefs Object {..} = do
   H.runMatrixT . H.xform transform $ do
     for_ (Map.toList components) \(compName, vals) -> case Map.lookup compName componentDefs of
       Just Component {..} -> draw vals
-      Nothing -> error "Can't find component definition"
+      Nothing -> error $ "Can't find component definition: " ++ compName
 
   H.addCommand H.DrawCommand
     { modelMat = transform
