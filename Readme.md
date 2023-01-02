@@ -1,6 +1,7 @@
 # Hickory
 
-Hickory could be considered a game engine, but really it's a collection of tools and abstractions for making interactive programs in Haskell. It is relatively opinionless, which means the pieces may be used separately or together.
+Hickory is a game engine for Haskell. The pieces (vulkan renderer, input systems, resource loading, game state management) are fairly modular, allowing some pieces to be used without committing to others.
+<img width="1213" alt="Screen Shot 2023-01-02 at 4 52 14 PM" src="https://user-images.githubusercontent.com/607403/210281421-de04a8c6-3fa4-4719-9195-1c911189e893.png">
 
 ## Core library: 'Hickory'
 
