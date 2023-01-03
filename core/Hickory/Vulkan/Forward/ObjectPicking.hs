@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds, PatternSynonyms, QuasiQuotes, TemplateHaskell  #-}
-{-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE DataKinds, DeriveGeneric, DerivingStrategies, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DeriveGeneric, DerivingStrategies, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
 module Hickory.Vulkan.Forward.ObjectPicking where
 
@@ -26,7 +26,6 @@ import Vulkan
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
-import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits (zeroBits, Bits ((.|.)))
@@ -39,7 +38,7 @@ import Foreign.Storable.Generic (GStorable)
 import Linear (M44)
 import Data.ByteString (ByteString)
 import Data.Word (Word32)
-import Hickory.Vulkan.Framing (FramedResource(..))
+import Hickory.Vulkan.Framing (FramedResource, frameResource)
 import Data.Proxy (Proxy)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
@@ -54,19 +53,21 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
     , dependencies = [dependency]
     } Nothing mkAcquire
 
-  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits
-  depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
-
-  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
-  objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw
-  let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
   sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
-  frameBuffer <- createFramebuffer device renderPass extent [depthImageView, objIDImageView]
-  let frameBuffers = V.replicate 3 frameBuffer
-      cullMode = CULL_MODE_BACK_BIT
-      descriptorSpecs = [ ImageDescriptor [(objIDImage,sampler)]
-                        ]
+  frameBuffers <- frameResource do
+    depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits
+    depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
+
+    objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
+    objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw
+    let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
+
+    let descriptorSpecs = [ ImageDescriptor [(objIDImage,sampler)]
+                          ]
+    (,descriptorSpecs) <$> createFramebuffer device renderPass extent [depthImageView, objIDImageView]
+
+  let cullMode = CULL_MODE_BACK_BIT
 
   pure RenderTarget {..}
   where
@@ -126,7 +127,7 @@ data ObjectIDConstants = ObjectIDConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withObjectIDMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
+withObjectIDMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
 withObjectIDMaterial vulkanResources renderTarget globalDS
   = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) vertShader fragShader globalDS Nothing
   where

@@ -16,16 +16,18 @@ import Acquire.Acquire (Acquire)
 import Hickory.Math (Scalar)
 import Vulkan.Zero (Zero(..))
 import Vulkan.CStruct.Extends (SomeStruct(..))
+import Hickory.Vulkan.Framing (FramedResource)
+import Data.Traversable (for)
 
-withImageBuffer :: VulkanResources -> RenderTarget -> Int -> Acquire ImageBuffer
-withImageBuffer vulkanResources RenderTarget {..} descIdx = do
+withImageBuffer :: VulkanResources -> RenderTarget -> Int -> Acquire (FramedResource ImageBuffer)
+withImageBuffer vulkanResources RenderTarget {..} descIdx = for frameBuffers \(_, descriptorSpecs) -> do
+  let viewableImage = case descriptorSpecs !! descIdx of
+        ImageDescriptor [(vi, _sampler)] -> vi
+        _ -> error "Can't only copy image from image descriptor of one image"
   buffer <- withDataBuffer vulkanResources (fromIntegral $ w*h) BUFFER_USAGE_TRANSFER_DST_BIT
   pure ImageBuffer {..}
   where
   Extent2D w h = extent
-  viewableImage = case descriptorSpecs !! descIdx of
-    ImageDescriptor [(vi, _sampler)] -> vi
-    _ -> error "Can't only copy image from image descriptor of one image"
   region = BufferImageCopy
     { bufferOffset = 0
     , bufferRowLength = 0

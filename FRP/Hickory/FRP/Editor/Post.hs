@@ -19,9 +19,11 @@ import Hickory.Math (Scalar)
 import Linear (V3 (..))
 import Control.Monad (void)
 import Hickory.Vulkan.Forward.Types (Renderer(..))
-import Vulkan (Extent3D(..), Extent2D (..), objectTypeAndHandle)
+import Vulkan (Extent2D (..), objectTypeAndHandle)
 import Foreign (with, castPtr, wordPtrToPtr, WordPtr(..))
 import Control.Lens (view)
+import Hickory.Vulkan.Types (FrameContext(..))
+import Hickory.Vulkan.Framing (resourceForFrame)
 
 data PostEditorState = PostEditorState
   { exposureRef        :: IORef Float
@@ -87,8 +89,8 @@ mkPostEditorState GraphicsParams {..} = do
 
   pure PostEditorState {..}
 
-drawPostUI :: PostEditorState -> Renderer -> IO ()
-drawPostUI pes@PostEditorState {..} Renderer {..}= do
+drawPostUI :: PostEditorState -> (Renderer, FrameContext) -> IO ()
+drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
   myWithWindow "Post Processing" do
     withMenuBarOpen do
       withMenuOpen "File" do
@@ -106,7 +108,7 @@ drawPostUI pes@PostEditorState {..} Renderer {..}= do
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100
 
     let Extent2D w h = view #extent shadowRenderTarget
-        desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet shadowMapDescriptorSet)
+        desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet (resourceForFrame swapchainImageIndex shadowMapDescriptorSet))
         imagePtr = wordPtrToPtr (WordPtr $ fromIntegral desSetHandle)
     with (ImVec2 (realToFrac w / 4) (realToFrac h / 4)) \sizeptr ->
       with (ImVec2 0 0) \uv0 ->

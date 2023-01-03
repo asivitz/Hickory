@@ -47,6 +47,7 @@ import Acquire.Acquire (Acquire)
 import Data.UUID.V4 (nextRandom)
 import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..))
 import Data.List (group, sort)
+import GHC.Word (Word32)
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
@@ -164,7 +165,7 @@ data BufferDescriptorSet a = BufferDescriptorSet
   } deriving (Generic)
 
 descriptorSetBinding :: FramedResource PointedDescriptorSet -> DescriptorSetBinding
-descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Int) bds)
+descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Word32) bds)
                            , fmap (view #descriptorSet) bds
                            )
 

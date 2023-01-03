@@ -59,10 +59,9 @@ withSwapchainRenderTarget VulkanResources { deviceContext = DeviceContext{..} } 
     } Nothing mkAcquire
 
   frameBuffers <- for images \(ViewableImage _img imgView _format) ->
-    createFramebuffer device renderPass extent [imgView]
+    (,mempty) <$> createFramebuffer device renderPass extent [imgView]
 
-  let descriptorSpecs = []
-      cullMode = CULL_MODE_BACK_BIT
+  let cullMode = CULL_MODE_BACK_BIT
       samples = SAMPLE_COUNT_1_BIT
 
   pure RenderTarget {..}
@@ -113,7 +112,7 @@ createFramebuffer dev renderPass swapchainExtent imageViews =
 
 useRenderTarget :: (MonadIO io, Integral a) => RenderTarget -> Vulkan.CommandBuffer -> V.Vector ClearValue -> a -> io r -> io r
 useRenderTarget RenderTarget {..} commandBuffer clearValues swapchainImageIndex f = do
-  let framebuffer = fromMaybe (error "Error accessing framebuffer") $ frameBuffers V.!? fromIntegral swapchainImageIndex
+  let (framebuffer,_) = fromMaybe (error "Error accessing framebuffer") $ frameBuffers V.!? fromIntegral swapchainImageIndex
       renderPassBeginInfo = zero
         { renderPass  = renderPass
         , framebuffer = framebuffer

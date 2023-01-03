@@ -19,8 +19,8 @@ import Hickory.Vulkan.Mesh (vsizeOf)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..))
 import Foreign (Storable)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
-import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, ix, (^?!))
-import Hickory.Vulkan.Framing (doubleResource, resourceForFrame, frameResource)
+import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4)
+import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet)
 import Data.List (partition, sortOn)
 import Data.Foldable (for_)
@@ -44,6 +44,7 @@ import Data.Maybe (isJust)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
 import Hickory.Math (Scalar, orthographicProjection)
 import Data.Fixed (div')
+import Data.Traversable (for)
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -53,30 +54,32 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   pickingRenderTarget          <- withObjectIDRenderTarget vulkanResources swapchain
   currentSelectionRenderTarget <- withObjectIDRenderTarget vulkanResources swapchain
 
-  globalBuffer             <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
-  globalShadowPassBuffer   <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
-  globalWorldBuffer        <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
-  globalOverlayBuffer      <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalBuffer             <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalShadowPassBuffer   <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalWorldBuffer        <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalOverlayBuffer      <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
-  globalWorldDescriptorSet <- withDescriptorSet vulkanResources $
-    [ BufferDescriptor (buf globalBuffer)
-    , BufferDescriptor (buf globalWorldBuffer)
-    ]
-    ++
-    descriptorSpecs shadowRenderTarget
-  globalOverlayDescriptorSet <- withDescriptorSet vulkanResources
-    [ BufferDescriptor (buf globalBuffer)
-    , BufferDescriptor (buf globalOverlayBuffer)
-    ]
+  globalWorldDescriptorSet <- for (V.zip3 globalBuffer globalWorldBuffer (snd <$> shadowRenderTarget.frameBuffers))
+    \(globalBuf, globalWorldBuf, targetDescriptorSpecs) -> do
+      withDescriptorSet vulkanResources $
+        [ BufferDescriptor (buf globalBuf)
+        , BufferDescriptor (buf globalWorldBuf)
+        ] ++ targetDescriptorSpecs
 
-  globalShadowPassDescriptorSet <- withDescriptorSet vulkanResources
-    [ BufferDescriptor (buf globalBuffer)
-    , BufferDescriptor (buf globalShadowPassBuffer)
-    ]
+  globalOverlayDescriptorSet <- for (V.zip globalBuffer globalOverlayBuffer) \(globalBuf, overlayBuf) ->
+    withDescriptorSet vulkanResources
+      [ BufferDescriptor (buf globalBuf)
+      , BufferDescriptor (buf overlayBuf)
+      ]
+
+  globalShadowPassDescriptorSet <- for (V.zip globalBuffer globalShadowPassBuffer) \(globalBuf, shadowBuf) ->
+    withDescriptorSet vulkanResources
+      [ BufferDescriptor (buf globalBuf)
+      , BufferDescriptor (buf shadowBuf)
+      ]
 
   -- For debugging
-  shadowMapDescriptorSet <- withDescriptorSet vulkanResources $
-    descriptorSpecs shadowRenderTarget
+  shadowMapDescriptorSet <- for (snd <$> shadowRenderTarget.frameBuffers) $ withDescriptorSet vulkanResources
 
   imageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
@@ -98,20 +101,16 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   msdfOverlayMaterial      <- withMSDFMaterial vulkanResources swapchainRenderTarget globalOverlayDescriptorSet imageSetLayout
 
 
-  postMaterialDescriptorSet <- withDescriptorSet vulkanResources
-    [ litRenderTarget ^?! (#descriptorSpecs . ix 0)
-    ]
+  postMaterialDescriptorSet <- for (snd <$> litRenderTarget.frameBuffers) $ withDescriptorSet vulkanResources
 
-  objHighlightDescriptorSet <- withDescriptorSet vulkanResources
-    [ currentSelectionRenderTarget ^?! (#descriptorSpecs . ix 0)
-    ]
+  objHighlightDescriptorSet <- for (snd <$> currentSelectionRenderTarget.frameBuffers) $ withDescriptorSet vulkanResources
 
-  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderTarget (doubleResource globalWorldDescriptorSet) (doubleResource postMaterialDescriptorSet)
-  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderTarget (doubleResource globalWorldDescriptorSet) (doubleResource objHighlightDescriptorSet)
+  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderTarget globalWorldDescriptorSet postMaterialDescriptorSet
+  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderTarget globalWorldDescriptorSet objHighlightDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 1000
 
-  objectPickingImageBuffer <- frameResource $ withImageBuffer vulkanResources pickingRenderTarget 0
+  objectPickingImageBuffer <- withImageBuffer vulkanResources pickingRenderTarget 0
 
   pure Renderer {..}
 
@@ -187,7 +186,7 @@ lightProjection viewProjMat lightView shadowMapExtent = orthographicProjection l
 
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
-  useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
+  useDynamicMesh (resourceForFrame swapchainImageIndex dynamicMesh) do
     let WorldSettings {..} = worldSettings
         Extent2D w h = extent
         lightView = viewDirection (V3 0 0 0) lightDirection (V3 0 0 1) -- Trying to get the whole scene in view of the sun
@@ -195,20 +194,27 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         viewMat = cameraViewMat camera
         lightProj = lightProjection (projMat !*! viewMat) lightView (shadowRenderTarget.extent)
         worldGlobals = WorldGlobals { camPos = cameraPos camera, ..}
-    uploadBufferDescriptor globalBuffer
-      $ Globals frameNumber
-    uploadBufferDescriptor globalWorldBuffer
-      $ worldGlobals
-      & #lightTransform .~ (lightProj !*! lightView)
-    uploadBufferDescriptor globalShadowPassBuffer
-      $ worldGlobals
-      & #viewMat .~ lightView
-      & #projMat .~ lightProj
+
+    withResourceForFrame swapchainImageIndex globalBuffer \buf ->
+      uploadBufferDescriptor buf
+        $ Globals frameNumber
+
+    withResourceForFrame swapchainImageIndex globalWorldBuffer \buf ->
+      uploadBufferDescriptor buf
+        $ worldGlobals
+        & #lightTransform .~ (lightProj !*! lightView)
+
+    withResourceForFrame swapchainImageIndex globalShadowPassBuffer \buf ->
+      uploadBufferDescriptor buf
+        $ worldGlobals
+        & #viewMat .~ lightView
+        & #projMat .~ lightProj
       -- TODO: Dynamic based on camera pos/target
 
-    uploadBufferDescriptor globalOverlayBuffer $ worldGlobals
-                                               & #viewMat .~ (overlayGlobals ^. #viewMat)
-                                               & #projMat .~ (overlayGlobals ^. #projMat)
+    withResourceForFrame swapchainImageIndex globalOverlayBuffer \buf ->
+      uploadBufferDescriptor buf $ worldGlobals
+                                 & #viewMat .~ (overlayGlobals ^. #viewMat)
+                                 & #projMat .~ (overlayGlobals ^. #projMat)
 
     let drawCommands = runCommand litF
 
@@ -241,12 +247,12 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
 
       case highlightObjs of
         (_:_) -> do
-          cmdBindMaterial frameNumber commandBuffer objHighlightMaterial
+          cmdBindMaterial frameContext objHighlightMaterial
           liftIO $ cmdDraw commandBuffer 3 1 0 0
         _ -> pure ()
 
     useRenderTarget swapchainRenderTarget commandBuffer [] swapchainImageIndex do
-      cmdBindMaterial frameNumber commandBuffer postProcessMaterial
+      cmdBindMaterial frameContext postProcessMaterial
       liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postSettings
       liftIO $ cmdDraw commandBuffer 3 1 0 0
 
@@ -256,7 +262,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         , Universal msdfOverlayMaterial ()
         , NullMat
         ) $ runCommand overlayF
-    liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame frameNumber objectPickingImageBuffer)
+    liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame swapchainImageIndex objectPickingImageBuffer)
 
 type MaterialConfig c = RegisteredMaterial c (IORef [c])
 
@@ -296,10 +302,10 @@ renderCommand
   -> Maybe PointedDescriptorSet
   -> Word32
   -> m ()
-renderCommand FrameContext {..} BufferedUniformMaterial {..} DrawCommand {..} drawDS uniformIdx = do
+renderCommand fc@FrameContext {..} BufferedUniformMaterial {..} DrawCommand {..} drawDS uniformIdx = do
   curUUID <- get
   when (curUUID /= uuid material) do
-    cmdBindMaterial frameNumber commandBuffer material
+    cmdBindMaterial fc material
     put curUUID
 
   cmdPushMaterialConstants commandBuffer material uniformIdx
@@ -320,7 +326,7 @@ renderCommand FrameContext {..} BufferedUniformMaterial {..} DrawCommand {..} dr
 
 uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial a -> [a] -> m ()
 uploadUniformsBuffer FrameContext {..} BufferedUniformMaterial {..} uniforms = do
-  let BufferDescriptorSet { dataBuffer } = resourceForFrame frameNumber descriptor
+  let BufferDescriptorSet { dataBuffer } = resourceForFrame swapchainImageIndex descriptor
 
   uploadBufferDescriptorArray dataBuffer uniforms
 
@@ -480,4 +486,4 @@ processIDCommand frameContext
   go = submitCommand frameContext dc
 
 pickObjectID :: FrameContext -> Renderer -> (Scalar,Scalar) -> IO Int
-pickObjectID FrameContext {..} Renderer{..} = fmap fromIntegral . readPixel (resourceForFrame (frameNumber - 1) objectPickingImageBuffer)
+pickObjectID FrameContext {..} Renderer{..} = fmap fromIntegral . readPixel (resourceForFrame (swapchainImageIndex - 1) objectPickingImageBuffer)

@@ -90,8 +90,7 @@ data BufferedMesh = BufferedMesh
 
 data RenderTarget = RenderTarget
   { renderPass      :: !RenderPass
-  , frameBuffers    :: !(V.Vector Framebuffer)
-  , descriptorSpecs :: [DescriptorSpec]
+  , frameBuffers    :: !(FramedResource (Framebuffer, [DescriptorSpec]))
   , extent          :: !Extent2D
   , samples         :: !SampleCountFlagBits
   , cullMode        :: !CullModeFlagBits

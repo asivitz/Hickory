@@ -28,37 +28,35 @@ import GHC.Word (Word32)
 import Hickory.Camera (Camera(..), Projection (..))
 
 data Renderer = Renderer
-  { swapchainRenderTarget  :: !RenderTarget
-  , shadowRenderTarget     :: !RenderTarget
-  , litRenderTarget        :: !RenderTarget
-  , pickingRenderTarget    :: !RenderTarget
-  , currentSelectionRenderTarget   :: !RenderTarget
-  -- Pipelines
-  , pickingMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
-  , currentSelectionMaterial       :: !(BufferedUniformMaterial ObjectIDConstants)
-  , staticShadowMaterial   :: !(BufferedUniformMaterial StaticConstants)
-  , animatedShadowMaterial :: !(BufferedUniformMaterial AnimatedConstants)
+  { swapchainRenderTarget        :: !RenderTarget
+  , shadowRenderTarget           :: !RenderTarget
+  , litRenderTarget              :: !RenderTarget
+  , pickingRenderTarget          :: !RenderTarget
+  , currentSelectionRenderTarget :: !RenderTarget
 
+  -- Pipelines
+  , pickingMaterial            :: !(BufferedUniformMaterial ObjectIDConstants)
+  , currentSelectionMaterial   :: !(BufferedUniformMaterial ObjectIDConstants)
+  , staticShadowMaterial       :: !(BufferedUniformMaterial StaticConstants)
+  , animatedShadowMaterial     :: !(BufferedUniformMaterial AnimatedConstants)
   , staticLitWorldMaterial     :: !(BufferedUniformMaterial StaticConstants)
   , staticUnlitWorldMaterial   :: !(BufferedUniformMaterial StaticConstants)
   , animatedLitWorldMaterial   :: !(BufferedUniformMaterial AnimatedConstants)
-  -- , animatedUnlitWorldMaterial :: !(BufferedUniformMaterial AnimatedConstants)
   , msdfWorldMaterial          :: !(BufferedUniformMaterial MSDFMatConstants)
   , linesWorldMaterial         :: !(BufferedUniformMaterial StaticConstants)
-  , objHighlightMaterial    :: !(Material Word32)
+  , objHighlightMaterial       :: !(Material Word32)
+  , staticOverlayMaterial      :: !(BufferedUniformMaterial StaticConstants)
+  , msdfOverlayMaterial        :: !(BufferedUniformMaterial MSDFMatConstants)
 
-  , staticOverlayMaterial :: !(BufferedUniformMaterial StaticConstants)
-  , msdfOverlayMaterial   :: !(BufferedUniformMaterial MSDFMatConstants)
-
-  , postProcessMaterial    :: !(Material PostConstants)
-  , globalBuffer           :: !(DataBuffer Globals)
-  , globalShadowPassBuffer :: !(DataBuffer WorldGlobals)
-  , globalWorldBuffer      :: !(DataBuffer WorldGlobals)
-  , globalOverlayBuffer    :: !(DataBuffer WorldGlobals)
-  , dynamicMesh            :: FramedResource DynamicBufferedMesh
+  , postProcessMaterial      :: !(Material PostConstants)
+  , globalBuffer             :: !(FramedResource (DataBuffer Globals))
+  , globalShadowPassBuffer   :: !(FramedResource (DataBuffer WorldGlobals))
+  , globalWorldBuffer        :: !(FramedResource (DataBuffer WorldGlobals))
+  , globalOverlayBuffer      :: !(FramedResource (DataBuffer WorldGlobals))
+  , dynamicMesh              :: FramedResource DynamicBufferedMesh
   , objectPickingImageBuffer :: FramedResource ImageBuffer
 
-  , shadowMapDescriptorSet :: PointedDescriptorSet
+  , shadowMapDescriptorSet   :: FramedResource PointedDescriptorSet
   } deriving Generic
 
 -- params: targ, shaders

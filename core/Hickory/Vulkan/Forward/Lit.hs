@@ -27,7 +27,6 @@ import Vulkan
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
-import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits ((.|.), zeroBits)
@@ -40,6 +39,7 @@ import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMateria
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
 import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants)
 import Hickory.Vulkan.Forward.ShaderDefinitions
+import Hickory.Vulkan.Framing (FramedResource, frameResource)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -52,30 +52,28 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
     , dependencies = [litDependency]
     } Nothing mkAcquire
 
-  -- Target textures for the lit pass
-  hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
-  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw
-  let _hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
-
-  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount zeroBits
-  depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
-  let _depthImage = ViewableImage depthImageRaw depthImageView depthFormat
-
-  -- Target tex for the multisample resolve pass
-  resolveImageRaw  <- withIntermediateImage vulkanResources resolveFormat
-    (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
-    extent SAMPLE_COUNT_1_BIT
-  resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw
-  let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
-
-  frameBuffer <-
-    createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
-
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  frameBuffers <- frameResource do
 
-  let frameBuffers = V.replicate 3 frameBuffer
-      descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)]]
-      cullMode = CULL_MODE_BACK_BIT
+    -- Target textures for the lit pass
+    hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
+    hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw
+    let _hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
+
+    depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount zeroBits
+    depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
+    let _depthImage = ViewableImage depthImageRaw depthImageView depthFormat
+
+    -- Target tex for the multisample resolve pass
+    resolveImageRaw  <- withIntermediateImage vulkanResources resolveFormat
+      (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+      extent SAMPLE_COUNT_1_BIT
+    resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw
+    let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
+        descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)]]
+    (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
+
+  let cullMode = CULL_MODE_BACK_BIT
       samples = maxSampleCount
   pure RenderTarget {..}
   where
@@ -144,11 +142,11 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
-withStaticLitMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticLitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
 withStaticLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord] pipelineDefaults staticLitVertShader litFragShader globalPDS (Just perDrawLayout)
 
-withAnimatedLitMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial AnimatedConstants)
+withAnimatedLitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial AnimatedConstants)
 withAnimatedLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord, BoneIndex, MaterialIndex] pipelineDefaults animatedLitVertShader litFragShader globalPDS (Just perDrawLayout)
 
@@ -289,11 +287,11 @@ void main()
 }
 |])
 
-withStaticUnlitMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticUnlitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
 withStaticUnlitMaterial vulkanResources renderTarget globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
 
-withLineMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withLineMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
 withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineOptions lineVertShader lineFragShader globalPDS Nothing
   where
   pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }

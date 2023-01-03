@@ -22,6 +22,7 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Lazy as BS
 import Control.Lens (view)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet)
+import Hickory.Vulkan.Framing (FramedResource)
 
 type TextRenderer = (Font, PointedDescriptorSet, Float)
 
@@ -44,7 +45,7 @@ data MSDFMatConstants = MSDFMatConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withMSDFMaterial :: VulkanResources -> RenderTarget -> PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
 withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader fragShader globalPds (Just perDrawLayout )
   where
   vertShader :: ByteString

@@ -69,7 +69,7 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes e
     waitForIdleDevice = deviceWaitIdle (device deviceContext)
     runASingleFrame = do
       frameNumber <- atomicModifyIORef frameCounter (\a -> (a+1,a+1))
-      let frame = resourceForFrame frameNumber frames
+      let frame = resourceForFrame (fromIntegral frameNumber) frames -- usually we index by swapchainImageIndex, but we don't have it yet
       ((swapchain, userResources), releaseRes) <- liftIO $ readIORef dynamicResources
       drawRes <- drawFrame frameNumber frame vulkanResources swapchain (exeFrame userResources)
       unless drawRes do

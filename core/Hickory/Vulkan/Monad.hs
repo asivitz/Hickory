@@ -23,13 +23,12 @@ import Data.Functor ((<&>))
 import Data.Generics.Labels ()
 import Data.List (sortOn, mapAccumL)
 import Data.Maybe (fromMaybe)
-import Data.Text (Text, unpack)
 import Data.Word (Word32, Word64)
 import Foreign (Storable)
 import Hickory.Graphics.DrawText (squareIndices)
 import Hickory.Text.Text (transformTextCommandToVerts)
-import Hickory.Vulkan.DescriptorSet (TextureDescriptorSet (..), BufferDescriptorSet(..), withBufferDescriptorSet)
-import Hickory.Vulkan.Framing (FramedResource, frameResource, doubleResource)
+import Hickory.Vulkan.DescriptorSet (BufferDescriptorSet(..), withBufferDescriptorSet)
+import Hickory.Vulkan.Framing (FramedResource, frameResource)
 import Hickory.Vulkan.Material (withMaterial, PipelineOptions)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
@@ -60,7 +59,7 @@ withBufferedUniformMaterial
   -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
-  -> PointedDescriptorSet -- Global descriptor set
+  -> FramedResource PointedDescriptorSet -- Global descriptor set
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial uniform)
 withBufferedUniformMaterial vulkanResources renderTarget attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
@@ -68,7 +67,7 @@ withBufferedUniformMaterial vulkanResources renderTarget attributes pipelineOpti
   let
     materialSet = view #descriptorSet <$> descriptor
   material <- withMaterial vulkanResources renderTarget (undefined :: Proxy Word32) attributes pipelineOptions vert frag
-    [ doubleResource globalDescriptorSet
+    [ globalDescriptorSet
     , materialSet
     ]
     perDrawDescriptorSetLayout

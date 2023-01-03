@@ -43,7 +43,7 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..), VulkanResources (..), Attribute, DeviceContext (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..), VulkanResources (..), Attribute, DeviceContext (..), FrameContext (..))
 import Data.Maybe (isJust)
 
 withMaterial
@@ -76,7 +76,7 @@ withMaterial
           , offset = 0
           , stageFlags = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
           }]
-      , setLayouts = V.fromList $ (view #descriptorSetLayout . resourceForFrame (0 :: Int)
+      , setLayouts = V.fromList $ (view #descriptorSetLayout . resourceForFrame (0 :: Word32)
                                <$> descriptorSets) Prelude.++ maybe [] pure perDrawDescriptorSetLayout
       }
     (globalDescriptorSet : materialDescriptorSet : _) = descriptorSets
@@ -96,12 +96,12 @@ cmdBindDrawDescriptorSet :: MonadIO m => CommandBuffer -> Material a -> PointedD
 cmdBindDrawDescriptorSet commandBuffer Material {..} pds =
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 2 [view #descriptorSet pds] []
 
-cmdBindMaterial :: MonadIO m => Int -> CommandBuffer -> Material a -> m ()
-cmdBindMaterial frameNumber commandBuffer Material {..} = do
+cmdBindMaterial :: MonadIO m => FrameContext -> Material a -> m ()
+cmdBindMaterial FrameContext {..} Material {..} = do
   cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
   where
-  sets = fmap (view #descriptorSet . resourceForFrame frameNumber) [globalDescriptorSet, materialDescriptorSet]
+  sets = fmap (view #descriptorSet . resourceForFrame swapchainImageIndex) [globalDescriptorSet, materialDescriptorSet]
 
 {- GRAPHICS PIPELINE -}
 
