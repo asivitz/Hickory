@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds, OverloadedLists, OverloadedLabels #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedRecordDot #-}
 
 module Hickory.Vulkan.Forward.Renderer where
 
@@ -7,7 +7,7 @@ import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
-import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/))
+import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance)
 import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices)
@@ -43,6 +43,7 @@ import qualified Data.UUID as UUID
 import Data.Maybe (isJust)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
 import Hickory.Math (Scalar, orthographicProjection)
+import Data.Fixed (div')
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -142,18 +143,57 @@ viewBoundaryFromInvProjection m =  (l,r,b,t,n,f)
   n = minimum . fmap (^. _z) $ frustumPoints
   f = maximum . fmap (^. _z) $ frustumPoints
 
+-- Given a matrix going from NDC into light space (for the camera), give the light projection
+-- lightProjection :: (Fractional a, Ord a) => M44 a -> M44 a
+lightProjection :: (Show a, Real a, Floating a, Ord a) => M44 a -> M44 a -> Extent2D -> M44 a
+lightProjection viewProjMat lightView shadowMapExtent = orthographicProjection l' r' b' t' n' f' -- TODO: Near plane should take into account objects outside the camera
+  where
+  -- Get a transform from NDC to light space
+  invvp = inv44 viewProjMat
+  ndcToLightSpace = lightView !*! invvp
+  -- Find the camera frustum in light space
+  frustumPoints = xformPoint ndcToLightSpace <$> ndcBoundaryPoints
+  -- Find the bounding box of the frustum
+  l = minimum . fmap (^. _x) $ frustumPoints
+  -- r = maximum . fmap (^. _x) $ frustumPoints
+  -- b = maximum . fmap (^. _y) $ frustumPoints
+  t = minimum . fmap (^. _y) $ frustumPoints
+  n = minimum . fmap (^. _z) $ frustumPoints
+  -- f = maximum . fmap (^. _z) $ frustumPoints
+  -- To eliminate visual artifacts from rotating the camera, the bounding
+  -- box should always be the same size, no matter how you look at it
+  [p0, _p1, _p2, _p3, p4, _p5, p6, _p7] = frustumPoints
+  -- What's the longest diagonal of the frustum? Either it's a diagonal
+  -- from the near to far plane, or a diagonal of the far plane
+  diag1 = distance p0 p6 -- from one corner of the near plane, to the opposite corner of the far plane
+  diag2 = distance p4 p6 -- from one corner of the far plane, to the opposite corner of the far plane
+  shadowMapWidth = realToFrac shadowMapExtent.width
+  longest = max diag1 diag2
+          -- We're going to snap the boundary position to texel increments
+          -- of the shadow map, so increase the size by a texel to have
+          -- room at the boundary
+          * (shadowMapWidth/(shadowMapWidth-1))
+  -- Snap position to the nearest texel
+  l' = snap (longest / shadowMapWidth) l
+  t' = snap (longest / shadowMapWidth) t
+  n' = snap (longest / shadowMapWidth) n
+  -- Bump out the boundaries to fit the maximum diagnoal
+  r' = l' + longest
+  b' = t' + longest
+  f' = n' + longest
+
+  xformPoint m = (\v -> v ^/ (v ^. _w)) . (m !*)
+  snap by x = let r = x `div'` by in realToFrac r * by
+
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame frameNumber dynamicMesh) do
     let WorldSettings {..} = worldSettings
         Extent2D w h = extent
         lightView = viewDirection (V3 0 0 0) lightDirection (V3 0 0 1) -- Trying to get the whole scene in view of the sun
-        -- lightProj = shotMatrix (Ortho 100 1.0 85 True) (aspectRatio shadowMapSize)
         projMat = cameraProjMat (Size (fromIntegral w) (fromIntegral h)) camera
         viewMat = cameraViewMat camera
-        invvp = inv44 $ projMat !*! viewMat
-        (l,r,b,t,n,f) = viewBoundaryFromInvProjection (lightView !*! invvp)
-        lightProj = orthographicProjection l r b t n f -- TODO: Near plane should take into account objects outside the camera
+        lightProj = lightProjection (projMat !*! viewMat) lightView (shadowRenderTarget.extent)
         worldGlobals = WorldGlobals { camPos = cameraPos camera, ..}
     uploadBufferDescriptor globalBuffer
       $ Globals frameNumber

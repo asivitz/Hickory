@@ -6,8 +6,8 @@ import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
 import Hickory.Resources (getMesh, Resources (..), getTexture)
 import Control.Monad.Reader.Class (MonadReader)
-import Hickory.Math (mkTranslation, mkScale, Scalar, v2tov3, v2rotate)
-import Hickory.Graphics (askMatrix, MatrixMonad)
+import Hickory.Math (mkTranslation, mkScale, Scalar, v2tov3, v2rotate, mkRotation)
+import Hickory.Graphics (askMatrix, MatrixMonad, xform)
 import Hickory.Vulkan.Forward.Renderer (ndcBoundaryPoints)
 import Control.Lens ((^.))
 import Foreign (Storable)
@@ -37,7 +37,7 @@ drawPoint color p = do
   whiteTex <- getTexture "white"
   mat <- askMatrix
   addCommand $ DrawCommand
-    { modelMat = mat !*! mkScale (V3 0.1 0.1 0.1) !*! mkTranslation p
+    { modelMat = mat !*! mkTranslation p !*! mkScale (V3 0.1 0.1 0.1)
     , mesh = Buffered cube
     , color = color
     , drawType = Static $ StaticMesh whiteTex (V2 1 1)
@@ -47,6 +47,21 @@ drawPoint color p = do
     , ident = Nothing
     , specularity = 0
     }
+
+drawCube :: (CommandMonad m, MatrixMonad m) => V4 Float -> m ()
+drawCube color = do
+  drawFace
+  xform (mkRotation (V3 1 0 0) (pi/2)) drawFace
+  xform (mkRotation (V3 1 0 0) pi) drawFace
+  xform (mkRotation (V3 1 0 0) (-pi/2)) drawFace
+  xform (mkRotation (V3 0 1 0) (-pi/2)) drawFace
+  xform (mkRotation (V3 0 1 0) (pi/2)) drawFace
+  where
+  drawFace = do
+    drawLine color (V3 (-0.5) (-0.5) (-0.5)) (V3 0.5 (-0.5) (-0.5))
+    drawLine color (V3 0.5 (-0.5) (-0.5)) (V3 0.5 0.5 (-0.5))
+    drawLine color (V3 0.5 0.5 (-0.5)) (V3 (-0.5) 0.5 (-0.5))
+    drawLine color (V3 (-0.5) 0.5 (-0.5)) (V3 (-0.5) (-0.5) (-0.5))
 
 drawFrustum :: (CommandMonad m, MatrixMonad m) => V4 Float -> M44 Float -> m ()
 drawFrustum color mat = do
