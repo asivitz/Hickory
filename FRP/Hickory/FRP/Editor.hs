@@ -10,7 +10,10 @@ module Hickory.FRP.Editor
   , Component(..)
   , Attribute(..)
   , SomeAttribute(..)
-  , withAttrVal
+  , mkComponent
+  , mkComponent2
+  , mkComponent3
+  , mkComponent4
   ) where
 
 import Hickory.FRP.Editor.Network

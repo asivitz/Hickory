@@ -27,7 +27,7 @@ import Hickory.Graphics (MatrixMonad)
 import Hickory.Resources (Resources)
 import Control.Monad.Reader (MonadReader)
 import Data.Functor.Identity (Identity (..))
-import Data.Functor.Const (Const)
+import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
@@ -134,6 +134,36 @@ withAttrVal attrs name f = case Map.lookup name attrs of
     Just HRefl -> f v
     Nothing -> error "Wrong type for attribute"
   Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
+
+mkComponent :: forall a. Attr a => String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> m ()) -> Component
+mkComponent arg f = Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)] $ \attrs -> withAttrVal attrs arg f
+
+mkComponent2 :: forall a b. (Attr a, Attr b) => String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> m ()) -> Component
+mkComponent2 arg1 arg2 f = Component
+  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
+  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
+  ] $ \attrs -> withAttrVal attrs arg1 \v1 ->
+                withAttrVal attrs arg2 \v2 -> f v1 v2
+
+mkComponent3 :: forall a b c. (Attr a, Attr b, Attr c) => String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> m ()) -> Component
+mkComponent3 arg1 arg2 arg3 f = Component
+  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
+  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
+  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
+  ] $ \attrs -> withAttrVal attrs arg1 \v1 ->
+                withAttrVal attrs arg2 \v2 ->
+                withAttrVal attrs arg3 \v3 -> f v1 v2 v3
+
+mkComponent4 :: forall a b c d. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> d -> m ()) -> Component
+mkComponent4 arg1 arg2 arg3 arg4 f = Component
+  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
+  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
+  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
+  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
+  ] $ \attrs -> withAttrVal attrs arg1 \v1 ->
+                withAttrVal attrs arg2 \v2 ->
+                withAttrVal attrs arg3 \v3 ->
+                withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
