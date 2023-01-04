@@ -48,7 +48,8 @@ import Data.Generics.Labels ()
 import Data.Traversable (for)
 import Control.Monad.IO.Class (MonadIO)
 import Hickory.Vulkan.Types
-import Data.Maybe
+import Hickory.Vulkan.Framing (resourceForFrame)
+import Data.Word (Word32)
 
 withSwapchainRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
 withSwapchainRenderTarget VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
@@ -110,12 +111,12 @@ createFramebuffer dev renderPass swapchainExtent imageViews =
         }
   in withFramebuffer dev framebufferCreateInfo Nothing mkAcquire
 
-useRenderTarget :: (MonadIO io, Integral a) => RenderTarget -> Vulkan.CommandBuffer -> V.Vector ClearValue -> a -> io r -> io r
+useRenderTarget :: (MonadIO io) => RenderTarget -> Vulkan.CommandBuffer -> V.Vector ClearValue -> Word32 -> io r -> io r
 useRenderTarget RenderTarget {..} commandBuffer clearValues swapchainImageIndex f = do
-  let (framebuffer,_) = fromMaybe (error "Error accessing framebuffer") $ frameBuffers V.!? fromIntegral swapchainImageIndex
+  let
       renderPassBeginInfo = zero
         { renderPass  = renderPass
-        , framebuffer = framebuffer
+        , framebuffer = fst $ resourceForFrame swapchainImageIndex frameBuffers
         , renderArea  = Rect2D { offset = zero , extent = extent }
         , clearValues = clearValues
         }
