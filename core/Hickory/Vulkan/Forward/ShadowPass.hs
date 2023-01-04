@@ -29,7 +29,7 @@ import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withShadowSampler)
 import Data.Bits ((.|.))
-import Hickory.Vulkan.Material (pipelineDefaults)
+import Hickory.Vulkan.Material (pipelineDefaults, depthClampEnable)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
@@ -104,11 +104,11 @@ withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceC
 
 withStaticShadowMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
 withStaticShadowMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineDefaults staticVertShader fragShader globalDS Nothing
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineDefaults { depthClampEnable = True } staticVertShader fragShader globalDS Nothing
 
 withAnimatedShadowMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial AnimatedConstants)
 withAnimatedShadowMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, BoneIndex] pipelineDefaults animatedVertShader fragShader globalDS Nothing
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position, BoneIndex] pipelineDefaults { depthClampEnable = True } animatedVertShader fragShader globalDS Nothing
 
 staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

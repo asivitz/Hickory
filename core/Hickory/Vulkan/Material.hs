@@ -108,6 +108,7 @@ cmdBindMaterial FrameContext {..} Material {..} = do
 data PipelineOptions = PipelineOptions
   { primitiveTopology :: PrimitiveTopology
   , depthTestEnable   :: Bool
+  , depthClampEnable   :: Bool
   , blendEnable       :: Bool
   }
 
@@ -117,6 +118,7 @@ pipelineDefaults = PipelineOptions {..}
   primitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
   depthTestEnable = True
   blendEnable     = True
+  depthClampEnable = False
 
 withGraphicsPipeline
   :: VulkanResources
@@ -165,7 +167,7 @@ withGraphicsPipeline
         , scissors  = [ Rect2D { offset = Offset2D 0 0, extent = extent } ]
         }
       , rasterizationState = Just . SomeStruct $ zero
-          { depthClampEnable        = False
+          { depthClampEnable        = depthClampEnable
           , rasterizerDiscardEnable = False
           , polygonMode             = POLYGON_MODE_FILL
           , lineWidth               = 1
