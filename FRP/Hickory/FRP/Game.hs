@@ -80,7 +80,7 @@ gameNetwork
   -> B.Event gameState
   -> B.Event [input]
   -> B.Behavior (Step input gameState gameEvent)
-  -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent], B.Behavior [Int])
+  -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent])
 gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput step = mdo
   let frameSelect = B.whenE paused $
         unionFirst [ 1 <$ keyDownOrHeld coreEvents Key'Left
@@ -118,14 +118,17 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
 
       gd  = uncurry . glerp <$> frameFraction <*> gdPair
 
+
+  pure (gd, gameEvs)
+
+accumSelectedObjIds :: CoreEvents (Renderer, FrameContext) -> B.MomentIO (B.Behavior [Int])
+accumSelectedObjIds coreEvents = do
   let eClick = (\(Size w h) (_, V2 x y, _) -> (x/ realToFrac w, y/ realToFrac h))
            <$> scrSizeB coreEvents
            <@> fmap head (B.filterE ((<0.3) . view _1 . head) $ eTouchesUp coreEvents)
   renInfo <- B.stepper undefined (eRender coreEvents)
   eScreenPickedObjectID <- fmap (\x -> if x > 0 then Just x else Nothing) <$> B.execute (((\(r,fc) -> liftIO . pickObjectID fc r) <$> renInfo) <@> eClick)
-  selectedIds <- B.accumB [] $ unionFirst
+  B.accumB [] $ unionFirst
     [ maybe id (\x -> nub . (x:)) <$> B.whenE (keyHeldB coreEvents Key'LeftShift) eScreenPickedObjectID
     , const . maybeToList <$> eScreenPickedObjectID
     ]
-
-  pure (gd, gameEvs, selectedIds)
