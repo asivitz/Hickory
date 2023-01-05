@@ -108,7 +108,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderTarget globalWorldDescriptorSet postMaterialDescriptorSet
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderTarget globalWorldDescriptorSet objHighlightDescriptorSet
 
-  dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 1000
+  dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
   objectPickingImageBuffer <- withImageBuffer vulkanResources pickingRenderTarget 0
 
