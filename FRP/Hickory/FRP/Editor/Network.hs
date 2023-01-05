@@ -20,7 +20,7 @@ import Hickory.Input (Key(..))
 import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
-import Hickory.Vulkan.Forward.Renderer (pickObjectID, renderToRenderer)
+import Hickory.Vulkan.Forward.Renderer (pickObjectID)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, v3ToTriple, v4ToImVec4, imVec4ToV4)
 import Control.Lens (traversed, (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix, (?~))
@@ -33,7 +33,7 @@ import Hickory.Vulkan.Types (FrameContext)
 import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults)
 import Data.Text (unpack, pack)
 import Vulkan (SamplerAddressMode (..), Filter (..))
-import Control.Monad.Reader (ReaderT(..), MonadReader)
+import Control.Monad.Reader (MonadReader)
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
@@ -48,6 +48,7 @@ import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Control.Monad.Extra (ifM)
 import Hickory.FRP.Camera (omniscientCamera)
+import Hickory.FRP.Game (Scene(..))
 
 objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -227,16 +228,16 @@ mkObjectChangeEvent componentDefs coreEvents ResourcesStore {..} editorState sel
                  in Map.intersection (Map.union m om) om
 
 editorNetwork
-  :: H.VulkanResources
+  :: forall m. (MonadReader Resources m, CommandMonad m)
+  => H.VulkanResources
   -> ResourcesStore
   -> CoreEvents (Renderer, FrameContext)
-  -> B.Behavior GraphicsParams
   -> HashMap String Component
   -> FilePath
   -> B.Event FilePath
-  -> (forall m. (MonadReader Resources m, CommandMonad m) => [Object] -> m ()) -- Extra, optional, global drawing function
-  -> B.MomentIO (B.Behavior [Object])
-editorNetwork vulkanResources resourcesStore coreEvents graphicsParams componentDefs initialSceneFile eLoadScene xtraView = mdo
+  -> ([Object] -> m ()) -- Extra, optional, global drawing function
+  -> B.MomentIO (B.Behavior (Scene m), B.Behavior [Object])
+editorNetwork vulkanResources resourcesStore coreEvents componentDefs initialSceneFile eLoadScene xtraView = mdo
   editorState <- liftIO (mkEditorState componentDefs)
   sceneFile <- B.stepper initialSceneFile eLoadScene
 
@@ -325,29 +326,22 @@ editorNetwork vulkanResources resourcesStore coreEvents graphicsParams component
   cursorLoc <- mkCursorLoc coreEvents
 
   let
-      worldRender :: (MonadReader Resources m, CommandMonad m) => B.Behavior (m ())
+      worldRender :: B.Behavior (m ())
       worldRender = editorWorldView componentDefs <$> cameraState <*> selectedObjects <*> objects <*> manipMode
-      overlayRender :: (MonadReader Resources m, CommandMonad m) => B.Behavior (m ())
+      overlayRender :: B.Behavior (m ())
       overlayRender = editorOverlayView <$> scrSizeB coreEvents <*> cameraState <*> cursorLoc <*> selectedObjects <*> (fmap fst <$> manipMode)
-
-  let bRenderSettings = renderSettings <$> scrSizeB coreEvents <*> graphicsParams <*> pure (V4 0.07 0.07 0.07 1)
-        <*> cameraState
-        <*> selectedObjectIDs
-
-  let runRender renSettings litF overlayF (renderer, frameContext)
-        = renderToRenderer frameContext renderer renSettings litF overlayF
-  B.reactimate $ runRender
-    <$> bRenderSettings
-    <*> (flip runReaderT <$> resources <*> ((>>) <$> worldRender <*> (xtraView <$> (Map.elems <$> objects))))
-    <*> (flip runReaderT <$> resources <*> overlayRender)
-    <@> eRender coreEvents
 
   ePropertyEditedObjects :: B.Event (HashMap Int Object) <- mkObjectChangeEvent componentDefs coreEvents resourcesStore editorState selectedObjects ePopulateEditorState
 
   B.reactimate $ drawMainEditorUI editorState <$> sceneFile <*> selectedObjects <*> objects <*> pure guiPickObjectID <@ eRender coreEvents
   B.reactimate $ drawObjectEditorUI componentDefs editorState <$> B.filterE (not . Map.null) (selectedObjects <@ eRender coreEvents)
 
-  pure $ Map.elems <$> objects
+  let scene = Scene <$> ((>>) <$> worldRender <*> (xtraView <$> (Map.elems <$> objects)))
+                    <*> overlayRender
+                    <*> cameraState
+                    <*> selectedObjectIDs
+
+  pure (scene, Map.elems <$> objects)
 
 -- https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Quaternion_to_Euler_angles_conversion
 -- https://creativecommons.org/licenses/by-sa/3.0/
