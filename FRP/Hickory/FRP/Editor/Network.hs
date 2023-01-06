@@ -37,16 +37,14 @@ import Control.Monad.Reader (MonadReader)
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
-import Hickory.Resources (ResourcesStore (..), loadResource', getResourcesStoreResources, loadResource, Resources (..))
+import Hickory.Resources (ResourcesStore (..), loadResource', loadResource, Resources (..))
 import Safe (maximumMay, headMay)
 import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
-import System.Directory.Extra (doesFileExist)
 import Data.Functor.Const (Const(..))
 import Data.Traversable (for)
 import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
-import Control.Monad.Extra (ifM)
 import Hickory.FRP.Camera (omniscientCamera)
 import Hickory.FRP.Game (Scene(..))
 
@@ -233,19 +231,13 @@ editorNetwork
   -> ResourcesStore
   -> CoreEvents (Renderer, FrameContext)
   -> HashMap String Component
-  -> FilePath
   -> B.Event FilePath
   -> ([Object] -> m ()) -- Extra, optional, global drawing function
   -> B.MomentIO (B.Behavior (Scene m), B.Behavior [Object])
-editorNetwork vulkanResources resourcesStore coreEvents componentDefs initialSceneFile eLoadScene xtraView = mdo
+editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene xtraView = mdo
   editorState <- liftIO (mkEditorState componentDefs)
-  sceneFile <- B.stepper initialSceneFile eLoadScene
+  sceneFile <- B.stepper (error "No scene file") eLoadScene
 
-  initialScene <- liftIO do
-   objs <- maybe mempty read <$> ifM (doesFileExist initialSceneFile) (Just <$> readFile initialSceneFile) (pure Nothing)
-   for_ objs \Object {..} -> loadResource (resourcesStore ^. #meshes) model ()
-   for_ objs \Object {..} -> loadResource (resourcesStore ^. #textures) texture (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
-   pure objs
   eReplaceObjects <- B.execute $ fmap read . liftIO . readFile <$> eLoadScene
 
   liftIO do
@@ -262,7 +254,6 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs initialSce
           ]
       , indices = Nothing
       }
-  resources <- B.fromPoll . getResourcesStoreResources $ resourcesStore
 
   let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
   cameraState <- omniscientCamera objectEditingMaskedEvents
@@ -285,8 +276,7 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs initialSce
         [ eManipObjects
         , ePropertyEditedObjects
         ]
-  -- let st = Map.fromList [(1, Object (mkTranslation (V3 1 0 0)) green), (2, Object (mkTranslation (V3 3 1 1)) white)]
-  objects :: B.Behavior (HashMap Int Object) <- B.accumB initialScene $ B.unions
+  objects :: B.Behavior (HashMap Int Object) <- B.accumB mempty $ B.unions
     [ uncurry Map.insert <$> eAddObj
     , Map.union <$> eModifyObjects
     , Map.union <$> eDupeObjs
