@@ -231,14 +231,13 @@ editorNetwork
   -> ResourcesStore
   -> CoreEvents (Renderer, FrameContext)
   -> HashMap String Component
-  -> B.Event FilePath
+  -> B.Event (HashMap Int Object, FilePath)
   -> ([Object] -> m ()) -- Extra, optional, global drawing function
-  -> B.MomentIO (B.Behavior (Scene m), B.Behavior [Object])
+  -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
 editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene xtraView = mdo
   editorState <- liftIO (mkEditorState componentDefs)
-  sceneFile <- B.stepper (error "No scene file") eLoadScene
-
-  eReplaceObjects <- B.execute $ fmap read . liftIO . readFile <$> eLoadScene
+  sceneFile <- B.stepper (error "No scene file") (snd <$> eLoadScene)
+  let eReplaceObjects = fst <$> eLoadScene
 
   liftIO do
     let ResourcesStore {..} = resourcesStore
@@ -332,7 +331,7 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
                     <*> selectedObjectIDs
                     <*> pure (set #clearColor (V4 0.07 0.07 0.07 1))
 
-  pure (scene, Map.elems <$> objects)
+  pure (scene, objects)
 
 -- https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Quaternion_to_Euler_angles_conversion
 -- https://creativecommons.org/licenses/by-sa/3.0/
