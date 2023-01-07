@@ -13,7 +13,7 @@ import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
 import qualified Hickory.Vulkan.Forward.Types as H
 import Data.HashMap.Strict (HashMap)
-import Hickory.Graphics (askMatrix)
+import Hickory.Graphics (askMatrix, MatrixMonad)
 import Hickory.FRP.Editor.Types
 import Hickory.Resources (Resources, getTextureMay, getMeshMay, getTexture, getMesh)
 import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
@@ -75,7 +75,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runM
 
   do
     for_ (Map.toList objects) \(k, o) -> do
-      dcs <- execWriterT $ drawObject componentDefs o
+      dcs <- execWriterT . H.runMatrixT $ drawObject componentDefs o
       tell $ set (each . #ident) (Just k) dcs -- censor hangs for some reason. so we run/write back
 
   where
@@ -94,7 +94,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runM
       , specularity = 0
       }
 
-drawObject :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> Object -> m ()
+drawObject :: (MonadReader Resources m, CommandMonad m, MatrixMonad m) => HashMap String Component -> Object -> m ()
 drawObject componentDefs Object {..} = do
   tex <- getTextureMay texture
   mesh <- getMeshMay model
@@ -105,22 +105,23 @@ drawObject componentDefs Object {..} = do
     Just m -> pure m
     _ -> getMesh "cube"
 
-  H.runMatrixT . H.xform transform $ do
+  H.xform transform $ do
+    mat <- H.askMatrix
     for_ (Map.toList components) \(compName, vals) -> case Map.lookup compName componentDefs of
       Just Component {..} -> draw vals
       Nothing -> error $ "Can't find component definition: " ++ compName
 
-  H.addCommand H.DrawCommand
-    { modelMat = transform
-    , mesh = H.Buffered mesh'
-    , color
-    , drawType = H.Static $ H.StaticMesh tex' (V2 1 1)
-    , lit
-    , castsShadow
-    , blend
-    , ident = Nothing
-    , specularity
-    }
+    H.addCommand H.DrawCommand
+      { modelMat = mat
+      , mesh = H.Buffered mesh'
+      , color
+      , drawType = H.Static $ H.StaticMesh tex' (V2 1 1)
+      , lit
+      , castsShadow
+      , blend
+      , ident = Nothing
+      , specularity
+      }
 
 editorOverlayView :: (MonadReader Resources m, CommandMonad m) => Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView scrSize cs cursorLoc selected mode = do
