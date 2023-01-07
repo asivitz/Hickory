@@ -23,7 +23,7 @@ import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Forward.Renderer (pickObjectID)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, v3ToTriple, v4ToImVec4, imVec4ToV4)
-import Control.Lens (traversed, (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix, (?~))
+import Control.Lens (traversed, (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix, (?~), set)
 import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
@@ -330,6 +330,7 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
                     <*> overlayRender
                     <*> cameraState
                     <*> selectedObjectIDs
+                    <*> pure (set #clearColor (V4 0.07 0.07 0.07 1))
 
   pure (scene, Map.elems <$> objects)
 

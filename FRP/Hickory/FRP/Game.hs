@@ -7,7 +7,7 @@ import Data.Time (NominalDiffTime)
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Hickory.Math (Scalar, Interpolatable (glerp))
-import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad)
+import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings)
 import Hickory.FRP.CoreEvents (CoreEvents (..))
 import Hickory.Vulkan.Types (FrameContext)
 import Linear (V2(..))
@@ -139,8 +139,9 @@ accumSelectedObjIds coreEvents = do
     ]
 
 data Scene m = Scene
-  { render3DView  :: m ()
-  , renderOverlay :: m ()
-  , camera        :: Camera
-  , selectedIds   :: [Int]
+  { render3DView   :: m ()
+  , renderOverlay  :: m ()
+  , camera         :: Camera
+  , selectedIds    :: [Int]
+  , renderSettings :: RenderSettings -> RenderSettings
   } deriving Generic
