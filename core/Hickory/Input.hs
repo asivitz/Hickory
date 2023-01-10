@@ -155,10 +155,10 @@ data TouchEvent = TouchEvent
   } deriving (Show, Generic)
 
 data TouchEventType
-  = Up              -- Touch ends
+  = Up Scalar       -- Touch ends (w/ duration)
   | Down            -- Touch begins
   | Loc             -- Touch is moved by user
-  deriving Show
+  deriving (Show, Generic)
 
 mapTouchEvent :: (V2 Scalar -> V2 Scalar) -> TouchEvent -> TouchEvent
 mapTouchEvent = over #loc

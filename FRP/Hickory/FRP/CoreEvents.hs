@@ -54,7 +54,7 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 concatTouchEvents :: CoreEvents a -> Event [TouchEvent]
 concatTouchEvents CoreEvents {..} = mconcat
   [ map (\(v,i)   -> TouchEvent i v Down) <$> eTouchesDown
-  , map (\(_,v,i) -> TouchEvent i v Up)   <$> eTouchesUp
+  , map (\(dur,v,i) -> TouchEvent i v (Up dur))   <$> eTouchesUp
   , map (\(v,i)   -> TouchEvent i v Loc)  <$> eTouchesLoc
   ]
 
