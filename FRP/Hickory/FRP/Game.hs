@@ -85,7 +85,7 @@ gameNetwork
   -> B.Event gameState
   -> B.Event [input]
   -> B.Behavior (Step input gameState gameEvent)
-  -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent])
+  -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent], B.Behavior Bool)
 gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput step = mdo
   let frameSelect = B.whenE paused $
         unionFirst [ 1 <$ keyDownOrHeld coreEvents Key'Left
@@ -124,7 +124,7 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
       gd  = uncurry . glerp <$> frameFraction <*> gdPair
 
 
-  pure (gd, gameEvs)
+  pure (gd, gameEvs, paused)
 
 accumSelectedObjIds :: CoreEvents (Renderer, FrameContext) -> B.MomentIO (B.Behavior [Int])
 accumSelectedObjIds coreEvents = do
