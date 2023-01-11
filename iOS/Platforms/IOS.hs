@@ -28,9 +28,9 @@ foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> I
 foreign export ccall "touch_began" touchBegan :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
 foreign export ccall "touch_moved" touchMoved :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
 foreign export ccall "touch_ended" touchEnded :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
-foreign export ccall "draw"        draw       :: StablePtr (IO (),a) -> IO ()
+foreign export ccall "draw"        draw       :: StablePtr (IO (),a,IO ()) -> IO ()
 
-type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), TouchData))
+type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), TouchData, IO ()))
 
 type RenderInit renderer
   =  VulkanResources
@@ -40,8 +40,6 @@ type RenderInit renderer
 type DrawInit renderer gamedata
   =  VulkanResources
   -> CoreEventGenerators (renderer, FrameContext)
-  -> (gamedata -> IO ())
-  -> IO gamedata
   -> Acquire ()
 
 initIOSVulkan :: Ptr CAMetalLayer -> Acquire VulkanResources
@@ -64,12 +62,12 @@ mkDrawInit ri di layerPtr w h = do
   ((exeFrame, cleanupUserRes), cleanupVulkan)
     <- unWrapAcquire do
       vulkanResources <- initIOSVulkan layerPtr
-      di vulkanResources evGens (error "Can't write state") (error "Can't load state")
+      di vulkanResources evGens
       liftIO $ buildFrameFunction vulkanResources (pure $ Size (fromIntegral w) (fromIntegral h)) (ri vulkanResources)
                           \renderer frameContext -> do
                             coreEvProc (renderer, frameContext)
 
-  newStablePtr (exeFrame, td)
+  newStablePtr (exeFrame, td, cleanupUserRes >> cleanupVulkan)
 
 resourcesPath :: IO String
 resourcesPath = do
@@ -79,9 +77,9 @@ resourcesPath = do
   free ptr
   return str
 
-draw :: StablePtr (IO (), a) -> IO ()
+draw :: StablePtr (IO (), a, IO ()) -> IO ()
 draw pkg = do
-  (drawF,_) <- deRefStablePtr pkg
+  (drawF,_,_) <- deRefStablePtr pkg
   drawF
   performMinorGC
 
