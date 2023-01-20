@@ -50,6 +50,14 @@ bottomMiddle y (Size w h) = V2 (realToFrac w/2) (realToFrac h - y)
 middle :: (Fractional b, Real a) => Size a -> V2 b
 middle (Size w h) = V2 (realToFrac w/2) (realToFrac h/2)
 
+right :: (Real a1, Fractional a2) => Size a1 -> V2 a2
+right (Size w _h) = V2 (realToFrac w) 0
+
+middleY :: (Real a1, Fractional a2) => Size a1 -> V2 a2
+middleY (Size _w h) = V2 0 (realToFrac h/2)
+
+middleX :: (Real a1, Fractional a2) => Size a1 -> V2 a2
+middleX (Size w _h) = V2 (realToFrac w/2) 0
 
 -- Given input targets and touch events, create new events for the hit
 -- targets (along with locally transformed touch events)
