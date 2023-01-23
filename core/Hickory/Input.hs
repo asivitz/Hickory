@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, OverloadedLabels #-}
+{-# LANGUAGE DeriveGeneric, OverloadedLabels, StrictData #-}
 
 module Hickory.Input where
 
@@ -17,7 +17,15 @@ data RawInput = InputTouchesDown [(V2 Scalar,Int)]
               | InputKeyDown Key
               | InputKeyUp Key Scalar
               | InputKeysHeld (HashMap.HashMap Key Scalar)
+              | InputGamePad Int GamePad -- GamePad Index, GamePad
               deriving (Show)
+
+data GamePad = GamePad
+  { leftStick    :: V2 Scalar
+  , rightStick   :: V2 Scalar
+  , leftTrigger  :: Scalar
+  , rightTrigger :: Scalar
+  } deriving Show
 
 data Key =
     Key'Unknown

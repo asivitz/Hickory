@@ -1,19 +1,22 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE StrictData #-}
 
 module Hickory.FRP.CoreEvents where
 
 import Data.Hashable (Hashable)
 import Data.IORef (IORef, readIORef)
-import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..))
+import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..), GamePad(..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
-import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE)
+import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE, accumB)
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll, MonadIO (..), mapEventIO)
 import qualified Data.HashMap.Strict as HashMap
 import Linear (V2(..))
 import Data.Time (NominalDiffTime)
 import Hickory.FRP.Combinators (unionFirst)
+import qualified Data.HashMap.Strict as Map
+import Data.Functor ((<&>))
 
 _1 :: (a, b, c) -> a
 _1 (a,_,_) = a
@@ -82,6 +85,7 @@ data CoreEventGenerators a = CoreEventGenerators
   , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Scalar), HandlerPair Key)
   , timeEvents  :: HandlerPair NominalDiffTime
   , windowSize  :: IORef (Size Int)
+  , gamePadEvent :: HandlerPair (Int, GamePad)
   }
 
 data CoreEvents a = CoreEvents
@@ -94,11 +98,13 @@ data CoreEvents a = CoreEvents
   , eTouchesDown  :: Event [Point]
   , eTouchesLoc   :: Event [Point]
   , eTouchesUp    :: Event [PointUp]
+  , bGamePads     :: Behavior (Map.HashMap Int GamePad)
   , scrSizeB      :: Behavior (Size Int)
   , fpsB          :: Behavior Scalar
   , currentTimeB  :: Behavior NominalDiffTime
   , eNewTime      :: Event NominalDiffTime
   }
+
 
 coreEventGenerators :: IO [RawInput] -> IO NominalDiffTime -> IORef (Size Int) -> IO (a -> IO (), CoreEventGenerators a)
 coreEventGenerators inputPoller timePoller wSizeRef = do
@@ -107,6 +113,7 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
   keyPairs   <- keyHandlers
   timePair   <- newAddHandler
   renderPair <- newAddHandler
+  gamePadPair <- newAddHandler
 
   let processor x = do
         fire renderPair x
@@ -118,15 +125,21 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
           InputTouchesDown touches -> fire (_1 touchPairs) touches
           InputTouchesUp   touches -> fire (_2 touchPairs) touches
           InputTouchesLoc  touches -> fire (_3 touchPairs) touches
+          InputGamePad ident gp    -> fire gamePadPair (ident, gp)
 
         timePoller >>= fire timePair
 
-  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef)
+  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef gamePadPair)
 
 mkCoreEvents :: CoreEventGenerators a -> MomentIO (CoreEvents a)
 mkCoreEvents coreEvGens = do
-  (eTouchesDown, eTouchesUp, eTouchesLoc) <- mkTouchEvents . touchEvents $ coreEvGens
-  (keyDown, keyDownOrHeld, keyUp, keyHeldB)         <- mkKeyEvents   . keyEvents $ coreEvGens
+  (eTouchesDown, eTouchesUp, eTouchesLoc)   <- mkTouchEvents . touchEvents $ coreEvGens
+  (keyDown, keyDownOrHeld, keyUp, keyHeldB) <- mkKeyEvents   . keyEvents $ coreEvGens
+
+  eGamePad <- mkEvent . gamePadEvent $ coreEvGens
+  bGamePads <- accumB mempty $ eGamePad <&> uncurry Map.insert
+
+
   eTime   <- mkEvent . timeEvents $ coreEvGens
   eRender <- mkEvent . renderEvent $ coreEvGens
 

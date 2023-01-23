@@ -1,5 +1,8 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE StrictData #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Platforms.GLFW.Bridge where
 
@@ -14,18 +17,16 @@ import Data.Maybe
 import Linear (V2(..))
 import Control.Monad.Extra (unlessM)
 import DearImGui (wantCaptureMouse, wantCaptureKeyboard)
+import Data.HashMap.Strict (HashMap)
+import Data.Traversable (for)
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
 
-data SysData = SysData
-  { touches :: HashMap.HashMap Int UTCTime
-  , keys :: HashMap.HashMap Key UTCTime
-  }
-
-empty = SysData
-  { touches = HashMap.empty
-  , keys = HashMap.empty
+data InputData = InputData
+  { touches  :: IORef (HashMap Int UTCTime)
+  , keys     :: IORef (HashMap Key UTCTime)
+  , gamepads :: IORef (HashMap Int GLFW.GamepadState)
   }
 
 -- Userspace likely cares about the window size, not framebuffer size.
@@ -41,31 +42,56 @@ getWindowSizeRef win = do
 
 setupInput :: GLFW.Window -> (RawInput -> IO ()) -> IO (IO ())
 setupInput win addInput = do
-  sd <- newIORef (SysData HashMap.empty HashMap.empty)
-  GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd addInput)
-  GLFW.setKeyCallback win $ Just (keyCallback sd addInput)
-  -- GLFW.setJoystickCallback win $ Just (joystickCallback sd addInput)
+  initialGamepads <- HashMap.fromList . catMaybes <$> for [minBound..maxBound] \js ->
+    fmap (fromEnum js,) <$> GLFW.getGamepadState js
 
-  pure $ stepInput sd win addInput
+  indat <- InputData
+    <$> newIORef mempty
+    <*> newIORef mempty
+    <*> newIORef initialGamepads
+  GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback indat addInput)
+  GLFW.setKeyCallback win $ Just (keyCallback indat addInput)
+  GLFW.setJoystickCallback $ Just (joystickCallback indat)
 
-stepInput :: IORef SysData -> GLFW.Window -> (RawInput -> IO ()) -> IO ()
-stepInput sd win addInput = do
-  SysData { touches, keys } <- readIORef sd
+  pure $ stepInput indat win addInput
+
+stepInput :: InputData -> GLFW.Window -> (RawInput -> IO ()) -> IO ()
+stepInput indat win addInput = do
+  touches <- readIORef indat.touches
   GLFW.pollEvents
   curPos <- GLFW.getCursorPos win
   let curloc = touchPosToScreenPos curPos
       ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
   addInput (InputTouchesLoc [(curloc,ident)])
 
-  -- GLFW.getGamepadState GLFW.Joystick'1 >>= maybe (pure ()) (print . flip GLFW.getAxisState GLFW.GamepadAxis'LeftX)
+  newGamePads <- (HashMap.toList <$> readIORef indat.gamepads) >>= traverse \(toEnum -> js, _gs) -> do
+    GLFW.getGamepadState js >>= \case
+      Just gsNew -> do
+        let GLFW.GamepadState _getButtonState getAxisState = gsNew
+            gp = GamePad {..}
+            leftStick = V2 (getAxisState GLFW.GamepadAxis'LeftX)
+                           (getAxisState GLFW.GamepadAxis'LeftY)
+            rightStick = V2 (getAxisState GLFW.GamepadAxis'RightX)
+                            (getAxisState GLFW.GamepadAxis'RightY)
+            leftTrigger  = getAxisState GLFW.GamepadAxis'LeftTrigger
+            rightTrigger = getAxisState GLFW.GamepadAxis'RightTrigger
+
+        addInput $ InputGamePad (fromEnum js) gp
+
+        pure $ Just (fromEnum js, gsNew)
+
+      Nothing -> pure Nothing
+  writeIORef indat.gamepads (HashMap.fromList $ catMaybes newGamePads)
 
   time <- getCurrentTime
-  let relative = HashMap.map (\t -> realToFrac (diffUTCTime time t)) keys
+
+  ks <- readIORef indat.keys
+  let relative = HashMap.map (realToFrac . diffUTCTime time) ks
   addInput (InputKeysHeld relative)
 
-mouseButtonCallback :: IORef SysData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
-mouseButtonCallback platform addInput win button buttonState modkeys = unlessM wantCaptureMouse do
-  sd@SysData { touches } <- readIORef platform
+mouseButtonCallback :: InputData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
+mouseButtonCallback indat addInput win button buttonState _modkeys = unlessM wantCaptureMouse do
+  touches <- readIORef indat.touches
 
   curPos <- GLFW.getCursorPos win
 
@@ -83,12 +109,12 @@ mouseButtonCallback platform addInput win button buttonState modkeys = unlessM w
         let delta = realToFrac (diffUTCTime time prev)
         return (InputTouchesUp [(delta,pos,touchid)], HashMap.delete touchid touches)
 
-  writeIORef platform sd { touches = touches' }
+  writeIORef indat.touches touches'
   addInput ev
 
-keyCallback :: IORef SysData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallback platform addInput win glfwkey scancode keyState modkeys = unlessM wantCaptureKeyboard do
-  sd@SysData { keys } <- readIORef platform
+keyCallback :: InputData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
+keyCallback indat addInput _win glfwkey _scancode keyState _modkeys = unlessM wantCaptureKeyboard do
+  keys <- readIORef indat.keys
 
   time <- getCurrentTime
   let key = toEnum (fromEnum glfwkey) -- only possible since our Key type is defined exactly the same as GLFW's
@@ -97,14 +123,23 @@ keyCallback platform addInput win glfwkey scancode keyState modkeys = unlessM wa
   case keyState of
     GLFW.KeyState'Pressed -> do
       addInput (InputKeyDown key)
-      writeIORef platform sd { keys = HashMap.insert key time keys }
+      modifyIORef' indat.keys $ HashMap.insert key time
     GLFW.KeyState'Released ->
       case HashMap.lookup key keys of
         Nothing -> addInput (InputKeyUp key 0)
         Just prev -> do
           addInput (InputKeyUp key (realToFrac (diffUTCTime time prev)))
-          writeIORef platform sd { keys = HashMap.delete key keys }
+          modifyIORef' indat.keys $ HashMap.delete key
     _ -> return ()
+
+joystickCallback :: InputData -> GLFW.Joystick ->  GLFW.JoystickState -> IO ()
+joystickCallback indat js jsst = do
+  GLFW.getGamepadState js >>= \case
+    Just gs -> do
+      modifyIORef' indat.gamepads $ case jsst of
+        GLFW.JoystickState'Connected -> HashMap.insert (fromEnum js) gs
+        GLFW.JoystickState'Disconnected -> HashMap.delete (fromEnum js)
+    Nothing -> pure ()
 
 glfwTouchIdent :: GLFW.MouseButton -> Int
 glfwTouchIdent button = case button of
@@ -119,10 +154,3 @@ glfwTouchIdent button = case button of
 
 touchPosToScreenPos :: (Double, Double) -> V2 Scalar
 touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
-
-{-
-broadcastTouchLoc win screensize touchid = do
-        curPos <- liftIO $ GLFW.getCursorPos win
-        let pos = touchPosToScreenPos screensize curPos
-        runInterruptableEvent systemContext (\x -> x pos touchid) inputTouchLoc
-        -}
