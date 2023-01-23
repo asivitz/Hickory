@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveGeneric, OverloadedLabels, StrictData #-}
+{-# LANGUAGE DeriveGeneric, OverloadedLabels, StrictData, OverloadedRecordDot #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Hickory.Input where
 
@@ -10,6 +11,9 @@ import GHC.Generics (Generic)
 import Control.Lens (over)
 import Data.Generics.Labels ()
 
+import Data.Enum.Set as E
+import Data.Word (Word32)
+
 -- key is the type used by your platform to represent a key. e.g. GLFW's Key type
 data RawInput = InputTouchesDown [(V2 Scalar,Int)]
               | InputTouchesUp [(Scalar,V2 Scalar,Int)]
@@ -20,12 +24,81 @@ data RawInput = InputTouchesDown [(V2 Scalar,Int)]
               | InputGamePad Int GamePad -- GamePad Index, GamePad
               deriving (Show)
 
+data ButtonState = Pressed | Released
+  deriving (Eq, Show)
+
 data GamePad = GamePad
   { leftStick    :: V2 Scalar
   , rightStick   :: V2 Scalar
   , leftTrigger  :: Scalar
   , rightTrigger :: Scalar
+  , a            :: ButtonState
+  , b            :: ButtonState
+  , x            :: ButtonState
+  , y            :: ButtonState
+  , leftBumper   :: ButtonState
+  , rightBumper  :: ButtonState
+  , back         :: ButtonState
+  , start        :: ButtonState
+  , guide        :: ButtonState
+  , leftThumb    :: ButtonState
+  , rightThumb   :: ButtonState
+  , dpadUp       :: ButtonState
+  , dpadRight    :: ButtonState
+  , dpadDown     :: ButtonState
+  , dpadLeft     :: ButtonState
+  , cross        :: ButtonState
+  , circle       :: ButtonState
+  , square       :: ButtonState
+  , triangle     :: ButtonState
   } deriving Show
+
+data GamePadButton
+  = A
+  | B
+  | X
+  | Y
+  | LeftBumper
+  | RightBumper
+  | Back
+  | Start
+  | Guide
+  | LeftThumb
+  | RightThumb
+  | DPadUp
+  | DPadRight
+  | DPadDown
+  | DPadLeft
+  | Cross
+  | Circle
+  | Square
+  | Triangle
+  deriving (Enum, Bounded, Eq)
+
+gamePadButtonState :: GamePad -> GamePadButton -> ButtonState
+gamePadButtonState gp = \case
+  A -> gp.a
+  B -> gp.b
+  X -> gp.x
+  Y -> gp.y
+  LeftBumper -> gp.leftBumper
+  RightBumper -> gp.rightBumper
+  Back -> gp.back
+  Start -> gp.start
+  Guide -> gp.guide
+  LeftThumb -> gp.leftThumb
+  RightThumb -> gp.rightThumb
+  DPadUp -> gp.dpadUp
+  DPadRight -> gp.dpadRight
+  DPadDown -> gp.dpadDown
+  DPadLeft -> gp.dpadLeft
+  Cross -> gp.cross
+  Circle -> gp.circle
+  Square -> gp.square
+  Triangle -> gp.triangle
+
+instance E.AsEnumSet GamePadButton where
+  type EnumSetRep GamePadButton = Word32
 
 data Key =
     Key'Unknown

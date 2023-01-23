@@ -5,11 +5,11 @@ module Hickory.FRP.CoreEvents where
 
 import Data.Hashable (Hashable)
 import Data.IORef (IORef, readIORef)
-import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..), GamePad(..))
+import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..), GamePad(..), gamePadButtonState, ButtonState (..), GamePadButton)
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
-import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE, accumB)
+import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE, mapAccum)
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll, MonadIO (..), mapEventIO)
 import qualified Data.HashMap.Strict as HashMap
 import Linear (V2(..))
@@ -17,6 +17,8 @@ import Data.Time (NominalDiffTime)
 import Hickory.FRP.Combinators (unionFirst)
 import qualified Data.HashMap.Strict as Map
 import Data.Functor ((<&>))
+import qualified Data.Enum.Set as ES
+import Data.Word (Word32)
 
 _1 :: (a, b, c) -> a
 _1 (a,_,_) = a
@@ -99,12 +101,13 @@ data CoreEvents a = CoreEvents
   , eTouchesLoc   :: Event [Point]
   , eTouchesUp    :: Event [PointUp]
   , bGamePads     :: Behavior (Map.HashMap Int GamePad)
+  , eGamePadPresses  :: Event (ES.EnumSet GamePadButton)
+  , eGamePadReleases :: Event (ES.EnumSet GamePadButton)
   , scrSizeB      :: Behavior (Size Int)
   , fpsB          :: Behavior Scalar
   , currentTimeB  :: Behavior NominalDiffTime
   , eNewTime      :: Event NominalDiffTime
   }
-
 
 coreEventGenerators :: IO [RawInput] -> IO NominalDiffTime -> IORef (Size Int) -> IO (a -> IO (), CoreEventGenerators a)
 coreEventGenerators inputPoller timePoller wSizeRef = do
@@ -137,8 +140,17 @@ mkCoreEvents coreEvGens = do
   (keyDown, keyDownOrHeld, keyUp, keyHeldB) <- mkKeyEvents   . keyEvents $ coreEvGens
 
   eGamePad <- mkEvent . gamePadEvent $ coreEvGens
-  bGamePads <- accumB mempty $ eGamePad <&> uncurry Map.insert
+  (eGamePadButton, bGamePads) <- mapAccum mempty $ eGamePad <&> \(idx, gp) acc ->
+    case HashMap.lookup idx acc of
+      Just oldGp ->
+        let states = [minBound..maxBound] <&> \but -> (but, gamePadButtonState oldGp but, gamePadButtonState gp but)
+            presses  = ES.fromFoldable . map (\(but, _, _) -> but) . flip filter states $ \(_, old, new) -> old == Released && new == Pressed
+            releases = ES.fromFoldable . map (\(but, _, _) -> but) . flip filter states $ \(_, old, new) -> old == Pressed && new == Released
 
+        in ((presses, releases), HashMap.insert idx gp acc)
+      Nothing -> ((ES.empty, ES.empty), HashMap.insert idx gp acc)
+  let eGamePadPresses = fst <$> eGamePadButton
+      eGamePadReleases = snd <$> eGamePadButton
 
   eTime   <- mkEvent . timeEvents $ coreEvGens
   eRender <- mkEvent . renderEvent $ coreEvGens

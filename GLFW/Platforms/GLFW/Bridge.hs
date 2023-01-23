@@ -67,7 +67,7 @@ stepInput indat win addInput = do
   newGamePads <- (HashMap.toList <$> readIORef indat.gamepads) >>= traverse \(toEnum -> js, _gs) -> do
     GLFW.getGamepadState js >>= \case
       Just gsNew -> do
-        let GLFW.GamepadState _getButtonState getAxisState = gsNew
+        let GLFW.GamepadState getButtonState getAxisState = gsNew
             gp = GamePad {..}
             leftStick = V2 (getAxisState GLFW.GamepadAxis'LeftX)
                            (getAxisState GLFW.GamepadAxis'LeftY)
@@ -75,6 +75,29 @@ stepInput indat win addInput = do
                             (getAxisState GLFW.GamepadAxis'RightY)
             leftTrigger  = getAxisState GLFW.GamepadAxis'LeftTrigger
             rightTrigger = getAxisState GLFW.GamepadAxis'RightTrigger
+
+            toButton = \case
+              GLFW.GamepadButtonState'Pressed  -> Pressed
+              GLFW.GamepadButtonState'Released -> Released
+            a = toButton $ getButtonState GLFW.GamepadButton'A
+            b = toButton $ getButtonState GLFW.GamepadButton'B
+            x = toButton $ getButtonState GLFW.GamepadButton'X
+            y = toButton $ getButtonState GLFW.GamepadButton'Y
+            leftBumper = toButton $ getButtonState GLFW.GamepadButton'LeftBumper
+            rightBumper = toButton $ getButtonState GLFW.GamepadButton'RightBumper
+            back = toButton $ getButtonState GLFW.GamepadButton'Back
+            start = toButton $ getButtonState GLFW.GamepadButton'Start
+            guide = toButton $ getButtonState GLFW.GamepadButton'Guide
+            leftThumb = toButton $ getButtonState GLFW.GamepadButton'LeftThumb
+            rightThumb = toButton $ getButtonState GLFW.GamepadButton'RightThumb
+            dpadUp = toButton $ getButtonState GLFW.GamepadButton'DpadUp
+            dpadRight = toButton $ getButtonState GLFW.GamepadButton'DpadRight
+            dpadDown = toButton $ getButtonState GLFW.GamepadButton'DpadDown
+            dpadLeft = toButton $ getButtonState GLFW.GamepadButton'DpadLeft
+            cross = toButton $ getButtonState GLFW.GamepadButton'Cross
+            circle = toButton $ getButtonState GLFW.GamepadButton'Circle
+            square = toButton $ getButtonState GLFW.GamepadButton'Square
+            triangle = toButton $ getButtonState GLFW.GamepadButton'Triangle
 
         addInput $ InputGamePad (fromEnum js) gp
 

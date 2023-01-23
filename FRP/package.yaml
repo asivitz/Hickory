@@ -42,6 +42,7 @@ dependencies:
     - vulkan
     - vector
     - safe
+    - bitwise-enum
 
 library:
   verbatim:

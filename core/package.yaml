@@ -66,6 +66,7 @@ dependencies:
     - vulkan-utils
     - wavefront
     - directory
+    - bitwise-enum
 
 when:
     - condition: os(osx)
