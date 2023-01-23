@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Platforms.GLFW.Bridge where
 
@@ -10,7 +11,6 @@ import Hickory.Math.Vector
 import Hickory.Input
 import Data.Time
 import Data.Maybe
-import Control.Monad
 import Linear (V2(..))
 import Control.Monad.Extra (unlessM)
 import DearImGui (wantCaptureMouse, wantCaptureKeyboard)
@@ -39,35 +39,37 @@ getWindowSizeRef win = do
 
   pure wSizeRef
 
-setupInput :: GLFW.Window -> IORef (Size Int) -> (RawInput -> IO ()) -> IO (IO ())
-setupInput win fbSizeRef addInput = do
+setupInput :: GLFW.Window -> (RawInput -> IO ()) -> IO (IO ())
+setupInput win addInput = do
   sd <- newIORef (SysData HashMap.empty HashMap.empty)
-  GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd fbSizeRef addInput)
+  GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback sd addInput)
   GLFW.setKeyCallback win $ Just (keyCallback sd addInput)
-  pure $ stepInput sd fbSizeRef win addInput
+  -- GLFW.setJoystickCallback win $ Just (joystickCallback sd addInput)
 
-stepInput :: IORef SysData -> IORef (Size Int) -> GLFW.Window -> (RawInput -> IO ()) -> IO ()
-stepInput sd fbSizeRef win addInput = do
+  pure $ stepInput sd win addInput
+
+stepInput :: IORef SysData -> GLFW.Window -> (RawInput -> IO ()) -> IO ()
+stepInput sd win addInput = do
   SysData { touches, keys } <- readIORef sd
-  fbSize <- readIORef fbSizeRef
   GLFW.pollEvents
   curPos <- GLFW.getCursorPos win
-  let curloc = touchPosToScreenPos fbSize curPos
+  let curloc = touchPosToScreenPos curPos
       ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
   addInput (InputTouchesLoc [(curloc,ident)])
+
+  -- GLFW.getGamepadState GLFW.Joystick'1 >>= maybe (pure ()) (print . flip GLFW.getAxisState GLFW.GamepadAxis'LeftX)
 
   time <- getCurrentTime
   let relative = HashMap.map (\t -> realToFrac (diffUTCTime time t)) keys
   addInput (InputKeysHeld relative)
 
-mouseButtonCallback :: IORef SysData -> IORef (Size Int) -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
-mouseButtonCallback platform fbSizeRef addInput win button buttonState modkeys = unlessM wantCaptureMouse do
-  fbSize <- readIORef fbSizeRef
+mouseButtonCallback :: IORef SysData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
+mouseButtonCallback platform addInput win button buttonState modkeys = unlessM wantCaptureMouse do
   sd@SysData { touches } <- readIORef platform
 
   curPos <- GLFW.getCursorPos win
 
-  let pos = touchPosToScreenPos fbSize curPos
+  let pos = touchPosToScreenPos curPos
       touchid = glfwTouchIdent button
 
   (ev, touches') <- case buttonState of
@@ -115,8 +117,8 @@ glfwTouchIdent button = case button of
   GLFW.MouseButton'7 -> 7
   GLFW.MouseButton'8 -> 8
 
-touchPosToScreenPos :: Size Int -> (Double, Double) -> V2 Scalar
-touchPosToScreenPos (Size w h) (x,y) = V2 (realToFrac x) (realToFrac y)
+touchPosToScreenPos :: (Double, Double) -> V2 Scalar
+touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
 
 {-
 broadcastTouchLoc win screensize touchid = do

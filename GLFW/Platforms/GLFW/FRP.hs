@@ -8,6 +8,6 @@ import qualified Graphics.UI.GLFW as GLFW
 glfwCoreEventGenerators :: GLFW.Window -> IO (a -> IO (), CoreEventGenerators a)
 glfwCoreEventGenerators win = do
   wSizeRef    <- getGLFWWindowSizeRef win
-  inputPoller <- makeGLFWInputPoller win wSizeRef
+  inputPoller <- makeGLFWInputPoller win
   timePoller  <- makeTimePoller
   coreEventGenerators inputPoller timePoller wSizeRef

@@ -38,6 +38,8 @@ dependencies:
   - dear-imgui
 
 library:
+  verbatim:
+    default-language: GHC2021
   exposed-modules:
     - Platforms.GLFW.Utils
     - Platforms.GLFW.Bridge

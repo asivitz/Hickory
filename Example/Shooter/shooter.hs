@@ -57,7 +57,7 @@ import Hickory.FRP.Combinators (unionAll)
 import Data.Bool (bool)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
 import Control.Monad.Reader (ReaderT (..))
-import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams, Component (..), Attribute (..), SomeAttribute (..), withAttrVal)
+import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams, Component (..), Attribute (..), SomeAttribute (..))
 import Hickory.Vulkan.Forward.DrawingPrimitives (drawFrustum, drawPoint, drawLine)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as Map
