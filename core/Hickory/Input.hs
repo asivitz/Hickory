@@ -22,6 +22,7 @@ data RawInput = InputTouchesDown [(V2 Scalar,Int)]
               | InputKeyUp Key Scalar
               | InputKeysHeld (HashMap.HashMap Key Scalar)
               | InputGamePad Int GamePad -- GamePad Index, GamePad
+              | InputGamePadConnection Int Bool -- GamePad Index, True == connected
               deriving (Show)
 
 data ButtonState = Pressed | Released

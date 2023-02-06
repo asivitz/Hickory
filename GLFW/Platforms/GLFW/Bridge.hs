@@ -40,10 +40,16 @@ getWindowSizeRef win = do
 
   pure wSizeRef
 
+getCurrentGamePadIds :: IO [Int]
+getCurrentGamePadIds = HashMap.keys <$> getCurrentGamePads
+
+getCurrentGamePads :: IO (HashMap Int GLFW.GamepadState)
+getCurrentGamePads = HashMap.fromList . catMaybes <$> for [minBound..maxBound] \js ->
+  fmap (fromEnum js,) <$> GLFW.getGamepadState js
+
 setupInput :: GLFW.Window -> (RawInput -> IO ()) -> IO (IO ())
 setupInput win addInput = do
-  initialGamepads <- HashMap.fromList . catMaybes <$> for [minBound..maxBound] \js ->
-    fmap (fromEnum js,) <$> GLFW.getGamepadState js
+  initialGamepads <- getCurrentGamePads
 
   indat <- InputData
     <$> newIORef mempty
@@ -51,7 +57,7 @@ setupInput win addInput = do
     <*> newIORef initialGamepads
   GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback indat addInput)
   GLFW.setKeyCallback win $ Just (keyCallback indat addInput)
-  GLFW.setJoystickCallback $ Just (joystickCallback indat)
+  GLFW.setJoystickCallback $ Just (joystickCallback indat addInput)
 
   pure $ stepInput indat win addInput
 
@@ -155,14 +161,22 @@ keyCallback indat addInput _win glfwkey _scancode keyState _modkeys = unlessM wa
           modifyIORef' indat.keys $ HashMap.delete key
     _ -> return ()
 
-joystickCallback :: InputData -> GLFW.Joystick ->  GLFW.JoystickState -> IO ()
-joystickCallback indat js jsst = do
+joystickCallback :: InputData -> (RawInput -> IO ()) -> GLFW.Joystick ->  GLFW.JoystickState -> IO ()
+joystickCallback indat addInput js jsst = do
   GLFW.getGamepadState js >>= \case
     Just gs -> do
+      case jsst of
+        GLFW.JoystickState'Connected    -> addInput $ InputGamePadConnection (fromEnum js) True
+        _ -> pure ()
+
       modifyIORef' indat.gamepads $ case jsst of
-        GLFW.JoystickState'Connected -> HashMap.insert (fromEnum js) gs
+        GLFW.JoystickState'Connected    -> HashMap.insert (fromEnum js) gs
         GLFW.JoystickState'Disconnected -> HashMap.delete (fromEnum js)
     Nothing -> pure ()
+
+  case jsst of
+    GLFW.JoystickState'Disconnected -> addInput $ InputGamePadConnection (fromEnum js) False
+    _ -> pure ()
 
 glfwTouchIdent :: GLFW.MouseButton -> Int
 glfwTouchIdent button = case button of

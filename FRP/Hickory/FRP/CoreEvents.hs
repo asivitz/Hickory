@@ -88,6 +88,7 @@ data CoreEventGenerators a = CoreEventGenerators
   , timeEvents  :: HandlerPair NominalDiffTime
   , windowSize  :: IORef (Size Int)
   , gamePadEvent :: HandlerPair (Int, GamePad)
+  , gamePadConnectionEvent :: HandlerPair (Int, Bool)
   }
 
 data CoreEvents a = CoreEvents
@@ -103,6 +104,7 @@ data CoreEvents a = CoreEvents
   , bGamePads     :: Behavior (Map.HashMap Int GamePad)
   , eGamePadPresses  :: Event (ES.EnumSet GamePadButton)
   , eGamePadReleases :: Event (ES.EnumSet GamePadButton)
+  , eGamePadConnection :: Event (Int, Bool)
   , scrSizeB      :: Behavior (Size Int)
   , fpsB          :: Behavior Scalar
   , currentTimeB  :: Behavior NominalDiffTime
@@ -117,6 +119,7 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
   timePair   <- newAddHandler
   renderPair <- newAddHandler
   gamePadPair <- newAddHandler
+  gamePadConnectionPair <- newAddHandler
 
   let processor x = do
         fire renderPair x
@@ -129,10 +132,11 @@ coreEventGenerators inputPoller timePoller wSizeRef = do
           InputTouchesUp   touches -> fire (_2 touchPairs) touches
           InputTouchesLoc  touches -> fire (_3 touchPairs) touches
           InputGamePad ident gp    -> fire gamePadPair (ident, gp)
+          InputGamePadConnection ident connected -> fire gamePadConnectionPair (ident, connected)
 
         timePoller >>= fire timePair
 
-  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef gamePadPair)
+  pure (processor, CoreEventGenerators renderPair touchPairs keyPairs timePair wSizeRef gamePadPair gamePadConnectionPair)
 
 mkCoreEvents :: CoreEventGenerators a -> MomentIO (CoreEvents a)
 mkCoreEvents coreEvGens = do
@@ -151,6 +155,8 @@ mkCoreEvents coreEvGens = do
       Nothing -> ((ES.empty, ES.empty), HashMap.insert idx gp acc)
   let eGamePadPresses = fst <$> eGamePadButton
       eGamePadReleases = snd <$> eGamePadButton
+
+  eGamePadConnection <- mkEvent . gamePadConnectionEvent $ coreEvGens
 
   eTime   <- mkEvent . timeEvents $ coreEvGens
   eRender <- mkEvent . renderEvent $ coreEvGens
