@@ -102,8 +102,8 @@ data CoreEvents a = CoreEvents
   , eTouchesLoc   :: Event [Point]
   , eTouchesUp    :: Event [PointUp]
   , bGamePads     :: Behavior (Map.HashMap Int GamePad)
-  , eGamePadPresses  :: Event (ES.EnumSet GamePadButton)
-  , eGamePadReleases :: Event (ES.EnumSet GamePadButton)
+  , eGamePadPresses  :: Event (Int, ES.EnumSet GamePadButton)
+  , eGamePadReleases :: Event (Int, ES.EnumSet GamePadButton)
   , eGamePadConnection :: Event (Int, Bool)
   , scrSizeB      :: Behavior (Size Int)
   , fpsB          :: Behavior Scalar
@@ -151,8 +151,8 @@ mkCoreEvents coreEvGens = do
             presses  = ES.fromFoldable . map (\(but, _, _) -> but) . flip filter states $ \(_, old, new) -> old == Released && new == Pressed
             releases = ES.fromFoldable . map (\(but, _, _) -> but) . flip filter states $ \(_, old, new) -> old == Pressed && new == Released
 
-        in ((presses, releases), HashMap.insert idx gp acc)
-      Nothing -> ((ES.empty, ES.empty), HashMap.insert idx gp acc)
+        in (((idx, presses), (idx, releases)), HashMap.insert idx gp acc)
+      Nothing -> (((idx, ES.empty), (idx, ES.empty)), HashMap.insert idx gp acc)
   let eGamePadPresses = fst <$> eGamePadButton
       eGamePadReleases = snd <$> eGamePadButton
 
