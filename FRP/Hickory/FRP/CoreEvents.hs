@@ -181,5 +181,7 @@ maskCoreEvents switch ce@CoreEvents {..} = ce
   , eTouchesDown = whenE switch eTouchesDown
   , eTouchesLoc = whenE switch eTouchesLoc
   , eTouchesUp = whenE switch eTouchesUp
+  , eGamePadPresses  = whenE switch eGamePadPresses
+  , eGamePadReleases = whenE switch eGamePadReleases
   , eNewTime = whenE switch eNewTime
   }
