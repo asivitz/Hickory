@@ -15,7 +15,8 @@ module Hickory.Types
    screenCenter,
    relativePosInRect,
    rectExtents,
-   rectFromExtents
+   rectFromExtents,
+   intersectRect
    ) where
 
 import Hickory.Math.Vector
@@ -89,3 +90,7 @@ rectFromExtents :: (V2 Scalar, V2 Scalar) -> Rect
 rectFromExtents (ll, ur) = Rect cen (Size (abs w) (abs h))
   where siz@(V2 w h) = ur - ll
         cen = ll + siz ^* 0.5
+
+intersectRect :: Rect -> Rect -> Rect
+intersectRect (rectExtents -> (V2 x1 y1, V2 x2 y2)) (rectExtents -> (V2 x3 y3, V2 x4 y4)) =
+  rectFromExtents (V2 (max x1 x3) (max y1 y3), V2 (min x2 x4) (min y2 y4))
