@@ -7,7 +7,7 @@ import Data.Time (NominalDiffTime)
 import qualified Reactive.Banana as B
 import qualified Reactive.Banana.Frameworks as B
 import Hickory.Math (Scalar, Interpolatable (glerp))
-import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings)
+import Hickory.Vulkan.Forward.Types (Renderer, RenderSettings)
 import Hickory.FRP.CoreEvents (CoreEvents (..))
 import Hickory.Vulkan.Types (FrameContext)
 import Linear (V2(..))
@@ -21,24 +21,23 @@ import Hickory.Input (Key(..))
 import Hickory.Vulkan.Forward.Renderer (pickObjectID)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.Historical (historicalWithEvents)
-import Hickory.Graphics (MatrixMonad)
-import Hickory.Resources (Resources)
-import Control.Monad.Reader.Class (MonadReader)
 import Hickory.Camera (Camera)
 import GHC.Generics (Generic)
 
 -- Queue up events and release in a batch
 -- For example, to collect a frame's worth of input events and process at
 -- the start of the next frame.
+-- Inputs are combined with `<>`, with the newer input as the left argument
 batchEvents
-  :: B.Event [acc]
+  :: Monoid acc
+  => B.Event acc
   -> B.Event a
-  -> B.MomentIO (B.Event (a, [acc]))
+  -> B.MomentIO (B.Event (a, acc))
 batchEvents accEv batchEv = do
-  (ev, _be) <- B.mapAccum [] $ B.mergeWith
-    (\acc accs -> (Nothing, acc ++ accs))
-    (\a acc -> (Just (a, acc), []))
-    (\acc a acc2 -> (Just (a, acc ++ acc2), []))
+  (ev, _be) <- B.mapAccum mempty $ B.mergeWith
+    (\acc accs -> (Nothing, acc <> accs))
+    (\a acc -> (Just (a, acc), mempty))
+    (\acc a acc2 -> (Just (a, acc <> acc2), mempty))
     accEv
     batchEv
 

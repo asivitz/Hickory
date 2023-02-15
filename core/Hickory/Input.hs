@@ -105,13 +105,13 @@ gamePadButtonState gp = \case
   Circle -> gp.circle
   Square -> gp.square
   Triangle -> gp.triangle
-  LeftStickUp    -> let V2 _x y = gp.leftStick in if y > 0.8 then Pressed else Released
+  LeftStickUp    -> let V2 _x y = gp.leftStick in if y < -0.8 then Pressed else Released
   LeftStickRight -> let V2 x _y = gp.leftStick in if x > 0.8 then Pressed else Released
-  LeftStickDown  -> let V2 _x y = gp.leftStick in if y < -0.8 then Pressed else Released
+  LeftStickDown  -> let V2 _x y = gp.leftStick in if y > 0.8 then Pressed else Released
   LeftStickLeft  -> let V2 x _y = gp.leftStick in if x < -0.8 then Pressed else Released
-  RightStickUp    -> let V2 _x y = gp.rightStick in if y > 0.8 then Pressed else Released
+  RightStickUp    -> let V2 _x y = gp.rightStick in if y < -0.8 then Pressed else Released
   RightStickRight -> let V2 x _y = gp.rightStick in if x > 0.8 then Pressed else Released
-  RightStickDown  -> let V2 _x y = gp.rightStick in if y < -0.8 then Pressed else Released
+  RightStickDown  -> let V2 _x y = gp.rightStick in if y > 0.8 then Pressed else Released
   RightStickLeft  -> let V2 x _y = gp.rightStick in if x < -0.8 then Pressed else Released
 
 instance E.AsEnumSet GamePadButton where
