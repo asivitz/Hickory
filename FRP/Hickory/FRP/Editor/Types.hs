@@ -8,7 +8,7 @@
 module Hickory.FRP.Editor.Types where
 
 import qualified Reactive.Banana as B
-import Linear (M44, (^/), translation, V3(..), V4)
+import Linear (M44, (^/), translation, V3(..), V4, V2(..))
 import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)
 import GHC.Generics (Generic)
@@ -31,7 +31,7 @@ import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
-import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3)
+import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple)
 
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
@@ -70,6 +70,9 @@ instance Attr Bool   where mkAttr = BoolAttribute
 instance Attr (V3 Scalar) where
   mkAttr = V3Attribute
   type AttrRef (V3 Scalar) = (Float, Float, Float)
+instance Attr (V2 Scalar) where
+  mkAttr = V2Attribute
+  type AttrRef (V2 Scalar) = (Float, Float)
 
 data Attribute a where
   StringAttribute :: Attribute String
@@ -77,6 +80,7 @@ data Attribute a where
   IntAttribute    :: Attribute Int
   BoolAttribute   :: Attribute Bool
   V3Attribute     :: Attribute (V3 Scalar)
+  V2Attribute     :: Attribute (V2 Scalar)
 
 typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
@@ -85,6 +89,7 @@ typeOfAttr = \case
   IntAttribute    -> typeRep
   BoolAttribute   -> typeRep
   V3Attribute     -> typeRep
+  V2Attribute     -> typeRep
 
 data AttrClasses a where
   -- Provides proof of a type having certain instances
@@ -98,6 +103,7 @@ proveAttrClasses = \case
   IntAttribute    -> AttrClasses
   BoolAttribute   -> AttrClasses
   V3Attribute     -> AttrClasses
+  V2Attribute     -> AttrClasses
 
 -- Check if two attributes have the same type
 eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
@@ -114,6 +120,7 @@ instance Show (SomeAttribute Identity) where
     IntAttribute    -> "IntAttribute ("    ++ show val ++ ")"
     BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
     V3Attribute     -> "V3Attribute ("   ++ show val ++ ")"
+    V2Attribute     -> "V2Attribute ("   ++ show val ++ ")"
 
 instance Read (SomeAttribute Identity) where
   readPrec = lift do
@@ -125,6 +132,7 @@ instance Read (SomeAttribute Identity) where
       Ident "IntAttribute"    -> SomeAttribute IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
       Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
       Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Scalar))))
+      Ident "V2Attribute"     -> SomeAttribute V2Attribute     <$> pars (readS_to_P (reads @(Identity (V2 Scalar))))
       _ -> fail "Invalid attribute type"
 
 -- Look up the value for an attribute
@@ -172,12 +180,14 @@ defaultAttrVal = \case
   IntAttribute -> 0
   BoolAttribute -> False
   V3Attribute -> V3 1 0 0
+  V2Attribute -> V2 1 0
 
 -- Convert to the storage representation of an attribute
 toAttrRefType :: forall a. Attr a => a -> AttrRef a
 toAttrRefType a = case mkAttr :: Attribute a of
   StringAttribute -> pack a
   V3Attribute     -> v3ToTriple a
+  V2Attribute     -> v2ToTuple a
   IntAttribute    -> a
   FloatAttribute  -> a
   BoolAttribute   -> a
@@ -187,6 +197,7 @@ fromAttrRefType :: forall a. Attr a => AttrRef a -> a
 fromAttrRefType a = case mkAttr :: Attribute a of
   StringAttribute -> unpack a
   V3Attribute     -> tripleToV3 a
+  V2Attribute     -> tupleToV2 a
   IntAttribute    -> a
   FloatAttribute  -> a
   BoolAttribute   -> a

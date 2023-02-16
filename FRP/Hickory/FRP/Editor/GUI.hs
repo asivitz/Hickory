@@ -7,7 +7,7 @@ module Hickory.FRP.Editor.GUI where
 
 import qualified Reactive.Banana.Frameworks as B
 import qualified Data.HashMap.Strict as Map
-import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, ImVec4 (..), checkbox, dragFloat, withComboOpen, selectable, button, dragInt)
+import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, ImVec4 (..), checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2)
 import Control.Monad.Extra (whenM)
 import Data.Bits (zeroBits)
 import Data.HashMap.Strict (HashMap)
@@ -82,6 +82,7 @@ drawObjectEditorUI componentDefs EditorState {..} objects = do
                 StringAttribute -> void $ inputText (pack attrName) ref 30
                 BoolAttribute   -> void $ checkbox (pack attrName) ref
                 V3Attribute     -> void $ dragFloat3 (pack attrName) ref 1 1 1
+                V2Attribute     -> void $ dragFloat2 (pack attrName) ref 1 1 1
               Nothing -> error "Attribute types don't match"
 
     withComboOpen "AddComponent" "Select" do
