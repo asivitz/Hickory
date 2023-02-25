@@ -19,13 +19,13 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
-import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators, maskCoreEvents)
+import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
 import Hickory.FRP.Game (gameNetwork)
 import Hickory.FRP.UI (topLeft)
 import Hickory.Input
-import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..), perspectiveProjection, viewDirection, orthographicProjection)
+import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..))
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero, M44)
+import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero)
 import Linear.Metric
 import Platforms.GLFW.FRP (glfwCoreEventGenerators)
 import Reactive.Banana ((<@>))
@@ -50,18 +50,13 @@ import Data.Foldable (for_)
 import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
-import Hickory.Color (white, red, blue)
-import Hickory.Vulkan.Forward.Types (WorldGlobals(..), OverlayGlobals(..), DrawCommand (..))
+import Hickory.Color (white, red)
+import Hickory.Vulkan.Forward.Types (OverlayGlobals(..), DrawCommand (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.FRP.Combinators (unionAll)
 import Data.Bool (bool)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
 import Control.Monad.Reader (ReaderT (..))
-import Hickory.FRP.Editor (editorNetwork, defaultGraphicsParams, Component (..), Attribute (..), SomeAttribute (..))
-import Hickory.Vulkan.Forward.DrawingPrimitives (drawFrustum, drawPoint, drawLine)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as Map
-import qualified Hickory.Graphics as H
 
 -- ** GAMEPLAY **
 
@@ -136,9 +131,8 @@ renderGame res scrSize@(Size w _h) Model { playerPos, missiles } (renderer, fram
   = H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
   renderSettings = H.RenderSettings
-    { worldGlobals = H.worldGlobalDefaults
-      { viewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
-      , projMat = shotMatrix (Ortho w 1 100 True) (aspectRatio scrSize)
+    { worldSettings = H.worldSettingsDefaults
+      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho w 1 100 True)
       }
     , overlayGlobals = OverlayGlobals
       { viewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
@@ -210,33 +204,20 @@ buildNetwork vulkanResources evGens = do
     let inputs = unionAll
           [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
           ]
-        components :: HashMap String Component = Map.fromList
-          [ ("Frustum",) $ Component [ SomeAttribute FloatAttribute "Near"] \attrs ->
-            withAttrVal attrs "Near" \near -> do
-              let proj = perspectiveProjection 1 (pi/4) near 10
-              drawFrustum white proj
-              drawPoint white (V3 0 0 0)
-          ]
 
-    bEditorMode  <- B.accumB False (not <$ B.filterE (== Key'E) (keyDown coreEvents))
-    _ <- editorNetwork vulkanResources resStore (maskCoreEvents bEditorMode coreEvents) (pure defaultGraphicsParams) components "main.scene" B.never
+    -- Run the game network
+    (mdl, _, _) <- gameNetwork
+      physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
+      Key'Escape -- Key to pause game for debugging
+      coreEvents
+      newGame -- Initial game state
+      B.never -- Event to load a game state
+      inputs -- Event containing inputs. Gathered every step interval and passed to step function.
+      (stepF <$> moveDir) -- Game state step function
 
-    do
-      let gameEvents = maskCoreEvents (not <$> bEditorMode) coreEvents
-
-      -- Run the game network
-      (mdl, _, _) <- gameNetwork
-        physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
-        Key'Escape -- Key to pause game for debugging
-        gameEvents
-        newGame -- Initial game state
-        B.never -- Event to load a game state
-        inputs -- Event containing inputs. Gathered every step interval and passed to step function.
-        (stepF <$> moveDir) -- Game state step function
-
-      -- every time we get a 'render' event tick, draw the screen
-      B.reactimate
-        (renderGame res <$> (fmap realToFrac <$> scrSizeB gameEvents) <*> mdl <@> eRender gameEvents)
+    -- every time we get a 'render' event tick, draw the screen
+    B.reactimate
+      (renderGame res <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <@> eRender coreEvents)
 
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do

@@ -232,9 +232,8 @@ editorNetwork
   -> CoreEvents (Renderer, FrameContext)
   -> HashMap String Component
   -> B.Event (HashMap Int Object, FilePath)
-  -> ([Object] -> m ()) -- Extra, optional, global drawing function
   -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
-editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene xtraView = mdo
+editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene = mdo
   editorState <- liftIO (mkEditorState componentDefs)
   sceneFile <- B.stepper (error "No scene file") (snd <$> eLoadScene)
   let eReplaceObjects = fst <$> eLoadScene
@@ -325,7 +324,7 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
   B.reactimate $ drawMainEditorUI editorState <$> sceneFile <*> selectedObjects <*> objects <*> pure guiPickObjectID <@ eRender coreEvents
   B.reactimate $ drawObjectEditorUI componentDefs editorState <$> B.filterE (not . Map.null) (selectedObjects <@ eRender coreEvents)
 
-  let scene = Scene <$> ((>>) <$> worldRender <*> (xtraView <$> (Map.elems <$> objects)))
+  let scene = Scene <$> worldRender
                     <*> overlayRender
                     <*> cameraState
                     <*> selectedObjectIDs
