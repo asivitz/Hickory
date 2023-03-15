@@ -9,7 +9,6 @@ import qualified Data.HashMap.Strict as Map
 import Control.Monad.IO.Class (liftIO)
 import Data.IORef (IORef, readIORef, newIORef, modifyIORef')
 import Acquire.Acquire (Acquire)
-import Data.Hashable (Hashable (..))
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
 import Control.Monad (unless)
 import Control.Lens (view, (^.))
@@ -20,44 +19,47 @@ import Hickory.Vulkan.Types (PointedDescriptorSet (..), BufferedMesh (..), Vulka
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
-import System.FilePath.Lens (extension)
+import System.FilePath.Lens (extension, filename, basename)
 import Control.Monad.Reader.Class (MonadReader)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Directory (doesFileExist)
 import Hickory.Vulkan.StockMesh (withCubeMesh, withSquareMesh)
 import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
+import Linear (M44)
+import qualified Data.Vector as V
 
-type ResourceStore a b options = (a -> options -> Acquire (Maybe b), IORef (Map.HashMap a (b, IO ())))
+type ResourceStore a = IORef (Map.HashMap String (a, IO ()))
 
-newResourceStore :: (Eq a, Hashable a) => (a -> options -> Acquire (Maybe b)) -> IO (ResourceStore a b options)
-newResourceStore f = (f,) <$> newIORef mempty
+newResourceStore :: IO (ResourceStore a)
+newResourceStore = newIORef mempty
 
-cleanupStore :: ResourceStore a b options -> IO ()
-cleanupStore (_,ref) = do
+cleanupStore :: ResourceStore a -> IO ()
+cleanupStore ref = do
   m <- readIORef ref
   sequence_ $ snd . snd <$> Map.toList m
 
-loadResource :: (Show a, Eq a, Hashable a) => ResourceStore a b options -> a -> options -> IO ()
-loadResource (f,ref) k options = do
+loadResource :: ResourceStore a -> String -> Acquire (Maybe a) -> IO ()
+loadResource ref k f = do
   m <- readIORef ref
   unless (Map.member k m) do
-    unWrapAcquire (f k options) >>= \case
+    unWrapAcquire f >>= \case
       (Just res, cleanup) -> liftIO $ modifyIORef' ref $ Map.insert k (res, cleanup)
       (Nothing, cleanup) -> cleanup
 
-loadResource' :: (Eq a, Hashable a) => ResourceStore a b options -> a -> Acquire b -> IO ()
-loadResource' (_,ref) k f = do
+loadResource' :: ResourceStore a -> String -> Acquire a -> IO ()
+loadResource' ref k f = do
   res <- unWrapAcquire f
   liftIO $ modifyIORef' ref $ Map.insert k res
 
-getResources :: ResourceStore a b options -> IO (Map.HashMap a b)
-getResources = fmap (Map.map fst) . readIORef . snd
+getResources :: ResourceStore a -> IO (Map.HashMap String a)
+getResources = fmap (Map.map fst) . readIORef
 
 data ResourcesStore = ResourcesStore
-  { meshes     :: ResourceStore String BufferedMesh ()
-  , textures   :: ResourceStore String PointedDescriptorSet (Filter, SamplerAddressMode)
-  , fonts      :: ResourceStore String TextRenderer Float
-  , animations :: ResourceStore String ThreeDModel ()
+  { meshes     :: ResourceStore BufferedMesh
+  , textures   :: ResourceStore PointedDescriptorSet
+  , fonts      :: ResourceStore TextRenderer
+  , animations :: ResourceStore ThreeDModel
+  , skins      :: ResourceStore (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
   } deriving (Generic)
 
 data Resources = Resources
@@ -65,28 +67,51 @@ data Resources = Resources
   , textures   :: Map.HashMap String PointedDescriptorSet
   , fonts      :: Map.HashMap String TextRenderer
   , animations :: Map.HashMap String ThreeDModel
+  , skins      :: Map.HashMap String (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
   } deriving (Generic)
 
-instance Hashable SamplerAddressMode where hashWithSalt s (SamplerAddressMode i) = hashWithSalt s i
-instance Hashable Filter where hashWithSalt s (Filter i) = hashWithSalt s i
+-- instance Hashable SamplerAddressMode where hashWithSalt s (SamplerAddressMode i) = hashWithSalt s i
+-- instance Hashable Filter where hashWithSalt s (Filter i) = hashWithSalt s i
 
-withResourcesStore :: VulkanResources -> FilePath -> Acquire ResourcesStore
-withResourcesStore vulkanResources path = do
-  textures <- liftIO $ newResourceStore \name (imageFilter, addressMode) -> do
-    let fp = path ++ "/images/" ++ name
-    liftIO (doesFileExist fp) >>= \case
-      True -> fmap Just $ view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(path ++ "images/" ++ name, imageFilter, addressMode)]
+loadTextureResource :: VulkanResources -> ResourcesStore -> String -> (Filter, SamplerAddressMode) -> IO ()
+loadTextureResource vulkanResources ResourcesStore { textures } path (imageFilter, addressMode) =
+  loadResource textures (path ^. filename) do
+    liftIO (doesFileExist path) >>= \case
+      True -> fmap Just $ view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(path, imageFilter, addressMode)]
       False -> pure Nothing
 
-  meshes <- liftIO $ newResourceStore \name _ -> do
-    let fp = path ++ "/models/" ++ name
-    liftIO (doesFileExist fp) >>= \case
+loadMeshResource :: VulkanResources -> ResourcesStore -> String -> IO ()
+loadMeshResource vulkanResources ResourcesStore { meshes } path =
+  loadResource meshes (path ^. filename) do
+    liftIO (doesFileExist path) >>= \case
       True ->
-        case name ^. extension of
-        ".hmdl" -> fmap Just $ liftIO (loadMeshFromFile fp) >>= withBufferedMesh vulkanResources
-        ".x"    -> fmap Just $ liftIO (loadModelFromX   fp) >>= withBufferedMesh vulkanResources . packedMesh
-        _       -> pure Nothing
+        case path ^. extension of
+          ".hmdl" -> fmap Just $ liftIO (loadMeshFromFile path) >>= withBufferedMesh vulkanResources
+          ".x"    -> fmap Just $ liftIO (loadModelFromX   path) >>= withBufferedMesh vulkanResources . packedMesh
+          _       -> pure Nothing
       False -> pure Nothing
+
+loadFontResource :: VulkanResources -> ResourcesStore -> String -> String -> Float -> IO ()
+loadFontResource vulkanResources ResourcesStore { fonts } fontPath imagePath msdfDist = do
+  loadResource fonts (fontPath ^. basename) do
+    liftIO ((&&) <$> doesFileExist fontPath <*> doesFileExist imagePath) >>= \case
+      True -> Just <$> withTextRenderer vulkanResources fontPath imagePath msdfDist
+      False -> pure Nothing
+
+loadAnimationResource :: VulkanResources -> ResourcesStore -> String -> IO ()
+loadAnimationResource _vulkanResources ResourcesStore { animations } path =
+  loadResource animations (path ^. filename) do
+    liftIO $ doesFileExist path >>= \case
+      True -> Just <$> loadModelFromX path
+      False -> pure Nothing
+
+withResourcesStore :: VulkanResources -> Acquire ResourcesStore
+withResourcesStore vulkanResources = do
+  textures   <- liftIO newResourceStore
+  meshes     <- liftIO newResourceStore
+  fonts      <- liftIO newResourceStore
+  animations <- liftIO newResourceStore
+  skins      <- liftIO newResourceStore
 
   liftIO do
     loadResource' textures "white" do
@@ -95,23 +120,12 @@ withResourcesStore vulkanResources path = do
     loadResource' meshes "square" (withSquareMesh vulkanResources)
     loadResource' meshes "cube" (withCubeMesh vulkanResources)
 
-  fonts <- liftIO $ newResourceStore \name msdfDist -> do
-    let fontfp = path ++ "/fonts/" ++ name ++ ".json"
-        imagefp = path ++ "/images/" ++ name ++ ".png"
-    liftIO ((&&) <$> doesFileExist fontfp <*> doesFileExist imagefp) >>= \case
-      True -> Just <$> withTextRenderer vulkanResources fontfp imagefp msdfDist
-      False -> pure Nothing
-
-  animations <- liftIO $ newResourceStore \name _ -> do
-    let fp = path ++ "/models/" ++ name
-    liftIO $ doesFileExist fp >>= \case
-      True -> Just <$> loadModelFromX fp
-      False -> pure Nothing
 
   mkAcquire (pure ()) (const $ cleanupStore meshes)
   mkAcquire (pure ()) (const $ cleanupStore textures)
   mkAcquire (pure ()) (const $ cleanupStore fonts)
   mkAcquire (pure ()) (const $ cleanupStore animations)
+  mkAcquire (pure ()) (const $ cleanupStore skins)
 
   pure ResourcesStore {..}
 
@@ -121,6 +135,7 @@ getResourcesStoreResources ResourcesStore {..} =
             <*> getResources textures
             <*> getResources fonts
             <*> getResources animations
+            <*> getResources skins
 
 getMesh :: MonadReader Resources m => String -> m BufferedMesh
 getMesh name = fromMaybe (error $ "Can't find mesh: " ++ name) <$> getMeshMay name

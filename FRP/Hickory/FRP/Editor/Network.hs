@@ -47,6 +47,7 @@ import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Hickory.FRP.Camera (omniscientCamera)
 import Hickory.FRP.Game (Scene(..))
+import Hickory.Resources (loadTextureResource, loadMeshResource)
 
 objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -190,19 +191,20 @@ setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (mat
        * axisAngle (V3 1 0 0) rx
 
 mkObjectChangeEvent
-  :: HashMap String Component
+  :: H.VulkanResources
+  -> HashMap String Component
   -> CoreEvents a
   -> ResourcesStore
   -> EditorState
   -> B.Behavior (HashMap Int Object)
   -> B.Event Object
   -> B.MomentIO (B.Event (HashMap Int Object))
-mkObjectChangeEvent componentDefs coreEvents ResourcesStore {..} editorState selectedObjects ePopulateEditorState = do
+mkObjectChangeEvent vulkanResources componentDefs coreEvents rs@ResourcesStore {..} editorState selectedObjects ePopulateEditorState = do
   eca@EditorChangeEvents {..} <- mkChangeEvents componentDefs coreEvents editorState
 
   B.reactimate $ writeEditorState eca <$> ePopulateEditorState
-  B.reactimate $ (\m -> loadResource meshes m ()) <$> ev modelChange
-  B.reactimate $ (\t -> loadResource textures t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> ev textureChange
+  B.reactimate $ loadMeshResource vulkanResources rs <$> ev modelChange
+  B.reactimate $ (\t -> loadTextureResource vulkanResources rs t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> ev textureChange
 
   let compEvs :: [B.Event (HashMap Int Object)] = Map.toList componentChanges <&> \((compName, attrName), SomeAttribute attr ch) ->
         (\os v -> os & traversed . #components . at compName . _Just . at attrName ?~ SomeAttribute attr (Identity v))
@@ -319,7 +321,7 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
       overlayRender :: B.Behavior (m ())
       overlayRender = editorOverlayView <$> scrSizeB coreEvents <*> cameraState <*> cursorLoc <*> selectedObjects <*> (fmap fst <$> manipMode)
 
-  ePropertyEditedObjects :: B.Event (HashMap Int Object) <- mkObjectChangeEvent componentDefs coreEvents resourcesStore editorState selectedObjects ePopulateEditorState
+  ePropertyEditedObjects :: B.Event (HashMap Int Object) <- mkObjectChangeEvent vulkanResources componentDefs coreEvents resourcesStore editorState selectedObjects ePopulateEditorState
 
   B.reactimate $ drawMainEditorUI editorState <$> sceneFile <*> selectedObjects <*> objects <*> pure guiPickObjectID <@ eRender coreEvents
   B.reactimate $ drawObjectEditorUI componentDefs editorState <$> B.filterE (not . Map.null) (selectedObjects <@ eRender coreEvents)

@@ -55,7 +55,7 @@ import Hickory.Vulkan.Forward.Types (OverlayGlobals(..), DrawCommand (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.FRP.Combinators (unionAll)
 import Data.Bool (bool)
-import Hickory.Resources (ResourcesStore(..), withResourcesStore, loadResource, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont)
+import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource)
 import Control.Monad.Reader (ReaderT (..))
 
 -- ** GAMEPLAY **
@@ -115,13 +115,13 @@ missileInBounds (pos, _) = norm pos < 500
 -- Load meshes, textures, materials, fonts, etc.
 loadResources :: String -> H.VulkanResources -> Acquire ResourcesStore
 loadResources path vulkanResources = do
-  resourcesStore@ResourcesStore{..} <- withResourcesStore vulkanResources path
+  resourcesStore <- withResourcesStore vulkanResources
   liftIO do
-    loadResource textures "circle.png" (FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+    loadTextureResource vulkanResources resourcesStore (path ++ "images/circle.png") (FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
 
     -- gidolinya.json (font data) and gidolinya.png (font texture) were
     -- generated using https://github.com/Chlumsky/msdf-atlas-gen
-    loadResource fonts "gidolinya" 2
+    loadFontResource vulkanResources resourcesStore (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
   pure resourcesStore
 
