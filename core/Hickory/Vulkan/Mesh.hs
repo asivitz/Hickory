@@ -41,6 +41,8 @@ attrStride TextureCoord  = 2
 attrStride Color         = 4
 attrStride BoneIndex     = 1
 attrStride MaterialIndex = 1
+attrStride JointIndices  = 4
+attrStride JointWeights  = 4
 
 attrLocation :: Attribute -> Word32
 attrLocation Position      = 0
@@ -49,6 +51,8 @@ attrLocation Normal        = 2
 attrLocation TextureCoord  = 3
 attrLocation BoneIndex     = 4
 attrLocation MaterialIndex = 5
+attrLocation JointIndices  = 6
+attrLocation JointWeights  = 7
 
 attrFormat :: Attribute -> Format
 attrFormat Position      = FORMAT_R32G32B32_SFLOAT
@@ -57,6 +61,8 @@ attrFormat TextureCoord  = FORMAT_R32G32_SFLOAT
 attrFormat Color         = FORMAT_R32G32B32A32_SFLOAT
 attrFormat BoneIndex     = FORMAT_R32_SFLOAT
 attrFormat MaterialIndex = FORMAT_R32_SFLOAT
+attrFormat JointIndices  = FORMAT_R32G32B32A32_SFLOAT
+attrFormat JointWeights  = FORMAT_R32G32B32A32_SFLOAT
 
 pack :: Mesh -> SV.Vector Float
 pack Mesh {..} = SV.concat $ fmap snd . sortOn (attrLocation . fst) $ vertices

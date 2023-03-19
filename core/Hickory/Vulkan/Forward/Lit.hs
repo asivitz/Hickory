@@ -148,7 +148,7 @@ withStaticLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
 
 withAnimatedLitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial AnimatedConstants)
 withAnimatedLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord, BoneIndex, MaterialIndex] pipelineDefaults animatedLitVertShader litFragShader globalPDS (Just perDrawLayout)
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedLitVertShader litFragShader globalPDS (Just perDrawLayout)
 
 staticLitVertShader :: ByteString
 staticLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -244,8 +244,8 @@ $animatedUniformsDef
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
-layout(location = 4) in float inBoneIndex;
-layout(location = 5) in float inMaterialIndex;
+layout(location = 6) in vec4 inJointIndices;
+layout(location = 7) in vec4 inJointWeights;
 
 layout(location = 0) out vec3 light;
 layout(location = 1) out vec2 texCoord;
@@ -260,8 +260,13 @@ const mat4 biasMat = mat4(
 
 void main()
 {
+    mat4 skinMat
+      = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
+      + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
+      + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
+      + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
 
-    vec4 modelPos = uniforms.boneMat[int(inBoneIndex)] * vec4(inPosition,1.0);
+    vec4 modelPos = skinMat * vec4(inPosition,1.0);
     vec4 worldPosition = uniforms.modelMat * modelPos;
 
     gl_Position = globals.projMat
@@ -275,7 +280,7 @@ void main()
 
     vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
-    surfaceColor = uniforms.color * uniforms.colors[int(inMaterialIndex)];
+    surfaceColor = uniforms.color;
     float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
 
     vec3 halfAngle = normalize(directionToLight + viewDirection);

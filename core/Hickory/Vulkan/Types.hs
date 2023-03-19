@@ -75,11 +75,15 @@ data Attribute
   | Color
   | BoneIndex
   | MaterialIndex
+  | JointIndices
+  | JointWeights
   deriving (Bounded, Enum, Generic, Show, Eq)
 
 data Mesh = Mesh
   { vertices :: [(Attribute, SV.Vector Float)]
   , indices :: Maybe (SV.Vector Word32)
+  , minPosition  :: V3 Float
+  , maxPosition  :: V3 Float
   } deriving (Generic, Show)
 
 data BufferedMesh = BufferedMesh

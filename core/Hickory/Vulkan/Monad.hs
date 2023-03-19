@@ -44,6 +44,8 @@ import Data.Proxy (Proxy)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
 import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))
+import Linear (liftI2)
+import GHC.List (foldl1')
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
@@ -164,10 +166,12 @@ packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a
 packVecs = SV.fromList . concatMap toList
 
 textMesh :: Font -> TextCommand -> Mesh
-textMesh font tc = Mesh { indices = Just (SV.fromList indices), vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)] }
+textMesh font tc = Mesh { indices = Just (SV.fromList indices), vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)], minPosition, maxPosition }
   where
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
   (indices, _numBlockIndices)   = squareIndices (fromIntegral numSquares)
+  minPosition = foldl1' (liftI2 min) posVecs
+  maxPosition = foldl1' (liftI2 max) posVecs
 
 cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
 cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer indexOffset mIndexBuffer = do

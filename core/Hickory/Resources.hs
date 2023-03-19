@@ -174,3 +174,11 @@ getAnimationMay :: MonadReader Resources m => String -> m (Maybe ThreeDModel)
 getAnimationMay name = do
   ms <- view #animations
   pure $ Map.lookup name ms
+
+getSkin :: MonadReader Resources m => String -> m (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
+getSkin name = fromMaybe (error $ "Can't find skin: " ++ name) <$> getSkinMay name
+
+getSkinMay :: MonadReader Resources m => String -> m (Maybe (Map.HashMap String (V.Vector (V.Vector (M44 Float)))))
+getSkinMay name = do
+  ms <- view #skins
+  pure $ Map.lookup name ms

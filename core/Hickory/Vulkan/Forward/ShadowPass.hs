@@ -108,7 +108,7 @@ withStaticShadowMaterial vulkanResources renderTarget globalDS
 
 withAnimatedShadowMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial AnimatedConstants)
 withAnimatedShadowMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, BoneIndex] pipelineDefaults { depthClampEnable = True } animatedVertShader fragShader globalDS Nothing
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader fragShader globalDS Nothing
 
 staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -138,13 +138,20 @@ $globalsDef
 $animatedUniformsDef
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 4) in float inBoneIndex;
+layout(location = 6) in vec4 inJointIndices;
+layout(location = 7) in vec4 inJointWeights;
 
 layout(location = 0) out vec4 shadowCoord;
 
 void main() {
+  mat4 skinMat
+    = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
+    + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
+    + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
+    + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
+
   vec4 worldPosition = uniforms.modelMat
-                      * uniforms.boneMat[int(inBoneIndex)]
+                      * skinMat
                       * vec4(inPosition, 1.0);
 
   gl_Position = globals.projMat

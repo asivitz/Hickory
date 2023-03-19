@@ -7,7 +7,7 @@ import Data.List
 import Data.Maybe
 import qualified Hickory.ModelLoading.DirectX as DX
 import Data.Text (Text)
-import Linear (V3(..), V4(..), identity, (!*!), (!*), inv44)
+import Linear (V3(..), V4(..), identity, (!*!), (!*), inv44, liftI2)
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Unboxed as UV
 
@@ -106,7 +106,7 @@ packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshNormals, 
   -}
 
 xToMesh :: DX.Mesh -> V.Mesh
-xToMesh DX.Mesh {..} = V.Mesh meshVerts (Just meshIndices)
+xToMesh DX.Mesh {..} = V.Mesh meshVerts (Just meshIndices) minPosition maxPosition
   where
   positions     = (V.Position, SV.fromList $ packVertices vertices)
   normals       = (V.Normal,   SV.fromList $ packNormals faces (DX.normals meshNormals))
@@ -117,6 +117,8 @@ xToMesh DX.Mesh {..} = V.Mesh meshVerts (Just meshIndices)
     [0 .. (UV.length vertices - 1)]
   meshVerts     = catMaybes [Just positions, Just normals, Just uvs, boneIndices, Just material_idxs]
   meshIndices   = SV.map fromIntegral $ SV.convert faces
+  minPosition = UV.foldl1' (liftI2 min) . UV.map (\(x,y,z) -> V3 x y z) $ vertices
+  maxPosition = UV.foldl1' (liftI2 max) . UV.map (\(x,y,z) -> V3 x y z) $ vertices
 
 -- isAnimated :: DX.Mesh -> Bool
 -- isAnimated DX.Mesh { DX.skinWeights } = (not . null) skinWeights

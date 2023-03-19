@@ -31,6 +31,8 @@ wavefrontToMesh obj@WavefrontOBJ {..} = V.Mesh {..}
   uvs       = (V.TextureCoord, SV.convert $ V.concatMap (packTexCoords obj) allFaceIndices)
   indices   = Just . SV.convert $ V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
   vertices  = [positions, normals, uvs]
+  minPosition = zero -- TODO: Wavefront loading will probably be deprecated anyway
+  maxPosition = zero -- TODO: Wavefront loading will probably be deprecated anyway
 
   faces = fmap elValue objFaces
   allFaceIndices :: V.Vector FaceIndex

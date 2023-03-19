@@ -103,7 +103,7 @@ data MeshType
 
 data AnimatedMesh = AnimatedMesh
   { albedo   :: PointedDescriptorSet
-  , boneMat  :: VFS.Vec 32 (M44 Float)
+  , boneMat  :: VFS.Vec 65 (M44 Float)
   , colors   :: VFS.Vec 6 (V4 Float)
   }
 
@@ -134,7 +134,7 @@ data AnimatedConstants = AnimatedConstants
   , normalMat   :: M33 Float
   , color       :: V4 Float
   , specularity :: Float
-  , boneMat     :: VFS.Vec 32 (M44 Float)
+  , boneMat     :: VFS.Vec 65 (M44 Float)
   , colors      :: VFS.Vec 6 (V4 Float)
   } deriving Generic
     deriving anyclass GStorable
