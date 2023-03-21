@@ -5,14 +5,16 @@
 
 module Hickory.Vulkan.Mesh where
 
+import Control.Lens ((&), _2, each, over)
+import Data.Maybe (mapMaybe)
 import Data.Binary
 import Data.Vector.Binary ()
-import Data.Vector.Storable as SV
-import Data.Vector as V
+import Data.Vector.Storable qualified as SV
+import Data.Vector qualified as V
 import Data.Functor ((<&>))
 import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle, CommandBuffer
   )
-import Foreign (sizeOf, (.|.), castPtr)
+import Foreign (sizeOf, (.|.), castPtr, Storable)
 import Hickory.Vulkan.Vulkan (mkAcquire, runAcquire)
 import Vulkan.Zero (zero)
 import VulkanMemoryAllocator (AllocationCreateInfo(requiredFlags), Allocator, Allocation, AllocationInfo, withMappedMemory)
@@ -21,9 +23,10 @@ import Control.Exception (bracket)
 import Foreign.Marshal.Array (copyArray)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Data.List (sortOn)
+import Data.List (sortOn, find, foldl1')
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (Mesh (..), Attribute (..), VulkanResources (..), DeviceContext (..), BufferedMesh (..))
+import Data.Text (Text)
 
 writeMeshToFile :: FilePath -> Mesh -> IO ()
 writeMeshToFile = encodeFile
@@ -96,6 +99,17 @@ withBufferedMesh bag mesh@Mesh {..} = do
   vertexBuffer <- withVertexBuffer bag (pack mesh)
   indexBuffer  <- traverse (withIndexBuffer bag) indices
   pure BufferedMesh {..}
+
+morphMesh :: Mesh -> [(Text, Float)] -> Mesh
+morphMesh Mesh {..} morphs = Mesh { indices, minPosition, maxPosition, morphTargets = mempty, vertices = vertices' }
+  where
+  additionals = morphs & mapMaybe \(name, amt) ->
+    case find ((==name) . fst) morphTargets of
+      Just morph -> Just . snd $ over (_2 . each . _2) (SV.map (*amt)) morph
+      Nothing -> Nothing
+  vertices' = vertices <&> \(attr, dat) ->
+    let adds = additionals & mapMaybe (fmap snd . find ((==attr) . fst))
+    in (attr, foldl1' (SV.zipWith (+)) (dat:adds))
 
 {- Buffer Utils -}
 

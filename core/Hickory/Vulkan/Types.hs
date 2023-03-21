@@ -15,6 +15,7 @@ import Foreign.Storable.Generic (GStorable)
 import GHC.Word (Word32)
 import Acquire.Acquire (Acquire)
 import qualified Data.Vector.Storable as SV
+import Data.Text (Text)
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -84,6 +85,7 @@ data Mesh = Mesh
   , indices :: Maybe (SV.Vector Word32)
   , minPosition  :: V3 Float
   , maxPosition  :: V3 Float
+  , morphTargets :: [(Text, [(Attribute, SV.Vector Float)])]
   } deriving (Generic, Show)
 
 data BufferedMesh = BufferedMesh

@@ -33,6 +33,7 @@ wavefrontToMesh obj@WavefrontOBJ {..} = V.Mesh {..}
   vertices  = [positions, normals, uvs]
   minPosition = zero -- TODO: Wavefront loading will probably be deprecated anyway
   maxPosition = zero -- TODO: Wavefront loading will probably be deprecated anyway
+  morphTargets = []
 
   faces = fmap elValue objFaces
   allFaceIndices :: V.Vector FaceIndex

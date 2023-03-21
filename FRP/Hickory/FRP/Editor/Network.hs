@@ -245,6 +245,9 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
     loadResource' meshes "line" $ H.withBufferedMesh vulkanResources $ H.Mesh
       { vertices = [(H.Position, SV.fromList [-1000, 0, 0, 1000, 0, 0])]
       , indices = Nothing
+      , minPosition = zero -- TODO
+      , maxPosition = zero -- TODO
+      , morphTargets = mempty
       }
     loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources $ H.Mesh
       { vertices =
@@ -253,6 +256,9 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
             )
           ]
       , indices = Nothing
+      , minPosition = zero -- TODO
+      , maxPosition = zero -- TODO
+      , morphTargets = mempty
       }
 
   let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
