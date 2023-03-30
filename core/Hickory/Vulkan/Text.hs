@@ -161,6 +161,7 @@ void main() {
                          , 2
                          ) / 2);
   }
+  if (outColor.a < 0.0001) discard;
 }
 
 |]
