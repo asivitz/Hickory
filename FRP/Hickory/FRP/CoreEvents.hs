@@ -9,7 +9,7 @@ import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..), Ga
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
-import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE, mapAccum)
+import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE, mapAccum, (<@>))
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll, MonadIO (..), mapEventIO)
 import qualified Data.HashMap.Strict as HashMap
 import Linear (V2(..))
@@ -185,3 +185,6 @@ maskCoreEvents switch ce@CoreEvents {..} = ce
   , eGamePadReleases = whenE switch eGamePadReleases
   , eNewTime = whenE switch eNewTime
   }
+
+alterCoreEventsTime :: Behavior Scalar -> CoreEvents a -> CoreEvents a
+alterCoreEventsTime scale coreEvents = coreEvents { eTime = (*) . realToFrac <$> scale <@> eTime coreEvents }

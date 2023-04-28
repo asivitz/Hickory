@@ -16,7 +16,8 @@ module Hickory.Types
    relativePosInRect,
    rectExtents,
    rectFromExtents,
-   intersectRect
+   intersectRect,
+   sizeToV2
    ) where
 
 import Hickory.Math.Vector
@@ -58,6 +59,9 @@ mkSize a = Size a a
 
 v2ToSize :: V2 a -> Size a
 v2ToSize (V2 x y) = Size x y
+
+sizeToV2 :: Size a -> V2 a
+sizeToV2 (Size x y) = V2 x y
 
 aspectRatio :: (Real a, Fractional b) => Size a -> b
 aspectRatio (Size w h) = w' / h'

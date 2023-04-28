@@ -84,8 +84,9 @@ gameNetwork
   -> B.Event gameState
   -> B.Event [input]
   -> B.Behavior (Step input gameState gameEvent)
+  -> B.Event [gameState]
   -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent], B.Behavior Bool)
-gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput step = mdo
+gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput step eReplay = mdo
   let frameSelect = B.whenE paused $
         unionFirst [ 1 <$ keyDownOrHeld coreEvents Key'Left
                    , 5 <$ keyDownOrHeld coreEvents Key'LeftBracket
@@ -96,8 +97,8 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
   paused <- B.accumB False $ not <$ B.filterE (== pauseKey) (keyDown coreEvents)
 
   replayQueue :: B.Behavior [gameState] <- B.accumB [] $ B.unions
-    [ tail <$ B.whenE bShowingReplay eInput
-    -- fmap const . buildDebugReplay <$> params <*> mdl <@ B.filterE (== Key'J) (keyDown coreEvents)
+    [ tail <$ B.whenE bShowingReplay eFrameInput
+    , const <$> eReplay
     ]
 
   let bShowingReplay = not . null <$> replayQueue
