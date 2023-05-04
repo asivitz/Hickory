@@ -1,5 +1,5 @@
-{-# LANGUAGE ForeignFunctionInterface, BlockArguments #-}
-{-# LANGUAGE TupleSections, PatternSynonyms, OverloadedLists #-}
+{-# LANGUAGE ForeignFunctionInterface, BlockArguments, ViewPatterns #-}
+{-# LANGUAGE TupleSections, PatternSynonyms, OverloadedLists, RecordWildCards #-}
 
 module Platforms.IOS where
 
@@ -22,15 +22,39 @@ import Hickory.Vulkan.Utils (buildFrameFunction, initVulkan)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources(..), Swapchain (..), FrameContext (..))
 import Control.Monad.IO.Class (liftIO)
+import Data.Bool (bool)
+import Data.Foldable (for_)
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
-foreign export ccall "touch_began" touchBegan :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
-foreign export ccall "touch_moved" touchMoved :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
-foreign export ccall "touch_ended" touchEnded :: StablePtr (a,TouchData) -> CInt -> CDouble -> CDouble -> IO ()
+foreign export ccall "touch_began" touchBegan :: StablePtr (a,InputData) -> CInt -> CDouble -> CDouble -> IO ()
+foreign export ccall "touch_moved" touchMoved :: StablePtr (a,InputData) -> CInt -> CDouble -> CDouble -> IO ()
+foreign export ccall "touch_ended" touchEnded :: StablePtr (a,InputData) -> CInt -> CDouble -> CDouble -> IO ()
 foreign export ccall "draw"        draw       :: StablePtr (IO (),a,IO ()) -> IO ()
+foreign export ccall "gamepad_state" gamepadState
+  :: StablePtr (a,InputData)
+  -> CInt -- Gamepad Ident
+  -> CBool -- Button A
+  -> CBool -- Button B
+  -> CBool -- Button X
+  -> CBool -- Button Y
+  -> CBool -- Button RightTrigger
+  -> CBool -- Button LeftTrigger
+  -> CDouble -- RightShoulder
+  -> CDouble -- LeftShoulder
+  -> CDouble -- RightThumbXAxis
+  -> CDouble -- RightThumbYAxis
+  -> CBool -- RightThumb Button
+  -> CDouble -- LeftThumbXAxis
+  -> CDouble -- LeftThumbYAxis
+  -> CBool -- LeftThumb Button
+  -> CBool -- Button Menu
+  -> CBool -- Button Options
+  -> IO ()
+foreign export ccall "gamepad_connected" gamepadConnected :: StablePtr (a,InputData) -> CInt -> IO ()
+foreign export ccall "gamepad_disconnected" gamepadDisconnected :: StablePtr (a,InputData) -> CInt -> IO ()
 
-type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), TouchData, IO ()))
+type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), InputData, IO ()))
 
 type RenderInit renderer
   =  VulkanResources
@@ -83,41 +107,43 @@ draw pkg = do
   drawF
   performMinorGC
 
-type TouchData =
-  ( IORef [(Int, Scalar, Scalar, UTCTime)]
-  , IORef [(Int, Scalar, Scalar, UTCTime)]
-  , IORef [(Int, Scalar, Scalar)]
-  , IORef (HashMap.HashMap Int (V2 Scalar, UTCTime))
-  )
+data InputData = InputData
+  { newDowns    :: IORef [(Int, Scalar, Scalar, UTCTime)]
+  , newUps      :: IORef [(Int, Scalar, Scalar, UTCTime)]
+  , newMoves    :: IORef [(Int, Scalar, Scalar)]
+  , touches     :: IORef (HashMap.HashMap Int (V2 Scalar, UTCTime))
+  , newRawMessages :: IORef [RawInput]
+  }
 
-initTouchData :: IO TouchData
-initTouchData = (,,,) <$> newIORef [] <*> newIORef [] <*> newIORef [] <*> newIORef HashMap.empty
+initTouchData :: IO InputData
+initTouchData = InputData <$> newIORef [] <*> newIORef [] <*> newIORef [] <*> newIORef HashMap.empty <*> newIORef []
 
-touchBegan :: StablePtr (a, TouchData) -> CInt -> CDouble -> CDouble -> IO ()
+touchBegan :: StablePtr (a, InputData) -> CInt -> CDouble -> CDouble -> IO ()
 touchBegan touchData ident x y = do
-  (_, (newDowns, _, _, _)) <- deRefStablePtr touchData
+  (_, InputData {..}) <- deRefStablePtr touchData
   time <- getCurrentTime
   modifyIORef newDowns ((fromIntegral ident, realToFrac x, realToFrac y, time):)
 
-touchMoved :: StablePtr (a, TouchData) -> CInt -> CDouble -> CDouble -> IO ()
+touchMoved :: StablePtr (a, InputData) -> CInt -> CDouble -> CDouble -> IO ()
 touchMoved touchData ident x y = do
-  (_, (_, _, newMoves, _)) <- deRefStablePtr touchData
+  (_, InputData {..}) <- deRefStablePtr touchData
   modifyIORef newMoves ((fromIntegral ident, realToFrac x, realToFrac y):)
 
-touchEnded :: StablePtr (a, TouchData) -> CInt -> CDouble -> CDouble -> IO ()
+touchEnded :: StablePtr (a, InputData) -> CInt -> CDouble -> CDouble -> IO ()
 touchEnded touchData ident x y = do
-  (_, (_, newUps, _, _)) <- deRefStablePtr touchData
+  (_, InputData {..}) <- deRefStablePtr touchData
   time <- getCurrentTime
   modifyIORef newUps ((fromIntegral ident, realToFrac x, realToFrac y, time):)
 
-touchFunc :: TouchData -> (RawInput -> IO ()) -> IO (IO ())
+touchFunc :: InputData -> (RawInput -> IO ()) -> IO (IO ())
 touchFunc touchData handleRawInput = pure $ do
-  let (newDowns, newUps, newMoves, touches) = touchData
+  let InputData {..} = touchData
 
   curhash <- readIORef touches
   moves <- atomicModifyIORef newMoves ([],)
   ups <- atomicModifyIORef newUps ([],)
   downs <- atomicModifyIORef newDowns ([],)
+  rawMessages <- atomicModifyIORef newRawMessages ([],)
 
   -- Update the touch positions for move events
   let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (V2 x y, time)) ident hsh) curhash moves
@@ -139,3 +165,66 @@ touchFunc touchData handleRawInput = pure $ do
 
   -- Record the new hash
   writeIORef touches hash'''
+
+  for_ rawMessages handleRawInput
+
+gamepadState
+  :: StablePtr (a,InputData)
+  -> CInt -- Gamepad Ident
+  -> CBool -- Button A
+  -> CBool -- Button B
+  -> CBool -- Button X
+  -> CBool -- Button Y
+  -> CBool -- Button RightShoulder
+  -> CBool -- Button LeftShoulder
+  -> CDouble -- RightTrigger
+  -> CDouble -- LeftTrigger
+  -> CDouble -- RightThumbXAxis
+  -> CDouble -- RightThumbYAxis
+  -> CBool -- RightThumb Button
+  -> CDouble -- LeftThumbXAxis
+  -> CDouble -- LeftThumbYAxis
+  -> CBool -- LeftThumb Button
+  -> CBool -- Button Menu
+  -> CBool -- Button Options
+  -> IO ()
+gamepadState touchData ident a' b' x' y' rightShoulder' leftShoulder' (realToFrac -> rightTrigger) (realToFrac -> leftTrigger)
+    rightThumbXAxis rightThumbYAxis rightThumb'
+    leftThumbXAxis leftThumbYAxis leftThumb'
+    menu options = do
+  let leftStick = realToFrac <$> V2 leftThumbXAxis (negate leftThumbYAxis)
+      rightStick = realToFrac <$> V2 rightThumbXAxis (negate rightThumbYAxis)
+      back = mkPress options
+      start = mkPress menu
+      guide = Released
+      a = mkPress a'
+      b = mkPress b'
+      x = mkPress x'
+      y = mkPress y'
+      cross = a
+      circle = b
+      square = x
+      triangle = y
+      rightBumper = mkPress rightShoulder'
+      leftBumper = mkPress leftShoulder'
+      rightThumb = mkPress rightThumb'
+      leftThumb = mkPress leftThumb'
+      dpadUp = Released
+      dpadRight = Released
+      dpadLeft = Released
+      dpadDown = Released
+
+  (_, InputData {..}) <- deRefStablePtr touchData
+  modifyIORef newRawMessages (InputGamePad (fromIntegral ident) GamePad {..}:)
+  where
+  mkPress = bool Released Pressed . (/=0)
+
+gamepadConnected :: StablePtr (a,InputData) -> CInt -> IO ()
+gamepadConnected inputData ident = do
+  (_, InputData {..}) <- deRefStablePtr inputData
+  modifyIORef newRawMessages (InputGamePadConnection (fromIntegral ident) True :)
+
+gamepadDisconnected :: StablePtr (a,InputData) -> CInt -> IO ()
+gamepadDisconnected inputData ident = do
+  (_, InputData {..}) <- deRefStablePtr inputData
+  modifyIORef newRawMessages (InputGamePadConnection (fromIntegral ident) False :)
