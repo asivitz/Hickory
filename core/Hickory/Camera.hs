@@ -60,6 +60,16 @@ data Camera = Camera
   , projection   :: Projection
   } deriving (Generic, Show)
 
+cameraNear :: Camera -> Scalar
+cameraNear camera = case projection camera of
+  Perspective {..} -> nearPlane
+  Ortho {..} -> near
+
+cameraFar :: Camera -> Scalar
+cameraFar camera = case projection camera of
+  Perspective {..} -> farPlane
+  Ortho {..} -> far
+
 perspectiveFocusPlaneSize :: Size Int -> V3 Scalar -> Scalar -> Size Scalar
 perspectiveFocusPlaneSize (aspectRatio -> scrRat) angleVec fov = Size cameraFocusPlaneWidth cameraFocusPlaneHeight
   where

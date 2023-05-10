@@ -54,6 +54,7 @@ data FrameContext = FrameContext
   , commandBuffer       :: CommandBuffer -- commandbuffer to render this frame
   , frameNumber         :: Int           -- used to index FramedResources
   , swapchainImageIndex :: Word32
+  , multiSampleCount    :: Int
   }
 
 data Swapchain = Swapchain

@@ -155,6 +155,9 @@ data WorldGlobals = WorldGlobals
   , lightDirection :: V3 Scalar
   , sunColor       :: V3 Scalar -- HDR
   , ambientColor   :: V3 Scalar -- HDR
+  , multiSampleCount :: Scalar
+  , nearPlane      :: Scalar
+  , farPlane       :: Scalar
   } deriving Generic
     deriving anyclass GStorable
 

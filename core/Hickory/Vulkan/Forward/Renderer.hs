@@ -32,7 +32,7 @@ import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless)
 import Hickory.Types (Size (..))
-import Hickory.Camera (cameraViewMat, cameraPos, cameraProjMat)
+import Hickory.Camera (cameraViewMat, cameraPos, cameraProjMat, cameraNear, cameraFar)
 import Hickory.Math.Matrix ( viewDirection )
 import Data.Word (Word32)
 import Data.IORef (modifyIORef, newIORef, readIORef, IORef)
@@ -193,7 +193,9 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         projMat = cameraProjMat (Size (fromIntegral w) (fromIntegral h)) camera
         viewMat = cameraViewMat camera
         lightProj = lightProjection (projMat !*! viewMat) lightView (shadowRenderTarget.extent)
-        worldGlobals = WorldGlobals { camPos = cameraPos camera, ..}
+        nearPlane = cameraNear camera
+        farPlane = cameraFar camera
+        worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->
       uploadBufferDescriptor buf

@@ -26,7 +26,7 @@ import Vulkan
   , RenderingInfo(..)
   , RenderingAttachmentInfo(..)
   , cmdBeginRenderingKHR
-  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D
+  , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D, SampleCountFlagBits (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -107,9 +107,18 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
       resetCommandBuffer commandBuffer zero
 
       useCommandBuffer commandBuffer zero do
+        let samples = case maxSampleCount of
+              SAMPLE_COUNT_64_BIT -> 64
+              SAMPLE_COUNT_32_BIT -> 32
+              SAMPLE_COUNT_16_BIT -> 16
+              SAMPLE_COUNT_8_BIT -> 8
+              SAMPLE_COUNT_4_BIT -> 4
+              SAMPLE_COUNT_2_BIT -> 2
+              SAMPLE_COUNT_1_BIT -> 1
+              _ -> 1
 
         liftIO $ handle (\(e :: SomeException) -> putStrLn ("ERROR: " ++ show e) >> throw e) do
-          f (FrameContext extent image commandBuffer frameNumber imageIndex)
+          f (FrameContext extent image commandBuffer frameNumber imageIndex samples)
 
       let submitInfo = zero
             { waitSemaphores   = [imageAvailableSemaphore]

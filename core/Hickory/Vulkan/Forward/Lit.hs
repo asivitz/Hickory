@@ -29,14 +29,14 @@ import Vulkan.Zero
 import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
-import Data.Bits ((.|.), zeroBits)
+import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
+import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), withMaterial)
 import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants)
 import Hickory.Vulkan.Forward.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource, frameResource)
@@ -60,9 +60,9 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
     hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw
     let _hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
 
-    depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount zeroBits
+    depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount IMAGE_USAGE_SAMPLED_BIT
     depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
-    let _depthImage = ViewableImage depthImageRaw depthImageView depthFormat
+    let depthImage = ViewableImage depthImageRaw depthImageView depthFormat
 
     -- Target tex for the multisample resolve pass
     resolveImageRaw  <- withIntermediateImage vulkanResources resolveFormat
@@ -70,7 +70,7 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
       extent SAMPLE_COUNT_1_BIT
     resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw
     let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
-        descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)]]
+        descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)], ImageDescriptor [(depthImage,sampler)]]
     (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
 
   let cullMode = CULL_MODE_BACK_BIT
@@ -95,11 +95,11 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
     { format         = depthFormat
     , samples        = maxSampleCount
     , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
-    , storeOp        = ATTACHMENT_STORE_OP_DONT_CARE
+    , storeOp        = ATTACHMENT_STORE_OP_STORE
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
   resolveAttachmentDescription :: AttachmentDescription
   resolveAttachmentDescription = zero

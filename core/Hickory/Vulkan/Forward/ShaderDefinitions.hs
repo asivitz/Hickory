@@ -14,6 +14,9 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     vec3 lightDirection;
     vec3 sunColor;
     vec3 ambientColor;
+    float multiSampleCount;
+    float nearPlane;
+    float farPlane;
   } globals;
   |]
 
