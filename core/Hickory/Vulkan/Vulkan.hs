@@ -178,10 +178,10 @@ withLogicalDevice inst surface = do
                         , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
                         , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
                         , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
-                        , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
+                        -- , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
                         , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
-                        , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
-                        , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
+                        -- , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
+                        -- , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
                         ]
 
   let

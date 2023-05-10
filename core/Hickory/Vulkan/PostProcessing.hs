@@ -73,24 +73,28 @@ float linearizeDepth(float depth, float nearPlane, float farPlane)
     return (2.0 * nearPlane * farPlane) / (farPlane + nearPlane - z * (farPlane - nearPlane));
 }
 
-float depthVariance()
+float depthVariance(ivec2 tsize)
 {
-    float sumDepth = 0;
-    float sumSquaredDepth = 0;
     int multiSampleCount = int(globals.multiSampleCount);
+    int totalSamples = 9 * multiSampleCount;
 
-    ivec2 tsize = textureSize(depthSampler);
+    float targetDepth = linearizeDepth(texelFetch(depthSampler, ivec2(texCoordsVarying * tsize), 0).r, globals.nearPlane, globals.farPlane);
+    int numDisagree = 0;
+    float threshold = (globals.farPlane - globals.nearPlane) / 250;
 
-    for (int i = 0; i < multiSampleCount; i++)
+    for (int j = 0; j < 9; j++)
     {
-        float depth = texelFetch(depthSampler, ivec2(texCoordsVarying * tsize), i).r;
-        depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
-        sumDepth += depth;
-        sumSquaredDepth += depth * depth;
+      ivec2 offset = ivec2(j % 3 - 1, j / 3 - 1);
+      for (int i = 0; i < multiSampleCount; i++)
+      {
+          float depth = texelFetch(depthSampler, ivec2(texCoordsVarying * tsize) + offset, i).r;
+          depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
+          numDisagree += int(abs(depth - targetDepth) > threshold);
+      }
     }
 
-    float averageDepth = sumDepth / multiSampleCount;
-    return (sumSquaredDepth / multiSampleCount) - (averageDepth * averageDepth);
+    float fr = float(numDisagree) / float(totalSamples);
+    return 2 * (0.5 - abs(0.5 - fr));
 }
 
 void main()
@@ -111,8 +115,9 @@ void main()
   color = aces_tonemapping(saturated);
 
   // Edge detection
-  float variance = depthVariance();
-  color = mix(color, vec3(0),step(0.01, variance));
+  ivec2 tsize = textureSize(depthSampler);
+  float variance = depthVariance(tsize);
+  color = mix(color, vec3(0), variance);
 
   // Film grain
   float grainIntensity =
