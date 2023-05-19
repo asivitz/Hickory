@@ -214,6 +214,7 @@ buildNetwork vulkanResources evGens = do
       B.never -- Event to load a game state
       inputs -- Event containing inputs. Gathered every step interval and passed to step function.
       (stepF <$> moveDir) -- Game state step function
+      B.never
 
     -- every time we get a 'render' event tick, draw the screen
     B.reactimate

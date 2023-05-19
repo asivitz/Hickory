@@ -292,7 +292,7 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
 
   renInfo <- B.stepper undefined (eRender coreEvents)
 
-  let eClick = (\(Size w h) (_, V2 x y, _) -> (x/ realToFrac w, y/ realToFrac h))
+  let eClick = (\(Size w h) (_, V2 x y, _, _) -> (x/ realToFrac w, y/ realToFrac h))
            <$> scrSizeB coreEvents
            <@> fmap head (B.filterE ((<0.3) . view _1 . head) $ eTouchesUp objectEditingMaskedEvents)
   eScreenPickedObjectID <- fmap (\x -> if x > 0 then Just x else Nothing) <$> B.execute (((\(r,fc) -> liftIO . pickObjectID fc r) <$> renInfo) <@> eClick)

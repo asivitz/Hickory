@@ -111,7 +111,7 @@ data InputData = InputData
   { newDowns    :: IORef [(Int, Scalar, Scalar, UTCTime)]
   , newUps      :: IORef [(Int, Scalar, Scalar, UTCTime)]
   , newMoves    :: IORef [(Int, Scalar, Scalar)]
-  , touches     :: IORef (HashMap.HashMap Int (V2 Scalar, UTCTime))
+  , touches     :: IORef (HashMap.HashMap Int (V2 Scalar, UTCTime, V2 Scalar)) -- Current loc, origin time, origin loc
   , newRawMessages :: IORef [RawInput]
   }
 
@@ -146,20 +146,20 @@ touchFunc touchData handleRawInput = pure $ do
   rawMessages <- atomicModifyIORef newRawMessages ([],)
 
   -- Update the touch positions for move events
-  let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time) -> (V2 x y, time)) ident hsh) curhash moves
+  let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time, origv) -> (V2 x y, time, origv)) ident hsh) curhash moves
 
   -- Broadcast a loc event for touches held over from last frame
-  handleRawInput (InputTouchesLoc (map (\(ident, (loc', _)) -> (loc', ident)) (HashMap.toList hash')))
+  handleRawInput (InputTouchesLoc (map (\(ident, (loc', _, origv)) -> (loc', ident)) (HashMap.toList hash')))
 
   -- Add new touches
   handleRawInput (InputTouchesDown (map (\(ident, x, y, _time) -> (V2 x y, ident)) downs))
-  let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (V2 x y, time) hsh) hash' downs
+  let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (V2 x y, time, V2 x y) hsh) hash' downs
 
   -- Remove released touches
   handleRawInput (InputTouchesUp (map (\(ident, x, y, time) ->
                                                           case HashMap.lookup ident hash'' of
-                                                              Nothing -> (0, V2 x y, ident)
-                                                              Just (_, prev) -> (realToFrac (diffUTCTime time prev), V2 x y, ident))
+                                                              Nothing -> (0, V2 x y, V2 x y, ident)
+                                                              Just (_, prev,origv) -> (realToFrac (diffUTCTime time prev), V2 x y, origv, ident ))
                                                       ups))
   let hash''' = foldl (\hsh (ident, _x, _y, _time) -> HashMap.delete ident hsh) hash'' ups
 

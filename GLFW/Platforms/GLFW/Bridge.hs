@@ -24,7 +24,7 @@ import Data.Traversable (for)
     --a method of converting GLFW.Key to it
 
 data InputData = InputData
-  { touches  :: IORef (HashMap Int UTCTime)
+  { touches  :: IORef (HashMap Int (UTCTime, V2 Scalar))
   , keys     :: IORef (HashMap Key UTCTime)
   , gamepads :: IORef (HashMap Int GLFW.GamepadState)
   }
@@ -130,13 +130,13 @@ mouseButtonCallback indat addInput win button buttonState _modkeys = unlessM wan
   (ev, touches') <- case buttonState of
     GLFW.MouseButtonState'Pressed -> do
       time <- getCurrentTime
-      return (InputTouchesDown [(pos,touchid)], HashMap.insert touchid time touches)
+      return (InputTouchesDown [(pos,touchid)], HashMap.insert touchid (time, pos) touches)
     GLFW.MouseButtonState'Released -> case HashMap.lookup touchid touches of
-      Nothing -> return (InputTouchesUp [(0,pos,touchid)], touches)
-      Just prev -> do
+      Nothing -> return (InputTouchesUp [(0,pos,pos,touchid)], touches)
+      Just (prevTime, prevPos) -> do
         time <- getCurrentTime
-        let delta = realToFrac (diffUTCTime time prev)
-        return (InputTouchesUp [(delta,pos,touchid)], HashMap.delete touchid touches)
+        let delta = realToFrac (diffUTCTime time prevTime)
+        return (InputTouchesUp [(delta,pos,prevPos,touchid)], HashMap.delete touchid touches)
 
   writeIORef indat.touches touches'
   addInput ev

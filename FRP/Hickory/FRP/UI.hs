@@ -75,7 +75,7 @@ inputLayer targets touchEvs = do
     perTouch cache te@TouchEvent {..} = case lookup touchIdent focused of
       Just (a, xform, offset) -> case eventType of
         Down -> (cache, (Just a, TouchEvent touchIdent (xform (loc - offset)) Down))
-        Up dur -> (dropWhile ((==touchIdent) . fst) cache, (Just a, TouchEvent touchIdent (xform (loc - offset)) (Up dur)))
+        Up dur origv -> (dropWhile ((==touchIdent) . fst) cache, (Just a, TouchEvent touchIdent (xform (loc - offset)) (Up dur (xform (origv - offset)))))
         Loc  -> (cache, (Just a, TouchEvent touchIdent (xform (loc - offset)) Loc))
       Nothing -> case eventType of
         Down -> case headMay . sortOn (norm . view _3) $ mapMaybe (hitTarget loc) targs of
@@ -125,7 +125,7 @@ velocityTargetLayer targets touchEvs tickEv = do
   timeAccum time cache = Map.mapAccum (\lst vo -> (maybe id (:) (genEv vo) lst, move vo)) [] (Map.filter filt cache)
     where
     genEv VelocityObject { velocity = Nothing } = Nothing
-    genEv VelocityObject { item, velocity = Just _, posHistory = (_, v) :<| _ } = Just (Just item, TouchEvent (-1) v (Up 0))
+    genEv VelocityObject { item, velocity = Just _, posHistory = (_, v) :<| _ } = Just (Just item, TouchEvent (-1) v (Up 0 v))
     genEv VelocityObject { velocity = Just _, posHistory = Seq.Empty } = Nothing
     move vo@VelocityObject { velocity = Nothing }  = vo
     move vo@VelocityObject { velocity = Just vel, posHistory = ph@((time', v') :<| _) }
@@ -152,13 +152,13 @@ velocityTargetLayer targets touchEvs tickEv = do
         Just VelocityObject {velocity = Nothing, offset, item, posHistory} ->
           (Map.adjust (\vo -> vo { posHistory = (time, loc - offset) :<| posHistory }) touchIdent cache, (Just item, TouchEvent touchIdent (loc - offset) Loc))
         _ -> (cache, (Nothing, te))
-      Up dur -> case cached of
+      Up dur origv -> case cached of
         Just VelocityObject {velocity = Nothing, offset, item } ->
           ( Map.adjust (\vo@VelocityObject { posHistory = ph }
                               -> let _ :|> (time', v') = Seq.take 10 ph
                                  in vo { posHistory = (time, loc - offset) :<| ph
                                     , velocity = Just ((loc - offset - v') ^/ (realToFrac (time - time') / initVelMult)) }) touchIdent cache
-          , (Just item, TouchEvent touchIdent (loc - offset) (Up dur)))
+          , (Just item, TouchEvent touchIdent (loc - offset) (Up dur (origv - offset))))
         _ -> (cache, (Nothing, te))
       where
       cached = Map.lookup touchIdent cache
@@ -193,7 +193,7 @@ trackTouches = B.mapAccum [] . fmap f
   g TouchEvent {..} state = case eventType of
     Down -> addOrUpdate touchIdent loc state
     Loc  -> (catMaybes [(\idx -> LocTouch touchIdent idx loc) <$> findIndex ((==touchIdent) . fst) state], update touchIdent loc state)
-    Up _dur -> (catMaybes [(\idx -> LoseTouch touchIdent idx loc) <$> findIndex ((==touchIdent) . fst) state], filter ((/=touchIdent) . fst) state)
+    Up _dur _origv -> (catMaybes [(\idx -> LoseTouch touchIdent idx loc) <$> findIndex ((==touchIdent) . fst) state], filter ((/=touchIdent) . fst) state)
 
   update k v = \case
     (x:xs) -> if k == fst x

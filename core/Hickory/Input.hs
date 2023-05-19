@@ -16,7 +16,7 @@ import Data.Word (Word32)
 
 -- key is the type used by your platform to represent a key. e.g. GLFW's Key type
 data RawInput = InputTouchesDown [(V2 Scalar,Int)]
-              | InputTouchesUp [(Scalar,V2 Scalar,Int)]
+              | InputTouchesUp [(Scalar,V2 Scalar,V2 Scalar,Int)] -- Duration, pos, initial pos, touch id
               | InputTouchesLoc [(V2 Scalar,Int)]
               | InputKeyDown Key
               | InputKeyUp Key Scalar
@@ -253,7 +253,7 @@ data TouchEvent = TouchEvent
   } deriving (Show, Generic)
 
 data TouchEventType
-  = Up Scalar       -- Touch ends (w/ duration)
+  = Up Scalar (V2 Scalar) -- Touch ends (w/ duration and initial position)
   | Down            -- Touch begins
   | Loc             -- Touch is moved by user
   deriving (Show, Generic)

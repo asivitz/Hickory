@@ -36,7 +36,7 @@ fire :: (AddHandler a, b) -> b
 fire = snd
 
 type Point = (V2 Scalar, Int) -- Location, Ident
-type PointUp = (Scalar, V2 Scalar, Int) -- Duration, Location, Ident
+type PointUp = (Scalar, V2 Scalar, V2 Scalar, Int) -- Duration, Location, Original Location, Ident
 
 touchHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
 touchHandlers =
@@ -59,7 +59,7 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 concatTouchEvents :: CoreEvents a -> Event [TouchEvent]
 concatTouchEvents CoreEvents {..} = mconcat
   [ map (\(v,i)   -> TouchEvent i v Down) <$> eTouchesDown
-  , map (\(dur,v,i) -> TouchEvent i v (Up dur))   <$> eTouchesUp
+  , map (\(dur,v,vorig,i) -> TouchEvent i v (Up dur vorig))   <$> eTouchesUp
   , map (\(v,i)   -> TouchEvent i v Loc)  <$> eTouchesLoc
   ]
 
@@ -82,7 +82,7 @@ mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
 data CoreEventGenerators a = CoreEventGenerators
   { renderEvent :: HandlerPair a
   , touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
-                   , HandlerPair [(Scalar, V2 Scalar, Int)]
+                   , HandlerPair [(Scalar, V2 Scalar, V2 Scalar, Int)]
                    , HandlerPair [(V2 Scalar, Int)])
   , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Scalar), HandlerPair Key)
   , timeEvents  :: HandlerPair NominalDiffTime

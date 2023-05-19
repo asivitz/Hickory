@@ -128,7 +128,7 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
 
 accumSelectedObjIds :: CoreEvents (Renderer, FrameContext) -> B.MomentIO (B.Behavior [Int])
 accumSelectedObjIds coreEvents = do
-  let eClick = (\(Size w h) (_, V2 x y, _) -> (x/ realToFrac w, y/ realToFrac h))
+  let eClick = (\(Size w h) (_, V2 x y, _, _) -> (x/ realToFrac w, y/ realToFrac h))
            <$> scrSizeB coreEvents
            <@> fmap head (B.filterE ((<0.3) . view _1 . head) $ eTouchesUp coreEvents)
   renInfo <- B.stepper undefined (eRender coreEvents)
