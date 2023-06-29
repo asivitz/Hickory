@@ -59,12 +59,6 @@ timeStep physicsTimeStep controlComs eInGameTime = do
   eFrameInput <- batchEvents controlComs eGameTime
   pure (frameFraction, eFrameInput)
 
-loadOrStep :: B.Event state -> B.Event (state -> (state, [event])) -> B.Event (state -> (state, [event]))
-loadOrStep eLoad eStep = unionFirst
-  [ eStep
-  , const <$> ((,[]) <$> eLoad)
-  ]
-
 type Step input gameState gameEvent = (NominalDiffTime, [input]) -> gameState -> (gameState, [gameEvent])
 
 -- This game loop features
@@ -111,8 +105,9 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
 
   (currentGDPair, gameEvs) <- historicalWithEvents
     initialState
-    (loadOrStep eLoadState (step <@> B.whenE (not <$> bShowingReplay) eFrameInput))
+    (B.unionWith const (const <$> ((,[]) <$> eLoadState)) (step <@> B.whenE (not <$> bShowingReplay) eFrameInput))
     frameSelect
+
 
   let replayGDPair = (\case
         x1:x2:_ -> (x1, x2)

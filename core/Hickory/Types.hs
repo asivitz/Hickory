@@ -17,7 +17,8 @@ module Hickory.Types
    rectExtents,
    rectFromExtents,
    intersectRect,
-   sizeToV2
+   sizeToV2,
+   distToEdgeOfRect
    ) where
 
 import Hickory.Math.Vector
@@ -73,6 +74,15 @@ viewportFromSize (Size w h) = V4 0 0 (fromIntegral w) (fromIntegral h)
 fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
+distToEdgeOfRect :: V2 Scalar -> Rect -> V2 Scalar
+distToEdgeOfRect (V2 px py) (Rect (V2 ox oy) (Size w h)) = V2 x y
+  where
+  x = if px < ox
+      then ox - w/2 - px
+      else px - (ox + w/2)
+  y = if py < oy
+      then oy - h/2 - py
+      else py - (oy + h/2)
 
 posInRect :: V2 Scalar -> Rect -> Bool
 posInRect (V2 px py) (Rect (V2 ox oy) (Size w h)) =
