@@ -1,4 +1,4 @@
-{-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
+{-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields, OverloadedRecordDot #-}
 {-# LANGUAGE DataKinds, OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
@@ -46,8 +46,6 @@ import Vulkan
   , getSwapchainImagesKHR
   , pattern KHR_PORTABILITY_SUBSET_EXTENSION_NAME
   , pattern KHR_SWAPCHAIN_EXTENSION_NAME
-  , pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME
-  , pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME
   , queueFlags
   , withDevice
   , withImageView
@@ -68,7 +66,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp
+  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -224,7 +222,7 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
       { surface            = surface
       , minImageCount      = case capabilities of
         SurfaceCapabilitiesKHR {..} -> if maxImageCount > 0 then min maxImageCount (minImageCount + 1) else minImageCount + 1
-      , imageFormat        = format (surfaceFormat :: SurfaceFormatKHR)
+      , imageFormat        = surfaceFormat.format
       , imageColorSpace    = colorSpace surfaceFormat
       , imageExtent        = extent
       , imageArrayLayers   = 1
@@ -244,16 +242,16 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
     clamp x min' max' = max (min x max') min'
     extent = case capabilities of
       SurfaceCapabilitiesKHR {..} ->
-        if width (currentExtent :: Extent2D) /= maxBound
+        if currentExtent.width /= maxBound
         then currentExtent
-        else Extent2D (clamp (fromIntegral fbWidth) (width (minImageExtent :: Extent2D)) (width (maxImageExtent :: Extent2D)))
-                      (clamp (fromIntegral fbHeight) (height (minImageExtent :: Extent2D)) (height (maxImageExtent :: Extent2D)))
+        else Extent2D (clamp (fromIntegral fbWidth) (minImageExtent.width) (maxImageExtent.width))
+                      (clamp (fromIntegral fbHeight) (minImageExtent.height) (maxImageExtent.height))
 
   swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing mkAcquire
   let imageFormat = surfaceFormat
 
   (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
-  images <- for rawImages $ \image -> let form = Vulkan.format (surfaceFormat :: SurfaceFormatKHR) in
+  images <- for rawImages $ \image -> let form = surfaceFormat.format in
     ViewableImage image <$> with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image <*> pure form
 
   pure $ Swapchain {..}

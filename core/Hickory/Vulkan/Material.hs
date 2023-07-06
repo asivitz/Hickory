@@ -1,6 +1,6 @@
-{-# LANGUAGE DuplicateRecordFields  #-}
-{-# LANGUAGE OverloadedLists, DeriveGeneric #-}
-{-# LANGUAGE DataKinds, PatternSynonyms, OverloadedLabels, QuasiQuotes  #-}
+{-# LANGUAGE DuplicateRecordFields, OverloadedRecordDot  #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE DataKinds, PatternSynonyms, OverloadedLabels #-}
 
 module Hickory.Vulkan.Material where
 
@@ -158,8 +158,8 @@ withGraphicsPipeline
           [ Viewport
               { x        = 0
               , y        = 0
-              , width    = realToFrac $ width  (extent :: Extent2D)
-              , height   = realToFrac $ height (extent :: Extent2D)
+              , width    = realToFrac $ extent.width
+              , height   = realToFrac $ extent.height
               , minDepth = 0
               , maxDepth = 1
               }

@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
+{-# LANGUAGE PatternSynonyms, DuplicateRecordFields, OverloadedRecordDot #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DataKinds, OverloadedLists #-}
 
@@ -33,7 +33,6 @@ import Vulkan
   , ImageView
   , Framebuffer
   , withFramebuffer
-  , SurfaceFormatKHR
 
   , ClearValue(..)
   , Rect2D (..), RenderPassBeginInfo(..)
@@ -69,7 +68,7 @@ withSwapchainRenderTarget VulkanResources { deviceContext = DeviceContext{..} } 
   where
   outColorAttachmentDescription :: AttachmentDescription
   outColorAttachmentDescription = zero
-    { format         = Vulkan.format (imageFormat :: SurfaceFormatKHR)
+    { format         = imageFormat.format
     , samples        = SAMPLE_COUNT_1_BIT
     , loadOp         = ATTACHMENT_LOAD_OP_DONT_CARE
     , storeOp        = ATTACHMENT_STORE_OP_STORE
@@ -105,8 +104,8 @@ createFramebuffer dev renderPass swapchainExtent imageViews =
       framebufferCreateInfo = zero
         { renderPass  = renderPass
         , attachments = imageViews
-        , width       = width (swapchainExtent :: Extent2D)
-        , height      = height (swapchainExtent :: Extent2D)
+        , width       = swapchainExtent.width
+        , height      = swapchainExtent.height
         , layers      = 1
         }
   in withFramebuffer dev framebufferCreateInfo Nothing mkAcquire
