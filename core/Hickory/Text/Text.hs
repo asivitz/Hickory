@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Hickory.Text.Text where
 
 import Hickory.Text.Types
@@ -18,8 +20,9 @@ lineShiftX width AlignCenter = negate (width / 2)
 lineShiftX _width AlignLeft = 0
 
 
-kernGlyphs :: [(Glyph, Maybe GlyphVerts)] -> HashMap.HashMap (Int,Int) Scalar -> [((Glyph, Maybe GlyphVerts), Scalar)]
-kernGlyphs glyphs kernMap = primary ++ [(last glyphs, 0)]
+kernGlyphs :: HashMap.HashMap (Int,Int) Scalar -> [(Glyph, Maybe GlyphVerts)] -> [((Glyph, Maybe GlyphVerts), Scalar)]
+kernGlyphs _ [] = []
+kernGlyphs kernMap glyphs = primary ++ [(last glyphs, 0)]
   where
   primary = zip glyphs (drop 1 glyphs) <&> \((g1,gv1), (g2, _)) -> ((g1, gv1), fromMaybe 0 $ HashMap.lookup (unicode g1, unicode g2) kernMap)
 
@@ -38,20 +41,22 @@ transformTextCommandToVerts (TextCommand text align valign) Font {..}
   defaultGlyph = \case
     10 -> Just (Glyph 10 0 Nothing Nothing, Nothing)
     _  -> Nothing
-  glyphs = mapMaybe (\c -> HashMap.lookup (ord c) glyphMap <|> defaultGlyph (ord c)) (Text.unpack text)
-  kernedGlyphs = kernGlyphs glyphs kerningMap
-  fullwidth = sum $ kernedGlyphs <&> \((g,_), k) -> advance g + k
-  xoffset = lineShiftX (realToFrac fullwidth) align
-  accum :: (Scalar, Int, Int, [V3 Scalar], [V2 Scalar]) -> ((Glyph, Maybe GlyphVerts), Scalar) -> (Scalar, Int, Int, [V3 Scalar], [V2 Scalar])
-  accum = \(leftBump, linenum, numsquares, posLst, tcLst) ((Glyph {..}, gv), kerning) -> case unicode of
-    10 -> (0, linenum + 1, numsquares, posLst, tcLst)
-    _  -> case gv of
+  glyphs = mapMaybe (\c -> HashMap.lookup (ord c) glyphMap <|> defaultGlyph (ord c)) <$> lines (Text.unpack text)
+  kernedGlyphs = kernGlyphs kerningMap <$> glyphs
+  lineWidth kerned = sum $ kerned <&> \((g,_), k) -> advance g + k
+  xoffset kerned = lineShiftX (realToFrac $ lineWidth kerned) align
+
+  accum :: (Scalar, Int, Int, [V3 Scalar], [V2 Scalar]) -> [((Glyph, Maybe GlyphVerts), Scalar)] -> (Scalar, Int, Int, [V3 Scalar], [V2 Scalar])
+  accum (leftBump, linenum, numsquares, posLst, tcLst) line = case layoutLine of
+    (_, numsquares', posLst', tcLst') -> (leftBump, linenum + 1, numsquares + numsquares', posLst' ++ posLst, tcLst' ++ tcLst)
+    where
+    layoutLine = foldl' lineAccum (leftBump + xoffset line, 0, [], []) line
+    lineAccum (left, num, pl, tl) ((Glyph {..}, gv), kerning) = case gv of
       Just GlyphVerts {..} ->
         let placeGlyph :: V2 Scalar -> V3 Scalar
-            placeGlyph = \(V2 vx vy) -> V3 (vx + leftBump)
-                                          (realToFrac linenum * realToFrac lineHeight + (vy + yoffset))
-                                          0 ^* size
+            placeGlyph (V2 vx vy) = V3 (vx + left) (realToFrac linenum * realToFrac lineHeight + (vy + yoffset)) 0 ^* size
             new_verts = map placeGlyph verts
-        in (leftBump + (advance + kerning), linenum, numsquares + 1, new_verts ++ posLst, texCoords ++ tcLst)
-      Nothing -> (leftBump + advance, linenum, numsquares, posLst, tcLst)
-  (_, _, num_squares, posLstResult, tcLstResult) = foldl' accum (xoffset, 0, 0, [], []) kernedGlyphs
+        in (left + (advance + kerning), num + 1, new_verts ++ pl, texCoords ++ tl)
+      Nothing -> (left + advance, num, pl, tl)
+
+  (_, _, num_squares, posLstResult, tcLstResult) = foldl' accum (0, 0, 0, [], []) kernedGlyphs
