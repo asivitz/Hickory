@@ -38,8 +38,9 @@ omniscientCamera coreEvents = mdo
       eOrthoRight = B.filterE (==Key'2) $ keyDown coreEvents
       eOrthoLeft  = B.filterE (==Key'3) $ keyDown coreEvents
       eOrthoBack  = B.filterE (==Key'4) $ keyDown coreEvents
+      bSuper = (||) <$> keyHeldB coreEvents Key'LeftSuper <*> keyHeldB coreEvents Key'RightSuper
 
-  let mode = (\cmd shift -> if cmd then Zoom else if shift then Pan else Rotate) <$> keyHeldB coreEvents Key'LeftSuper <*> keyHeldB coreEvents Key'LeftShift
+  let mode = (\cmd shift -> if cmd then Zoom else if shift then Pan else Rotate) <$> bSuper <*> keyHeldB coreEvents Key'LeftShift
 
   let clickMove = B.filterJust $ fmap headMay $ eChanges <&> mapMaybe \case
         LocTouch _ 0 v -> Just v
