@@ -5,7 +5,7 @@ module Hickory.FRP.CoreEvents where
 
 import Data.Hashable (Hashable)
 import Data.IORef (IORef, readIORef)
-import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..), GamePad(..), gamePadButtonState, ButtonState (..), GamePadButton)
+import Hickory.Input (TouchEvent(..), RawInput(..), Key, TouchEventType (..), GamePad(..), gamePadButtonState, ButtonState (..), GamePadButton, PointUp(..), Point)
 import Hickory.Math.Vector (Scalar)
 import Hickory.Utils.Utils (makeFPSTicker)
 import Hickory.Types (Size)
@@ -18,7 +18,6 @@ import Hickory.FRP.Combinators (unionFirst)
 import qualified Data.HashMap.Strict as Map
 import Data.Functor ((<&>))
 import qualified Data.Enum.Set as ES
-import Data.Word (Word32)
 
 _1 :: (a, b, c) -> a
 _1 (a,_,_) = a
@@ -34,9 +33,6 @@ mkEvent = fromAddHandler . fst
 
 fire :: (AddHandler a, b) -> b
 fire = snd
-
-type Point = (V2 Scalar, Int) -- Location, Ident
-type PointUp = (Scalar, V2 Scalar, V2 Scalar, Int) -- Duration, Location, Original Location, Ident
 
 touchHandlers :: IO (HandlerPair a, HandlerPair b, HandlerPair c)
 touchHandlers =
@@ -59,7 +55,7 @@ mkTouchEvents (pointDownPair, pointUpPair, pointLocPair) = do
 concatTouchEvents :: CoreEvents a -> Event [TouchEvent]
 concatTouchEvents CoreEvents {..} = mconcat
   [ map (\(v,i)   -> TouchEvent i v Down) <$> eTouchesDown
-  , map (\(dur,v,vorig,i) -> TouchEvent i v (Up dur vorig))   <$> eTouchesUp
+  , map (\PointUp{..} -> TouchEvent ident location (Up duration origLocation))   <$> eTouchesUp
   , map (\(v,i)   -> TouchEvent i v Loc)  <$> eTouchesLoc
   ]
 
@@ -81,9 +77,9 @@ mkKeyEvents (keyPair, keysHeldPair, keyUpPair) = do
 
 data CoreEventGenerators a = CoreEventGenerators
   { renderEvent :: HandlerPair a
-  , touchEvents :: ( HandlerPair [(V2 Scalar, Int)]
-                   , HandlerPair [(Scalar, V2 Scalar, V2 Scalar, Int)]
-                   , HandlerPair [(V2 Scalar, Int)])
+  , touchEvents :: ( HandlerPair [Point]
+                   , HandlerPair [PointUp]
+                   , HandlerPair [Point])
   , keyEvents   :: (HandlerPair Key, HandlerPair (HashMap.HashMap Key Scalar), HandlerPair Key)
   , timeEvents  :: HandlerPair NominalDiffTime
   , windowSize  :: IORef (Size Int)

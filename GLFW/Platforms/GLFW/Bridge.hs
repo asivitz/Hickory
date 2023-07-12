@@ -132,11 +132,11 @@ mouseButtonCallback indat addInput win button buttonState _modkeys = unlessM wan
       time <- getCurrentTime
       return (InputTouchesDown [(pos,touchid)], HashMap.insert touchid (time, pos) touches)
     GLFW.MouseButtonState'Released -> case HashMap.lookup touchid touches of
-      Nothing -> return (InputTouchesUp [(0,pos,pos,touchid)], touches)
+      Nothing -> return (InputTouchesUp [PointUp { duration = 0, location = pos, origLocation = pos, ident = touchid }], touches)
       Just (prevTime, prevPos) -> do
         time <- getCurrentTime
         let delta = realToFrac (diffUTCTime time prevTime)
-        return (InputTouchesUp [(delta,pos,prevPos,touchid)], HashMap.delete touchid touches)
+        return (InputTouchesUp [PointUp { duration = delta, location = pos, origLocation = prevPos, ident = touchid }], HashMap.delete touchid touches)
 
   writeIORef indat.touches touches'
   addInput ev

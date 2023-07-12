@@ -14,9 +14,18 @@ import Data.Generics.Labels ()
 import Data.Enum.Set as E
 import Data.Word (Word32)
 
+type Point = (V2 Scalar, Int) -- Location, Ident
+
+data PointUp = PointUp
+ { duration :: Scalar
+ , location :: V2 Scalar
+ , origLocation :: V2 Scalar
+ , ident :: Int
+ } deriving (Show)
+
 -- key is the type used by your platform to represent a key. e.g. GLFW's Key type
-data RawInput = InputTouchesDown [(V2 Scalar,Int)]
-              | InputTouchesUp [(Scalar,V2 Scalar,V2 Scalar,Int)] -- Duration, pos, initial pos, touch id
+data RawInput = InputTouchesDown [Point]
+              | InputTouchesUp [PointUp]
               | InputTouchesLoc [(V2 Scalar,Int)]
               | InputKeyDown Key
               | InputKeyUp Key Scalar

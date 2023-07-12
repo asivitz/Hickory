@@ -1,5 +1,5 @@
 {-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedLabels, OverloadedRecordDot #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
@@ -16,13 +16,13 @@ import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..), Camera (..), project, cameraFocusPlaneSize)
 import Data.Maybe (fromMaybe, isJust)
 import Hickory.FRP.Combinators (unionFirst)
-import Hickory.Input (Key(..))
+import Hickory.Input (Key(..), PointUp(..))
 import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Forward.Renderer (pickObjectID)
 import Control.Monad.IO.Class (liftIO)
-import Hickory.FRP.DearImGUIHelpers (tripleToV3, v3ToTriple, v4ToImVec4, imVec4ToV4)
+import Hickory.FRP.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
 import Control.Lens (traversed, (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix, (?~), set)
 import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
@@ -31,13 +31,13 @@ import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
 import Hickory.FRP.Editor.General (mkCursorLoc, matEuler, matScale, refChangeEvent)
 import Hickory.Vulkan.Types (FrameContext)
 import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults)
-import Data.Text (unpack, pack)
+import Data.Text (unpack)
 import Vulkan (SamplerAddressMode (..), Filter (..))
 import Control.Monad.Reader (MonadReader)
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
-import Hickory.Resources (ResourcesStore (..), loadResource', loadResource, Resources (..))
+import Hickory.Resources (ResourcesStore (..), loadResource', Resources (..))
 import Safe (maximumMay, headMay)
 import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
@@ -48,12 +48,14 @@ import Type.Reflection ((:~~:)(..))
 import Hickory.FRP.Camera (omniscientCamera)
 import Hickory.FRP.Game (Scene(..))
 import Hickory.Resources (loadTextureResource, loadMeshResource)
+import Data.Text (pack)
 
 objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
+
   let eSelectMode :: B.Event (Maybe (ObjectManipMode, HashMap Int Object))
       eSelectMode = unionFirst
-        [ Nothing <$ B.filterE ((==1) . view _3 . head) (eTouchesUp coreEvents)
+        [ Nothing <$ B.filterE ((==1) . (.ident) . head) (eTouchesUp coreEvents)
         , Nothing <$ eCancelManip
         , B.whenE (not . Map.null <$> selectedObjects) $ unionFirst
           [ (\m -> Just (OTranslate, m)) <$> selectedObjects <@ B.filterE (==Key'G) (keyDown coreEvents)
@@ -115,7 +117,7 @@ objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
   let eInitialObjects = snd <$> B.filterJust eSelectMode
       eCancelManip = B.whenE (isJust <$> mode) $ fmap fst . B.filterJust $ captured <@ unionFirst
         [ () <$ B.filterE (==Key'Escape) (keyDown coreEvents)
-        , () <$ B.filterE ((==2) . view _3 . head) (eTouchesUp coreEvents)
+        , () <$ B.filterE ((==2) . (.origLocation) . head) (eTouchesUp coreEvents)
         ]
 
   cursorLoc :: B.Behavior (V2 Scalar) <- mkCursorLoc coreEvents
@@ -154,14 +156,14 @@ writeEditorState EditorChangeEvents {..} Object {..} = do
         Nothing -> error "Attributes don't match"
       _ -> setVal change (defaultAttrVal attr)
 
-mkChangeEvents :: HashMap String Component -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
+mkChangeEvents :: HashMap String (Component state) -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
 mkChangeEvents componentDefs coreEvents EditorState {..} = do
-  posChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents posRef
-  scaChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents scaRef
-  rotChange   <- bimapEditorChange (fmap tripleToV3) (.v3ToTriple) <$> refChangeEvent coreEvents rotRef
-  colorChange <- bimapEditorChange (fmap imVec4ToV4) (.v4ToImVec4) <$> refChangeEvent coreEvents colorRef
-  modelChange <- bimapEditorChange (fmap unpack)     (.pack)       <$> refChangeEvent coreEvents modelRef
-  textureChange     <- bimapEditorChange (fmap unpack) (.pack)     <$> refChangeEvent coreEvents textureRef
+  posChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents posRef
+  scaChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents scaRef
+  rotChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents rotRef
+  colorChange <- bimapEditorChange (fmap imVec4ToV4) (. v4ToImVec4) <$> refChangeEvent coreEvents colorRef
+  modelChange <- bimapEditorChange (fmap unpack)     (. pack)       <$> refChangeEvent coreEvents modelRef
+  textureChange     <- bimapEditorChange (fmap unpack) (. pack)     <$> refChangeEvent coreEvents textureRef
   litChange         <- refChangeEvent coreEvents litRef
   castsShadowChange <- refChangeEvent coreEvents castsShadowRef
   blendChange       <- refChangeEvent coreEvents blendRef
@@ -173,7 +175,7 @@ mkChangeEvents componentDefs coreEvents EditorState {..} = do
       case Map.lookup (name, attrName) componentData of
         Just (SomeAttributeRef attr' ref) -> case eqAttr attr attr' of
           Just HRefl -> case proveAttrClasses attr of
-            AttrClasses -> ((name, attrName),) . SomeAttribute attr . bimapEditorChange (fmap fromAttrRefType) (.toAttrRefType) <$> refChangeEvent coreEvents ref
+            AttrClasses -> ((name, attrName),) . SomeAttribute attr . bimapEditorChange (fmap fromAttrRefType) (. toAttrRefType) <$> refChangeEvent coreEvents ref
           _ -> error "Can't find attribute ref"
         _ -> error "Attribute types don't match"
   pure EditorChangeEvents {..}
@@ -292,9 +294,9 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
 
   renInfo <- B.stepper undefined (eRender coreEvents)
 
-  let eClick = (\(Size w h) (_, V2 x y, _, _) -> (x/ realToFrac w, y/ realToFrac h))
+  let eClick = (\(Size w h) PointUp { location = V2 x y } -> (x/ realToFrac w, y/ realToFrac h))
            <$> scrSizeB coreEvents
-           <@> fmap head (B.filterE ((<0.3) . view _1 . head) $ eTouchesUp objectEditingMaskedEvents)
+           <@> fmap head (B.filterE ((<0.3) . (.duration) . head) $ eTouchesUp objectEditingMaskedEvents)
   eScreenPickedObjectID <- fmap (\x -> if x > 0 then Just x else Nothing) <$> B.execute (((\(r,fc) -> liftIO . pickObjectID fc r) <$> renInfo) <@> eClick)
   (eGUIPickedObjectID, guiPickObjectID) <- B.newEvent
   let ePickedObjectID = unionFirst

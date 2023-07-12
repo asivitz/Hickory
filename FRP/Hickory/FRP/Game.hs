@@ -1,4 +1,4 @@
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE RecursiveDo, OverloadedRecordDot #-}
 
 module Hickory.FRP.Game where
 
@@ -12,12 +12,11 @@ import Hickory.FRP.CoreEvents (CoreEvents (..))
 import Hickory.Vulkan.Types (FrameContext)
 import Linear (V2(..))
 import Hickory.Types (Size(..))
-import Control.Lens (view, _1)
 import Reactive.Banana ((<@>))
 import Data.Maybe (maybeToList)
 import Data.List (nub)
 import Data.Bool (bool)
-import Hickory.Input (Key(..))
+import Hickory.Input (Key(..), PointUp(..))
 import Hickory.Vulkan.Forward.Renderer (pickObjectID)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.Historical (historicalWithEvents)
@@ -123,9 +122,9 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
 
 accumSelectedObjIds :: CoreEvents (Renderer, FrameContext) -> B.MomentIO (B.Behavior [Int])
 accumSelectedObjIds coreEvents = do
-  let eClick = (\(Size w h) (_, V2 x y, _, _) -> (x/ realToFrac w, y/ realToFrac h))
+  let eClick = (\(Size w h) PointUp { location = V2 x y } -> (x/ realToFrac w, y/ realToFrac h))
            <$> scrSizeB coreEvents
-           <@> fmap head (B.filterE ((<0.3) . view _1 . head) $ eTouchesUp coreEvents)
+           <@> fmap head (B.filterE ((<0.3) . (.duration) . head) $ eTouchesUp coreEvents)
   renInfo <- B.stepper undefined (eRender coreEvents)
   eScreenPickedObjectID <- fmap (\x -> if x > 0 then Just x else Nothing) <$> B.execute (((\(r,fc) -> liftIO . pickObjectID fc r) <$> renInfo) <@> eClick)
   B.accumB [] $ unionFirst

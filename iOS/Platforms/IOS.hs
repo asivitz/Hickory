@@ -158,8 +158,9 @@ touchFunc touchData handleRawInput = pure $ do
   -- Remove released touches
   handleRawInput (InputTouchesUp (map (\(ident, x, y, time) ->
                                                           case HashMap.lookup ident hash'' of
-                                                              Nothing -> (0, V2 x y, V2 x y, ident)
-                                                              Just (_, prev,origv) -> (realToFrac (diffUTCTime time prev), V2 x y, origv, ident ))
+                                                              Nothing -> PointUp { duration = 0, location = V2 x y, origLocation = V2 x y, ident = ident }
+                                                              Just (_, prev,origv) ->
+                                                                PointUp { duration = realToFrac (diffUTCTime time prev), location = V2 x y, origLocation = origv, ident = ident })
                                                       ups))
   let hash''' = foldl (\hsh (ident, _x, _y, _time) -> HashMap.delete ident hsh) hash'' ups
 
