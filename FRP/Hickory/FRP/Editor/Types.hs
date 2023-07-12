@@ -48,9 +48,9 @@ data Object = Object
   , components  :: HashMap String (HashMap String (SomeAttribute Identity))
   } deriving (Generic, Show, Read)
 
-data Component = Component
+data Component a = Component
   { attributes :: [SomeAttribute (Const String)]
-  , draw       :: forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => HashMap String (SomeAttribute Identity) -> m ()
+  , draw       :: forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => HashMap String (SomeAttribute Identity) -> Maybe a -> m ()
   }
 
 -- Types which have an 'attribute' representation in the editor
@@ -115,7 +115,7 @@ data SomeAttributeRef       = forall a. Attr a => SomeAttributeRef { attr :: Att
 
 instance Show (SomeAttribute Identity) where
   show (SomeAttribute attr val) = "SomeAttribute " ++ case attr of
-    StringAttribute -> "StringAttribute (" ++ show val ++ ""
+    StringAttribute -> "StringAttribute (" ++ show val ++ ")"
     FloatAttribute  -> "FloatAttribute ("  ++ show val ++ ")"
     IntAttribute    -> "IntAttribute ("    ++ show val ++ ")"
     BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
@@ -143,35 +143,35 @@ withAttrVal attrs name f = case Map.lookup name attrs of
     Nothing -> error "Wrong type for attribute"
   Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
 
-mkComponent :: forall a. Attr a => String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> m ()) -> Component
-mkComponent arg f = Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)] $ \attrs -> withAttrVal attrs arg f
+mkComponent :: forall a state. Attr a => String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> Maybe state -> m ()) -> Component state
+mkComponent arg f = Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)] $ \attrs state -> withAttrVal attrs arg \v -> f v state
 
-mkComponent2 :: forall a b. (Attr a, Attr b) => String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> m ()) -> Component
+mkComponent2 :: forall a b state. (Attr a, Attr b) => String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> Maybe state -> m ()) -> Component state
 mkComponent2 arg1 arg2 f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  ] $ \attrs -> withAttrVal attrs arg1 \v1 ->
-                withAttrVal attrs arg2 \v2 -> f v1 v2
+  ] $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 -> f v1 v2 state
 
-mkComponent3 :: forall a b c. (Attr a, Attr b, Attr c) => String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> m ()) -> Component
+mkComponent3 :: forall a b c state. (Attr a, Attr b, Attr c) => String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> Maybe state -> m ()) -> Component state
 mkComponent3 arg1 arg2 arg3 f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  ] $ \attrs -> withAttrVal attrs arg1 \v1 ->
-                withAttrVal attrs arg2 \v2 ->
-                withAttrVal attrs arg3 \v3 -> f v1 v2 v3
+  ] $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 -> f v1 v2 v3 state
 
-mkComponent4 :: forall a b c d. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> d -> m ()) -> Component
+mkComponent4 :: forall a b c d state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> d -> Maybe state -> m ()) -> Component state
 mkComponent4 arg1 arg2 arg3 arg4 f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
   , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
-  ] $ \attrs -> withAttrVal attrs arg1 \v1 ->
-                withAttrVal attrs arg2 \v2 ->
-                withAttrVal attrs arg3 \v3 ->
-                withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4
+  ] $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 ->
+                      withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4 state
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case

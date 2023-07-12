@@ -23,7 +23,7 @@ import Data.Foldable (for_)
 import Control.Monad.Writer.Strict (execWriterT, tell)
 import Hickory.Camera (Camera(..), project, isOrthographic)
 
-editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String Component -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
+editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String (Component a) -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runMatrixT do
   let zBias =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
@@ -75,7 +75,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runM
 
   do
     for_ (Map.toList objects) \(k, o) -> do
-      dcs <- execWriterT . H.runMatrixT $ drawObject componentDefs o
+      dcs <- execWriterT . H.runMatrixT $ drawObject componentDefs Nothing o
       tell $ set (each . #ident) (Just k) dcs -- censor hangs for some reason. so we run/write back
 
   where
@@ -94,34 +94,33 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runM
       , specularity = 0
       }
 
-drawObject :: (MonadReader Resources m, CommandMonad m, MatrixMonad m) => HashMap String Component -> Object -> m ()
-drawObject componentDefs Object {..} = do
+drawObject :: (MonadReader Resources m, CommandMonad m, MatrixMonad m) => HashMap String (Component a) -> Maybe a -> Object -> m ()
+drawObject componentDefs state Object {..} = do
   tex <- getTextureMay texture
   mesh <- getMeshMay model
   tex' <- case tex of
     Just t -> pure t
     _ -> getTexture "white"
-  mesh' <- case mesh of
-    Just m -> pure m
-    _ -> getMesh "cube"
 
   H.xform transform $ do
-    mat <- H.askMatrix
     for_ (Map.toList components) \(compName, vals) -> case Map.lookup compName componentDefs of
-      Just Component {..} -> draw vals
+      Just Component {..} -> draw vals state
       Nothing -> error $ "Can't find component definition: " ++ compName
 
-    H.addCommand H.DrawCommand
-      { modelMat = mat
-      , mesh = H.Buffered mesh'
-      , color
-      , drawType = H.Static $ H.StaticMesh tex' (V2 1 1)
-      , lit
-      , castsShadow
-      , blend
-      , ident = Nothing
-      , specularity
-      }
+    for_ mesh \mesh' -> do
+      mat <- H.askMatrix
+
+      H.addCommand H.DrawCommand
+        { modelMat = mat
+        , mesh = H.Buffered mesh'
+        , color
+        , drawType = H.Static $ H.StaticMesh tex' (V2 1 1)
+        , lit
+        , castsShadow
+        , blend
+        , ident = Nothing
+        , specularity
+        }
 
 editorOverlayView :: (MonadReader Resources m, CommandMonad m) => Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView scrSize cs cursorLoc selected mode = do

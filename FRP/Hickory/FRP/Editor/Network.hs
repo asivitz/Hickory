@@ -194,7 +194,7 @@ setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (mat
 
 mkObjectChangeEvent
   :: H.VulkanResources
-  -> HashMap String Component
+  -> HashMap String (Component state)
   -> CoreEvents a
   -> ResourcesStore
   -> EditorState
@@ -230,11 +230,11 @@ mkObjectChangeEvent vulkanResources componentDefs coreEvents rs@ResourcesStore {
                  in Map.intersection (Map.union m om) om
 
 editorNetwork
-  :: forall m. (MonadReader Resources m, CommandMonad m)
+  :: forall m a. (MonadReader Resources m, CommandMonad m)
   => H.VulkanResources
   -> ResourcesStore
   -> CoreEvents (Renderer, FrameContext)
-  -> HashMap String Component
+  -> HashMap String (Component a)
   -> B.Event (HashMap Int Object, FilePath)
   -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
 editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene = mdo
