@@ -49,7 +49,7 @@ struct Uniforms {
   mat3 normalMat;
   vec4 color;
   float specularity;
-  mat4 boneMat[65];
+  mat4 boneMat[66];
   vec4 colors[6];
 };
 

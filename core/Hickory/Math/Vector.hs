@@ -53,9 +53,13 @@ vnull :: Vector f a => f a -> Bool
 vnull = nearZero
 
 vabsangle :: Vector f a => f a -> f a -> a
--- TODO: Performance test the difference
--- vangle a b = acos $ vdot (vnormalise a) (vnormalise b)
-vabsangle a b = acos $ clamp (dot a b / (norm a * norm b)) (-1) 1
+-- vabsangle a b = acos $ vdot (vnormalise a) (vnormalise b)
+-- vabsangle a b = acos $ clamp (dot a b / (norm a * norm b)) (-1) 1
+-- This version should be the most accurate
+vabsangle a b = 2 * atan (norm ((a ^* lenb) - (b ^* lena)) / norm (a ^* lenb + b ^* lena))
+  where
+  lena = norm a
+  lenb = norm b
 
 v2angle :: (Epsilon a, RealFloat a) => V2 a -> V2 a -> a
 v2angle a b = if v2clockwise a b then -ang else ang
