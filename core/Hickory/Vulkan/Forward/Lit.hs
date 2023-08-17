@@ -296,12 +296,26 @@ withStaticUnlitMaterial :: VulkanResources -> RenderTarget -> FramedResource Poi
 withStaticUnlitMaterial vulkanResources renderTarget globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
 
+
+simpleFragShader :: ByteString
+simpleFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
+$staticUniformsDef
+
+layout(location = 0) out vec4 outColor;
+
+void main() {
+  outColor = uniforms.color;
+}
+
+|])
+
 withLineMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
-withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineOptions lineVertShader lineFragShader globalPDS Nothing
+withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
   pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
-  lineVertShader :: ByteString
-  lineVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+  vertShader :: ByteString
+  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
   $globalsDef
   $staticUniformsDef
@@ -317,15 +331,24 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
 
   |])
 
-  lineFragShader :: ByteString
-  lineFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+withPointMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withPointMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
+  where
+  pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
+  vertShader :: ByteString
+  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
+  $globalsDef
   $staticUniformsDef
 
-  layout(location = 0) out vec4 outColor;
+  layout(location = 0) in vec3 inPosition;
 
   void main() {
-    outColor = uniforms.color;
+      gl_PointSize = 20;
+      gl_Position = globals.projMat
+                  * globals.viewMat
+                  * uniforms.modelMat
+                  * vec4(inPosition, 1.0);
   }
 
   |])

@@ -31,13 +31,30 @@ drawLine color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
   where
   mesh = Mesh { vertices = [ (Position, SV.fromList [p1x, p1y, p1z, p2x, p2y, p2z]) ], indices = Just $ SV.fromList [0, 1] }
 
-drawPoint :: (CommandMonad m, MonadReader Resources m, MatrixMonad m) => V4 Float -> V3 Float -> m ()
-drawPoint color p = do
+drawPoint :: (CommandMonad m, MatrixMonad m) => V4 Float -> V3 Float -> m ()
+drawPoint color (V3 px py pz)  = do
+  mat <- askMatrix
+  addCommand $ DrawCommand
+    { modelMat = mat
+    , mesh = Dynamic mesh
+    , color = color
+    , drawType = Points
+    , lit = False
+    , castsShadow = False
+    , blend = False
+    , ident = Nothing
+    , specularity = 0
+    }
+  where
+  mesh = Mesh { vertices = [ (Position, SV.fromList [px, py, pz]) ], indices = Just $ SV.fromList [0] }
+
+drawSolidCube :: (CommandMonad m, MonadReader Resources m, MatrixMonad m) => V4 Float -> m ()
+drawSolidCube color = do
   cube <- getMesh "cube"
   whiteTex <- getTexture "white"
   mat <- askMatrix
   addCommand $ DrawCommand
-    { modelMat = mat !*! mkTranslation p !*! mkScale (V3 0.1 0.1 0.1)
+    { modelMat = mat
     , mesh = Buffered cube
     , color = color
     , drawType = Static $ StaticMesh whiteTex (V2 1 1)
@@ -48,8 +65,8 @@ drawPoint color p = do
     , specularity = 0
     }
 
-drawCube :: (CommandMonad m, MatrixMonad m) => V4 Float -> m ()
-drawCube color = do
+drawWireCube :: (CommandMonad m, MatrixMonad m) => V4 Float -> m ()
+drawWireCube color = do
   drawFace
   xform (mkRotation (V3 1 0 0) (pi/2)) drawFace
   xform (mkRotation (V3 1 0 0) pi) drawFace
@@ -83,7 +100,7 @@ drawFrustum color mat = do
 
 data ArcStyle = RadialCenter | RadialBegin | RadialEnd
 
-drawArc
+drawWideArc
   :: (CommandMonad m, MatrixMonad m, MonadReader Resources m)
   => V4 Scalar
   -> ArcStyle -- Is the radial in the middle or edge of arc
@@ -93,7 +110,7 @@ drawArc
   -> Scalar -- How wide of an arc to draw (0 to 2pi)
   -> Int -- Sections (level of detail)
   -> m ()
-drawArc color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
+drawWideArc color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
   mat <- askMatrix
   whiteTex <- getTexture "white"
   let radialLen = norm radial
@@ -119,6 +136,44 @@ drawArc color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realToFra
     , mesh = Dynamic mesh
     , color = color
     , drawType = Static $ StaticMesh whiteTex (V2 1 1)
+    , lit = False
+    , castsShadow = False
+    , blend = True
+    , ident = Nothing
+    , specularity = 8
+    }
+
+drawLineArc
+  :: (CommandMonad m, MatrixMonad m, MonadReader Resources m)
+  => V4 Scalar
+  -> ArcStyle -- Is the radial in the middle or edge of arc
+  -> V2 Scalar -- Point that the arc curves around
+  -> V2 Scalar -- Vec from center to front edge of arc
+  -> Scalar -- How wide of an arc to draw (0 to 2pi)
+  -> Int -- Sections (level of detail)
+  -> m ()
+drawLineArc color arcStyle circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
+  mat <- askMatrix
+  whiteTex <- getTexture "white"
+  let angles   = case arcStyle of
+        RadialCenter -> [0..sections-1] <&> \s -> arcWidthAngle/2 - arcWidthAngle/(sections - 1) * s
+        RadialBegin  -> [0..sections-1] <&> \s -> arcWidthAngle   - arcWidthAngle/(sections - 1) * s
+        RadialEnd    -> [0..sections-1] <&> \s ->                 - arcWidthAngle/(sections - 1) * s
+      dirVecs  = angles <&> \a -> v2rotate radial a
+      dirPairs = successivePairs dirVecs
+      points   = concat $ dirPairs <&> \(dv1, dv2) -> (`v2tov3` 0) <$>
+                   [ circleCenterPos + dv1
+                   , circleCenterPos + dv2
+                   ]
+      indices  = [0..length dirPairs - 1] <&> \(fromIntegral . (2*) -> s) -> [s, s+1]
+      mesh = Mesh { indices = Just (packVecs indices)
+                  , vertices = [(Position, packVecs points)]
+                  }
+  addCommand $ DrawCommand
+    { modelMat = mat
+    , mesh = Dynamic mesh
+    , color = color
+    , drawType = Lines
     , lit = False
     , castsShadow = False
     , blend = True

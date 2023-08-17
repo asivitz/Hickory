@@ -17,7 +17,7 @@ firstPersonCamera coreEvents = do
 
   let mkRotationAngs (Size _w h) (V2 x y) =
         let lrang = negate $ mod' (x/30) (pi * 2)
-            udang = clamp ((y - realToFrac h/2) / 30) (-pi/2) (pi/2) -- + pi/2
+            udang = negate $ clamp ((y - realToFrac h/2) / 30) (-pi/2) (pi/2) -- + pi/2
         in (lrang, udang)
       rotationAngs = mkRotationAngs <$> scrSizeB coreEvents <*> cursorLoc
       lookDir = rotationAngs <&> \(lrang,udang)
@@ -40,7 +40,7 @@ firstPersonCamera coreEvents = do
 
   let focusPos = (+) <$> camPos <*> lookDir
       angleVec = lookDir
-      projection = Perspective (pi/2) 0.1 400
+      projection = Perspective (pi/2) 0.01 400
 
   pure $ Camera <$> focusPos <*> angleVec <*> up <*> pure projection
 

@@ -44,6 +44,7 @@ data Renderer = Renderer
   , animatedLitWorldMaterial   :: !(BufferedUniformMaterial AnimatedConstants)
   , msdfWorldMaterial          :: !(BufferedUniformMaterial MSDFMatConstants)
   , linesWorldMaterial         :: !(BufferedUniformMaterial StaticConstants)
+  , pointsWorldMaterial        :: !(BufferedUniformMaterial StaticConstants)
   , objHighlightMaterial       :: !(Material Word32)
   , staticOverlayMaterial      :: !(BufferedUniformMaterial StaticConstants)
   , msdfOverlayMaterial        :: !(BufferedUniformMaterial MSDFMatConstants)
@@ -95,6 +96,7 @@ data DrawType
   | Static StaticMesh
   | MSDF MSDFMesh
   | Lines
+  | Points
   deriving Generic
 
 data MeshType

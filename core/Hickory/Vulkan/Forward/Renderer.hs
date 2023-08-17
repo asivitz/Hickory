@@ -12,14 +12,14 @@ import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBuff
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices)
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer)
-import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial)
+import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial, withPointMaterial)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
 import Hickory.Vulkan.Mesh (vsizeOf)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..))
 import Foreign (Storable)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
-import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4)
+import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet)
 import Data.List (partition, sortOn)
@@ -96,6 +96,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   msdfWorldMaterial        <- withMSDFMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
   linesWorldMaterial       <- withLineMaterial vulkanResources litRenderTarget globalWorldDescriptorSet
+  pointsWorldMaterial      <- withPointMaterial vulkanResources litRenderTarget globalWorldDescriptorSet
 
   staticOverlayMaterial    <- withStaticUnlitMaterial vulkanResources swapchainRenderTarget globalOverlayDescriptorSet imageSetLayout
   msdfOverlayMaterial      <- withMSDFMaterial vulkanResources swapchainRenderTarget globalOverlayDescriptorSet imageSetLayout
@@ -232,6 +233,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         , Universal staticShadowMaterial ()
         , NullMat
         , NullMat
+        , NullMat
         ) $ filter castsShadow drawCommands
 
     let V4 r g b a = clearColor
@@ -245,6 +247,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         , LitAndUnlit (staticLitWorldMaterial, ()) (staticUnlitWorldMaterial, ())
         , Universal msdfWorldMaterial ()
         , Universal linesWorldMaterial ()
+        , Universal pointsWorldMaterial ()
         ) drawCommands
 
       case highlightObjs of
@@ -262,6 +265,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         ( NullMat
         , Universal staticOverlayMaterial ()
         , Universal msdfOverlayMaterial ()
+        , NullMat
         , NullMat
         ) $ runCommand overlayF
     liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame swapchainImageIndex objectPickingImageBuffer)
@@ -361,12 +365,14 @@ type MaterialSet
     , RegisteredMaterial StaticConstants ()
     , RegisteredMaterial MSDFMatConstants ()
     , RegisteredMaterial StaticConstants ()
+    , RegisteredMaterial StaticConstants ()
     )
 
 type MaterialConfigSet
   = ( MaterialConfig AnimatedConstants
     , MaterialConfig StaticConstants
     , MaterialConfig MSDFMatConstants
+    , MaterialConfig StaticConstants
     , MaterialConfig StaticConstants
     )
 
@@ -378,10 +384,11 @@ processRenderPass
   -> m ()
 processRenderPass fc mps commands = do
   config <- liftIO $
-    (,,,) <$> regMatToConfig (view _1 mps)
-          <*> regMatToConfig (view _2 mps)
-          <*> regMatToConfig (view _3 mps)
-          <*> regMatToConfig (view _4 mps)
+    (,,,,) <$> regMatToConfig (view _1 mps)
+           <*> regMatToConfig (view _2 mps)
+           <*> regMatToConfig (view _3 mps)
+           <*> regMatToConfig (view _4 mps)
+           <*> regMatToConfig (view _5 mps)
 
   let (blended, opaque) = partition blend commands
 
@@ -396,12 +403,14 @@ processRenderPass fc mps commands = do
   uploadUniforms fc $ view _2 config
   uploadUniforms fc $ view _3 config
   uploadUniforms fc $ view _4 config
+  uploadUniforms fc $ view _5 config
   where
   identifyDCMat :: DrawCommand -> Int
   identifyDCMat DrawCommand {..} = (if lit then 2 else 1) * case drawType of
-    Animated _ -> 4
-    Static   _ -> 3
-    MSDF     _ -> 2
+    Animated _ -> 5
+    Static   _ -> 4
+    MSDF     _ -> 3
+    Points     -> 2
     Lines      -> 1 -- Draw lines first. Might need to be configurable
 
 processCommand
@@ -415,6 +424,7 @@ processCommand frameContext
   , staticConfig
   , msdfConfig
   , linesConfig
+  , pointsConfig
   )
   dc@DrawCommand {..} = case drawType of
   Animated AnimatedMesh {..} -> go animatedConfig $ (,Just albedo) AnimatedConstants
@@ -433,6 +443,13 @@ processCommand frameContext
     , specularity
     }
   Lines -> go linesConfig $ (, Nothing) StaticConstants
+    { modelMat  = modelMat
+    , normalMat = transpose . inv33 $ modelMat ^. _m33
+    , color = color
+    , tiling = V2 1 1
+    , specularity
+    }
+  Points -> go pointsConfig $ (, Nothing) StaticConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
     , color = color
