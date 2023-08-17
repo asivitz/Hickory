@@ -82,7 +82,7 @@ gameNetwork
   -> B.Event [gameState]
   -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent], B.Behavior Bool)
 gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput step eReplay = mdo
-  let frameSelect = B.whenE paused $
+  let frameSelect = B.whenE paused . fmap ((realToFrac . round) .) $
         unionFirst [ (+1) <$ keyDownOrHeld coreEvents Key'Left
                    , (+5) <$ keyDownOrHeld coreEvents Key'LeftBracket
                    , subtract 1 <$ keyDownOrHeld coreEvents Key'Right

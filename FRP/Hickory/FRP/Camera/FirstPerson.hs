@@ -16,22 +16,22 @@ firstPersonCamera coreEvents = do
   cursorLoc <- mkCursorLoc coreEvents
 
   let mkRotationAngs (Size _w h) (V2 x y) =
-        let lrang = mod' (x/30) (pi * 2)
-            udang = clamp ((y - realToFrac h/2) / 30) (-pi/2) (pi/2) + pi/2
+        let lrang = negate $ mod' (x/30) (pi * 2)
+            udang = clamp ((y - realToFrac h/2) / 30) (-pi/2) (pi/2) -- + pi/2
         in (lrang, udang)
       rotationAngs = mkRotationAngs <$> scrSizeB coreEvents <*> cursorLoc
-      lookDir = rotationAngs <&> \(lrang,udang) ->
-          rotate (axisAngle (V3 0 0 1) lrang)
-        . rotate (axisAngle (V3 1 0 0) udang)
-        $ V3 0 0 1
+      lookDir = rotationAngs <&> \(lrang,udang)
+        -> rotate (axisAngle (V3 0 0 1) lrang)
+         . rotate (axisAngle (V3 1 0 0) udang)
+         $ V3 0 1 0
       up = rotationAngs <&> \(lrang,udang)
         -> rotate (axisAngle (V3 0 0 1) lrang)
          . rotate (axisAngle (V3 1 0 0) udang)
-         $ V3 0 (-1) 0
+         $ V3 0 0 1
 
   camPos <- accumB (V3 0 0 0) $ unions
-    [ (\u v upv -> v - cross (normalize u) upv ^* 0.1) <$> lookDir <*> up <@ keyDownOrHeld coreEvents Key'A
-    , (\u v upv -> v + cross (normalize u) upv ^* 0.1) <$> lookDir <*> up <@ keyDownOrHeld coreEvents Key'D
+    [ (\u upv v -> v - cross (normalize u) upv ^* 0.1) <$> lookDir <*> up <@ keyDownOrHeld coreEvents Key'A
+    , (\u upv v -> v + cross (normalize u) upv ^* 0.1) <$> lookDir <*> up <@ keyDownOrHeld coreEvents Key'D
     , (\u v -> v + u ^* 0.1) <$> lookDir <@ keyDownOrHeld coreEvents Key'W
     , (\u v -> v - u ^* 0.1) <$> lookDir <@ keyDownOrHeld coreEvents Key'S
     , (+ V3 0 0 (-0.1)) <$ keyDownOrHeld coreEvents Key'X
@@ -39,7 +39,7 @@ firstPersonCamera coreEvents = do
     ]
 
   let focusPos = (+) <$> camPos <*> lookDir
-      angleVec = negate <$> lookDir
+      angleVec = lookDir
       projection = Perspective (pi/2) 0.1 400
 
   pure $ Camera <$> focusPos <*> angleVec <*> up <*> pure projection
