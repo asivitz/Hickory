@@ -427,46 +427,43 @@ processCommand frameContext
   , pointsConfig
   )
   dc@DrawCommand {..} = case drawType of
-  Animated AnimatedMesh {..} -> go animatedConfig $ (,Just albedo) AnimatedConstants
+  Animated AnimatedMesh {..} -> submitCommand frameContext dc animatedConfig (AnimatedConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
     , color
     , boneMat
     , colors
     , specularity
-    }
-  Static StaticMesh {..} -> go staticConfig $ (, Just albedo) StaticConstants
+    }, Just albedo)
+  Static StaticMesh {..} -> submitCommand frameContext dc staticConfig (StaticConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
     , color = color
     , tiling = tiling
     , specularity
-    }
-  Lines -> go linesConfig $ (, Nothing) StaticConstants
+    }, Just albedo)
+  Lines -> submitCommand frameContext dc linesConfig (StaticConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
     , color = color
     , tiling = V2 1 1
     , specularity
-    }
-  Points -> go pointsConfig $ (, Nothing) StaticConstants
+    }, Nothing)
+  Points -> submitCommand frameContext dc pointsConfig (StaticConstants
     { modelMat  = modelMat
     , normalMat = transpose . inv33 $ modelMat ^. _m33
     , color = color
     , tiling = V2 1 1
     , specularity
-    }
-  MSDF MSDFMesh {..} -> go msdfConfig $ (, Just tex) MSDFMatConstants
+    }, Nothing)
+  MSDF MSDFMesh {..} -> submitCommand frameContext dc msdfConfig (MSDFMatConstants
     { modelMat  = modelMat
     , outlineColor = outlineColor
     , outlineSize = outlineSize
     , sdfPixelRange = sdfPixelRange
     , tiling = tiling
     , color = color
-    }
-
-  where
-  go = submitCommand frameContext dc
+    }, Just tex)
 
 -- Object ID Command Processor
 

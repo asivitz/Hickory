@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, DeriveGeneric #-}
 
 module Hickory.Types
    (
@@ -23,6 +23,7 @@ module Hickory.Types
 
 import Hickory.Math.Vector
 import Linear (V2(..), V4(..), (^*))
+import GHC.Generics (Generic)
 
 data Size a = Size
   { width  :: a
@@ -32,7 +33,7 @@ data Size a = Size
 data Rect = Rect
   { center :: V2 Scalar
   , size   :: Size Scalar
-  } deriving (Show, Read)
+  } deriving (Show, Read, Generic)
 
 instance Num a => Num (Size a) where
   Size w h + Size w' h' = Size (w + w') (h + h')

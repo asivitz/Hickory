@@ -1,12 +1,12 @@
 module Hickory.Vulkan.Forward.DrawingPrimitives where
 
-import Linear (M44, V3 (..), V4, (!*!), _w, _xyz, (!*), inv44, (^/), V2 (..), (^*), norm)
+import Linear (M44, V3 (..), V4, _w, _xyz, (!*), inv44, (^/), V2 (..), (^*), norm, zero)
 import Hickory.Vulkan.Forward.Types
 import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
 import Hickory.Resources (getMesh, Resources (..), getTexture)
 import Control.Monad.Reader.Class (MonadReader)
-import Hickory.Math (mkTranslation, mkScale, Scalar, v2tov3, v2rotate, mkRotation)
+import Hickory.Math (Scalar, v2tov3, v2rotate, mkRotation)
 import Hickory.Graphics (askMatrix, MatrixMonad, xform)
 import Hickory.Vulkan.Forward.Renderer (ndcBoundaryPoints)
 import Control.Lens ((^.))
@@ -29,7 +29,7 @@ drawLine color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
     , specularity = 0
     }
   where
-  mesh = Mesh { vertices = [ (Position, SV.fromList [p1x, p1y, p1z, p2x, p2y, p2z]) ], indices = Just $ SV.fromList [0, 1] }
+  mesh = Mesh { vertices = [ (Position, SV.fromList [p1x, p1y, p1z, p2x, p2y, p2z]) ], indices = Just $ SV.fromList [0, 1], minPosition = zero, maxPosition = zero, morphTargets = [] }
 
 drawPoint :: (CommandMonad m, MatrixMonad m) => V4 Float -> V3 Float -> m ()
 drawPoint color (V3 px py pz)  = do
@@ -46,7 +46,7 @@ drawPoint color (V3 px py pz)  = do
     , specularity = 0
     }
   where
-  mesh = Mesh { vertices = [ (Position, SV.fromList [px, py, pz]) ], indices = Just $ SV.fromList [0] }
+  mesh = Mesh { vertices = [ (Position, SV.fromList [px, py, pz]) ], indices = Just $ SV.fromList [0], minPosition = V3 px py pz, maxPosition = V3 px py pz, morphTargets = [] }
 
 drawSolidCube :: (CommandMonad m, MonadReader Resources m, MatrixMonad m) => V4 Float -> m ()
 drawSolidCube color = do
@@ -130,7 +130,11 @@ drawWideArc color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realT
       mesh = Mesh { indices = Just (packVecs indices)
                   , vertices = [(Position, packVecs points)
                                ,(TextureCoord, SV.replicate (length points * 2) 0) -- Need dummy TCs for renderer
-                               ] }
+                               ]
+                  , minPosition = zero
+                  , maxPosition = zero
+                  , morphTargets = []
+                  }
   addCommand $ DrawCommand
     { modelMat = mat
     , mesh = Dynamic mesh
@@ -154,7 +158,6 @@ drawLineArc
   -> m ()
 drawLineArc color arcStyle circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
   mat <- askMatrix
-  whiteTex <- getTexture "white"
   let angles   = case arcStyle of
         RadialCenter -> [0..sections-1] <&> \s -> arcWidthAngle/2 - arcWidthAngle/(sections - 1) * s
         RadialBegin  -> [0..sections-1] <&> \s -> arcWidthAngle   - arcWidthAngle/(sections - 1) * s
@@ -168,6 +171,9 @@ drawLineArc color arcStyle circleCenterPos radial arcWidthAngle (realToFrac -> s
       indices  = [0..length dirPairs - 1] <&> \(fromIntegral . (2*) -> s) -> [s, s+1]
       mesh = Mesh { indices = Just (packVecs indices)
                   , vertices = [(Position, packVecs points)]
+                  , minPosition = zero
+                  , maxPosition = zero
+                  , morphTargets = []
                   }
   addCommand $ DrawCommand
     { modelMat = mat

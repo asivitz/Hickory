@@ -26,6 +26,8 @@ module Hickory.Math.Vector
   , clamp
   , rlerp
   , rlerpClamp
+  , angleMinusClockwise
+  , angleMinus
   ) where
 
 import Linear.V2
@@ -156,3 +158,11 @@ rlerp a low high = (a - low) / (high - low)
 
 rlerpClamp :: (Fractional a, Ord a) => a -> a -> a -> a
 rlerpClamp a low high = rlerp (clamp a low high) low high
+
+-- Difference in angle, given a is clockwise from b
+angleMinusClockwise :: (Ord a, Floating a) => a -> a -> a
+angleMinusClockwise a b = negate $ (if a > b then a - 2 * pi else a) - b
+
+-- Difference in angle, given a is clockwise from b
+angleMinus :: (Ord a, Floating a) => a -> a -> a
+angleMinus a b = (if a < b then a + 2 * pi else a) - b

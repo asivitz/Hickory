@@ -10,7 +10,7 @@ import Hickory.Math (Scalar, Interpolatable (glerp))
 import Hickory.Vulkan.Forward.Types (Renderer, RenderSettings)
 import Hickory.FRP.CoreEvents (CoreEvents (..))
 import Hickory.Vulkan.Types (FrameContext)
-import Linear (V2(..))
+import Linear (V2(..), nearZero)
 import Hickory.Types (Size(..))
 import Reactive.Banana ((<@>), (<@))
 import Data.Maybe (maybeToList)
@@ -88,6 +88,7 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
                    , subtract 1 <$ keyDownOrHeld coreEvents Key'Right
                    , subtract 5 <$ keyDownOrHeld coreEvents Key'RightBracket
                    , const 0 <$ eFlipPause
+                   , const 0 <$ eLoadState
                    ]
 
   bAuto <- B.accumB False $ B.unions
@@ -149,8 +150,7 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
         [] -> (error "No replay data", error "Er")
         ) <$> replayQueue
       gdPair = bool <$> actualGDPair <*> replayGDPair <*> bShowingReplay
-
-      gd  = uncurry . glerp <$> bCurrentFrameFraction <*> gdPair
+      gd = (\f -> f <$> bCurrentFrameFraction <*> gdPair) \ff pair -> if nearZero ff then fst pair else uncurry (glerp ff) pair
 
   pure (gd, gameEvs, paused)
 

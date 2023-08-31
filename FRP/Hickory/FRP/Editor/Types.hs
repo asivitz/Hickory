@@ -32,6 +32,7 @@ import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
 import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple)
+import Data.Hashable (Hashable)
 
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
@@ -136,7 +137,7 @@ instance Read (SomeAttribute Identity) where
       _ -> fail "Invalid attribute type"
 
 -- Look up the value for an attribute
-withAttrVal :: forall a b. Attr a => HashMap String (SomeAttribute Identity) -> String -> (a -> b) -> b
+withAttrVal :: forall a b k. (Attr a, Hashable k) => HashMap k (SomeAttribute Identity) -> k -> (a -> b) -> b
 withAttrVal attrs name f = case Map.lookup name attrs of
   Just (SomeAttribute attr (Identity v)) -> case eqAttr attr (mkAttr :: Attribute a) of
     Just HRefl -> f v

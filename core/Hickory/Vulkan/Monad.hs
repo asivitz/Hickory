@@ -166,7 +166,10 @@ packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a
 packVecs = SV.fromList . concatMap toList
 
 textMesh :: Font -> TextCommand -> Mesh
-textMesh font tc = Mesh { indices = Just (SV.fromList indices), vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)], minPosition, maxPosition }
+textMesh font tc = Mesh { indices = Just (SV.fromList indices)
+                        , vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)]
+                        , minPosition, maxPosition, morphTargets = []
+                        }
   where
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
   (indices, _numBlockIndices)   = squareIndices (fromIntegral numSquares)

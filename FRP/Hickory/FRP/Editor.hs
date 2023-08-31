@@ -15,6 +15,11 @@ module Hickory.FRP.Editor
   , mkComponent3
   , mkComponent4
   , withAttrVal
+  , SomeAttributeRef(..)
+  , toAttrRefType
+  , fromAttrRefType
+  , eqAttr
+  , Attr
   ) where
 
 import Hickory.FRP.Editor.Network

@@ -1,7 +1,5 @@
 module Hickory.Math.Matrix
-  ( mkScale
-  , mkTranslation
-  , mkRotation
+  ( mkRotation
   , Mat44
   , Mat33
   , mat44Lerp
@@ -15,6 +13,7 @@ module Hickory.Math.Matrix
   , orthographicProjection
   , perspectiveProjection
   , prettyPrint
+  , MakeMat44(..)
   ) where
 
 import Linear.Vector

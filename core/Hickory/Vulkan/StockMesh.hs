@@ -30,6 +30,9 @@ withSquareMesh vulkanResources = withBufferedMesh vulkanResources $ Mesh
                ])
     ]
   , indices = Just [0, 2, 1, 2, 0, 3]
+  , morphTargets = []
+  , minPosition = V3 (-0.5) (-0.5) 0
+  , maxPosition = V3 0.5 0.5 0
   }
 
 withCubeMesh :: VulkanResources -> Acquire BufferedMesh
@@ -40,6 +43,9 @@ withCubeMesh vulkanResources = withBufferedMesh vulkanResources $ Mesh
     , (Normal, normals)
     ]
   , indices = Just indices
+  , morphTargets = []
+  , minPosition = V3 (-0.5) (-0.5) (-0.5)
+  , maxPosition = V3 0.5 0.5 0.5
   }
   where
   --   7
