@@ -24,7 +24,7 @@ import GHC.Read (Read (..))
 import Text.ParserCombinators.ReadPrec (lift)
 import Text.ParserCombinators.ReadP (readS_to_P, between, string, skipSpaces)
 import Hickory.Graphics (MatrixMonad)
-import Hickory.Resources (Resources)
+import Hickory.Resources (Resources, ResourcesStore)
 import Control.Monad.Reader (MonadReader)
 import Data.Functor.Identity (Identity (..))
 import Data.Functor.Const (Const(..))
@@ -33,6 +33,7 @@ import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
 import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple)
 import Data.Hashable (Hashable)
+import Hickory.Vulkan.Types (VulkanResources)
 
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
@@ -51,6 +52,7 @@ data Object = Object
 
 data Component a = Component
   { attributes :: [SomeAttribute (Const String)]
+  , acquire    :: HashMap String (SomeAttribute Identity) -> VulkanResources -> ResourcesStore -> IO ()
   , draw       :: forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => HashMap String (SomeAttribute Identity) -> Maybe a -> m ()
   }
 
@@ -144,35 +146,87 @@ withAttrVal attrs name f = case Map.lookup name attrs of
     Nothing -> error "Wrong type for attribute"
   Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
 
-mkComponent :: forall a state. Attr a => String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> Maybe state -> m ()) -> Component state
-mkComponent arg f = Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)] $ \attrs state -> withAttrVal attrs arg \v -> f v state
+mkComponent :: forall a state. Attr a => String -> (a -> VulkanResources -> ResourcesStore -> IO ()) -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> Maybe state -> m ()) -> Component state
+mkComponent arg acquire f =
+  Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)]
+    (\attrs -> withAttrVal attrs arg \v -> acquire v)
+    (\attrs state -> withAttrVal attrs arg \v -> f v state)
 
-mkComponent2 :: forall a b state. (Attr a, Attr b) => String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> Maybe state -> m ()) -> Component state
-mkComponent2 arg1 arg2 f = Component
+mkComponent2 :: forall a b state. (Attr a, Attr b) => String -> String -> (a -> b -> VulkanResources -> ResourcesStore ->IO ()) -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> Maybe state -> m ()) -> Component state
+mkComponent2 arg1 arg2 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  ] $ \attrs state -> withAttrVal attrs arg1 \v1 ->
-                      withAttrVal attrs arg2 \v2 -> f v1 v2 state
+  ]
+  (\attrs -> withAttrVal attrs arg1 \v1 ->
+             withAttrVal attrs arg2 \v2 -> acquire v1 v2)
+  (\attrs state -> withAttrVal attrs arg1 \v1 ->
+                   withAttrVal attrs arg2 \v2 -> f v1 v2 state)
 
-mkComponent3 :: forall a b c state. (Attr a, Attr b, Attr c) => String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> Maybe state -> m ()) -> Component state
-mkComponent3 arg1 arg2 arg3 f = Component
+mkComponent3 :: forall a b c state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> VulkanResources -> ResourcesStore -> IO ()) -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> Maybe state -> m ()) -> Component state
+mkComponent3 arg1 arg2 arg3 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  ] $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 -> acquire v1 v2 v3)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
                       withAttrVal attrs arg2 \v2 ->
                       withAttrVal attrs arg3 \v3 -> f v1 v2 v3 state
 
-mkComponent4 :: forall a b c d state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> d -> Maybe state -> m ()) -> Component state
-mkComponent4 arg1 arg2 arg3 arg4 f = Component
+mkComponent4 :: forall a b c d state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> VulkanResources -> ResourcesStore -> IO ()) -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> d -> Maybe state -> m ()) -> Component state
+mkComponent4 arg1 arg2 arg3 arg4 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
   , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
-  ] $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 ->
+               withAttrVal attrs arg4 \v4 -> acquire v1 v2 v3 v4)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
                       withAttrVal attrs arg2 \v2 ->
                       withAttrVal attrs arg3 \v3 ->
                       withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4 state
+
+mkComponent5 :: forall a b c d e state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> VulkanResources -> ResourcesStore -> IO ()) -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> d -> e -> Maybe state -> m ()) -> Component state
+mkComponent5 arg1 arg2 arg3 arg4 arg5 acquire f = Component
+  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
+  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
+  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
+  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
+  , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 ->
+               withAttrVal attrs arg4 \v4 ->
+               withAttrVal attrs arg5 \v5 -> acquire v1 v2 v3 v4 v5)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 ->
+                      withAttrVal attrs arg4 \v4 ->
+                      withAttrVal attrs arg5 \v5 -> f v1 v2 v3 v4 v5 state
+
+mkComponent6 :: forall a b c d e f state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> VulkanResources -> ResourcesStore -> IO ()) -> (forall m. (MatrixMonad m, MonadReader Resources m, CommandMonad m) => a -> b -> c -> d -> e -> f -> Maybe state -> m ()) -> Component state
+mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
+  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
+  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
+  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
+  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
+  , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
+  , SomeAttribute (mkAttr :: Attribute f) (Const arg6)
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 ->
+               withAttrVal attrs arg4 \v4 ->
+               withAttrVal attrs arg5 \v5 ->
+               withAttrVal attrs arg6 \v6 -> acquire v1 v2 v3 v4 v5 v6)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 ->
+                      withAttrVal attrs arg4 \v4 ->
+                      withAttrVal attrs arg5 \v5 ->
+                      withAttrVal attrs arg6 \v6 -> f v1 v2 v3 v4 v5 v6 state
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case

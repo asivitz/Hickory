@@ -201,12 +201,17 @@ mkObjectChangeEvent
   -> B.Behavior (HashMap Int Object)
   -> B.Event Object
   -> B.MomentIO (B.Event (HashMap Int Object))
-mkObjectChangeEvent vulkanResources componentDefs coreEvents rs@ResourcesStore {..} editorState selectedObjects ePopulateEditorState = do
+mkObjectChangeEvent vulkanResources componentDefs coreEvents rs editorState selectedObjects ePopulateEditorState = do
   eca@EditorChangeEvents {..} <- mkChangeEvents componentDefs coreEvents editorState
 
   B.reactimate $ writeEditorState eca <$> ePopulateEditorState
   B.reactimate $ loadMeshResource vulkanResources rs <$> ev modelChange
   B.reactimate $ (\t -> loadTextureResource vulkanResources rs t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> ev textureChange
+
+  for_ (Map.toList componentChanges) \((compName, _attrName), SomeAttribute _attr ch) ->
+    case Map.lookup compName componentDefs of
+      Just Component {..} -> B.reactimate $ (\os _v -> for_ os (\o -> acquire (fromMaybe mempty (Map.lookup compName o.components)) vulkanResources rs)) <$> selectedObjects <@> ev ch
+      Nothing -> error $ "Component not found: " ++ compName
 
   let compEvs :: [B.Event (HashMap Int Object)] = Map.toList componentChanges <&> \((compName, attrName), SomeAttribute attr ch) ->
         (\os v -> os & traversed . #components . at compName . _Just . at attrName ?~ SomeAttribute attr (Identity v))

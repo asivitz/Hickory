@@ -7,7 +7,7 @@ module Hickory.Resources where
 
 import qualified Data.HashMap.Strict as Map
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef (IORef, readIORef, newIORef, modifyIORef')
+import Data.IORef (IORef, readIORef, newIORef, modifyIORef', atomicModifyIORef')
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
 import Control.Monad (unless)
@@ -21,6 +21,7 @@ import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
 import System.FilePath.Lens (extension, filename, basename)
 import Control.Monad.Reader.Class (MonadReader)
+import Control.Monad (join)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Directory (doesFileExist)
 import Hickory.Vulkan.StockMesh (withCubeMesh, withSquareMesh)
@@ -40,11 +41,23 @@ cleanupStore ref = do
 
 loadResource :: ResourceStore a -> String -> Acquire (Maybe a) -> IO ()
 loadResource ref k f = do
-  m <- readIORef ref
-  unless (Map.member k m) do
-    unWrapAcquire f >>= \case
-      (Just res, cleanup) -> liftIO $ modifyIORef' ref $ Map.insert k (res, cleanup)
-      (Nothing, cleanup) -> cleanup
+  join $ unWrapAcquire f >>= \case
+    (Just res, cleanup) ->
+      atomicModifyIORef' ref \m -> case Map.lookup k m of
+        Just (_, cleanupOld) -> (Map.insert k (res, cleanup) m, pure ()) -- TODO: Release resource
+        Nothing              -> (Map.insert k (res, cleanup) m, pure ())
+    (Nothing, cleanup) -> modifyIORef' ref (Map.delete k) >> pure cleanup
+
+loadResourceNoReplace :: ResourceStore a -> String -> Acquire (Maybe a) -> IO ()
+loadResourceNoReplace ref k f = do
+  temp <- readIORef ref
+  unless (Map.member k temp) do
+    join $ unWrapAcquire f >>= \case
+      (Just res, cleanup) ->
+        atomicModifyIORef' ref \m -> case Map.lookup k m of
+          Just (_, _cleanupOld) -> (m, cleanup)
+          Nothing               -> (Map.insert k (res, cleanup) m, pure ())
+      (Nothing, cleanup) -> pure cleanup
 
 loadResource' :: ResourceStore a -> String -> Acquire a -> IO ()
 loadResource' ref k f = do
@@ -75,14 +88,14 @@ data Resources = Resources
 
 loadTextureResource :: VulkanResources -> ResourcesStore -> String -> (Filter, SamplerAddressMode) -> IO ()
 loadTextureResource vulkanResources ResourcesStore { textures } path (imageFilter, addressMode) =
-  loadResource textures (path ^. filename) do
+  loadResourceNoReplace textures (path ^. filename) do
     liftIO (doesFileExist path) >>= \case
       True -> fmap Just $ view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(path, imageFilter, addressMode)]
       False -> pure Nothing
 
 loadMeshResource :: VulkanResources -> ResourcesStore -> String -> IO ()
 loadMeshResource vulkanResources ResourcesStore { meshes } path =
-  loadResource meshes (path ^. filename) do
+  loadResourceNoReplace meshes (path ^. filename) do
     liftIO (doesFileExist path) >>= \case
       True ->
         case path ^. extension of
@@ -146,7 +159,7 @@ getMeshMay name = do
   pure $ Map.lookup name ms
 
 
-getTexture :: MonadReader Resources m => String -> m PointedDescriptorSet
+getTexture :: (MonadReader Resources m) => String -> m PointedDescriptorSet
 getTexture name = fromMaybe (error $ "Can't find texture: " ++ name) <$> getTextureMay name
 
 getTextureMay :: MonadReader Resources m => String -> m (Maybe PointedDescriptorSet)
