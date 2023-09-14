@@ -4,7 +4,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
 module Hickory.Vulkan.Forward.Types where
@@ -26,7 +25,6 @@ import Control.Monad.Writer.Strict (MonadWriter(..), WriterT (..), Writer)
 import Hickory.Vulkan.RenderTarget (ImageBuffer)
 import GHC.Word (Word32)
 import Hickory.Camera (Camera(..), Projection (..))
-import Data.Dynamic (Dynamic)
 import Foreign (Ptr)
 
 data Renderer = Renderer
@@ -53,9 +51,9 @@ data Renderer = Renderer
 
   , postProcessMaterial      :: !(Material PostConstants)
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
-  , globalShadowPassBuffer   :: !(FramedResource (DataBuffer WorldGlobals))
+  , globalShadowPassBuffer   :: !(FramedResource (DataBuffer OverlayGlobals))
   , globalWorldBuffer        :: !(FramedResource (DataBuffer WorldGlobals))
-  , globalOverlayBuffer      :: !(FramedResource (DataBuffer WorldGlobals))
+  , globalOverlayBuffer      :: !(FramedResource (DataBuffer OverlayGlobals))
   , dynamicMesh              :: FramedResource DynamicBufferedMesh
   , objectPickingImageBuffer :: FramedResource ImageBuffer
 

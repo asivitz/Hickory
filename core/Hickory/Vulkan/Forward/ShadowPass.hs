@@ -113,7 +113,7 @@ withAnimatedShadowMaterial vulkanResources renderTarget globalDS
 staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
-$globalsDef
+$shadowPassGlobalsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -134,7 +134,7 @@ void main() {
 animatedVertShader :: ByteString
 animatedVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
-$globalsDef
+$shadowPassGlobalsDef
 $animatedUniformsDef
 
 layout(location = 0) in vec3 inPosition;

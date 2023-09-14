@@ -134,7 +134,7 @@ withObjectIDMaterial vulkanResources renderTarget globalDS
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
-$globalsDef
+$worldGlobalsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 0) out uint objectID;

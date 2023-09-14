@@ -153,7 +153,7 @@ withAnimatedLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
 staticLitVertShader :: ByteString
 staticLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
-$globalsDef
+$worldGlobalsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -203,7 +203,7 @@ void main() {
 litFragShader :: ByteString
 litFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
-$globalsDef
+$worldGlobalsDef
 // #extension GL_EXT_nonuniform_qualifier : require
 
 layout(location = 0) in vec3 light;
@@ -213,7 +213,7 @@ layout(location = 3) in vec4 surfaceColor;
 
 layout(location = 0) out vec4 outColor;
 
-layout (set = 0, binding = 2) uniform sampler2DShadow shadowMap;
+layout (set = 0, binding = 4) uniform sampler2DShadow shadowMap;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 void main() {
@@ -238,7 +238,7 @@ void main() {
 animatedLitVertShader :: ByteString
 animatedLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
-$globalsDef
+$worldGlobalsDef
 $animatedUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -317,7 +317,7 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
-  $globalsDef
+  $worldGlobalsDef
   $staticUniformsDef
 
   layout(location = 0) in vec3 inPosition;
@@ -338,7 +338,7 @@ withPointMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMa
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
-  $globalsDef
+  $worldGlobalsDef
   $staticUniformsDef
 
   layout(location = 0) in vec3 inPosition;
@@ -356,7 +356,28 @@ withPointMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMa
 staticUnlitVertShader :: ByteString
 staticUnlitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
-$globalsDef
+$worldGlobalsDef
+$staticUniformsDef
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 3) in vec2 inTexCoord;
+layout(location = 1) out vec2 texCoord;
+
+
+void main() {
+  texCoord = uniforms.tiling * inTexCoord;
+  gl_Position = globals.projMat
+              * globals.viewMat
+              * uniforms.modelMat
+              * vec4(inPosition, 1.0);
+}
+
+|])
+
+overlayVertShader :: ByteString
+overlayVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$overlayGlobalsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -390,3 +411,7 @@ void main() {
 }
 
 |])
+
+withOverlayMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withOverlayMaterial vulkanResources renderTarget globalPDS perDrawLayout
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults overlayVertShader unlitFragShader globalPDS (Just perDrawLayout)

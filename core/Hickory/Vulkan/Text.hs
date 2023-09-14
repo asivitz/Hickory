@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Hickory.Vulkan.Text where
 
@@ -13,7 +14,7 @@ import Foreign.Storable.Generic (GStorable)
 import Linear (M44, V2)
 import Linear.V4 (V4)
 import Data.ByteString (ByteString)
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert, frag)
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, VulkanResources, Attribute (..))
 import Hickory.Vulkan.Material (pipelineDefaults)
 import Vulkan (DescriptorSetLayout, SamplerAddressMode (..), Filter (..))
@@ -23,6 +24,9 @@ import qualified Data.ByteString.Lazy as BS
 import Control.Lens (view)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet)
 import Hickory.Vulkan.Framing (FramedResource)
+import Data.String.QM (qm)
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
+import Hickory.Vulkan.Forward.ShaderDefinitions
 
 type TextRenderer = (Font, PointedDescriptorSet, Float)
 
@@ -45,43 +49,22 @@ data MSDFMatConstants = MSDFMatConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withMSDFMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader fragShader globalPds (Just perDrawLayout )
+withOverlayMSDFMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withOverlayMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader msdfFragShader globalPds (Just perDrawLayout )
   where
   vertShader :: ByteString
-  vertShader = [vert|
-  #version 450
-  #extension GL_EXT_scalar_block_layout : require
+  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+  $header
 
   layout(location = 0) in vec3 inPosition;
   layout(location = 3) in vec2 inTexCoord;
 
   layout(location = 1) out vec2 texCoord;
 
-  struct Uniforms
-  {
-    mat4 modelMat;
-    vec4 color;
-    vec4 outlineColor;
-    float outlineSize;
-    float sdfPixelRange;
-    vec2 tiling;
-  };
-
-  layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-  layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-  layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
-    { mat4 viewMat;
-      mat4 projMat;
-      vec3 cameraPos;
-      mat4 lightTransform;
-      vec3 lightDirection;
-      vec3 sunColor;
-      vec3 ambientColor;
-    } globals;
+  $msdfUniformsDef
+  $overlayGlobalsDef
 
   void main() {
-      Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
       gl_Position = globals.projMat
                   * globals.viewMat
                   * uniforms.modelMat
@@ -89,10 +72,34 @@ withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBuff
       texCoord = uniforms.tiling * inTexCoord;
   }
 
-|]
+|])
 
-  fragShader :: ByteString
-  fragShader = [frag|
+withMSDFMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader msdfFragShader globalPds (Just perDrawLayout )
+  where
+  vertShader :: ByteString
+  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+  $header
+
+  layout(location = 0) in vec3 inPosition;
+  layout(location = 3) in vec2 inTexCoord;
+
+  layout(location = 1) out vec2 texCoord;
+
+  $worldGlobalsDef
+  $msdfUniformsDef
+
+  void main() {
+      gl_Position = globals.projMat
+                  * globals.viewMat
+                  * uniforms.modelMat
+                  * vec4(inPosition, 1.0);
+      texCoord = uniforms.tiling * inTexCoord;
+  }
+|])
+
+msdfFragShader :: ByteString
+msdfFragShader = [frag|
 #version 450
 #extension GL_EXT_scalar_block_layout : require
 

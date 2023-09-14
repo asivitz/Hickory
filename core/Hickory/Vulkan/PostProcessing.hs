@@ -34,7 +34,7 @@ void main()
 |]
   fragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
-$globalsDef
+$worldGlobalsDef
 
 layout (location = 0) in vec2 texCoordsVarying;
 layout (location = 0) out vec4 outColor;
