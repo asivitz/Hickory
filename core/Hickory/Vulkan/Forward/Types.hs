@@ -57,6 +57,7 @@ data Renderer = Renderer
   , dynamicMesh              :: FramedResource DynamicBufferedMesh
   , objectPickingImageBuffer :: FramedResource ImageBuffer
 
+  , globalDescriptorSet      :: FramedResource PointedDescriptorSet
   , shadowMapDescriptorSet   :: FramedResource PointedDescriptorSet
   } deriving Generic
 

@@ -60,10 +60,9 @@ withRendererMaterial
   -> [Attribute]
   -> B.ByteString
   -> B.ByteString
-  -> FramedResource PointedDescriptorSet
   -> Acquire (BufferedUniformMaterial a)
-withRendererMaterial vulkanResources Renderer {..} stage pipelineOptions attributes vertShader fragShader globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget attributes pipelineOptions vertShader fragShader globalDS Nothing
+withRendererMaterial vulkanResources Renderer {..} stage pipelineOptions attributes vertShader fragShader
+  = withBufferedUniformMaterial vulkanResources renderTarget attributes pipelineOptions vertShader fragShader globalDescriptorSet Nothing
   where
   renderTarget = case stage of
     Picking       -> pickingRenderTarget
@@ -85,7 +84,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   globalWorldBuffer        <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
   globalOverlayBuffer      <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
-  globalWorldDescriptorSet <- for (V.zip5 globalBuffer globalWorldBuffer globalOverlayBuffer globalShadowPassBuffer (snd <$> shadowRenderTarget.frameBuffers))
+  globalDescriptorSet <- for (V.zip5 globalBuffer globalWorldBuffer globalOverlayBuffer globalShadowPassBuffer (snd <$> shadowRenderTarget.frameBuffers))
     \(globalBuf, globalWorldBuf, globalOverlayBuf, globalShadowPassBuf, targetDescriptorSpecs) -> do
       withDescriptorSet vulkanResources $
         [ BufferDescriptor (buf globalBuf)
@@ -101,28 +100,28 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
 
-  pickingMaterial          <- withObjectIDMaterial vulkanResources pickingRenderTarget globalWorldDescriptorSet
-  currentSelectionMaterial <- withObjectIDMaterial vulkanResources currentSelectionRenderTarget globalWorldDescriptorSet
+  pickingMaterial          <- withObjectIDMaterial vulkanResources pickingRenderTarget globalDescriptorSet
+  currentSelectionMaterial <- withObjectIDMaterial vulkanResources currentSelectionRenderTarget globalDescriptorSet
 
-  staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderTarget globalWorldDescriptorSet
-  animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderTarget globalWorldDescriptorSet
-  staticLitWorldMaterial   <- withStaticLitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
-  staticUnlitWorldMaterial <- withStaticUnlitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
-  animatedLitWorldMaterial <- withAnimatedLitMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
+  staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderTarget globalDescriptorSet
+  animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderTarget globalDescriptorSet
+  staticLitWorldMaterial   <- withStaticLitMaterial vulkanResources litRenderTarget globalDescriptorSet imageSetLayout
+  staticUnlitWorldMaterial <- withStaticUnlitMaterial vulkanResources litRenderTarget globalDescriptorSet imageSetLayout
+  animatedLitWorldMaterial <- withAnimatedLitMaterial vulkanResources litRenderTarget globalDescriptorSet imageSetLayout
 
-  msdfWorldMaterial        <- withMSDFMaterial vulkanResources litRenderTarget globalWorldDescriptorSet imageSetLayout
-  linesWorldMaterial       <- withLineMaterial vulkanResources litRenderTarget globalWorldDescriptorSet
-  pointsWorldMaterial      <- withPointMaterial vulkanResources litRenderTarget globalWorldDescriptorSet
+  msdfWorldMaterial        <- withMSDFMaterial vulkanResources litRenderTarget globalDescriptorSet imageSetLayout
+  linesWorldMaterial       <- withLineMaterial vulkanResources litRenderTarget globalDescriptorSet
+  pointsWorldMaterial      <- withPointMaterial vulkanResources litRenderTarget globalDescriptorSet
 
-  staticOverlayMaterial    <- withOverlayMaterial vulkanResources swapchainRenderTarget globalWorldDescriptorSet imageSetLayout
-  msdfOverlayMaterial      <- withOverlayMSDFMaterial vulkanResources swapchainRenderTarget globalWorldDescriptorSet imageSetLayout
+  staticOverlayMaterial    <- withOverlayMaterial vulkanResources swapchainRenderTarget globalDescriptorSet imageSetLayout
+  msdfOverlayMaterial      <- withOverlayMSDFMaterial vulkanResources swapchainRenderTarget globalDescriptorSet imageSetLayout
 
   postMaterialDescriptorSet <- for (snd <$> litRenderTarget.frameBuffers) $ withDescriptorSet vulkanResources
 
   objHighlightDescriptorSet <- for (snd <$> currentSelectionRenderTarget.frameBuffers) $ withDescriptorSet vulkanResources
 
-  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderTarget globalWorldDescriptorSet postMaterialDescriptorSet
-  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderTarget globalWorldDescriptorSet objHighlightDescriptorSet
+  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderTarget globalDescriptorSet postMaterialDescriptorSet
+  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderTarget globalDescriptorSet objHighlightDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
