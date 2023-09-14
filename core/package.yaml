@@ -67,6 +67,7 @@ dependencies:
     - wavefront
     - directory
     - bitwise-enum
+    - safe
 
 when:
     - condition: os(osx)

@@ -24,7 +24,7 @@ import Data.Generics.Labels ()
 import Data.List (sortOn, mapAccumL)
 import Data.Maybe (fromMaybe)
 import Data.Word (Word32, Word64)
-import Foreign (Storable)
+import Foreign (Storable, sizeOf)
 import Hickory.Graphics.DrawText (squareIndices)
 import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (BufferDescriptorSet(..), withBufferDescriptorSet)
@@ -49,12 +49,14 @@ import GHC.List (foldl1')
 
 
 data BufferedUniformMaterial uniform = BufferedUniformMaterial
-  { material   :: Material Word32
-  , descriptor :: FramedResource (BufferDescriptorSet uniform)
+  { material    :: Material Word32
+  , descriptor  :: FramedResource (BufferDescriptorSet uniform)
+  , uniformSize :: Int -- Bytes
   } deriving Generic
 
 withBufferedUniformMaterial
-  :: Storable uniform
+  :: forall uniform
+  .  Storable uniform
   => VulkanResources
   -> RenderTarget
   -> [Attribute]
@@ -68,6 +70,7 @@ withBufferedUniformMaterial vulkanResources renderTarget attributes pipelineOpti
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let
     materialSet = view #descriptorSet <$> descriptor
+    uniformSize = sizeOf (undefined :: uniform)
   material <- withMaterial vulkanResources renderTarget (undefined :: Proxy Word32) attributes pipelineOptions vert frag
     [ globalDescriptorSet
     , materialSet

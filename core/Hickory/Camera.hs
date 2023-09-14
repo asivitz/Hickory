@@ -55,7 +55,7 @@ checkTarget (Route pos (Just (Target tpos moveTime moveDuration))) delta =
 -- Camera
 data Camera = Camera
   { focusPos     :: V3 Scalar
-  , angleVec     :: V3 Scalar
+  , angleVec     :: V3 Scalar -- Vec toward the focus position
   , up           :: V3 Scalar
   , projection   :: Projection
   } deriving (Generic, Show)

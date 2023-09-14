@@ -14,6 +14,7 @@ module Hickory.Math.Matrix
   , perspectiveProjection
   , prettyPrint
   , MakeMat44(..)
+  , transformV3
   ) where
 
 import Linear.Vector
@@ -132,3 +133,6 @@ prettyPrint (V4
     printf "[%.2f %.2f %.2f %.2f]\n" b1 b2 b3 b4
     printf "[%.2f %.2f %.2f %.2f]\n" c1 c2 c3 c4
     printf "[%.2f %.2f %.2f %.2f]\n" d1 d2 d3 d4
+
+transformV3 :: (Num a) => M44 a -> V3 a -> V3 a
+transformV3 m v = (m !* v3tov4 v 1) ^. _xyz

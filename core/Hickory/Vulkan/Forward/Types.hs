@@ -26,6 +26,8 @@ import Control.Monad.Writer.Strict (MonadWriter(..), WriterT (..), Writer)
 import Hickory.Vulkan.RenderTarget (ImageBuffer)
 import GHC.Word (Word32)
 import Hickory.Camera (Camera(..), Projection (..))
+import Data.Dynamic (Dynamic)
+import Foreign (Ptr)
 
 data Renderer = Renderer
   { swapchainRenderTarget        :: !RenderTarget
@@ -89,7 +91,28 @@ data DrawCommand = DrawCommand
   , castsShadow :: Bool
   , blend       :: Bool
   , ident       :: Maybe Int
-  } deriving Generic
+  }
+  | Custom CustomDrawCommand
+  deriving Generic
+
+data CustomDrawCommand = forall uniform. CustomDrawCommand
+  { stage         :: Stage
+  , material      :: BufferedUniformMaterial uniform
+  , pokeData      :: Ptr uniform -> IO ()
+  , mesh          :: MeshType
+  , modelMat      :: M44 Float
+  , descriptorSet :: Maybe PointedDescriptorSet
+  , doBlend       :: Bool
+  , cull          :: Bool
+  }
+
+data Stage
+  = Picking
+  | ShowSelection
+  | ShadowMap
+  | World
+  | Overlay
+  deriving Eq
 
 data DrawType
   = Animated AnimatedMesh

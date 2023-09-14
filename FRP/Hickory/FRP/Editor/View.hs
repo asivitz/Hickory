@@ -17,7 +17,7 @@ import Hickory.Graphics (askMatrix, MatrixMonad)
 import Hickory.FRP.Editor.Types
 import Hickory.Resources (Resources, getTextureMay, getMeshMay, getTexture, getMesh)
 import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
-import Control.Lens ((.~), (&), (^.), set, each)
+import Control.Lens ((.~), (&), (^.), set, each, _9)
 import Control.Monad (when)
 import Data.Foldable (for_)
 import Control.Monad.Writer.Strict (execWriterT, tell)
@@ -76,7 +76,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runM
   do
     for_ (Map.toList objects) \(k, o) -> do
       dcs <- execWriterT . H.runMatrixT $ drawObject componentDefs Nothing o
-      tell $ set (each . #ident) (Just k) dcs -- censor hangs for some reason. so we run/write back
+      tell $ set (each . #_DrawCommand . _9) (Just k) dcs -- censor hangs for some reason. so we run/write back
 
   where
   snapVec by = fmap (snap by)

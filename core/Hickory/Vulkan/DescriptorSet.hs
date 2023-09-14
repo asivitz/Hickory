@@ -162,6 +162,7 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
 data BufferDescriptorSet a = BufferDescriptorSet
   { descriptorSet :: PointedDescriptorSet
   , dataBuffer    :: DataBuffer a
+  , size          :: Int
   } deriving (Generic)
 
 descriptorSetBinding :: FramedResource PointedDescriptorSet -> DescriptorSetBinding
@@ -180,7 +181,8 @@ withDataBuffer VulkanResources {..} num usageBits = do
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Acquire (BufferDescriptorSet a)
 withBufferDescriptorSet vulkanResources = do
   -- TODO: Don't hardcode # of uniforms
-  dataBuffer <- withDataBuffer vulkanResources 2048 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  let size = 2048
+  dataBuffer <- withDataBuffer vulkanResources size BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   ds <-  withDescriptorSet vulkanResources [BufferDescriptor (buf dataBuffer)]
 
