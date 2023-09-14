@@ -55,8 +55,7 @@ import Hickory.Vulkan.Forward.Types (OverlayGlobals(..), DrawCommand (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.FRP.Combinators (unionAll)
 import Data.Bool (bool)
-import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource)
-import Control.Monad.Reader (ReaderT (..))
+import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource, runResources)
 
 -- ** GAMEPLAY **
 
@@ -142,7 +141,7 @@ renderGame res scrSize@(Size w _h) Model { playerPos, missiles } (renderer, fram
     , clearColor = V4 0 0 0 1
     , highlightObjs = []
     }
-  litF = flip runReaderT res do
+  litF = runResources res do
     square <- getMesh "square"
     circleTex <- getTexture "circle.png"
     for_ missiles \(pos, _) ->
@@ -170,7 +169,7 @@ renderGame res scrSize@(Size w _h) Model { playerPos, missiles } (renderer, fram
       , specularity = 1
       }
 
-  overlayF = flip runReaderT res do
+  overlayF = runResources res do
     textRenderer <- getSomeFont
     H.drawText textRenderer (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12)))
       white white 0 $ textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft }

@@ -4,8 +4,7 @@ import Linear (M44, V3 (..), V4, _w, _xyz, (!*), inv44, (^/), V2 (..), (^*), nor
 import Hickory.Vulkan.Forward.Types
 import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
-import Hickory.Resources (getMesh, Resources (..), getTexture)
-import Control.Monad.Reader.Class (MonadReader)
+import Hickory.Resources (getMesh, Resources (..), getTexture, ResourcesMonad)
 import Hickory.Math (Scalar, v2tov3, v2rotate, mkRotation)
 import Hickory.Graphics (askMatrix, MatrixMonad, xform)
 import Hickory.Vulkan.Forward.Renderer (ndcBoundaryPoints)
@@ -48,7 +47,7 @@ drawPoint color (V3 px py pz)  = do
   where
   mesh = Mesh { vertices = [ (Position, SV.fromList [px, py, pz]) ], indices = Just $ SV.fromList [0], minPosition = V3 px py pz, maxPosition = V3 px py pz, morphTargets = [] }
 
-drawSolidCube :: (CommandMonad m, MonadReader Resources m, MatrixMonad m) => V4 Float -> m ()
+drawSolidCube :: (CommandMonad m, ResourcesMonad m, MatrixMonad m) => V4 Float -> m ()
 drawSolidCube color = do
   cube <- getMesh "cube"
   whiteTex <- getTexture "white"
@@ -101,7 +100,7 @@ drawFrustum color mat = do
 data ArcStyle = RadialCenter | RadialBegin | RadialEnd
 
 drawWideArc
-  :: (CommandMonad m, MatrixMonad m, MonadReader Resources m)
+  :: (CommandMonad m, MatrixMonad m, ResourcesMonad m)
   => V4 Scalar
   -> ArcStyle -- Is the radial in the middle or edge of arc
   -> Scalar -- Distance from front edge of arc to back edge of arc
@@ -148,7 +147,7 @@ drawWideArc color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realT
     }
 
 drawLineArc
-  :: (CommandMonad m, MatrixMonad m, MonadReader Resources m)
+  :: (CommandMonad m, MatrixMonad m, ResourcesMonad m)
   => V4 Scalar
   -> ArcStyle -- Is the radial in the middle or edge of arc
   -> V2 Scalar -- Point that the arc curves around

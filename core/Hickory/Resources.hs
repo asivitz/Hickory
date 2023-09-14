@@ -2,11 +2,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Hickory.Resources where
 
 import qualified Data.HashMap.Strict as Map
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.IORef (IORef, readIORef, newIORef, modifyIORef', atomicModifyIORef')
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
@@ -20,7 +22,7 @@ import GHC.Generics (Generic)
 import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
 import System.FilePath.Lens (extension, filename, basename)
-import Control.Monad.Reader.Class (MonadReader)
+import Control.Monad.Reader.Class (ask, MonadReader (..))
 import Control.Monad (join)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Directory (doesFileExist)
@@ -28,6 +30,8 @@ import Hickory.Vulkan.StockMesh (withCubeMesh, withSquareMesh)
 import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
 import Linear (M44)
 import qualified Data.Vector as V
+import Control.Monad.Reader (ReaderT (..), MonadTrans, mapReaderT, lift)
+import Control.Monad.Writer.Class (MonadWriter (..))
 
 type ResourceStore a = IORef (Map.HashMap String (a, IO ()))
 
@@ -150,48 +154,74 @@ getResourcesStoreResources ResourcesStore {..} =
             <*> getResources animations
             <*> getResources skins
 
-getMesh :: MonadReader Resources m => String -> m BufferedMesh
+getMesh :: ResourcesMonad m => String -> m BufferedMesh
 getMesh name = fromMaybe (error $ "Can't find mesh: " ++ name) <$> getMeshMay name
 
-getMeshMay :: MonadReader Resources m => String -> m (Maybe BufferedMesh)
+getMeshMay :: ResourcesMonad m => String -> m (Maybe BufferedMesh)
 getMeshMay name = do
-  ms <- view #meshes
+  ms <- view #meshes <$> askResources
   pure $ Map.lookup name ms
 
 
-getTexture :: (MonadReader Resources m) => String -> m PointedDescriptorSet
+getTexture :: (ResourcesMonad m) => String -> m PointedDescriptorSet
 getTexture name = fromMaybe (error $ "Can't find texture: " ++ name) <$> getTextureMay name
 
-getTextureMay :: MonadReader Resources m => String -> m (Maybe PointedDescriptorSet)
+getTextureMay :: ResourcesMonad m => String -> m (Maybe PointedDescriptorSet)
 getTextureMay name = do
-  ts <- view #textures
+  ts <- view #textures <$> askResources
   pure $ Map.lookup name ts
 
-getFont :: MonadReader Resources m => String -> m TextRenderer
+getFont :: ResourcesMonad m => String -> m TextRenderer
 getFont name = fromMaybe (error $ "Can't find font: " ++ name) <$> getFontMay name
 
-getFontMay :: MonadReader Resources m => String -> m (Maybe TextRenderer)
+getFontMay :: ResourcesMonad m => String -> m (Maybe TextRenderer)
 getFontMay name = do
-  ms <- view #fonts
+  ms <- view #fonts <$> askResources
   pure $ Map.lookup name ms
 
-getSomeFont :: MonadReader Resources m => m TextRenderer
+getSomeFont :: ResourcesMonad m => m TextRenderer
 getSomeFont = do
-  fs <- view #fonts
+  fs <- view #fonts <$> askResources
   pure $ fromMaybe (error "No font loaded") . listToMaybe . Map.elems $ fs
 
-getAnimation :: MonadReader Resources m => String -> m ThreeDModel
+getAnimation :: ResourcesMonad m => String -> m ThreeDModel
 getAnimation name = fromMaybe (error $ "Can't find animation: " ++ name) <$> getAnimationMay name
 
-getAnimationMay :: MonadReader Resources m => String -> m (Maybe ThreeDModel)
+getAnimationMay :: ResourcesMonad m => String -> m (Maybe ThreeDModel)
 getAnimationMay name = do
-  ms <- view #animations
+  ms <- view #animations <$> askResources
   pure $ Map.lookup name ms
 
-getSkin :: MonadReader Resources m => String -> m (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
+getSkin :: ResourcesMonad m => String -> m (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
 getSkin name = fromMaybe (error $ "Can't find skin: " ++ name) <$> getSkinMay name
 
-getSkinMay :: MonadReader Resources m => String -> m (Maybe (Map.HashMap String (V.Vector (V.Vector (M44 Float)))))
+getSkinMay :: ResourcesMonad m => String -> m (Maybe (Map.HashMap String (V.Vector (V.Vector (M44 Float)))))
 getSkinMay name = do
-  ms <- view #skins
+  ms <- view #skins <$> askResources
   pure $ Map.lookup name ms
+
+class Monad m => ResourcesMonad m where
+  askResources  :: m Resources
+
+newtype ResourcesT m a = ResourcesT { unResourcesT :: ReaderT Resources m a }
+  deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
+
+instance Monad m => ResourcesMonad (ResourcesT m) where
+  askResources   = ResourcesT ask
+
+runResources :: Resources -> ResourcesT m a -> m a
+runResources fc = flip runReaderT fc . unResourcesT
+
+mapResourcesT :: (m a -> n b) -> ResourcesT m a -> ResourcesT n b
+mapResourcesT f = ResourcesT . mapReaderT f . unResourcesT
+
+instance {-# OVERLAPPABLE #-} (MonadTrans t, ResourcesMonad m, Monad (t m)) => ResourcesMonad (t m) where askResources = lift askResources
+
+instance MonadReader r m => MonadReader r (ResourcesT m) where
+  ask = lift ask
+  local f = mapResourcesT id . local f
+
+instance MonadWriter r m => MonadWriter r (ResourcesT m) where
+  tell = lift . tell
+  listen = mapResourcesT listen
+  pass = mapResourcesT pass

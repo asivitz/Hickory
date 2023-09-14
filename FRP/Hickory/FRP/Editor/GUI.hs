@@ -48,7 +48,7 @@ drawMainEditorUI EditorState {..} sceneFile selected objects guiPickObjectID =
       when open do
         treePop
 
-drawObjectEditorUI :: HashMap String (Component a) -> EditorState -> HashMap Int Object -> IO ()
+drawObjectEditorUI :: HashMap String (Component m a) -> EditorState -> HashMap Int Object -> IO ()
 drawObjectEditorUI componentDefs EditorState {..} objects = do
   myWithWindow "Object" do
     withCollapsingHeaderOpen "Transform" zeroBits do
@@ -91,7 +91,7 @@ drawObjectEditorUI componentDefs EditorState {..} objects = do
           True -> modifyIORef' componentsRef (nub . (++ [name]))
           False -> pure ()
 
-mkEditorState :: HashMap String (Component a) -> IO EditorState
+mkEditorState :: HashMap String (Component m a) -> IO EditorState
 mkEditorState componentDefs = do
   posRef <- newIORef (0,0,0)
   rotRef <- newIORef (0,0,0)

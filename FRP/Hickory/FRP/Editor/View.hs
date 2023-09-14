@@ -8,23 +8,21 @@ import Hickory.Color (rgba, black, green, red, blue)
 import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
 import Hickory.Types (Size (..))
 import Linear (V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
-import Control.Monad.Reader (MonadReader)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
 import qualified Hickory.Vulkan.Forward.Types as H
 import Data.HashMap.Strict (HashMap)
 import Hickory.Graphics (askMatrix, MatrixMonad)
 import Hickory.FRP.Editor.Types
-import Hickory.Resources (Resources, getTextureMay, getMeshMay, getTexture, getMesh)
+import Hickory.Resources (getTextureMay, getMeshMay, getTexture, getMesh, ResourcesMonad)
 import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
-import Control.Lens ((.~), (&), (^.), set, each, _9)
+import Control.Lens ((.~), (&), (^.))
 import Control.Monad (when)
 import Data.Foldable (for_)
-import Control.Monad.Writer.Strict (execWriterT, tell)
 import Hickory.Camera (Camera(..), project, isOrthographic)
 
-editorWorldView :: (MonadReader Resources m, CommandMonad m) => HashMap String (Component a) -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
-editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runMatrixT do
+editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
+editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
   let zBias =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
   linesMesh <- getMesh "lines"
@@ -75,8 +73,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runM
 
   do
     for_ (Map.toList objects) \(k, o) -> do
-      dcs <- execWriterT . H.runMatrixT $ drawObject componentDefs Nothing o
-      tell $ set (each . #_DrawCommand . _9) (Just k) dcs -- censor hangs for some reason. so we run/write back
+      drawObject componentDefs Nothing k o
 
   where
   snapVec by = fmap (snap by)
@@ -94,8 +91,8 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = H.runM
       , specularity = 0
       }
 
-drawObject :: (MonadReader Resources m, CommandMonad m, MatrixMonad m) => HashMap String (Component a) -> Maybe a -> Object -> m ()
-drawObject componentDefs state Object {..} = do
+drawObject :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Maybe a -> Int -> Object -> m ()
+drawObject componentDefs state objId Object {..} = do
   tex <- getTextureMay texture
   mesh <- getMeshMay model
   tex' <- case tex of
@@ -104,7 +101,7 @@ drawObject componentDefs state Object {..} = do
 
   H.xform transform $ do
     for_ (Map.toList components) \(compName, vals) -> case Map.lookup compName componentDefs of
-      Just Component {..} -> draw vals state
+      Just Component {..} -> draw vals state objId
       Nothing -> error $ "Can't find component definition: " ++ compName
 
     for_ mesh \mesh' -> do
@@ -118,11 +115,11 @@ drawObject componentDefs state Object {..} = do
         , lit
         , castsShadow
         , blend
-        , ident = Nothing
+        , ident = Just objId
         , specularity
         }
 
-editorOverlayView :: (MonadReader Resources m, CommandMonad m) => Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
+editorOverlayView :: (ResourcesMonad m, CommandMonad m) => Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView scrSize cs cursorLoc selected mode = do
   case mode of
     Nothing -> pure ()

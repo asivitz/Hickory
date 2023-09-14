@@ -24,7 +24,7 @@ import Hickory.Vulkan.Forward.Renderer (pickObjectID)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
 import Control.Lens (traversed, (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix, (?~), set)
-import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict (HashMap, traverseWithKey)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
@@ -33,11 +33,10 @@ import Hickory.Vulkan.Types (FrameContext)
 import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults)
 import Data.Text (unpack)
 import Vulkan (SamplerAddressMode (..), Filter (..))
-import Control.Monad.Reader (MonadReader)
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
-import Hickory.Resources (ResourcesStore (..), loadResource', Resources (..))
+import Hickory.Resources (ResourcesStore (..), loadResource', Resources (..), ResourcesMonad)
 import Safe (maximumMay, headMay)
 import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
@@ -49,6 +48,8 @@ import Hickory.FRP.Camera (omniscientCamera)
 import Hickory.FRP.Game (Scene(..))
 import Hickory.Resources (loadTextureResource, loadMeshResource)
 import Data.Text (pack)
+import Hickory.Graphics (MatrixMonad)
+import Control.Monad (void)
 
 objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -156,7 +157,7 @@ writeEditorState EditorChangeEvents {..} Object {..} = do
         Nothing -> error "Attributes don't match"
       _ -> setVal change (defaultAttrVal attr)
 
-mkChangeEvents :: HashMap String (Component state) -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
+mkChangeEvents :: HashMap String (Component m state) -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
 mkChangeEvents componentDefs coreEvents EditorState {..} = do
   posChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents posRef
   scaChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents scaRef
@@ -194,7 +195,7 @@ setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (mat
 
 mkObjectChangeEvent
   :: H.VulkanResources
-  -> HashMap String (Component state)
+  -> HashMap String (Component m state)
   -> CoreEvents a
   -> ResourcesStore
   -> EditorState
@@ -210,7 +211,7 @@ mkObjectChangeEvent vulkanResources componentDefs coreEvents rs editorState sele
 
   for_ (Map.toList componentChanges) \((compName, _attrName), SomeAttribute _attr ch) ->
     case Map.lookup compName componentDefs of
-      Just Component {..} -> B.reactimate $ (\os _v -> for_ os (\o -> acquire (fromMaybe mempty (Map.lookup compName o.components)) vulkanResources rs)) <$> selectedObjects <@> ev ch
+      Just Component {..} -> B.reactimate $ (\os _v -> void $ flip traverseWithKey os (\k o -> acquire (fromMaybe mempty (Map.lookup compName o.components)) k vulkanResources rs)) <$> selectedObjects <@> ev ch
       Nothing -> error $ "Component not found: " ++ compName
 
   let compEvs :: [B.Event (HashMap Int Object)] = Map.toList componentChanges <&> \((compName, attrName), SomeAttribute attr ch) ->
@@ -235,11 +236,11 @@ mkObjectChangeEvent vulkanResources componentDefs coreEvents rs editorState sele
                  in Map.intersection (Map.union m om) om
 
 editorNetwork
-  :: forall m a. (MonadReader Resources m, CommandMonad m)
+  :: forall m a. (ResourcesMonad m, CommandMonad m, MatrixMonad m)
   => H.VulkanResources
   -> ResourcesStore
   -> CoreEvents (Renderer, FrameContext)
-  -> HashMap String (Component a)
+  -> HashMap String (Component m a)
   -> B.Event (HashMap Int Object, FilePath)
   -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
 editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene = mdo
