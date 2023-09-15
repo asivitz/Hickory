@@ -104,11 +104,11 @@ withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceC
 
 withStaticShadowMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
 withStaticShadowMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineDefaults { depthClampEnable = True } staticVertShader fragShader globalDS Nothing
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineDefaults { depthClampEnable = True } staticVertShader whiteFragShader globalDS Nothing
 
 withAnimatedShadowMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial AnimatedConstants)
 withAnimatedShadowMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader fragShader globalDS Nothing
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader whiteFragShader globalDS Nothing
 
 staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -162,8 +162,8 @@ void main() {
 |])
 
 -- For the shadowmap, we don't care about pixel color
-fragShader :: ByteString
-fragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+whiteFragShader :: ByteString
+whiteFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 
 layout(location = 0) out vec4 outColor;

@@ -160,42 +160,18 @@ layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
 
-layout(location = 0) out vec3 light;
 layout(location = 1) out vec2 texCoord;
-layout(location = 2) out vec4 shadowCoord;
-layout(location = 3) out vec4 surfaceColor;
-
-const mat4 biasMat = mat4(
-  0.5, 0.0, 0.0, 0.0,
-  0.0, 0.5, 0.0, 0.0,
-  0.0, 0.0, 1.0, 0.0,
-  0.5, 0.5, 0.0, 1.0 );
+$litVertexDef
 
 void main() {
+  vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
 
-    vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
+  gl_Position = globals.projMat
+              * globals.viewMat
+              * worldPosition;
 
-    gl_Position = globals.projMat
-                * globals.viewMat
-                * worldPosition;
-
-    vec3 lightDirection = normalize(globals.lightDirection);
-    vec3 directionToLight = -lightDirection;
-    vec3 viewDirection = normalize(globals.cameraPos - worldPosition.xyz);
-
-    vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
-
-    float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
-
-
-    vec3 halfAngle = normalize(directionToLight + viewDirection);
-    float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), uniforms.specularity);
-
-    light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
-
-    surfaceColor = uniforms.color;
-    texCoord = inTexCoord;
-    shadowCoord = biasMat * globals.lightTransform * worldPosition;
+  $litVertexCalc
+  texCoord = inTexCoord;
 }
 
 |])
@@ -204,34 +180,15 @@ litFragShader :: ByteString
 litFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 $worldGlobalsDef
-// #extension GL_EXT_nonuniform_qualifier : require
+$litFragDef
 
-layout(location = 0) in vec3 light;
 layout(location = 1) in vec2 texCoord;
-layout(location = 2) in vec4 shadowCoord;
-layout(location = 3) in vec4 surfaceColor;
-
-layout(location = 0) out vec4 outColor;
-
-layout (set = 0, binding = 4) uniform sampler2DShadow shadowMap;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 void main() {
   vec4 texColor = texture(texSampler, texCoord);
-
-  float shadow = 0.0;
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2(-1,  1));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2( 1,  1));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2(-1, -1));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2( 1, -1));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2( 0, 0));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2( 1, 0));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2( -1, 0));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2( 0, 1));
-  shadow += textureProjOffset(shadowMap, shadowCoord, ivec2( 0, -1));
-  shadow = shadow / 9.0;
-
-  outColor = vec4((shadow * light + globals.ambientColor) * texColor.rgb * surfaceColor.rgb, texColor.a * surfaceColor.a);
+  $litFragCalc
+  outColor = vec4(litColor.rgb * texColor.rgb, litColor.a * texColor.a);
 }
 |])
 
@@ -240,6 +197,7 @@ animatedLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
 $animatedUniformsDef
+$litVertexDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
@@ -247,16 +205,7 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 6) in vec4 inJointIndices;
 layout(location = 7) in vec4 inJointWeights;
 
-layout(location = 0) out vec3 light;
 layout(location = 1) out vec2 texCoord;
-layout(location = 2) out vec4 shadowCoord;
-layout(location = 3) out vec4 surfaceColor;
-
-const mat4 biasMat = mat4(
-  0.5, 0.0, 0.0, 0.0,
-  0.0, 0.5, 0.0, 0.0,
-  0.0, 0.0, 1.0, 0.0,
-  0.5, 0.5, 0.0, 1.0 );
 
 void main()
 {
@@ -273,22 +222,8 @@ void main()
                 * globals.viewMat
                 * worldPosition;
 
-    /* Lighting */
-    vec3 lightDirection = normalize(globals.lightDirection);
-    vec3 directionToLight = -lightDirection;
-    vec3 viewDirection = normalize(globals.cameraPos - worldPosition.xyz);
-
-    vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
-
-    surfaceColor = uniforms.color;
-    float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
-
-    vec3 halfAngle = normalize(directionToLight + viewDirection);
-    float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), uniforms.specularity);
-
-    light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
-
-    shadowCoord = biasMat * globals.lightTransform * worldPosition;
+    texCoord = inTexCoord;
+    $litVertexCalc
 }
 |])
 

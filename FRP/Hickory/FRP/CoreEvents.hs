@@ -12,12 +12,12 @@ import Hickory.Types (Size)
 import Reactive.Banana (Behavior, Event, mapAccum, filterE, filterJust, stepper, whenE, mapAccum, (<@>))
 import Reactive.Banana.Frameworks (fromAddHandler, newAddHandler, MomentIO, AddHandler, Handler, fromPoll, MonadIO (..), mapEventIO)
 import qualified Data.HashMap.Strict as HashMap
-import Linear (V2(..))
 import Data.Time (NominalDiffTime)
 import Hickory.FRP.Combinators (unionFirst)
 import qualified Data.HashMap.Strict as Map
 import Data.Functor ((<&>))
 import qualified Data.Enum.Set as ES
+import GHC.Generics (Generic)
 
 _1 :: (a, b, c) -> a
 _1 (a,_,_) = a
@@ -105,7 +105,7 @@ data CoreEvents a = CoreEvents
   , fpsB          :: Behavior Scalar
   , currentTimeB  :: Behavior NominalDiffTime
   , eNewTime      :: Event NominalDiffTime
-  }
+  } deriving Generic
 
 coreEventGenerators :: IO [RawInput] -> IO NominalDiffTime -> IORef (Size Int) -> IO (a -> IO (), CoreEventGenerators a)
 coreEventGenerators inputPoller timePoller wSizeRef = do

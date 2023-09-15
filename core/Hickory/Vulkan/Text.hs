@@ -54,23 +54,22 @@ withOverlayMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = w
   where
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-  $header
+$header
+$overlayGlobalsDef
+$msdfUniformsDef
 
-  layout(location = 0) in vec3 inPosition;
-  layout(location = 3) in vec2 inTexCoord;
+layout(location = 0) in vec3 inPosition;
+layout(location = 3) in vec2 inTexCoord;
 
-  layout(location = 1) out vec2 texCoord;
+layout(location = 1) out vec2 texCoord;
 
-  $msdfUniformsDef
-  $overlayGlobalsDef
-
-  void main() {
-      gl_Position = globals.projMat
-                  * globals.viewMat
-                  * uniforms.modelMat
-                  * vec4(inPosition, 1.0);
-      texCoord = uniforms.tiling * inTexCoord;
-  }
+void main() {
+    gl_Position = globals.projMat
+                * globals.viewMat
+                * uniforms.modelMat
+                * vec4(inPosition, 1.0);
+    texCoord = uniforms.tiling * inTexCoord;
+}
 
 |])
 

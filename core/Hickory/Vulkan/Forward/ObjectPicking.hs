@@ -137,7 +137,6 @@ $header
 $worldGlobalsDef
 
 layout(location = 0) in vec3 inPosition;
-layout(location = 0) out uint objectID;
 
 struct Uniforms
 {
@@ -145,16 +144,13 @@ struct Uniforms
   uint objectID;
 };
 
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
-layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
+$uniformDef
 
 void main() {
-    Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
     gl_Position = globals.projMat
                 * globals.viewMat
                 * uniforms.modelMat
                 * vec4(inPosition, 1.0);
-    objectID = uniforms.objectID;
 }
 
 |])
@@ -163,11 +159,18 @@ void main() {
   fragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 
-layout(location = 0) flat in uint objectID;
+struct Uniforms
+{
+  mat4 modelMat;
+  uint objectID;
+};
+
+$uniformDef
+
 layout(location = 0) out uint outColor;
 
 void main() {
-  outColor = objectID;
+  outColor = uniforms.objectID;
 }
 |])
 
