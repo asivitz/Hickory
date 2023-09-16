@@ -190,6 +190,13 @@ $worldGlobalsDef
 $vertShader
   |]
 
+buildShadowVertShader :: String -> String
+buildShadowVertShader vertShader = [qm|
+$vertHeader
+$shadowPassGlobalsDef
+$vertShader
+  |]
+
 buildWorldFragShader :: String -> String
 buildWorldFragShader fragShader = [qm|
 $fragHeader

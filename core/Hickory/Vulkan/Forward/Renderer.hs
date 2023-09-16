@@ -19,7 +19,7 @@ import Hickory.Vulkan.Mesh (vsizeOf)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout)
 import Foreign (Storable, plusPtr, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
-import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, each, toListOf)
+import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, each, toListOf, has)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial)
 import Data.List (partition, sortOn, groupBy)
@@ -27,7 +27,7 @@ import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget, ObjectIDConstants (..), withObjectHighlightMaterial, objectIDFragShader)
+import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget, ObjectIDConstants (..), withObjectHighlightMaterial)
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless)
@@ -77,10 +77,11 @@ withAllStageMaterial
   -> ByteString
   -> ByteString
   -> ByteString
+  -> ByteString
   -> Acquire (AllStageMaterial uniform)
 withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes
   worldVertShader worldFragShader
-  shadowVertShader objectIDVertShader = do
+  shadowVertShader objectIDVertShader objectIDFragShader = do
   uuid <- liftIO nextRandom
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let uniformSize = sizeOf (undefined :: uniform)
@@ -90,9 +91,10 @@ withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes
         , materialSet
         ]
 
-  worldMaterial    <- withRendererMaterial vulkanResources litRenderTarget attributes pipelineOptions worldVertShader worldFragShader materialSets Nothing
-  shadowMaterial   <- withRendererMaterial vulkanResources shadowRenderTarget attributes pipelineOptions shadowVertShader whiteFragShader materialSets Nothing
-  objectIDMaterial <- withRendererMaterial vulkanResources pickingRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets Nothing
+  worldMaterial         <- withRendererMaterial vulkanResources litRenderTarget attributes pipelineOptions worldVertShader worldFragShader materialSets Nothing
+  shadowMaterial        <- withRendererMaterial vulkanResources shadowRenderTarget attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets Nothing
+  objectIDMaterial      <- withRendererMaterial vulkanResources pickingRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets Nothing
+  showSelectionMaterial <- withRendererMaterial vulkanResources currentSelectionRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets Nothing
   pure AllStageMaterial {..}
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
@@ -328,8 +330,9 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         testSphereInCameraFrustum = isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
         testSphereInShadowFrustum = sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView (shadowRenderTarget.extent) lightOrigin lightDirection lightUp
         worldCullTest cdc  = not cdc.overlay && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
-        shadowCullTest cdc = not cdc.overlay && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
+        shadowCullTest cdc = not cdc.overlay && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
         overlayCullTest cdc = cdc.overlay
+        showSelectionCullTest cdc = (cdc.hasIdent `elem` fmap Just highlightObjs) && worldCullTest cdc
         shadowPassGlobals = OverlayGlobals lightView lightProj
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->
@@ -348,6 +351,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       flip uploadBufferDescriptor overlayGlobals
 
     let drawCommands = runCommand litF
+        nonCustomCommands = filter (not . has #_Custom) drawCommands
         -- id all commands
         customDrawCommands = zip [0..] $ toListOf (each . #_Custom) drawCommands
 
@@ -371,12 +375,12 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         opaqueGrouped = filter (\(_, cdc) -> not cdc.doBlend) <$> allGrouped
 
     useRenderTarget pickingRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
-      processIDRenderPass frameContext (Universal pickingMaterial ()) $ filter (isJust . ident) drawCommands
+      processIDRenderPass frameContext (Universal pickingMaterial ()) $ filter (isJust . ident) nonCustomCommands
       processCustomCommandGroups frameContext Picking (filter (worldCullTest . snd) <$> allGrouped)
 
     useRenderTarget currentSelectionRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
-      processIDRenderPass frameContext (Universal currentSelectionMaterial ()) $ filter ((\x -> x `elem` map Just highlightObjs) . ident) drawCommands
-      -- processCustomCommands frameContext ShowSelection (filter (worldCullTest . snd) <$> indexedCDCs)
+      processIDRenderPass frameContext (Universal currentSelectionMaterial ()) $ filter ((\x -> x `elem` map Just highlightObjs) . ident) nonCustomCommands
+      processCustomCommandGroups frameContext ShowSelection (filter (showSelectionCullTest . snd) <$> allGrouped)
 
     useRenderTarget shadowRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex do
       processRenderPass frameContext
@@ -385,7 +389,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         , NullMat
         , NullMat
         , NullMat
-        ) $ filter castsShadow drawCommands
+        ) $ filter castsShadow nonCustomCommands
       processCustomCommandGroups frameContext ShadowMap (filter (shadowCullTest . snd) <$> allGrouped)
 
     let V4 r g b a = clearColor
@@ -400,7 +404,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         , Universal msdfWorldMaterial ()
         , Universal linesWorldMaterial ()
         , Universal pointsWorldMaterial ()
-        ) drawCommands
+        ) nonCustomCommands
       processCustomCommandGroups frameContext World (filter (worldCullTest . snd) <$> opaqueGrouped)
       processCustomCommandUngrouped frameContext World (filter (worldCullTest . snd) blended)
 
@@ -684,7 +688,7 @@ processCustomCommandGroups fc stage grouped = do
               ShadowMap -> material.shadowMaterial
               Picking -> material.objectIDMaterial
               Overlay -> error "Overlay not supported yet"
-              ShowSelection -> error "Show selection not supported"
+              ShowSelection -> material.showSelectionMaterial
         cmdBindMaterial fc theMat
         for_ group \(i, CustomDrawCommand {mesh, descriptorSet}) -> do
           -- if stage == _
@@ -704,6 +708,6 @@ processCustomCommandUngrouped fc stage commands = do
             ShadowMap -> material.shadowMaterial
             Picking -> material.objectIDMaterial
             Overlay -> error "Overlay not supported yet"
-            ShowSelection -> error "Show selection not supported"
+            ShowSelection -> material.showSelectionMaterial
       bindMaterialIfNeeded fc theMat
       renderCommand fc theMat mesh descriptorSet (fromIntegral i)

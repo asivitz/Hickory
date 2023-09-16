@@ -168,12 +168,13 @@ data AnimatedConstants = AnimatedConstants
     deriving anyclass GStorable
 
 data AllStageMaterial uniform = AllStageMaterial
-  { worldMaterial    :: Material Word32
-  , shadowMaterial   :: Material Word32
-  , objectIDMaterial :: Material Word32
-  , descriptor       :: FramedResource (BufferDescriptorSet uniform)
-  , uniformSize      :: Int -- Bytes
-  , uuid             :: UUID
+  { worldMaterial            :: Material Word32
+  , shadowMaterial           :: Material Word32
+  , objectIDMaterial         :: Material Word32
+  , showSelectionMaterial :: Material Word32
+  , descriptor               :: FramedResource (BufferDescriptorSet uniform)
+  , uniformSize              :: Int -- Bytes
+  , uuid                     :: UUID
   }
 
 data RenderSettings = RenderSettings
