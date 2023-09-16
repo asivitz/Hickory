@@ -42,6 +42,18 @@ header = [qm|
 #extension GL_EXT_scalar_block_layout : require
   |]
 
+vertHeader :: String
+vertHeader = [qm|
+$header
+layout(location = 0) in vec3 inPosition;
+  |]
+
+fragHeader :: String
+fragHeader = [qm|
+$header
+layout(location = 0) out vec4 outColor;
+  |]
+
 staticUniformsDef :: String
 staticUniformsDef = [qm|
 struct Uniforms
@@ -80,6 +92,17 @@ struct Uniforms
   float outlineSize;
   float sdfPixelRange;
   vec2 tiling;
+};
+
+$uniformDef
+  |]
+
+objectIDUniformsDef :: String
+objectIDUniformsDef = [qm|
+struct Uniforms
+{
+  mat4 modelMat;
+  uint objectID;
 };
 
 $uniformDef
@@ -132,7 +155,6 @@ layout(location = 0) in vec3 light;
 layout(location = 2) in vec4 shadowCoord;
 layout(location = 3) in vec4 surfaceColor;
 layout (set = 0, binding = 4) uniform sampler2DShadow shadowMap;
-layout(location = 0) out vec4 outColor;
   |]
 
 litFragCalc :: String
@@ -150,4 +172,27 @@ litFragCalc = [qt|
   shadow = shadow / 9.0;
 
   vec4 litColor = vec4((shadow * light + globals.ambientColor) * surfaceColor.rgb, surfaceColor.a);
+  |]
+
+staticVertCalc :: String
+staticVertCalc = [qt|
+  vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
+
+  gl_Position = globals.projMat
+              * globals.viewMat
+              * worldPosition;
+|]
+
+buildWorldVertShader :: String -> String
+buildWorldVertShader vertShader = [qm|
+$vertHeader
+$worldGlobalsDef
+$vertShader
+  |]
+
+buildWorldFragShader :: String -> String
+buildWorldFragShader fragShader = [qm|
+$fragHeader
+$worldGlobalsDef
+$fragShader
   |]

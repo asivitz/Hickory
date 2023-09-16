@@ -26,6 +26,8 @@ import Hickory.Vulkan.RenderTarget (ImageBuffer)
 import GHC.Word (Word32)
 import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
+import Hickory.Vulkan.DescriptorSet
+import Data.UUID (UUID)
 
 data Renderer = Renderer
   { swapchainRenderTarget        :: !RenderTarget
@@ -95,14 +97,16 @@ data DrawCommand = DrawCommand
   deriving Generic
 
 data CustomDrawCommand = forall uniform. CustomDrawCommand
-  { stage         :: Stage
-  , material      :: BufferedUniformMaterial uniform
+  { material      :: AllStageMaterial uniform
   , pokeData      :: Ptr uniform -> IO ()
   , mesh          :: MeshType
   , modelMat      :: M44 Float
   , descriptorSet :: Maybe PointedDescriptorSet
   , doBlend       :: Bool
+  , doCastShadow  :: Bool
+  , hasIdent      :: Maybe Int
   , cull          :: Bool
+  , overlay       :: Bool
   }
 
 data Stage
@@ -162,6 +166,15 @@ data AnimatedConstants = AnimatedConstants
   , colors      :: VFS.Vec 6 (V4 Float)
   } deriving Generic
     deriving anyclass GStorable
+
+data AllStageMaterial uniform = AllStageMaterial
+  { worldMaterial    :: Material Word32
+  , shadowMaterial   :: Material Word32
+  , objectIDMaterial :: Material Word32
+  , descriptor       :: FramedResource (BufferDescriptorSet uniform)
+  , uniformSize      :: Int -- Bytes
+  , uuid             :: UUID
+  }
 
 data RenderSettings = RenderSettings
   { clearColor     :: V4 Scalar

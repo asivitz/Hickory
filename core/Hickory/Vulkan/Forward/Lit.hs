@@ -178,7 +178,7 @@ void main() {
 
 litFragShader :: ByteString
 litFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$header
+$fragHeader
 $worldGlobalsDef
 $litFragDef
 
@@ -234,10 +234,8 @@ withStaticUnlitMaterial vulkanResources renderTarget globalPDS perDrawLayout
 
 simpleFragShader :: ByteString
 simpleFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$header
+$fragHeader
 $staticUniformsDef
-
-layout(location = 0) out vec4 outColor;
 
 void main() {
   outColor = uniforms.color;
@@ -332,10 +330,9 @@ void main() {
 
 unlitFragShader :: ByteString
 unlitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$header
+$fragHeader
 $staticUniformsDef
 
-layout(location = 0) out vec4 outColor;
 layout(location = 1) in vec2 texCoord;
 
 layout (set = 2, binding = 0) uniform sampler2D texSampler;

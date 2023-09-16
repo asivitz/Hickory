@@ -129,43 +129,22 @@ data ObjectIDConstants = ObjectIDConstants
 
 withObjectIDMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
 withObjectIDMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) vertShader fragShader globalDS Nothing
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) vertShader objectIDFragShader globalDS Nothing
   where
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-$header
+$vertHeader
 $worldGlobalsDef
+$objectIDUniformsDef
 
-layout(location = 0) in vec3 inPosition;
-
-struct Uniforms
-{
-  mat4 modelMat;
-  uint objectID;
-};
-
-$uniformDef
-
-void main() {
-    gl_Position = globals.projMat
-                * globals.viewMat
-                * uniforms.modelMat
-                * vec4(inPosition, 1.0);
-}
+void main() { $staticVertCalc }
 
 |])
 
-  fragShader :: ByteString
-  fragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+objectIDFragShader :: ByteString
+objectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
-
-struct Uniforms
-{
-  mat4 modelMat;
-  uint objectID;
-};
-
-$uniformDef
+$objectIDUniformsDef
 
 layout(location = 0) out uint outColor;
 
@@ -192,11 +171,9 @@ void main()
 
 |])
   fragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$header
+$fragHeader
 
 layout (location = 0) in vec2 texCoordsVarying;
-layout (location = 0) out vec4 outColor;
-
 layout (set = 1, binding = 0) uniform usampler2D textureSampler;
 
 void main()
