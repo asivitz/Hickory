@@ -330,9 +330,10 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         testSphereInCameraFrustum = isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
         testSphereInShadowFrustum = sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView (shadowRenderTarget.extent) lightOrigin lightDirection lightUp
         worldCullTest cdc  = not cdc.overlay && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
+        pickingCullTest cdc  = not cdc.overlay && isJust cdc.hasIdent && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
         shadowCullTest cdc = not cdc.overlay && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
         overlayCullTest cdc = cdc.overlay
-        showSelectionCullTest cdc = (cdc.hasIdent `elem` fmap Just highlightObjs) && worldCullTest cdc
+        showSelectionCullTest cdc = isJust cdc.hasIdent && (cdc.hasIdent `elem` fmap Just highlightObjs) && worldCullTest cdc
         shadowPassGlobals = OverlayGlobals lightView lightProj
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->
@@ -376,7 +377,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
 
     useRenderTarget pickingRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
       processIDRenderPass frameContext (Universal pickingMaterial ()) $ filter (isJust . ident) nonCustomCommands
-      processCustomCommandGroups frameContext Picking (filter (worldCullTest . snd) <$> allGrouped)
+      processCustomCommandGroups frameContext Picking (filter (pickingCullTest . snd) <$> allGrouped)
 
     useRenderTarget currentSelectionRenderTarget commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex do
       processIDRenderPass frameContext (Universal currentSelectionMaterial ()) $ filter ((\x -> x `elem` map Just highlightObjs) . ident) nonCustomCommands
