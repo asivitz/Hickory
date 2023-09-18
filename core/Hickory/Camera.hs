@@ -12,14 +12,14 @@ import Control.Lens (has)
 import Data.Generics.Labels ()
 
 data Projection = Perspective
-  { fov :: Scalar
+  { fov       :: Scalar -- Vertical fov
   , nearPlane :: Scalar
-  , farPlane :: Scalar
+  , farPlane  :: Scalar
   }
   | Ortho
-  { width :: Scalar
-  , near :: Scalar
-  , far :: Scalar
+  { width        :: Scalar
+  , near         :: Scalar
+  , far          :: Scalar
   , shouldCenter :: Bool
   } deriving (Generic, Show)
 

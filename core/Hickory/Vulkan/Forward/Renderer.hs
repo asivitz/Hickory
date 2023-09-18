@@ -170,18 +170,18 @@ isPointWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} 
   && xInCamSpace < w/2
   && xInCamSpace > -w/2
   where
-  camP = cameraPos cam
-  toP = p - camP
+  toP      = p - camP
+  camP     = cameraPos cam
   camDir   = normalize angleVec
-  camUp    = normalize up
-  camRight = negate $ camUp `cross` camDir
+  camRight = normalize . negate $ normalize up `cross` camDir
+  camUp    = normalize $ camRight `cross` camDir
+  near     = cameraNear cam
+  far      = cameraFar cam
   zInCamSpace = toP `dot` camDir
   yInCamSpace = toP `dot` camUp
   xInCamSpace = toP `dot` camRight
-  near = cameraNear cam
-  far = cameraFar cam
   h = zInCamSpace * 2 * tan (fov / 2)
-  w = h * ratio
+  w = ratio * h
 
 isSphereWithinCameraFrustum :: Scalar -> Camera -> V3 Scalar -> Scalar -> Bool
 isSphereWithinCameraFrustum _ Camera {projection = Ortho {}} = error "Ortho culling not yet implemented"
@@ -190,25 +190,26 @@ isSphereWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..}
       zInCamSpace = toP `dot` camDir
       yInCamSpace = toP `dot` camUp
       xInCamSpace = toP `dot` camRight
+
       h = zInCamSpace * 2 * tan (fov / 2)
-      w = h * ratio
-      horizontalSphereComponent = radius / cos horizontalViewAngle
-      verticalSphereComponent   = radius / cos (atan(tan horizontalViewAngle * ratio))
+      w = ratio * h
+      vfov = fov
+      hfov = atan (tan (fov / 2) / ratio) * 2
+      horizontalSphereComponent = radius / cos (hfov/2)
+      verticalSphereComponent   = radius / cos (vfov/2)
   in zInCamSpace + radius > near
   && zInCamSpace - radius < far
-  && yInCamSpace - verticalSphereComponent < h/2
-  && yInCamSpace + verticalSphereComponent > -h/2
-  && xInCamSpace - horizontalSphereComponent < w/2
-  && xInCamSpace + horizontalSphereComponent > -w/2
+  && yInCamSpace < h/2 + verticalSphereComponent
+  && yInCamSpace > -h/2 - verticalSphereComponent
+  && xInCamSpace < w/2 + horizontalSphereComponent
+  && xInCamSpace > -w/2 - horizontalSphereComponent
   where
-  camP = cameraPos cam
+  camP     = cameraPos cam
   camDir   = normalize angleVec
-  camUp    = normalize up
-  camRight = negate $ camUp `cross` camDir
-  near = cameraNear cam
-  far = cameraFar cam
-
-  horizontalViewAngle       = fov/2
+  camRight = normalize . negate $ normalize up `cross` camDir
+  camUp    = normalize $ camRight `cross` camDir
+  near     = cameraNear cam
+  far      = cameraFar cam
 
 sphereWithinCameraFrustumFromLightPerspective
  :: (Real a, Floating a, Epsilon a, Show a)
@@ -221,16 +222,19 @@ sphereWithinCameraFrustumFromLightPerspective
  -> V3 a
  -> a
  -> Bool
-sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView shadowMapExtent lightOrigin lightDir lightUp p radius
+sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView shadowMapExtent lightOrigin lightDir' lightUp' p radius
   =  pXInLightSpace + radius > l
   && pXInLightSpace - radius < r
-  && pYInLightSpace + radius > b
-  && pYInLightSpace - radius < t
+  && pYInLightSpace - radius < b
+  && pYInLightSpace + radius > t
   where
-  toP = p - lightOrigin
-  lightRight = negate (lightUp `cross` normalize lightDir)
-  pYInLightSpace = lightUp `dot` toP
-  pXInLightSpace = lightRight `dot` toP
+  -- toP = p - lightOrigin
+  -- lightDir = normalize lightDir'
+  -- lightRight = normalize $ negate (normalize lightUp' `cross` lightDir)
+  -- lightUp    = normalize $ lightRight `cross` lightDir
+  -- pYInLightSpace = lightUp `dot` toP
+  -- pXInLightSpace = lightRight `dot` toP
+  (V3 pXInLightSpace pYInLightSpace _) = transformV3 lightView p
   (l, r, b, t, _n, _f) = viewFrustumBoundaryInLightSpace viewProjMat lightView shadowMapExtent
 
 ndcBoundaryPoints :: Num a => [V4 a]
@@ -329,10 +333,10 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
         testSphereInCameraFrustum = isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
         testSphereInShadowFrustum = sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView (shadowRenderTarget.extent) lightOrigin lightDirection lightUp
-        worldCullTest cdc  = not cdc.overlay && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
+        worldCullTest cdc    = not cdc.overlay && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
         pickingCullTest cdc  = not cdc.overlay && isJust cdc.hasIdent && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
-        shadowCullTest cdc = not cdc.overlay && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
-        overlayCullTest cdc = cdc.overlay
+        shadowCullTest cdc   = not cdc.overlay && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
+        overlayCullTest cdc  = cdc.overlay
         showSelectionCullTest cdc = isJust cdc.hasIdent && (cdc.hasIdent `elem` fmap Just highlightObjs) && worldCullTest cdc
         shadowPassGlobals = OverlayGlobals lightView lightProj
 
