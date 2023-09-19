@@ -28,6 +28,7 @@ import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
 import Hickory.Vulkan.DescriptorSet
 import Data.UUID (UUID)
+import Vulkan (DescriptorSetLayout)
 
 data Renderer = Renderer
   { swapchainRenderTarget        :: !RenderTarget
@@ -61,6 +62,7 @@ data Renderer = Renderer
 
   , globalDescriptorSet      :: FramedResource PointedDescriptorSet
   , shadowMapDescriptorSet   :: FramedResource PointedDescriptorSet
+  , imageSetLayout           :: DescriptorSetLayout
   } deriving Generic
 
 -- params: targ, shaders

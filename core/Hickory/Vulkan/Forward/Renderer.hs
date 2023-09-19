@@ -73,13 +73,14 @@ withAllStageMaterial
   -> Renderer
   -> PipelineOptions
   -> [Attribute]
+  -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> ByteString
   -> ByteString
   -> ByteString
   -> ByteString
   -> ByteString
   -> Acquire (AllStageMaterial uniform)
-withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes
+withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes perDrawLayout
   worldVertShader worldFragShader
   shadowVertShader objectIDVertShader objectIDFragShader = do
   uuid <- liftIO nextRandom
@@ -91,10 +92,10 @@ withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes
         , materialSet
         ]
 
-  worldMaterial         <- withRendererMaterial vulkanResources litRenderTarget attributes pipelineOptions worldVertShader worldFragShader materialSets Nothing
-  shadowMaterial        <- withRendererMaterial vulkanResources shadowRenderTarget attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets Nothing
-  objectIDMaterial      <- withRendererMaterial vulkanResources pickingRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets Nothing
-  showSelectionMaterial <- withRendererMaterial vulkanResources currentSelectionRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets Nothing
+  worldMaterial         <- withRendererMaterial vulkanResources litRenderTarget attributes pipelineOptions worldVertShader worldFragShader materialSets perDrawLayout
+  shadowMaterial        <- withRendererMaterial vulkanResources shadowRenderTarget attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets perDrawLayout
+  objectIDMaterial      <- withRendererMaterial vulkanResources pickingRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
+  showSelectionMaterial <- withRendererMaterial vulkanResources currentSelectionRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
   pure AllStageMaterial {..}
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
@@ -410,8 +411,8 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         , Universal linesWorldMaterial ()
         , Universal pointsWorldMaterial ()
         ) nonCustomCommands
-      processCustomCommandGroups frameContext World (filter (worldCullTest . snd) <$> opaqueGrouped)
       processCustomCommandUngrouped frameContext World (filter (worldCullTest . snd) blended)
+      processCustomCommandGroups frameContext World (filter (worldCullTest . snd) <$> opaqueGrouped)
 
       case highlightObjs of
         (_:_) -> do
