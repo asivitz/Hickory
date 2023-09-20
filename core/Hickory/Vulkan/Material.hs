@@ -83,7 +83,7 @@ withMaterial
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
   pipeline <-
-    withGraphicsPipeline bag renderPass 0 samples cullMode extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+    withGraphicsPipeline bag renderPass 0 samples extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
@@ -108,8 +108,9 @@ cmdBindMaterial FrameContext {..} Material {..} = do
 data PipelineOptions = PipelineOptions
   { primitiveTopology :: PrimitiveTopology
   , depthTestEnable   :: Bool
-  , depthClampEnable   :: Bool
+  , depthClampEnable  :: Bool
   , blendEnable       :: Bool
+  , cullMode          :: CullModeFlagBits
   }
 
 pipelineDefaults :: PipelineOptions
@@ -119,13 +120,13 @@ pipelineDefaults = PipelineOptions {..}
   depthTestEnable = True
   blendEnable     = True
   depthClampEnable = False
+  cullMode = CULL_MODE_BACK_BIT
 
 withGraphicsPipeline
   :: VulkanResources
   -> RenderPass
   -> Word32
   -> SampleCountFlagBits
-  -> CullModeFlagBits
   -> Extent2D
   -> PipelineOptions
   -> B.ByteString
@@ -135,7 +136,7 @@ withGraphicsPipeline
   -> V.Vector VertexInputAttributeDescription
   -> Acquire Pipeline
 withGraphicsPipeline
-  VulkanResources {..} renderPass subpassIndex samples cullMode extent
+  VulkanResources {..} renderPass subpassIndex samples extent
   PipelineOptions {..} vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext

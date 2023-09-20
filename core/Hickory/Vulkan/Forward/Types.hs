@@ -28,7 +28,7 @@ import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
 import Hickory.Vulkan.DescriptorSet
 import Data.UUID (UUID)
-import Vulkan (DescriptorSetLayout)
+import Vulkan (DescriptorSetLayout, Buffer)
 
 data Renderer = Renderer
   { swapchainRenderTarget        :: !RenderTarget
@@ -99,16 +99,17 @@ data DrawCommand = DrawCommand
   deriving Generic
 
 data CustomDrawCommand = forall uniform. CustomDrawCommand
-  { material      :: AllStageMaterial uniform
-  , pokeData      :: Ptr uniform -> IO ()
-  , mesh          :: MeshType
-  , modelMat      :: M44 Float
-  , descriptorSet :: Maybe PointedDescriptorSet
-  , doBlend       :: Bool
-  , doCastShadow  :: Bool
-  , hasIdent      :: Maybe Int
-  , cull          :: Bool
-  , overlay       :: Bool
+  { material        :: AllStageMaterial uniform
+  , pokeData        :: Ptr uniform -> IO ()
+  , mesh            :: MeshType
+  , instanceCount   :: Word32
+  , modelMat        :: M44 Float
+  , descriptorSet   :: Maybe PointedDescriptorSet
+  , doBlend         :: Bool
+  , doCastShadow    :: Bool
+  , hasIdent        :: Maybe Int
+  , cull            :: Bool
+  , overlay         :: Bool
   }
 
 data Stage
@@ -173,7 +174,7 @@ data AllStageMaterial uniform = AllStageMaterial
   { worldMaterial            :: Material Word32
   , shadowMaterial           :: Material Word32
   , objectIDMaterial         :: Material Word32
-  , showSelectionMaterial :: Material Word32
+  , showSelectionMaterial    :: Material Word32
   , descriptor               :: FramedResource (BufferDescriptorSet uniform)
   , uniformSize              :: Int -- Bytes
   , uuid                     :: UUID

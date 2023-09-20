@@ -18,7 +18,7 @@ import Control.Monad.State.Class (modify)
 import Control.Monad.State.Strict (StateT (..), evalStateT, get)
 import Control.Monad.Writer.Strict (WriterT (..), runWriterT, tell, mapWriterT)
 import Control.Monad.Trans (MonadTrans, lift)
-import Data.Foldable (toList)
+import Data.Foldable (toList, for_)
 import Data.Functor ((<&>))
 import Data.Generics.Labels ()
 import Data.List (sortOn, mapAccumL)
@@ -179,19 +179,19 @@ textMesh font tc = Mesh { indices = Just (SV.fromList indices)
   minPosition = foldl1' (liftI2 min) posVecs
   maxPosition = foldl1' (liftI2 max) posVecs
 
-cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Mesh -> Word32 -> Buffer -> Word64 -> Maybe Buffer -> m ()
-cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer indexOffset mIndexBuffer = do
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Mesh -> Word32 -> Buffer -> Word32 -> Word64 -> Maybe Buffer -> m ()
+cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer instanceCount indexOffset mIndexBuffer = do
   let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) vertexOffset (sortOn (attrLocation . fst) (vertices mesh))
       bindOffsets = V.fromList $ attributes <&> \a -> fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in mesh")
                                                     $ Prelude.lookup a meshOffsets
-      buffers = V.fromList $ vertexBuffer <$ attributes
+      vertexBuffers = V.fromList $ vertexBuffer <$ attributes
 
-  cmdBindVertexBuffers commandBuffer 0 buffers bindOffsets
+  cmdBindVertexBuffers commandBuffer 0 vertexBuffers bindOffsets
 
   case (indices mesh, mIndexBuffer) of
     (Just is, Just ibuf) -> do
       cmdBindIndexBuffer commandBuffer ibuf indexOffset INDEX_TYPE_UINT32
-      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ is) 1 0 0 0
+      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ is) instanceCount 0 0 0
     (Nothing, Nothing) -> do
-      cmdDraw commandBuffer (fromIntegral $ numVerts mesh) 1 0 0
+      cmdDraw commandBuffer (fromIntegral $ numVerts mesh) instanceCount 0 0
     _ -> error "Mesh has indices but they aren't buffered."

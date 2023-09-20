@@ -16,7 +16,7 @@ import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMater
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, whiteFragShader)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
 import Hickory.Vulkan.Mesh (vsizeOf)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout)
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, Buffer)
 import Foreign (Storable, plusPtr, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, each, toListOf, has)
@@ -162,7 +162,7 @@ data RegisteredMaterial const extra
   | LitAndUnlit (BufferedUniformMaterial const, extra) (BufferedUniformMaterial const, extra)
 
 isPointWithinCameraFrustum :: Scalar -> Camera -> V3 Scalar -> Bool
-isPointWithinCameraFrustum _ Camera {projection = Ortho {}} _ = error "Ortho culling not yet implemented"
+isPointWithinCameraFrustum _ Camera {projection = Ortho {}} _ = True -- Ortho culling not yet implemented
 isPointWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} p
   =  zInCamSpace > near
   && zInCamSpace < far
@@ -185,7 +185,7 @@ isPointWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} 
   w = ratio * h
 
 isSphereWithinCameraFrustum :: Scalar -> Camera -> V3 Scalar -> Scalar -> Bool
-isSphereWithinCameraFrustum _ Camera {projection = Ortho {}} = error "Ortho culling not yet implemented"
+isSphereWithinCameraFrustum _ Camera {projection = Ortho {}} = \_ _ -> True -- Ortho culling not yet implemented
 isSphereWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} = \p radius ->
   let toP = p - camP
       zInCamSpace = toP `dot` camDir
@@ -465,7 +465,7 @@ submitCommand frameContext DrawCommand{..} c (uniform, ds) = do
         NullMat -> error "No mat registered to handle this draw command"
   unis <- liftIO $ readIORef (snd config)
   bindMaterialIfNeeded frameContext (fst config).material
-  renderCommand frameContext (fst config).material mesh ds (fromIntegral $ length unis)
+  renderCommand frameContext (fst config).material mesh 1 ds (fromIntegral $ length unis)
   liftIO $ modifyIORef (snd config) (uniform:)
 
 bindMaterialIfNeeded :: (MonadState UUID m, MonadIO m) => FrameContext -> Material Word32 -> m ()
@@ -480,15 +480,16 @@ renderCommand
   => FrameContext
   -> Material Word32
   -> MeshType
+  -> Word32
   -> Maybe PointedDescriptorSet
   -> Word32
   -> m ()
-renderCommand FrameContext {..} material mesh drawDS uniformIdx = do
+renderCommand FrameContext {..} material mesh instanceCount drawDS uniformIdx = do
   cmdPushMaterialConstants commandBuffer material uniformIdx
   when (hasPerDrawDescriptorSet material) do
     for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
   case mesh of
-    Buffered BufferedMesh {mesh = mesh', ..} -> cmdDrawBufferedMesh commandBuffer material mesh' 0 vertexBuffer 0 indexBuffer
+    Buffered BufferedMesh {mesh = mesh', ..} -> cmdDrawBufferedMesh commandBuffer material mesh' 0 vertexBuffer instanceCount 0 indexBuffer
     Dynamic dyn -> do
       meshes <- getMeshes
       addMesh dyn
@@ -498,7 +499,7 @@ renderCommand FrameContext {..} material mesh drawDS uniformIdx = do
           indexSizeThusFar  = sum $ map (maybe 0 vsizeOf . indices) meshes
 
       DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
-      cmdDrawBufferedMesh commandBuffer material dyn vertexSizeThusFar vertexBuffer (fromIntegral indexSizeThusFar) (Just indexBuffer)
+      cmdDrawBufferedMesh commandBuffer material dyn vertexSizeThusFar vertexBuffer instanceCount (fromIntegral indexSizeThusFar) (Just indexBuffer)
 
 uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial a -> [a] -> m ()
 uploadUniformsBuffer FrameContext {..} BufferedUniformMaterial {..} uniforms = do
@@ -696,9 +697,9 @@ processCustomCommandGroups fc stage grouped = do
               Overlay -> error "Overlay not supported yet"
               ShowSelection -> material.showSelectionMaterial
         cmdBindMaterial fc theMat
-        for_ group \(i, CustomDrawCommand {mesh, descriptorSet}) -> do
+        for_ group \(i, CustomDrawCommand {mesh, descriptorSet, instanceCount}) -> do
           -- if stage == _
-          renderCommand fc theMat mesh descriptorSet i
+          renderCommand fc theMat mesh instanceCount descriptorSet i
 
 processCustomCommandUngrouped
   :: (MonadIO m, DynamicMeshMonad m)
@@ -708,7 +709,7 @@ processCustomCommandUngrouped
   -> m ()
 processCustomCommandUngrouped fc stage commands = do
   flip evalStateT UUID.nil do
-    for_ commands \(i, CustomDrawCommand {mesh, descriptorSet, material}) -> do
+    for_ commands \(i, CustomDrawCommand {mesh, descriptorSet, material, instanceCount}) -> do
       let theMat = case stage of
             World -> material.worldMaterial
             ShadowMap -> material.shadowMaterial
@@ -716,4 +717,4 @@ processCustomCommandUngrouped fc stage commands = do
             Overlay -> error "Overlay not supported yet"
             ShowSelection -> material.showSelectionMaterial
       bindMaterialIfNeeded fc theMat
-      renderCommand fc theMat mesh descriptorSet (fromIntegral i)
+      renderCommand fc theMat mesh instanceCount descriptorSet (fromIntegral i)
