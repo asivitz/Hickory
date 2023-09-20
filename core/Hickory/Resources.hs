@@ -12,7 +12,7 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.IORef (IORef, readIORef, newIORef, modifyIORef', atomicModifyIORef')
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
-import Control.Monad (unless)
+import Control.Monad (unless, (>=>))
 import Control.Lens (view, (^.))
 import Hickory.ModelLoading.DirectXModel (ThreeDModel(..), loadModelFromX)
 import Hickory.Vulkan.Text (TextRenderer, withTextRenderer)
@@ -43,14 +43,14 @@ cleanupStore ref = do
   m <- readIORef ref
   sequence_ $ snd . snd <$> Map.toList m
 
-loadResource :: ResourceStore a -> String -> Acquire (Maybe a) -> IO ()
+loadResource :: ResourceStore a -> String -> Acquire (Maybe a) -> IO (IO ())
 loadResource ref k f = do
-  join $ unWrapAcquire f >>= \case
+  unWrapAcquire f >>= \case
     (Just res, cleanup) ->
       atomicModifyIORef' ref \m -> case Map.lookup k m of
-        Just (_, cleanupOld) -> (Map.insert k (res, cleanup) m, pure ()) -- TODO: Release resource
+        Just (_, cleanupOld) -> (Map.insert k (res, cleanup) m, cleanupOld)
         Nothing              -> (Map.insert k (res, cleanup) m, pure ())
-    (Nothing, cleanup) -> modifyIORef' ref (Map.delete k) >> pure cleanup
+    (Nothing, cleanup) -> modifyIORef' ref (Map.delete k) >> cleanup >> pure (pure ())
 
 loadResourceNoReplace :: ResourceStore a -> String -> Acquire (Maybe a) -> IO ()
 loadResourceNoReplace ref k f = do
@@ -63,20 +63,19 @@ loadResourceNoReplace ref k f = do
           Nothing               -> (Map.insert k (res, cleanup) m, pure ())
       (Nothing, cleanup) -> pure cleanup
 
-loadResource' :: ResourceStore a -> String -> Acquire a -> IO ()
-loadResource' ref k f = do
-  res <- unWrapAcquire f
-  liftIO $ modifyIORef' ref $ Map.insert k res
+loadResource' :: ResourceStore a -> String -> Acquire a -> IO (IO ())
+loadResource' ref k f = loadResource ref k (Just <$> f)
 
 getResources :: ResourceStore a -> IO (Map.HashMap String a)
 getResources = fmap (Map.map fst) . readIORef
 
 data ResourcesStore = ResourcesStore
-  { meshes     :: ResourceStore BufferedMesh
-  , textures   :: ResourceStore PointedDescriptorSet
-  , fonts      :: ResourceStore TextRenderer
-  , animations :: ResourceStore ThreeDModel
-  , skins      :: ResourceStore (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
+  { meshes       :: ResourceStore BufferedMesh
+  , textures     :: ResourceStore PointedDescriptorSet
+  , fonts        :: ResourceStore TextRenderer
+  , animations   :: ResourceStore ThreeDModel
+  , skins        :: ResourceStore (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
+  , cleanupQueue :: IORef [IO ()]
   } deriving (Generic)
 
 data Resources = Resources
@@ -98,7 +97,7 @@ loadTextureResource vulkanResources ResourcesStore { textures } path (imageFilte
       False -> pure Nothing
 
 loadMeshResource :: VulkanResources -> ResourcesStore -> String -> IO ()
-loadMeshResource vulkanResources ResourcesStore { meshes } path =
+loadMeshResource vulkanResources ResourcesStore { meshes } path = do
   loadResourceNoReplace meshes (path ^. filename) do
     liftIO (doesFileExist path) >>= \case
       True ->
@@ -110,14 +109,14 @@ loadMeshResource vulkanResources ResourcesStore { meshes } path =
 
 loadFontResource :: VulkanResources -> ResourcesStore -> String -> String -> Float -> IO ()
 loadFontResource vulkanResources ResourcesStore { fonts } fontPath imagePath msdfDist = do
-  loadResource fonts (fontPath ^. basename) do
+  loadResourceNoReplace fonts (fontPath ^. basename) do
     liftIO ((&&) <$> doesFileExist fontPath <*> doesFileExist imagePath) >>= \case
       True -> Just <$> withTextRenderer vulkanResources fontPath imagePath msdfDist
       False -> pure Nothing
 
 loadAnimationResource :: VulkanResources -> ResourcesStore -> String -> IO ()
-loadAnimationResource _vulkanResources ResourcesStore { animations } path =
-  loadResource animations (path ^. filename) do
+loadAnimationResource _vulkanResources ResourcesStore { animations } path = do
+  loadResourceNoReplace animations (path ^. filename) do
     liftIO $ doesFileExist path >>= \case
       True -> Just <$> loadModelFromX path
       False -> pure Nothing
@@ -131,11 +130,11 @@ withResourcesStore vulkanResources = do
   skins      <- liftIO newResourceStore
 
   liftIO do
-    loadResource' textures "white" do
+    join $ loadResource' textures "white" do
       des <- withWhiteImageDescriptor vulkanResources
       withDescriptorSet vulkanResources [des]
-    loadResource' meshes "square" (withSquareMesh vulkanResources)
-    loadResource' meshes "cube" (withCubeMesh vulkanResources)
+    join $ loadResource' meshes "square" (withSquareMesh vulkanResources)
+    join $ loadResource' meshes "cube" (withCubeMesh vulkanResources)
 
 
   mkAcquire (pure ()) (const $ cleanupStore meshes)
@@ -144,7 +143,27 @@ withResourcesStore vulkanResources = do
   mkAcquire (pure ()) (const $ cleanupStore animations)
   mkAcquire (pure ()) (const $ cleanupStore skins)
 
+  cleanupQueue <- mkAcquire (newIORef $ replicate 3 (pure ())) (readIORef >=> sequence_)
+
   pure ResourcesStore {..}
+
+runCleanup :: ResourcesStore -> IO ()
+runCleanup ResourcesStore {..} = do
+  join $ atomicModifyIORef' cleanupQueue \case
+    [] -> error "Empty cleanup queue"
+    (x:xs) -> (xs ++ [pure ()], x)
+
+addCleanup :: ResourcesStore -> IO () -> IO ()
+addCleanup ResourcesStore {..} action = do
+  atomicModifyIORef' cleanupQueue \case
+    [] -> error "Empty cleanup queue"
+    xs -> (modifyLast (action >>) xs, ())
+
+modifyLast :: (a -> a) -> [a] -> [a]
+modifyLast _ [] = []
+modifyLast f [x] = [f x]
+modifyLast f (x:xs) = x : modifyLast f xs
+
 
 getResourcesStoreResources :: ResourcesStore -> IO Resources
 getResourcesStoreResources ResourcesStore {..} =
