@@ -42,6 +42,8 @@ initVulkan extensions surfCreate = do
 
   frames <- frameResource $ withFrame deviceContext
 
+  cleanupQueue <- mkAcquire (newIORef $ replicate 3 (pure ())) (readIORef >=> sequence_)
+
   let acquireSwapchain = withSwapchain deviceContext surface
   pure VulkanResources {..}
 

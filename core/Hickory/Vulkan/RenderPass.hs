@@ -61,7 +61,7 @@ withSwapchainRenderTarget VulkanResources { deviceContext = DeviceContext{..} } 
   frameBuffers <- for images \(ViewableImage _img imgView _format) ->
     (,mempty) <$> createFramebuffer device renderPass extent [imgView]
 
-  let cullMode = CULL_MODE_BACK_BIT
+  let cullModeOverride = Nothing
       samples = SAMPLE_COUNT_1_BIT
 
   pure RenderTarget {..}

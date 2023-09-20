@@ -67,7 +67,7 @@ withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = devic
                           ]
     (,descriptorSpecs) <$> createFramebuffer device renderPass extent [depthImageView, objIDImageView]
 
-  let cullMode = CULL_MODE_BACK_BIT
+  let cullModeOverride = Nothing
 
   pure RenderTarget {..}
   where

@@ -59,7 +59,7 @@ withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceC
     } Nothing mkAcquire
 
   let extent = shadowDim
-      cullMode = CULL_MODE_FRONT_BIT
+      cullModeOverride = Just CULL_MODE_FRONT_BIT
       samples = SAMPLE_COUNT_1_BIT
   sampler <- withShadowSampler vulkanResources
 

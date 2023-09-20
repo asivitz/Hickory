@@ -37,14 +37,15 @@ import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.UUID.V4 (nextRandom)
 import Data.Generics.Labels ()
-import Control.Lens (view)
+import Control.Lens (view, set)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..), VulkanResources (..), Attribute, DeviceContext (..), FrameContext (..))
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromMaybe)
+import GHC.Generics (Generic)
 
 withMaterial
   :: forall f a. Storable a
@@ -60,7 +61,7 @@ withMaterial
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
-  RenderTarget {..}
+  rt@RenderTarget {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
   pipelineOptions vertShader fragShader
@@ -80,10 +81,12 @@ withMaterial
                                <$> descriptorSets) Prelude.++ maybe [] pure perDrawDescriptorSetLayout
       }
     (globalDescriptorSet : materialDescriptorSet : _) = descriptorSets
+    cm :: CullModeFlagBits = fromMaybe pipelineOptions.cullMode cullModeOverride :: CullModeFlagBits
+    pipelineOptions' = set #cullMode cm pipelineOptions
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
   pipeline <-
-    withGraphicsPipeline bag renderPass 0 samples extent pipelineOptions vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+    withGraphicsPipeline bag renderPass 0 samples extent pipelineOptions' vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
@@ -111,7 +114,7 @@ data PipelineOptions = PipelineOptions
   , depthClampEnable  :: Bool
   , blendEnable       :: Bool
   , cullMode          :: CullModeFlagBits
-  }
+  } deriving Generic
 
 pipelineDefaults :: PipelineOptions
 pipelineDefaults = PipelineOptions {..}

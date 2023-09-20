@@ -16,6 +16,8 @@ import GHC.Word (Word32)
 import Acquire.Acquire (Acquire)
 import qualified Data.Vector.Storable as SV
 import Data.Text (Text)
+import Data.IORef (IORef, atomicModifyIORef')
+import Control.Monad (join)
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -24,6 +26,7 @@ data VulkanResources = VulkanResources
   , inst                  :: Instance
   , frames                :: FramedResource Frame
   , acquireSwapchain      :: (Int,Int) -> Acquire Swapchain
+  , cleanupQueue          :: IORef [IO ()]
   }
 
 data DeviceContext = DeviceContext
@@ -96,11 +99,11 @@ data BufferedMesh = BufferedMesh
   }
 
 data RenderTarget = RenderTarget
-  { renderPass      :: !RenderPass
-  , frameBuffers    :: !(FramedResource (Framebuffer, [DescriptorSpec]))
-  , extent          :: !Extent2D
-  , samples         :: !SampleCountFlagBits
-  , cullMode        :: !CullModeFlagBits
+  { renderPass      :: RenderPass
+  , frameBuffers    :: FramedResource (Framebuffer, [DescriptorSpec])
+  , extent          :: Extent2D
+  , samples         :: SampleCountFlagBits
+  , cullModeOverride :: Maybe CullModeFlagBits
   } deriving Generic
 
 data Material a = Material
@@ -157,3 +160,22 @@ postDefaults = PostConstants
   , saturation  = 1
   , filmGrain   = 0
   }
+
+-- Run this every frame. If a cleanup is queued, it will run in a few
+-- frames, once the frame using the resource has been processed
+runCleanup :: VulkanResources -> IO ()
+runCleanup VulkanResources {..} = do
+  join $ atomicModifyIORef' cleanupQueue \case
+    [] -> error "Empty cleanup queue"
+    (x:xs) -> (xs ++ [pure ()], x)
+
+addCleanup :: VulkanResources -> IO () -> IO ()
+addCleanup VulkanResources {..} action = do
+  atomicModifyIORef' cleanupQueue \case
+    [] -> error "Empty cleanup queue"
+    xs -> (modifyLast (action >>) xs, ())
+
+modifyLast :: (a -> a) -> [a] -> [a]
+modifyLast _ [] = []
+modifyLast f [x] = [f x]
+modifyLast f (x:xs) = x : modifyLast f xs

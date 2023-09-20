@@ -12,7 +12,7 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.IORef (IORef, readIORef, newIORef, modifyIORef', atomicModifyIORef')
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
-import Control.Monad (unless, (>=>))
+import Control.Monad (unless, (>=>), join)
 import Control.Lens (view, (^.))
 import Hickory.ModelLoading.DirectXModel (ThreeDModel(..), loadModelFromX)
 import Hickory.Vulkan.Text (TextRenderer, withTextRenderer)
@@ -23,7 +23,6 @@ import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
 import System.FilePath.Lens (extension, filename, basename)
 import Control.Monad.Reader.Class (ask, MonadReader (..))
-import Control.Monad (join)
 import Data.Maybe (fromMaybe, listToMaybe)
 import System.Directory (doesFileExist)
 import Hickory.Vulkan.StockMesh (withCubeMesh, withSquareMesh)
@@ -59,7 +58,7 @@ loadResourceNoReplace ref k f = do
     join $ unWrapAcquire f >>= \case
       (Just res, cleanup) ->
         atomicModifyIORef' ref \m -> case Map.lookup k m of
-          Just (_, _cleanupOld) -> (m, cleanup)
+          Just (_, _cleanupOld) -> error "Resource map should not have resource"
           Nothing               -> (Map.insert k (res, cleanup) m, pure ())
       (Nothing, cleanup) -> pure cleanup
 
@@ -75,7 +74,6 @@ data ResourcesStore = ResourcesStore
   , fonts        :: ResourceStore TextRenderer
   , animations   :: ResourceStore ThreeDModel
   , skins        :: ResourceStore (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
-  , cleanupQueue :: IORef [IO ()]
   } deriving (Generic)
 
 data Resources = Resources
@@ -143,27 +141,7 @@ withResourcesStore vulkanResources = do
   mkAcquire (pure ()) (const $ cleanupStore animations)
   mkAcquire (pure ()) (const $ cleanupStore skins)
 
-  cleanupQueue <- mkAcquire (newIORef $ replicate 3 (pure ())) (readIORef >=> sequence_)
-
   pure ResourcesStore {..}
-
-runCleanup :: ResourcesStore -> IO ()
-runCleanup ResourcesStore {..} = do
-  join $ atomicModifyIORef' cleanupQueue \case
-    [] -> error "Empty cleanup queue"
-    (x:xs) -> (xs ++ [pure ()], x)
-
-addCleanup :: ResourcesStore -> IO () -> IO ()
-addCleanup ResourcesStore {..} action = do
-  atomicModifyIORef' cleanupQueue \case
-    [] -> error "Empty cleanup queue"
-    xs -> (modifyLast (action >>) xs, ())
-
-modifyLast :: (a -> a) -> [a] -> [a]
-modifyLast _ [] = []
-modifyLast f [x] = [f x]
-modifyLast f (x:xs) = x : modifyLast f xs
-
 
 getResourcesStoreResources :: ResourcesStore -> IO Resources
 getResourcesStoreResources ResourcesStore {..} =

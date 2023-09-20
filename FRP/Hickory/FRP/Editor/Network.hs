@@ -49,7 +49,7 @@ import Hickory.FRP.Game (Scene(..))
 import Hickory.Resources (loadTextureResource, loadMeshResource)
 import Data.Text (pack)
 import Hickory.Graphics (MatrixMonad)
-import Control.Monad (void)
+import Control.Monad (void, join)
 
 objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
 objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
@@ -250,14 +250,14 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
 
   liftIO do
     let ResourcesStore {..} = resourcesStore
-    loadResource' meshes "line" $ H.withBufferedMesh vulkanResources $ H.Mesh
+    join $ loadResource' meshes "line" $ H.withBufferedMesh vulkanResources $ H.Mesh
       { vertices = [(H.Position, SV.fromList [-1000, 0, 0, 1000, 0, 0])]
       , indices = Nothing
       , minPosition = zero -- TODO
       , maxPosition = zero -- TODO
       , morphTargets = mempty
       }
-    loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources $ H.Mesh
+    join $ loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources $ H.Mesh
       { vertices =
           [ ( H.Position
             , SV.fromList $ concatMap (\i -> [-1000, realToFrac i, 0, 1000, realToFrac i, 0]) ([-1000..1000] :: [Int])

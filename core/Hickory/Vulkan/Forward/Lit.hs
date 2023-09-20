@@ -73,7 +73,7 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
         descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)], ImageDescriptor [(depthImage,sampler)]]
     (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
 
-  let cullMode = CULL_MODE_BACK_BIT
+  let cullModeOverride = Nothing
       samples = maxSampleCount
   pure RenderTarget {..}
   where

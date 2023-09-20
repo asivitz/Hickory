@@ -23,7 +23,7 @@ import Control.Monad.Fix (fix)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import Platforms.GLFW.DearImGui (initDearImGui, renderDearImGui)
-import Hickory.Vulkan.Types (VulkanResources, FrameContext, Swapchain)
+import Hickory.Vulkan.Types (VulkanResources, FrameContext, Swapchain, runCleanup)
 
 {- GLFW -}
 
@@ -85,6 +85,7 @@ runFrames win vulkanResources acquireRenderer f = do
     glfwRunFrame = do
       GLFW.pollEvents
       exeFrame
+      runCleanup vulkanResources
       GLFW.windowShouldClose win
 
   fix \rec -> liftIO glfwRunFrame >>= \case
