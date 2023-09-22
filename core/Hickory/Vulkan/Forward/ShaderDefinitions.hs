@@ -9,6 +9,7 @@ worldGlobalsDef = [qm|
 layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
+    mat4 viewProjMat;
     vec3 cameraPos;
     mat4 lightTransform;
     vec3 lightDirection;
@@ -25,6 +26,7 @@ overlayGlobalsDef = [qm|
 layout (row_major, scalar, set = 0, binding = 2) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
+    mat4 viewProjMat;
   } globals;
   |]
 
@@ -33,6 +35,7 @@ shadowPassGlobalsDef = [qm|
 layout (row_major, scalar, set = 0, binding = 3) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
+    mat4 viewProjMat;
   } globals;
   |]
 
@@ -122,8 +125,6 @@ vec3 lightDirection = normalize(globals.lightDirection);
 vec3 directionToLight = -lightDirection;
 vec3 viewDirection = normalize(globals.cameraPos - worldPosition.xyz);
 
-vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
-
 float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
 
 
@@ -132,7 +133,6 @@ float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), uniforms.sp
 
 light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
-surfaceColor = uniforms.color;
 shadowCoord = biasMat * globals.lightTransform * worldPosition;
   |]
 
@@ -140,7 +140,6 @@ litVertexDef :: String
 litVertexDef = [qt|
 layout(location = 0) out vec3 light;
 layout(location = 2) out vec4 shadowCoord;
-layout(location = 3) out vec4 surfaceColor;
 
 const mat4 biasMat = mat4(
   0.5, 0.0, 0.0, 0.0,
@@ -153,7 +152,6 @@ litFragDef :: String
 litFragDef = [qt|
 layout(location = 0) in vec3 light;
 layout(location = 2) in vec4 shadowCoord;
-layout(location = 3) in vec4 surfaceColor;
 layout (set = 0, binding = 4) uniform sampler2DShadow shadowMap;
   |]
 
@@ -178,8 +176,7 @@ staticVertCalc :: String
 staticVertCalc = [qt|
   vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
 
-  gl_Position = globals.projMat
-              * globals.viewMat
+  gl_Position = globals.viewProjMat
               * worldPosition;
 |]
 

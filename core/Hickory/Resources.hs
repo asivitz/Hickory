@@ -12,12 +12,12 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.IORef (IORef, readIORef, newIORef, modifyIORef', atomicModifyIORef')
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
-import Control.Monad (unless, (>=>), join)
+import Control.Monad (unless, join, (<=<))
 import Control.Lens (view, (^.))
 import Hickory.ModelLoading.DirectXModel (ThreeDModel(..), loadModelFromX)
 import Hickory.Vulkan.Text (TextRenderer, withTextRenderer)
 import Vulkan (Filter (..), SamplerAddressMode (..))
-import Hickory.Vulkan.Types (PointedDescriptorSet (..), BufferedMesh (..), VulkanResources)
+import Hickory.Vulkan.Types (PointedDescriptorSet (..), BufferedMesh (..), VulkanResources, addCleanup)
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
@@ -31,6 +31,7 @@ import Linear (M44)
 import qualified Data.Vector as V
 import Control.Monad.Reader (ReaderT (..), MonadTrans, mapReaderT, lift)
 import Control.Monad.Writer.Class (MonadWriter (..))
+import Data.Dynamic (Dynamic, Typeable, fromDynamic, toDyn)
 
 type ResourceStore a = IORef (Map.HashMap String (a, IO ()))
 
@@ -74,6 +75,7 @@ data ResourcesStore = ResourcesStore
   , fonts        :: ResourceStore TextRenderer
   , animations   :: ResourceStore ThreeDModel
   , skins        :: ResourceStore (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
+  , untyped      :: ResourceStore Dynamic
   } deriving (Generic)
 
 data Resources = Resources
@@ -82,6 +84,7 @@ data Resources = Resources
   , fonts      :: Map.HashMap String TextRenderer
   , animations :: Map.HashMap String ThreeDModel
   , skins      :: Map.HashMap String (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
+  , untyped    :: Map.HashMap String Dynamic
   } deriving (Generic)
 
 -- instance Hashable SamplerAddressMode where hashWithSalt s (SamplerAddressMode i) = hashWithSalt s i
@@ -119,6 +122,10 @@ loadAnimationResource _vulkanResources ResourcesStore { animations } path = do
       True -> Just <$> loadModelFromX path
       False -> pure Nothing
 
+loadUntypedResource :: Typeable a => VulkanResources -> ResourcesStore -> String -> Acquire (Maybe a) -> IO ()
+loadUntypedResource vulkanResources ResourcesStore { untyped } path
+  = addCleanup vulkanResources <=< loadResource untyped path . fmap (fmap toDyn)
+
 withResourcesStore :: VulkanResources -> Acquire ResourcesStore
 withResourcesStore vulkanResources = do
   textures   <- liftIO newResourceStore
@@ -126,6 +133,7 @@ withResourcesStore vulkanResources = do
   fonts      <- liftIO newResourceStore
   animations <- liftIO newResourceStore
   skins      <- liftIO newResourceStore
+  untyped    <- liftIO newResourceStore
 
   liftIO do
     join $ loadResource' textures "white" do
@@ -140,6 +148,7 @@ withResourcesStore vulkanResources = do
   mkAcquire (pure ()) (const $ cleanupStore fonts)
   mkAcquire (pure ()) (const $ cleanupStore animations)
   mkAcquire (pure ()) (const $ cleanupStore skins)
+  mkAcquire (pure ()) (const $ cleanupStore untyped)
 
   pure ResourcesStore {..}
 
@@ -150,6 +159,7 @@ getResourcesStoreResources ResourcesStore {..} =
             <*> getResources fonts
             <*> getResources animations
             <*> getResources skins
+            <*> getResources untyped
 
 getMesh :: ResourcesMonad m => String -> m BufferedMesh
 getMesh name = fromMaybe (error $ "Can't find mesh: " ++ name) <$> getMeshMay name
@@ -196,6 +206,14 @@ getSkinMay :: ResourcesMonad m => String -> m (Maybe (Map.HashMap String (V.Vect
 getSkinMay name = do
   ms <- view #skins <$> askResources
   pure $ Map.lookup name ms
+
+getUntyped :: (Typeable a, ResourcesMonad m) => String -> m a
+getUntyped name = fromMaybe (error $ "Can't find resource: " ++ name) <$> getUntypedMay name
+
+getUntypedMay :: (Typeable a, ResourcesMonad m) => String -> m (Maybe a)
+getUntypedMay name = do
+  ms <- view #untyped <$> askResources
+  pure $ fromDynamic =<< Map.lookup name ms
 
 class Monad m => ResourcesMonad m where
   askResources  :: m Resources

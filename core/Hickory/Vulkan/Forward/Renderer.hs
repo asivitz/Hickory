@@ -329,6 +329,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         viewMat = cameraViewMat camera
         viewProjMat = projMat !*! viewMat
         lightProj = lightProjection viewProjMat lightView (shadowRenderTarget.extent)
+        lightViewProj = lightProj !*! lightView
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
@@ -339,7 +340,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         shadowCullTest cdc   = not cdc.overlay && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
         overlayCullTest cdc  = cdc.overlay
         showSelectionCullTest cdc = isJust cdc.hasIdent && (cdc.hasIdent `elem` fmap Just highlightObjs) && worldCullTest cdc
-        shadowPassGlobals = OverlayGlobals lightView lightProj
+        shadowPassGlobals = OverlayGlobals lightView lightProj lightViewProj
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->
       uploadBufferDescriptor buf
@@ -348,7 +349,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     withResourceForFrame swapchainImageIndex globalWorldBuffer \buf ->
       uploadBufferDescriptor buf
         $ worldGlobals
-        & #lightTransform .~ (lightProj !*! lightView)
+        & #lightTransform .~ lightViewProj
 
     withResourceForFrame swapchainImageIndex globalShadowPassBuffer $
       flip uploadBufferDescriptor shadowPassGlobals

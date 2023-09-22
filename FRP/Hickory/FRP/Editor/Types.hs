@@ -44,6 +44,7 @@ data Object = Object
   , castsShadow :: Bool
   , blend       :: Bool
   , specularity :: Scalar
+  -- Indexed by component name and then attribute name
   , components  :: HashMap String (HashMap String (SomeAttribute Identity))
   } deriving (Generic, Show, Read)
 

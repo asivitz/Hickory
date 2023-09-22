@@ -144,11 +144,11 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
 
 withStaticLitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
 withStaticLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord] pipelineDefaults staticLitVertShader litFragShader globalPDS (Just perDrawLayout)
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord] pipelineDefaults staticLitVertShader staticLitFragShader globalPDS (Just perDrawLayout)
 
 withAnimatedLitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial AnimatedConstants)
 withAnimatedLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedLitVertShader litFragShader globalPDS (Just perDrawLayout)
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedLitVertShader animatedLitFragShader globalPDS (Just perDrawLayout)
 
 staticLitVertShader :: ByteString
 staticLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -165,9 +165,9 @@ $litVertexDef
 
 void main() {
   vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
+  vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
-  gl_Position = globals.projMat
-              * globals.viewMat
+  gl_Position = globals.viewProjMat
               * worldPosition;
 
   $litVertexCalc
@@ -176,10 +176,11 @@ void main() {
 
 |])
 
-litFragShader :: ByteString
-litFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+animatedLitFragShader :: ByteString
+animatedLitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
 $worldGlobalsDef
+$animatedUniformsDef
 $litFragDef
 
 layout(location = 1) in vec2 texCoord;
@@ -187,6 +188,25 @@ layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 void main() {
   vec4 texColor = texture(texSampler, texCoord);
+  vec4 surfaceColor = uniforms.color;
+  $litFragCalc
+  outColor = vec4(litColor.rgb * texColor.rgb, litColor.a * texColor.a);
+}
+|])
+
+staticLitFragShader :: ByteString
+staticLitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$fragHeader
+$worldGlobalsDef
+$litFragDef
+$staticUniformsDef
+
+layout(location = 1) in vec2 texCoord;
+layout (set = 2, binding = 0) uniform sampler2D texSampler;
+
+void main() {
+  vec4 texColor = texture(texSampler, texCoord);
+  vec4 surfaceColor = uniforms.color;
   $litFragCalc
   outColor = vec4(litColor.rgb * texColor.rgb, litColor.a * texColor.a);
 }
@@ -217,9 +237,9 @@ void main()
 
     vec4 modelPos = skinMat * vec4(inPosition,1.0);
     vec4 worldPosition = uniforms.modelMat * modelPos;
+    vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
-    gl_Position = globals.projMat
-                * globals.viewMat
+    gl_Position = globals.viewProjMat
                 * worldPosition;
 
     texCoord = inTexCoord;
@@ -256,8 +276,7 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
   layout(location = 0) in vec3 inPosition;
 
   void main() {
-      gl_Position = globals.projMat
-                  * globals.viewMat
+      gl_Position = globals.viewProjMat
                   * uniforms.modelMat
                   * vec4(inPosition, 1.0);
   }
@@ -278,8 +297,7 @@ withPointMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMa
 
   void main() {
       gl_PointSize = 20;
-      gl_Position = globals.projMat
-                  * globals.viewMat
+      gl_Position = globals.viewProjMat
                   * uniforms.modelMat
                   * vec4(inPosition, 1.0);
   }
@@ -299,8 +317,7 @@ layout(location = 1) out vec2 texCoord;
 
 void main() {
   texCoord = uniforms.tiling * inTexCoord;
-  gl_Position = globals.projMat
-              * globals.viewMat
+  gl_Position = globals.viewProjMat
               * uniforms.modelMat
               * vec4(inPosition, 1.0);
 }
@@ -320,8 +337,7 @@ layout(location = 1) out vec2 texCoord;
 
 void main() {
   texCoord = uniforms.tiling * inTexCoord;
-  gl_Position = globals.projMat
-              * globals.viewMat
+  gl_Position = globals.viewProjMat
               * uniforms.modelMat
               * vec4(inPosition, 1.0);
 }

@@ -124,8 +124,7 @@ void main() {
   vec4 worldPosition = uniforms.modelMat
                       * vec4(inPosition, 1.0);
 
-  gl_Position = globals.projMat
-              * globals.viewMat
+  gl_Position = globals.viewProjMat
               * worldPosition;
 }
 
@@ -154,8 +153,7 @@ void main() {
                       * skinMat
                       * vec4(inPosition, 1.0);
 
-  gl_Position = globals.projMat
-              * globals.viewMat
+  gl_Position = globals.viewProjMat
               * worldPosition;
 }
 

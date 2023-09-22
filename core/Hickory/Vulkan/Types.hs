@@ -96,7 +96,7 @@ data BufferedMesh = BufferedMesh
   { mesh         :: Mesh
   , vertexBuffer :: Buffer
   , indexBuffer  :: Maybe Buffer
-  }
+  } deriving Generic
 
 data RenderTarget = RenderTarget
   { renderPass      :: RenderPass

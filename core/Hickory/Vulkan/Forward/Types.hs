@@ -191,6 +191,7 @@ data RenderSettings = RenderSettings
 data WorldGlobals = WorldGlobals
   { viewMat        :: M44 Scalar
   , projMat        :: M44 Scalar
+  , viewProjMat    :: M44 Scalar
   , camPos         :: V3 Scalar
   , lightTransform :: M44 Scalar
   , lightDirection :: V3 Scalar
@@ -205,6 +206,7 @@ data WorldGlobals = WorldGlobals
 data OverlayGlobals = OverlayGlobals
   { viewMat        :: M44 Scalar
   , projMat        :: M44 Scalar
+  , viewProjMat    :: M44 Scalar
   } deriving Generic
     deriving anyclass GStorable
 

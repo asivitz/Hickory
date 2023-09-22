@@ -72,18 +72,23 @@ descriptorSetBindings specs = zip [0..] specs <&> \(i, spec) -> case spec of
     , stageFlags      = SHADER_STAGE_VERTEX_BIT .|. SHADER_STAGE_FRAGMENT_BIT
     }
 
+withDescriptorSetLayoutFromSpecs :: VulkanResources -> [DescriptorSpec] -> Acquire DescriptorSetLayout
+withDescriptorSetLayoutFromSpecs VulkanResources {..} specs = do
+  let DeviceContext{..} = deviceContext
+  withDescriptorSetLayout device zero
+      -- bind textures as an array of sampled images
+      { bindings = V.fromList $ descriptorSetBindings specs
+        -- Needed for dynamic descriptor array sizing (e.g. global texture array)
+      -- , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
+      }
+      Nothing mkAcquire
+
 -- |Each texture is in a separately bound descriptor
 withDescriptorSet :: VulkanResources -> [DescriptorSpec] -> Acquire PointedDescriptorSet
-withDescriptorSet VulkanResources{..} specs = do
+withDescriptorSet vulkanResources@VulkanResources{..} specs = do
   let DeviceContext{..} = deviceContext
       bindings' = descriptorSetBindings specs
-  descriptorSetLayout <- withDescriptorSetLayout device zero
-    -- bind textures as an array of sampled images
-    { bindings = V.fromList bindings'
-      -- Needed for dynamic descriptor array sizing (e.g. global texture array)
-    -- , flags = DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT
-    }
-    Nothing mkAcquire
+  descriptorSetLayout <- withDescriptorSetLayoutFromSpecs vulkanResources specs
 
   descriptorPool <- withDescriptorPool device zero
     { maxSets   = 1

@@ -64,8 +64,7 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 1) out vec2 texCoord;
 
 void main() {
-    gl_Position = globals.projMat
-                * globals.viewMat
+    gl_Position = globals.viewProjMat
                 * uniforms.modelMat
                 * vec4(inPosition, 1.0);
     texCoord = uniforms.tiling * inTexCoord;
@@ -89,8 +88,7 @@ withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBuff
   $msdfUniformsDef
 
   void main() {
-      gl_Position = globals.projMat
-                  * globals.viewMat
+      gl_Position = globals.viewProjMat
                   * uniforms.modelMat
                   * vec4(inPosition, 1.0);
       texCoord = uniforms.tiling * inTexCoord;

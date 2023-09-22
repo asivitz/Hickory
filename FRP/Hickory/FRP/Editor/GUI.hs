@@ -77,8 +77,8 @@ drawObjectEditorUI componentDefs EditorState {..} objects = do
             Nothing -> error "Can't find attribute ref" :: IO ()
             Just (SomeAttributeRef attr' ref) -> case eqAttr attr attr' of
               Just HRefl -> case attr of
-                FloatAttribute  -> void $ dragFloat (pack attrName) ref 1 0 1000
-                IntAttribute    -> void $ dragInt   (pack attrName) ref 1 0 1000
+                FloatAttribute  -> void $ dragFloat (pack attrName) ref 1 0 200000
+                IntAttribute    -> void $ dragInt   (pack attrName) ref 1 0 200000
                 StringAttribute -> void $ inputText (pack attrName) ref 30
                 BoolAttribute   -> void $ checkbox (pack attrName) ref
                 V3Attribute     -> void $ dragFloat3 (pack attrName) ref 1 1 1
