@@ -79,10 +79,12 @@ withAllStageMaterial
   -> ByteString
   -> ByteString
   -> ByteString
+  -> ByteString
   -> Acquire (AllStageMaterial uniform)
 withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes perDrawLayout
   worldVertShader worldFragShader
-  shadowVertShader objectIDVertShader objectIDFragShader = do
+  shadowVertShader shadowFragShader
+  objectIDVertShader objectIDFragShader = do
   uuid <- liftIO nextRandom
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
   let uniformSize = sizeOf (undefined :: uniform)
@@ -93,7 +95,7 @@ withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes pe
         ]
 
   worldMaterial         <- withRendererMaterial vulkanResources litRenderTarget attributes pipelineOptions worldVertShader worldFragShader materialSets perDrawLayout
-  shadowMaterial        <- withRendererMaterial vulkanResources shadowRenderTarget attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets perDrawLayout
+  shadowMaterial        <- withRendererMaterial vulkanResources shadowRenderTarget attributes pipelineOptions { depthClampEnable = True } shadowVertShader shadowFragShader materialSets perDrawLayout
   objectIDMaterial      <- withRendererMaterial vulkanResources pickingRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
   showSelectionMaterial <- withRendererMaterial vulkanResources currentSelectionRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
   pure AllStageMaterial {..}
@@ -335,11 +337,12 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
         testSphereInCameraFrustum = isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
         testSphereInShadowFrustum = sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView (shadowRenderTarget.extent) lightOrigin lightDirection lightUp
-        worldCullTest cdc    = not cdc.overlay && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
-        pickingCullTest cdc  = not cdc.overlay && isJust cdc.hasIdent && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
-        shadowCullTest cdc   = not cdc.overlay && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
-        overlayCullTest cdc  = cdc.overlay
-        showSelectionCullTest cdc = isJust cdc.hasIdent && (cdc.hasIdent `elem` fmap Just highlightObjs) && worldCullTest cdc
+        inWorldCull cdc      = (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
+        worldCullTest cdc    = cdc.stage == World && inWorldCull cdc
+        pickingCullTest cdc  = not (cdc.stage == Overlay) && isJust cdc.hasIdent && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
+        shadowCullTest cdc   = not (cdc.stage == Overlay) && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
+        overlayCullTest cdc  = cdc.stage == Overlay
+        showSelectionCullTest cdc = isJust cdc.hasIdent && (cdc.hasIdent `elem` fmap Just highlightObjs) && inWorldCull cdc
         shadowPassGlobals = OverlayGlobals lightView lightProj lightViewProj
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->

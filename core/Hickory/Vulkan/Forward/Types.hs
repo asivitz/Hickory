@@ -109,7 +109,7 @@ data CustomDrawCommand = forall uniform. CustomDrawCommand
   , doCastShadow    :: Bool
   , hasIdent        :: Maybe Int
   , cull            :: Bool
-  , overlay         :: Bool
+  , stage           :: Stage
   }
 
 data Stage
