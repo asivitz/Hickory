@@ -28,14 +28,22 @@ import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
 import Hickory.Vulkan.DescriptorSet
 import Data.UUID (UUID)
-import Vulkan (DescriptorSetLayout, Buffer)
+import Vulkan (DescriptorSetLayout)
 
-data Renderer = Renderer
+data ForwardRenderTargets = ForwardRenderTargets
   { swapchainRenderTarget        :: !RenderTarget
   , shadowRenderTarget           :: !RenderTarget
   , litRenderTarget              :: !RenderTarget
   , pickingRenderTarget          :: !RenderTarget
   , currentSelectionRenderTarget :: !RenderTarget
+  }
+
+data Renderer = Renderer
+  { renderTargets :: ForwardRenderTargets
+
+  -- Standard Issue Materials
+  , static   :: AllStageMaterial StaticConstants
+  , animated :: AllStageMaterial AnimatedConstants
 
   -- Pipelines
   , pickingMaterial            :: !(BufferedUniformMaterial ObjectIDConstants)
@@ -157,6 +165,7 @@ data StaticConstants = StaticConstants
   , color       :: V4 Float
   , specularity :: Float
   , tiling      :: V2 Float
+  , objectID    :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -167,6 +176,7 @@ data AnimatedConstants = AnimatedConstants
   , specularity :: Float
   , boneMat     :: VFS.Vec 66 (M44 Float) -- TODO: Parameterize
   , colors      :: VFS.Vec 6 (V4 Float)
+  , objectID    :: Word32
   } deriving Generic
     deriving anyclass GStorable
 

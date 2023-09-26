@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), PrimitiveTopology (..), DescriptorSetLayout
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -36,7 +36,7 @@ import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), withMaterial)
+import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
 import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants)
 import Hickory.Vulkan.Forward.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource, frameResource)

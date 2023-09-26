@@ -3,31 +3,33 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), CustomDrawCommand(..), Stage(..), OverlayGlobals (..), AllStageMaterial (..))
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), CustomDrawCommand(..), Stage(..), OverlayGlobals (..), AllStageMaterial (..), ForwardRenderTargets (..))
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
 import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon)
 import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Hickory.Vulkan.Types (RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..), Attribute)
+import Hickory.Vulkan.Types (RenderTarget (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..))
+import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial)
-import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial, withPointMaterial, withOverlayMaterial)
-import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, whiteFragShader)
+import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial, withPointMaterial, withOverlayMaterial, staticLitVertShader, staticLitFragShader, animatedLitVertShader, animatedLitFragShader)
+import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, staticVertShader, whiteFragShader, animatedVertShader)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
 import Hickory.Vulkan.Mesh (vsizeOf)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, Buffer)
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout)
 import Foreign (Storable, plusPtr, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, each, toListOf, has)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
-import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial)
+import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults)
 import Data.List (partition, sortOn, groupBy)
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDRenderTarget, ObjectIDConstants (..), withObjectHighlightMaterial)
+import qualified Hickory.Vulkan.Forward.ObjectPicking as OP
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless)
@@ -57,7 +59,7 @@ import Data.UUID.V4 (nextRandom)
 withRendererMaterial
   :: VulkanResources
   -> RenderTarget
-  -> [Attribute]
+  -> [HVT.Attribute]
   -> PipelineOptions
   -> B.ByteString
   -> B.ByteString
@@ -70,9 +72,10 @@ withAllStageMaterial
   :: forall uniform
   .  Storable uniform
   => VulkanResources
-  -> Renderer
+  -> ForwardRenderTargets
+  -> FramedResource PointedDescriptorSet
   -> PipelineOptions
-  -> [Attribute]
+  -> [HVT.Attribute]
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> ByteString
   -> ByteString
@@ -81,7 +84,7 @@ withAllStageMaterial
   -> ByteString
   -> ByteString
   -> Acquire (AllStageMaterial uniform)
-withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes perDrawLayout
+withAllStageMaterial vulkanResources ForwardRenderTargets {..} globalDescriptorSet pipelineOptions attributes perDrawLayout
   worldVertShader worldFragShader
   shadowVertShader shadowFragShader
   objectIDVertShader objectIDFragShader = do
@@ -99,6 +102,22 @@ withAllStageMaterial vulkanResources Renderer {..} pipelineOptions attributes pe
   objectIDMaterial      <- withRendererMaterial vulkanResources pickingRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
   showSelectionMaterial <- withRendererMaterial vulkanResources currentSelectionRenderTarget attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
   pure AllStageMaterial {..}
+
+withAllStageMaterialFromRenderer
+  :: Storable uniform
+  => VulkanResources
+  -> Renderer
+  -> PipelineOptions
+  -> [HVT.Attribute]
+  -> Maybe DescriptorSetLayout
+  -> ByteString
+  -> ByteString
+  -> ByteString
+  -> ByteString
+  -> ByteString
+  -> ByteString
+  -> Acquire (AllStageMaterial uniform)
+withAllStageMaterialFromRenderer vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -155,6 +174,19 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
   objectPickingImageBuffer <- withImageBuffer vulkanResources pickingRenderTarget 0
+
+  let renderTargets = ForwardRenderTargets {..}
+
+  static <- withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+    pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] (Just imageSetLayout)
+      staticLitVertShader staticLitFragShader
+      staticVertShader whiteFragShader
+      OP.staticObjectIDVertShader OP.objectIDFragShader
+  animated <- withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+    pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] (Just imageSetLayout)
+      animatedLitVertShader animatedLitFragShader
+      animatedVertShader whiteFragShader
+      OP.animatedObjectIDVertShader OP.objectIDFragShader
 
   pure Renderer {..}
 
@@ -323,6 +355,7 @@ renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings ->
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame swapchainImageIndex dynamicMesh) do
     let WorldSettings {..} = worldSettings
+        ForwardRenderTargets {..} = renderTargets
         Extent2D w h = extent
         lightOrigin = V3 0 0 0
         lightUp = V3 0 0 1
@@ -337,7 +370,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
         testSphereInCameraFrustum = isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
         testSphereInShadowFrustum = sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView (shadowRenderTarget.extent) lightOrigin lightDirection lightUp
-        inWorldCull cdc      = (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
+        inWorldCull cdc      = not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc)
         worldCullTest cdc    = cdc.stage == World && inWorldCull cdc
         pickingCullTest cdc  = not (cdc.stage == Overlay) && isJust cdc.hasIdent && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
         shadowCullTest cdc   = not (cdc.stage == Overlay) && cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
@@ -611,6 +644,7 @@ processCommand frameContext
     , boneMat
     , colors
     , specularity
+    , objectID = fromIntegral $ fromMaybe 0 ident
     }, Just albedo)
   Static StaticMesh {..} -> submitCommand frameContext dc staticConfig (StaticConstants
     { modelMat  = modelMat
@@ -618,6 +652,7 @@ processCommand frameContext
     , color = color
     , tiling = tiling
     , specularity
+    , objectID = fromIntegral $ fromMaybe 0 ident
     }, Just albedo)
   Lines -> submitCommand frameContext dc linesConfig (StaticConstants
     { modelMat  = modelMat
@@ -625,6 +660,7 @@ processCommand frameContext
     , color = color
     , tiling = V2 1 1
     , specularity
+    , objectID = fromIntegral $ fromMaybe 0 ident
     }, Nothing)
   Points -> submitCommand frameContext dc pointsConfig (StaticConstants
     { modelMat  = modelMat
@@ -632,6 +668,7 @@ processCommand frameContext
     , color = color
     , tiling = V2 1 1
     , specularity
+    , objectID = fromIntegral $ fromMaybe 0 ident
     }, Nothing)
   MSDF MSDFMesh {..} -> submitCommand frameContext dc msdfConfig (MSDFMatConstants
     { modelMat  = modelMat

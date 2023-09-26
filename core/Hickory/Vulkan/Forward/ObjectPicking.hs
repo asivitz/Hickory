@@ -129,16 +129,53 @@ data ObjectIDConstants = ObjectIDConstants
 
 withObjectIDMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
 withObjectIDMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) vertShader objectIDFragShader globalDS Nothing
-  where
-  vertShader :: ByteString
-  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+  = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) objectIDVertShader objectIDFragShader globalDS Nothing
+
+objectIDVertShader :: ByteString
+objectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $vertHeader
 $worldGlobalsDef
 $objectIDUniformsDef
 
 void main() { $staticVertCalc }
 
+|])
+
+staticObjectIDVertShader :: ByteString
+staticObjectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$vertHeader
+$worldGlobalsDef
+$staticUniformsDef
+
+void main() { $staticVertCalc }
+
+|])
+
+animatedObjectIDVertShader :: ByteString
+animatedObjectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$vertHeader
+$worldGlobalsDef
+$animatedUniformsDef
+
+layout(location = 2) in vec3 inNormal;
+layout(location = 3) in vec2 inTexCoord;
+layout(location = 6) in vec4 inJointIndices;
+layout(location = 7) in vec4 inJointWeights;
+
+void main()
+{
+    mat4 skinMat
+      = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
+      + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
+      + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
+      + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
+
+    vec4 modelPos = skinMat * vec4(inPosition,1.0);
+    vec4 worldPosition = uniforms.modelMat * modelPos;
+
+    gl_Position = globals.viewProjMat
+                * worldPosition;
+}
 |])
 
 objectIDFragShader :: ByteString

@@ -129,13 +129,16 @@ renderGame :: (MonadIO m) => Resources -> Size Scalar -> Model -> (H.Renderer, H
 renderGame res scrSize@(Size w _h) Model { playerPos, missiles } (renderer, frameContext)
   = H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
+  vm = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
+  pm = shotMatrix (Ortho w 1 100 False) (aspectRatio scrSize)
   renderSettings = H.RenderSettings
     { worldSettings = H.worldSettingsDefaults
       { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho w 1 100 True)
       }
     , overlayGlobals = OverlayGlobals
-      { viewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
-      , projMat = shotMatrix (Ortho w 1 100 False) (aspectRatio scrSize)
+      { viewMat = vm
+      , projMat = pm
+      , viewProjMat = pm !*! vm
       }
     , postSettings = H.postDefaults
     , clearColor = V4 0 0 0 1

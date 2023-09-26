@@ -31,12 +31,12 @@ import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
 import Hickory.FRP.Editor.General (mkCursorLoc, matEuler, matScale, refChangeEvent)
 import Hickory.Vulkan.Types (FrameContext)
 import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults)
-import Data.Text (unpack)
+import Data.Text (unpack, pack)
 import Vulkan (SamplerAddressMode (..), Filter (..))
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
-import Hickory.Resources (ResourcesStore (..), loadResource', Resources (..), ResourcesMonad)
+import Hickory.Resources (ResourcesStore (..), loadResource', Resources (..), ResourcesMonad, loadTextureResource, loadMeshResource)
 import Safe (maximumMay, headMay)
 import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
@@ -46,8 +46,6 @@ import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Hickory.FRP.Camera (omniscientCamera)
 import Hickory.FRP.Game (Scene(..))
-import Hickory.Resources (loadTextureResource, loadMeshResource)
-import Data.Text (pack)
 import Hickory.Graphics (MatrixMonad)
 import Control.Monad (void, join)
 
