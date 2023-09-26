@@ -61,7 +61,7 @@ withMaterial
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
-  rt@RenderTarget {..}
+  RenderTarget {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
   pipelineOptions vertShader fragShader

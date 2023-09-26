@@ -41,10 +41,6 @@ data ForwardRenderTargets = ForwardRenderTargets
 data Renderer = Renderer
   { renderTargets :: ForwardRenderTargets
 
-  -- Standard Issue Materials
-  , static   :: AllStageMaterial StaticConstants
-  , animated :: AllStageMaterial AnimatedConstants
-
   -- Pipelines
   , pickingMaterial            :: !(BufferedUniformMaterial ObjectIDConstants)
   , currentSelectionMaterial   :: !(BufferedUniformMaterial ObjectIDConstants)

@@ -8,7 +8,7 @@
 module Hickory.FRP.Editor.Types where
 
 import qualified Reactive.Banana as B
-import Linear (M44, (^/), translation, V3(..), V4, V2(..))
+import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..))
 import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)
 import GHC.Generics (Generic)
@@ -28,7 +28,7 @@ import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
-import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple)
+import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, imVec4ToV4, v4ToImVec4)
 import Data.Hashable (Hashable)
 import Hickory.Vulkan.Types (VulkanResources)
 
@@ -37,13 +37,6 @@ data ObjectManipMode = OTranslate | OScale | ORotate
 
 data Object = Object
   { transform   :: M44 Scalar
-  , color       :: V4 Scalar
-  , model       :: String
-  , texture     :: String
-  , lit         :: Bool
-  , castsShadow :: Bool
-  , blend       :: Bool
-  , specularity :: Scalar
   -- Indexed by component name and then attribute name
   , components  :: HashMap String (HashMap String (SomeAttribute Identity))
   } deriving (Generic, Show, Read)
@@ -74,6 +67,9 @@ instance Attr (V3 Scalar) where
 instance Attr (V2 Scalar) where
   mkAttr = V2Attribute
   type AttrRef (V2 Scalar) = (Float, Float)
+instance Attr (V4 Scalar) where
+  mkAttr = ColorAttribute
+  type AttrRef (V4 Scalar) = ImVec4
 
 data Attribute a where
   StringAttribute :: Attribute String
@@ -82,6 +78,7 @@ data Attribute a where
   BoolAttribute   :: Attribute Bool
   V3Attribute     :: Attribute (V3 Scalar)
   V2Attribute     :: Attribute (V2 Scalar)
+  ColorAttribute  :: Attribute (V4 Scalar)
 
 typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
@@ -91,6 +88,7 @@ typeOfAttr = \case
   BoolAttribute   -> typeRep
   V3Attribute     -> typeRep
   V2Attribute     -> typeRep
+  ColorAttribute  -> typeRep
 
 data AttrClasses a where
   -- Provides proof of a type having certain instances
@@ -105,6 +103,7 @@ proveAttrClasses = \case
   BoolAttribute   -> AttrClasses
   V3Attribute     -> AttrClasses
   V2Attribute     -> AttrClasses
+  ColorAttribute  -> AttrClasses
 
 -- Check if two attributes have the same type
 eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
@@ -122,6 +121,7 @@ instance Show (SomeAttribute Identity) where
     BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
     V3Attribute     -> "V3Attribute ("   ++ show val ++ ")"
     V2Attribute     -> "V2Attribute ("   ++ show val ++ ")"
+    ColorAttribute  -> "ColorAttribute ("   ++ show val ++ ")"
 
 instance Read (SomeAttribute Identity) where
   readPrec = lift do
@@ -134,6 +134,7 @@ instance Read (SomeAttribute Identity) where
       Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
       Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Scalar))))
       Ident "V2Attribute"     -> SomeAttribute V2Attribute     <$> pars (readS_to_P (reads @(Identity (V2 Scalar))))
+      Ident "ColorAttribute"  -> SomeAttribute ColorAttribute  <$> pars (readS_to_P (reads @(Identity (V4 Scalar))))
       _ -> fail "Invalid attribute type"
 
 -- Look up the value for an attribute
@@ -226,6 +227,30 @@ mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
                             withAttrVal attrs arg5 \v5 ->
                             withAttrVal attrs arg6 \v6 -> f v1 v2 v3 v4 v5 v6 state objId
 
+mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent7 arg1 arg2 arg3 arg4 arg5 arg6 arg7 acquire f = Component
+  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
+  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
+  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
+  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
+  , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
+  , SomeAttribute (mkAttr :: Attribute f) (Const arg6)
+  , SomeAttribute (mkAttr :: Attribute g) (Const arg7)
+  ] (\attrs objId -> withAttrVal attrs arg1 \v1 ->
+                     withAttrVal attrs arg2 \v2 ->
+                     withAttrVal attrs arg3 \v3 ->
+                     withAttrVal attrs arg4 \v4 ->
+                     withAttrVal attrs arg5 \v5 ->
+                     withAttrVal attrs arg6 \v6 ->
+                     withAttrVal attrs arg7 \v7 -> acquire v1 v2 v3 v4 v5 v6 v7 objId)
+    $ \attrs state objId -> withAttrVal attrs arg1 \v1 ->
+                            withAttrVal attrs arg2 \v2 ->
+                            withAttrVal attrs arg3 \v3 ->
+                            withAttrVal attrs arg4 \v4 ->
+                            withAttrVal attrs arg5 \v5 ->
+                            withAttrVal attrs arg6 \v6 ->
+                            withAttrVal attrs arg7 \v7 -> f v1 v2 v3 v4 v5 v6 v7 state objId
+
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
   StringAttribute -> ""
@@ -234,6 +259,7 @@ defaultAttrVal = \case
   BoolAttribute -> False
   V3Attribute -> V3 1 0 0
   V2Attribute -> V2 1 0
+  ColorAttribute -> V4 1 1 1 1
 
 -- Convert to the storage representation of an attribute
 toAttrRefType :: forall a. Attr a => a -> AttrRef a
@@ -244,6 +270,7 @@ toAttrRefType a = case mkAttr :: Attribute a of
   IntAttribute    -> a
   FloatAttribute  -> a
   BoolAttribute   -> a
+  ColorAttribute  -> v4ToImVec4 a
 
 -- Convert from the storage representation of an attribute
 fromAttrRefType :: forall a. Attr a => AttrRef a -> a
@@ -254,6 +281,7 @@ fromAttrRefType a = case mkAttr :: Attribute a of
   IntAttribute    -> a
   FloatAttribute  -> a
   BoolAttribute   -> a
+  ColorAttribute  -> imVec4ToV4 a
 
 data EditorState = EditorState
   { posRef         :: IORef (Float, Float, Float)

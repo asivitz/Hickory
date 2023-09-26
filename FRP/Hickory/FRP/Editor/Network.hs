@@ -10,7 +10,6 @@ import qualified Reactive.Banana as B
 import Hickory.FRP.CoreEvents (CoreEvents (..), maskCoreEvents)
 import qualified Reactive.Banana.Frameworks as B
 import Reactive.Banana ((<@>), (<@), liftA2)
-import Hickory.Color (white)
 import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar)
 import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..), Camera (..), project, cameraFocusPlaneSize)
@@ -23,7 +22,7 @@ import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Forward.Renderer (pickObjectID)
 import Control.Monad.IO.Class (liftIO)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
-import Control.Lens (traversed, (^.), (&), (%~), (<&>), view, _1, _3, (.~), at, _Just, (^?), ix, (?~), set)
+import Control.Lens (traversed, (^.), (&), (%~), (<&>), (.~), at, _Just, (^?), ix, (?~), set)
 import Data.HashMap.Strict (HashMap, traverseWithKey)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
@@ -36,7 +35,7 @@ import Vulkan (SamplerAddressMode (..), Filter (..))
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
-import Hickory.Resources (ResourcesStore (..), loadResource', Resources (..), ResourcesMonad, loadTextureResource, loadMeshResource)
+import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, loadTextureResource, loadMeshResource)
 import Safe (maximumMay, headMay)
 import Data.Foldable (for_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..))
@@ -139,13 +138,6 @@ writeEditorState EditorChangeEvents {..} Object {..} = do
   setVal posChange (transform ^. translation)
   setVal rotChange (matEuler transform)
   setVal scaChange (matScale transform)
-  setVal colorChange color
-  setVal modelChange model
-  setVal textureChange texture
-  setVal litChange lit
-  setVal castsShadowChange castsShadow
-  setVal blendChange blend
-  setVal specularityChange specularity
   setVal componentsChange  (Map.keys components)
 
   for_ (Map.toList componentChanges) \((compName, attrName), SomeAttribute attr change) ->
@@ -220,14 +212,7 @@ mkObjectChangeEvent vulkanResources componentDefs coreEvents rs editorState sele
     [ (\os v -> os & traversed . #transform . translation .~ v) <$> selectedObjects <@> ev posChange
     , (\os v -> os & traversed . #transform %~ setScale v)      <$> selectedObjects <@> ev scaChange
     , (\os v -> os & traversed . #transform %~ setRotation v)   <$> selectedObjects <@> ev rotChange
-    , (\os v -> os & traversed . #color .~ v)                   <$> selectedObjects <@> ev colorChange
-    , (\os v -> os & traversed . #model .~ v)                   <$> selectedObjects <@> ev modelChange
-    , (\os v -> os & traversed . #texture .~ v)                 <$> selectedObjects <@> ev textureChange
-    , (\os v -> os & traversed . #lit .~ v)                     <$> selectedObjects <@> ev litChange
-    , (\os v -> os & traversed . #castsShadow .~ v)             <$> selectedObjects <@> ev castsShadowChange
-    , (\os v -> os & traversed . #blend .~ v)                   <$> selectedObjects <@> ev blendChange
-    , (\os v -> os & traversed . #specularity .~ v)             <$> selectedObjects <@> ev specularityChange
-    , (\os v -> os & traversed . #components %~ syncMap v) <$> selectedObjects <@> ev componentsChange
+    , (\os v -> os & traversed . #components %~ syncMap v)      <$> selectedObjects <@> ev componentsChange
     ] ++ compEvs
   where
   syncMap ks m = let om = Map.fromList $ (,mempty) <$> ks
@@ -270,10 +255,10 @@ editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene
   let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
   cameraState <- omniscientCamera objectEditingMaskedEvents
 
-  let defaultObject Camera {..} = Object (mkTransformationMat identity focusPos) white "cube" "white" True True False 8 mempty
+  let defaultObject Camera {..} = Object (mkTransformationMat identity focusPos) mempty
       eAddObj = (\o m -> (nextObjId m, o)) <$> (defaultObject <$> cameraState) <*> objects
         <@ B.filterE (==Key'A) (keyDown coreEvents)
-      eDupeObjs = recalcIds <$> objects <*> selectedObjects <@ (B.whenE (keyHeldB coreEvents Key'LeftShift) $ B.filterE (==Key'D) (keyDown coreEvents))
+      eDupeObjs = recalcIds <$> objects <*> selectedObjects <@ B.whenE (keyHeldB coreEvents Key'LeftShift) (B.filterE (==Key'D) (keyDown coreEvents))
       nextObjId m = fromMaybe 0 (maximumMay (Map.keys m)) + 1
       recalcIds objs forObjs = Map.fromList $ zip [nextObjId objs..] (Map.elems forObjs)
       eDeleteObjs = B.filterE (==Key'X) (keyDown coreEvents)
@@ -378,10 +363,14 @@ renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedOb
     , ambientColor = ambientLight ^* ambientStrength
     }
   , overlayGlobals = OverlayGlobals
-    { viewMat = viewTarget zero (V3 0 0 1) (V3 0 (-1) 0)
-    , projMat = shotMatrix (Ortho (realToFrac w) 0 1 False) (aspectRatio size)
+    { viewMat = ovm
+    , projMat = opm
+    , viewProjMat = opm !*! ovm
     }
   , postSettings = H.PostConstants exposure colorShift saturation filmGrain
   , clearColor = clearColor
   , highlightObjs = selectedObjIds
   }
+  where
+  ovm = viewTarget zero (V3 0 0 1) (V3 0 (-1) 0)
+  opm = shotMatrix (Ortho (realToFrac w) 0 1 False) (aspectRatio size)

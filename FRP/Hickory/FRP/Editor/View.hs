@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Hickory.FRP.Editor.View where
@@ -14,7 +13,7 @@ import qualified Hickory.Vulkan.Forward.Types as H
 import Data.HashMap.Strict (HashMap)
 import Hickory.Graphics (askMatrix, MatrixMonad)
 import Hickory.FRP.Editor.Types
-import Hickory.Resources (getTextureMay, getMeshMay, getTexture, getMesh, ResourcesMonad)
+import Hickory.Resources (getTexture, getMesh, ResourcesMonad)
 import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
 import Control.Lens ((.~), (&), (^.))
 import Control.Monad (when)
@@ -77,7 +76,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
 
   where
   snapVec by = fmap (snap by)
-  snap by x = let r = x `div'` by in realToFrac r * by
+  snap by x = let r :: Int = x `div'` by in realToFrac r * by
   drawLines mat mesh color =
     H.addCommand $ H.DrawCommand
       { modelMat = mat
@@ -93,31 +92,10 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
 
 drawObject :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Maybe a -> Int -> Object -> m ()
 drawObject componentDefs state objId Object {..} = do
-  tex <- getTextureMay texture
-  mesh <- getMeshMay model
-  tex' <- case tex of
-    Just t -> pure t
-    _ -> getTexture "white"
-
   H.xform transform $ do
     for_ (Map.toList components) \(compName, vals) -> case Map.lookup compName componentDefs of
       Just Component {..} -> draw vals state objId
       Nothing -> error $ "Can't find component definition: " ++ compName
-
-    for_ mesh \mesh' -> do
-      mat <- H.askMatrix
-
-      H.addCommand H.DrawCommand
-        { modelMat = mat
-        , mesh = H.Buffered mesh'
-        , color
-        , drawType = H.Static $ H.StaticMesh tex' (V2 1 1)
-        , lit
-        , castsShadow
-        , blend
-        , ident = Just objId
-        , specularity
-        }
 
 editorOverlayView :: (ResourcesMonad m, CommandMonad m) => Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView scrSize cs cursorLoc selected mode = do

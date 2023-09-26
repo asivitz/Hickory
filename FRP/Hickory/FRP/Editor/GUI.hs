@@ -55,13 +55,6 @@ drawObjectEditorUI componentDefs EditorState {..} objects = do
       void $ dragFloat3 "Position" posRef 1 1 1
       void $ dragFloat3 "Scale" scaRef 1 1 1
       void $ dragFloat3 "Rotation" rotRef 1 1 1
-    void $ colorEdit4 "Color" colorRef
-    void $ inputText "Model" modelRef 100
-    void $ inputText "Texture" textureRef 100
-    void $ checkbox "Lit" litRef
-    void $ checkbox "Casts Shadow" castsShadowRef
-    void $ checkbox "Blend" blendRef
-    void $ dragFloat "Specularity" specularityRef 1 0 1000
 
     readIORef componentsRef >>= traverse_ \comp ->
       withCollapsingHeaderOpen (pack comp) zeroBits do
@@ -83,6 +76,7 @@ drawObjectEditorUI componentDefs EditorState {..} objects = do
                 BoolAttribute   -> void $ checkbox (pack attrName) ref
                 V3Attribute     -> void $ dragFloat3 (pack attrName) ref 1 1 1
                 V2Attribute     -> void $ dragFloat2 (pack attrName) ref 1 1 1
+                ColorAttribute  -> void $ colorEdit4 (pack attrName) ref
               Nothing -> error "Attribute types don't match"
 
     withComboOpen "AddComponent" "Select" do

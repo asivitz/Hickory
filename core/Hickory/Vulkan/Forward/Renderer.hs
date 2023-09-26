@@ -119,6 +119,20 @@ withAllStageMaterialFromRenderer
   -> Acquire (AllStageMaterial uniform)
 withAllStageMaterialFromRenderer vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
 
+withStandardStaticMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial StaticConstants)
+withStandardStaticMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+  pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] (Just imageSetLayout)
+  staticLitVertShader staticLitFragShader
+  staticVertShader whiteFragShader
+  OP.staticObjectIDVertShader OP.objectIDFragShader
+
+withStandardAnimatedMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial AnimatedConstants)
+withStandardAnimatedMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+  pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] (Just imageSetLayout)
+  animatedLitVertShader animatedLitFragShader
+  animatedVertShader whiteFragShader
+  OP.animatedObjectIDVertShader OP.objectIDFragShader
+
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
   shadowRenderTarget       <- withShadowRenderTarget vulkanResources
@@ -176,17 +190,6 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   objectPickingImageBuffer <- withImageBuffer vulkanResources pickingRenderTarget 0
 
   let renderTargets = ForwardRenderTargets {..}
-
-  static <- withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
-    pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] (Just imageSetLayout)
-      staticLitVertShader staticLitFragShader
-      staticVertShader whiteFragShader
-      OP.staticObjectIDVertShader OP.objectIDFragShader
-  animated <- withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
-    pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] (Just imageSetLayout)
-      animatedLitVertShader animatedLitFragShader
-      animatedVertShader whiteFragShader
-      OP.animatedObjectIDVertShader OP.objectIDFragShader
 
   pure Renderer {..}
 
