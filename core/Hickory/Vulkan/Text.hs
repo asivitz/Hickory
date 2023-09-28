@@ -73,10 +73,10 @@ void main() {
 |])
 
 withMSDFMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader msdfFragShader globalPds (Just perDrawLayout )
-  where
-  vertShader :: ByteString
-  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults msdfVertShader msdfFragShader globalPds (Just perDrawLayout )
+
+msdfVertShader :: ByteString
+msdfVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
 
   layout(location = 0) in vec3 inPosition;

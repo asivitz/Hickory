@@ -113,7 +113,6 @@ data CustomDrawCommand = forall uniform. CustomDrawCommand
   , doCastShadow    :: Bool
   , hasIdent        :: Maybe Int
   , cull            :: Bool
-  , stage           :: Stage
   }
 
 data Stage
@@ -181,6 +180,7 @@ data AllStageMaterial uniform = AllStageMaterial
   , shadowMaterial           :: Material Word32
   , objectIDMaterial         :: Material Word32
   , showSelectionMaterial    :: Material Word32
+  , overlayMaterial          :: Maybe (Material Word32)
   , descriptor               :: FramedResource (BufferDescriptorSet uniform)
   , uniformSize              :: Int -- Bytes
   , uuid                     :: UUID
