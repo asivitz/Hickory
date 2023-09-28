@@ -94,7 +94,7 @@ withDescriptorSet vulkanResources@VulkanResources{..} specs = do
     { maxSets   = 1
       -- Needed for dynamic descriptor array sizing (e.g. global texture array)
     -- , flags     = DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT
-    , poolSizes = V.fromList $ bindings' & map (\g -> DescriptorPoolSize (head g) (fromIntegral $ length g)) . group . sort . map descriptorType
+    , poolSizes = V.fromList $ bindings' <&> \DescriptorSetLayoutBinding {..} -> DescriptorPoolSize descriptorType descriptorCount
     }
     Nothing
     mkAcquire
@@ -112,7 +112,7 @@ withDescriptorSet vulkanResources@VulkanResources{..} specs = do
           , Writes.dstBinding      = i
           , Writes.dstArrayElement = 0
           , Writes.descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-          , Writes.descriptorCount = 1
+          , Writes.descriptorCount = fromIntegral $ length images
           , Writes.imageInfo       = V.fromList $ images <&> \(ViewableImage _image imageView _format, sampler) -> zero
             { sampler     = sampler
             , imageView   = imageView

@@ -738,7 +738,7 @@ processCustomCommandGroups fc stage grouped = do
               World -> material.worldMaterial
               ShadowMap -> material.shadowMaterial
               Picking -> material.objectIDMaterial
-              Overlay -> error "Overlay not supported yet"
+              Overlay -> material.worldMaterial
               ShowSelection -> material.showSelectionMaterial
         cmdBindMaterial fc theMat
         for_ group \(i, CustomDrawCommand {mesh, descriptorSet, instanceCount}) -> do
@@ -758,7 +758,7 @@ processCustomCommandUngrouped fc stage commands = do
             World -> material.worldMaterial
             ShadowMap -> material.shadowMaterial
             Picking -> material.objectIDMaterial
-            Overlay -> error "Overlay not supported yet"
+            Overlay -> material.worldMaterial
             ShowSelection -> material.showSelectionMaterial
       bindMaterialIfNeeded fc theMat
       renderCommand fc theMat mesh instanceCount descriptorSet (fromIntegral i)

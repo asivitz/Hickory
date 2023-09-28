@@ -31,6 +31,7 @@ import Data.Kind (Type)
 import Hickory.FRP.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, imVec4ToV4, v4ToImVec4)
 import Data.Hashable (Hashable)
 import Hickory.Vulkan.Types (VulkanResources)
+import Data.Proxy (Proxy)
 
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
@@ -250,6 +251,9 @@ mkComponent7 arg1 arg2 arg3 arg4 arg5 arg6 arg7 acquire f = Component
                             withAttrVal attrs arg5 \v5 ->
                             withAttrVal attrs arg6 \v6 ->
                             withAttrVal attrs arg7 \v7 -> f v1 v2 v3 v4 v5 v6 v7 state objId
+
+mkSomeAttr :: forall a. Attr a => Proxy a -> String -> SomeAttribute (Const String)
+mkSomeAttr _ name = SomeAttribute (mkAttr :: Attribute a) (Const name)
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case

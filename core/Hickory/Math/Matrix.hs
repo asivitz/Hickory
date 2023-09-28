@@ -15,6 +15,7 @@ module Hickory.Math.Matrix
   , prettyPrint
   , MakeMat44(..)
   , transformV3
+  , orthoNormalBasis
   ) where
 
 import Linear.Vector
