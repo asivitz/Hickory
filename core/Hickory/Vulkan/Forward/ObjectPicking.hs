@@ -151,6 +151,18 @@ void main() { $staticVertCalc }
 
 |])
 
+staticObjectIDFragShader :: ByteString
+staticObjectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
+$staticUniformsDef
+
+layout(location = 0) out uint outColor;
+
+void main() {
+  outColor = uniforms.objectID;
+}
+|])
+
 animatedObjectIDVertShader :: ByteString
 animatedObjectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $vertHeader
@@ -175,6 +187,18 @@ void main()
 
     gl_Position = globals.viewProjMat
                 * worldPosition;
+}
+|])
+
+animatedObjectIDFragShader :: ByteString
+animatedObjectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
+$animatedUniformsDef
+
+layout(location = 0) out uint outColor;
+
+void main() {
+  outColor = uniforms.objectID;
 }
 |])
 

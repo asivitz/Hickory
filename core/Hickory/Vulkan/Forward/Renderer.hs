@@ -132,7 +132,7 @@ withStandardStaticMaterial vulkanResources Renderer {..} = withAllStageMaterial 
   pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] (Just imageSetLayout)
   staticLitVertShader staticLitFragShader
   staticVertShader whiteFragShader
-  OP.staticObjectIDVertShader OP.objectIDFragShader
+  OP.staticObjectIDVertShader OP.staticObjectIDFragShader
   Nothing Nothing
 
 withStandardStaticUnlitMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial StaticConstants)
@@ -140,7 +140,7 @@ withStandardStaticUnlitMaterial vulkanResources Renderer {..} = withAllStageMate
   pipelineDefaults [HVT.Position, HVT.TextureCoord] (Just imageSetLayout)
   staticUnlitVertShader unlitFragShader
   staticVertShader whiteFragShader
-  OP.staticObjectIDVertShader OP.objectIDFragShader
+  OP.staticObjectIDVertShader OP.staticObjectIDFragShader
   (Just overlayVertShader) (Just unlitFragShader)
 
 withStandardAnimatedMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial AnimatedConstants)
@@ -148,7 +148,7 @@ withStandardAnimatedMaterial vulkanResources Renderer {..} = withAllStageMateria
   pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] (Just imageSetLayout)
   animatedLitVertShader animatedLitFragShader
   animatedVertShader whiteFragShader
-  OP.animatedObjectIDVertShader OP.objectIDFragShader
+  OP.animatedObjectIDVertShader OP.animatedObjectIDFragShader
   Nothing Nothing
 
 withStandardMSDFMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial MSDFMatConstants)
