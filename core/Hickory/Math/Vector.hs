@@ -28,6 +28,7 @@ module Hickory.Math.Vector
   , rlerpClamp
   , angleMinusClockwise
   , angleMinus
+  , v2ortho
   ) where
 
 import Linear.V2
@@ -166,3 +167,6 @@ angleMinusClockwise a b = negate $ (if a > b then a - 2 * pi else a) - b
 -- Difference in angle, given a is clockwise from b
 angleMinus :: (Ord a, Floating a) => a -> a -> a
 angleMinus a b = (if a < b then a + 2 * pi else a) - b
+
+v2ortho :: Num a => V2 a -> V2 a
+v2ortho (V2 x y) = V2 y (-x)
