@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric #-}
--- {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
@@ -10,13 +9,13 @@ module Hickory.Text.ParseJson where
 import Hickory.Math (Scalar)
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import Data.Aeson.Deriving (GenericEncoded(..), FieldLabelModifier, type (:=), ConstructorTagModifier)
-import Data.Aeson.Deriving.Generic (DropSuffix, Lowercase)
+import Deriving.Aeson
 import Data.Aeson (FromJSON, ToJSON, eitherDecode)
 import Data.ByteString.Lazy (ByteString)
 import Linear (V2 (..))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Functor ((<&>))
+import Data.Char (toLower)
 
 -- Format from: https://github.com/Chlumsky/msdf-atlas-gen
 {-
@@ -63,10 +62,10 @@ import Data.Functor ((<&>))
 }
 -}
 
-type Encoding = GenericEncoded
-  '[ FieldLabelModifier := DropSuffix "_"
-   , ConstructorTagModifier := Lowercase
-   ]
+data ToLower
+instance StringModifier ToLower where
+  getStringModifier "" = ""
+  getStringModifier (c : xs) = toLower c : xs
 
 data MSDFFont = MSDFFont
   { atlas   :: Atlas
@@ -74,7 +73,8 @@ data MSDFFont = MSDFFont
   , glyphs  :: [Glyph]
   , kerning :: [KerningPair]
   } deriving stock Generic
-    deriving (FromJSON, ToJSON) via Encoding MSDFFont
+    deriving (FromJSON, ToJSON)
+    via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] MSDFFont
 
 data Atlas = Atlas
   { type_         :: Text
@@ -84,11 +84,13 @@ data Atlas = Atlas
   , height        :: Int
   , yOrigin       :: YOrigin
   } deriving stock (Generic)
-    deriving (FromJSON, ToJSON) via Encoding Atlas
+    deriving (FromJSON, ToJSON)
+    via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] Atlas
 
 data YOrigin = Bottom | Top
   deriving stock (Generic)
-  deriving (FromJSON, ToJSON) via Encoding YOrigin
+  deriving (FromJSON, ToJSON)
+  via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] YOrigin
 
 data Metrics = Metrics
   { emSize             :: Scalar
@@ -98,7 +100,8 @@ data Metrics = Metrics
   , underlineY         :: Scalar
   , underlineThickness :: Scalar
   } deriving stock Generic
-    deriving (FromJSON, ToJSON) via Encoding Metrics
+    deriving (FromJSON, ToJSON)
+    via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] Metrics
 
 data Glyph = Glyph
   { unicode     :: Int
@@ -106,14 +109,16 @@ data Glyph = Glyph
   , planeBounds :: Maybe Bounds -- World coordinates relative to cursor
   , atlasBounds :: Maybe Bounds -- Position within the texture atlas
   } deriving stock Generic
-    deriving (FromJSON, ToJSON) via Encoding Glyph
+    deriving (FromJSON, ToJSON)
+    via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] Glyph
 
 data KerningPair = KerningPair
   { unicode1 :: Int
   , unicode2 :: Int
   , advance  :: Scalar
   } deriving stock Generic
-    deriving (FromJSON, ToJSON) via Encoding KerningPair
+    deriving (FromJSON, ToJSON)
+    via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] KerningPair
 
 data Bounds = Bounds
   { left   :: Scalar
@@ -121,7 +126,8 @@ data Bounds = Bounds
   , right  :: Scalar
   , top    :: Scalar
   } deriving stock Generic
-    deriving (FromJSON, ToJSON) via Encoding Bounds
+    deriving (FromJSON, ToJSON)
+    via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] Bounds
 
 data Font = Font
   { atlas      :: Atlas

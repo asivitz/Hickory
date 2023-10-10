@@ -37,7 +37,7 @@ dependencies:
     - acquire
     - attoparsec
     - aeson
-    - aeson-deriving
+    - deriving-aeson
     - base
     - binary
     - bytestring
