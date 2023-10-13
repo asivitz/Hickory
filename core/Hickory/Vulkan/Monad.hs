@@ -179,19 +179,19 @@ textMesh font tc = Mesh { indices = Just (SV.fromList indices)
   minPosition = foldl1' (liftI2 min) posVecs
   maxPosition = foldl1' (liftI2 max) posVecs
 
-cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Mesh -> Word32 -> Buffer -> Word32 -> Word64 -> Maybe Buffer -> m ()
-cmdDrawBufferedMesh commandBuffer Material {..} mesh vertexOffset vertexBuffer instanceCount indexOffset mIndexBuffer = do
-  let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) vertexOffset (sortOn (attrLocation . fst) (vertices mesh))
-      bindOffsets = V.fromList $ attributes <&> \a -> fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in mesh")
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Word32 -> [(Attribute, Word32)] -> Buffer -> Word32 -> Maybe Word32 -> Word32 -> Word64 -> Maybe Buffer -> m ()
+cmdDrawBufferedMesh commandBuffer Material {..} (fromIntegral -> vertexOffset) meshOffsets vertexBuffer instanceCount mNumIndices numVertices indexOffset mIndexBuffer = do
+  let
+      bindOffsets = V.fromList $ attributes <&> \a -> (+vertexOffset) . fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in mesh")
                                                     $ Prelude.lookup a meshOffsets
       vertexBuffers = V.fromList $ vertexBuffer <$ attributes
 
   cmdBindVertexBuffers commandBuffer 0 vertexBuffers bindOffsets
 
-  case (indices mesh, mIndexBuffer) of
-    (Just is, Just ibuf) -> do
+  case (mNumIndices, mIndexBuffer) of
+    (Just n, Just ibuf) -> do
       cmdBindIndexBuffer commandBuffer ibuf indexOffset INDEX_TYPE_UINT32
-      cmdDrawIndexed commandBuffer (fromIntegral . SV.length $ is) instanceCount 0 0 0
+      cmdDrawIndexed commandBuffer n instanceCount 0 0 0
     (Nothing, Nothing) -> do
-      cmdDraw commandBuffer (fromIntegral $ numVerts mesh) instanceCount 0 0
+      cmdDraw commandBuffer numVertices instanceCount 0 0
     _ -> error "Mesh has indices but they aren't buffered."

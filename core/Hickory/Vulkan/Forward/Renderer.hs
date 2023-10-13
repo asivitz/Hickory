@@ -16,14 +16,14 @@ import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRendere
 import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderTarget, withStaticLitMaterial, withLineMaterial, withPointMaterial, withOverlayMaterial, staticLitVertShader, staticLitFragShader, animatedLitVertShader, animatedLitFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderTarget, withStaticShadowMaterial, staticVertShader, whiteFragShader, animatedVertShader)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderTarget, useRenderTarget)
-import Hickory.Vulkan.Mesh (vsizeOf)
+import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout)
 import Foreign (Storable, plusPtr, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults)
-import Data.List (partition, sortOn)
+import Data.List (partition, sortOn, mapAccumL)
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
@@ -56,6 +56,7 @@ import Data.ByteString (ByteString)
 import Data.Proxy (Proxy)
 import Data.UUID.V4 (nextRandom)
 import Control.Arrow ((&&&))
+import qualified Data.Vector.Storable as SV
 
 withRendererMaterial
   :: VulkanResources
@@ -373,11 +374,9 @@ lightProjection viewProjMat lightView shadowMapExtent = orthographicProjection l
 boundingSphere :: CustomDrawCommand -> (V3 Float, Float)
 boundingSphere CustomDrawCommand {..} = (center, norm (max' - center))
   where
-  Mesh {..} = case mesh of
-    Dynamic m -> m
-    Buffered m -> m.mesh
-  min' = transformV3 modelMat minPosition
-  max' = transformV3 modelMat maxPosition
+  (min', max') = case mesh of
+    Dynamic  m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
+    Buffered m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
   center = glerp 0.5 min' max'
 
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
@@ -559,7 +558,7 @@ renderCommand FrameContext {..} material mesh instanceCount drawDS uniformIdx = 
   when (hasPerDrawDescriptorSet material) do
     for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
   case mesh of
-    Buffered BufferedMesh {mesh = mesh', ..} -> cmdDrawBufferedMesh commandBuffer material mesh' 0 vertexBuffer instanceCount 0 indexBuffer
+    Buffered BufferedMesh {..} -> cmdDrawBufferedMesh commandBuffer material 0 meshOffsets vertexBuffer instanceCount numIndices numVertices 0 indexBuffer
     Dynamic dyn -> do
       meshes <- getMeshes
       addMesh dyn
@@ -567,9 +566,12 @@ renderCommand FrameContext {..} material mesh instanceCount drawDS uniformIdx = 
       -- This is O(n)... Might want to cache this
       let vertexSizeThusFar = sum $ map (sum . map (vsizeOf . snd) . vertices) meshes
           indexSizeThusFar  = sum $ map (maybe 0 vsizeOf . indices) meshes
+          numVertices = fromIntegral $ numVerts dyn
+          numIndices = fromIntegral . SV.length <$> dyn.indices
+          meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) 0 (sortOn (attrLocation . fst) dyn.vertices)
 
       DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
-      cmdDrawBufferedMesh commandBuffer material dyn vertexSizeThusFar vertexBuffer instanceCount (fromIntegral indexSizeThusFar) (Just indexBuffer)
+      cmdDrawBufferedMesh commandBuffer material vertexSizeThusFar meshOffsets vertexBuffer instanceCount numIndices numVertices (fromIntegral indexSizeThusFar) (Just indexBuffer)
 
 uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial a -> [a] -> m ()
 uploadUniformsBuffer FrameContext {..} BufferedUniformMaterial {..} uniforms = do

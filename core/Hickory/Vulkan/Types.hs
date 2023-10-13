@@ -93,9 +93,13 @@ data Mesh = Mesh
   } deriving (Generic, Show)
 
 data BufferedMesh = BufferedMesh
-  { mesh         :: Mesh
-  , vertexBuffer :: Buffer
+  { vertexBuffer :: Buffer
   , indexBuffer  :: Maybe Buffer
+  , meshOffsets  :: [(Attribute, Word32)]
+  , numIndices   :: Maybe Word32
+  , numVertices  :: Word32
+  , minPosition  :: V3 Float
+  , maxPosition  :: V3 Float
   } deriving Generic
 
 data RenderTarget = RenderTarget

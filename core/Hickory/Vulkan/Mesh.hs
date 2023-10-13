@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE DuplicateRecordFields  #-}
+{-# LANGUAGE OverloadedRecordDot  #-}
 {-# LANGUAGE DataKinds, PatternSynonyms  #-}
-{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module Hickory.Vulkan.Mesh where
 
@@ -23,7 +23,7 @@ import Control.Exception (bracket)
 import Foreign.Marshal.Array (copyArray)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Data.List (sortOn, find, foldl1')
+import Data.List (sortOn, find, foldl1', mapAccumL)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (Mesh (..), Attribute (..), VulkanResources (..), DeviceContext (..), BufferedMesh (..))
 import Data.Text (Text)
@@ -98,6 +98,9 @@ withBufferedMesh :: VulkanResources -> Mesh -> Acquire BufferedMesh
 withBufferedMesh bag mesh@Mesh {..} = do
   vertexBuffer <- withVertexBuffer bag (pack mesh)
   indexBuffer  <- traverse (withIndexBuffer bag) indices
+  let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) 0 (sortOn (attrLocation . fst) mesh.vertices)
+      numIndices = fromIntegral . SV.length <$> mesh.indices
+      numVertices = fromIntegral $ numVerts mesh
   pure BufferedMesh {..}
 
 morphMesh :: Mesh -> [(Text, Float)] -> Mesh

@@ -24,7 +24,7 @@ extra-deps:
 - acquire-0.2.0.1
 # - dear-imgui-2.1.0
 - git: https://github.com/asivitz/dear-imgui.hs.git
-  commit: e70d6a9e1353433983e2369ae3aeba526eaaa6bd
+  commit: 38248c2848cdec1699adc21de8daa313bcabe59b
 - git: https://github.com/fieldstrength/aeson-deriving.git
   commit: e6e1f5066ebf1f37c10687e9bc90e5b0d3b22b0c
 
