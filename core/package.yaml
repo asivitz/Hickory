@@ -68,6 +68,7 @@ dependencies:
     - directory
     - bitwise-enum
     - safe
+    - ghc-compact
 
 when:
     - condition: os(osx)

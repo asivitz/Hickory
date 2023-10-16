@@ -32,6 +32,7 @@ import qualified Data.Vector as V
 import Control.Monad.Reader (ReaderT (..), MonadTrans, mapReaderT, lift)
 import Control.Monad.Writer.Class (MonadWriter (..))
 import Data.Dynamic (Dynamic, Typeable, fromDynamic, toDyn)
+import GHC.Compact (compact, getCompact)
 
 type ResourceStore a = IORef (Map.HashMap String (a, IO ()))
 
@@ -46,10 +47,11 @@ cleanupStore ref = do
 loadResource :: ResourceStore a -> String -> Acquire (Maybe a) -> IO (IO ())
 loadResource ref k f = do
   unWrapAcquire f >>= \case
-    (Just res, cleanup) ->
+    (Just res, cleanup) -> do
+      comp <- getCompact <$> compact res
       atomicModifyIORef' ref \m -> case Map.lookup k m of
-        Just (_, cleanupOld) -> (Map.insert k (res, cleanup) m, cleanupOld)
-        Nothing              -> (Map.insert k (res, cleanup) m, pure ())
+        Just (_, cleanupOld) -> (Map.insert k (comp, cleanup) m, cleanupOld)
+        Nothing              -> (Map.insert k (comp, cleanup) m, pure ())
     (Nothing, cleanup) -> modifyIORef' ref (Map.delete k) >> cleanup >> pure (pure ())
 
 loadResourceNoReplace :: ResourceStore a -> String -> Acquire (Maybe a) -> IO ()
@@ -57,10 +59,11 @@ loadResourceNoReplace ref k f = do
   temp <- readIORef ref
   unless (Map.member k temp) do
     join $ unWrapAcquire f >>= \case
-      (Just res, cleanup) ->
+      (Just res, cleanup) -> do
+        comp <- getCompact <$> compact res
         atomicModifyIORef' ref \m -> case Map.lookup k m of
           Just (_, _cleanupOld) -> error "Resource map should not have resource"
-          Nothing               -> (Map.insert k (res, cleanup) m, pure ())
+          Nothing               -> (Map.insert k (comp, cleanup) m, pure ())
       (Nothing, cleanup) -> pure cleanup
 
 loadResource' :: ResourceStore a -> String -> Acquire a -> IO (IO ())
