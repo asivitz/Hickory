@@ -14,6 +14,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TypeApplications #-}
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, liftIO )
@@ -55,7 +56,6 @@ import Data.Maybe (fromMaybe)
 import Data.Functor ((<&>))
 import Ki
 import qualified Data.Enum.Set as E
-import GHC.Conc (atomically)
 import GHC.Compact (compact, getCompact)
 import qualified Data.Map.Strict as HashMap
 
@@ -196,35 +196,8 @@ moveKeyVec key = case key of
 physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/20
 
-{-
--- Build the FRP network
-runFrame :: Resources -> H.VulkanResources -> H.Renderer -> H.FrameContext -> InputFrame -> IO ()
-runFrame vulkanResources evGens renderer frameContext inputFrame = do
-  -- Input state
-  let moveDir = fmap sum (traverse (\k -> bool zero (moveKeyVec k) <$> keyHeldB coreEvents k) ([ Key'Up, Key'Down, Key'Left, Key'Right ] :: [Key]))
-
-  -- Input events
-  let inputs = unionAll
-        [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
-        ]
-
-  -- Run the game network
-  (mdl, _, _) <- gameNetwork
-    physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
-    Key'Escape -- Key to pause game for debugging
-    coreEvents
-    newGame -- Initial game state
-    B.never -- Event to load a game state
-    inputs -- Event containing inputs. Gathered every step interval and passed to step function.
-    (stepF <$> moveDir) -- Game state step function
-    B.never
-
-  -- every time we get a 'render' event tick, draw the screen
-  B.reactimate
-  -}
-
-moveDir :: InputFrame -> Vec
-moveDir InputFrame {..} = sum
+mkMoveDir :: InputFrame -> Vec
+mkMoveDir InputFrame {..} = sum
   (([ Key'Up, Key'Down, Key'Left, Key'Right ] <&> \k -> if E.member k heldKeys || E.member k pressedKeys then moveKeyVec k else zero) :: [Vec])
 
 main :: IO ()
@@ -248,11 +221,11 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
                 then (cur, Left timeRemaining)
                 else (mempty { heldKeys = cur.heldKeys }, Right cur { delta = physicsTimeStep })
           case batched of
-            Left timeRemaining -> threadDelay (ceiling $ realToFrac timeRemaining * 1000000)
+            Left timeRemaining -> threadDelay (ceiling @Double $ realToFrac timeRemaining * 1000000)
             Right inputFrame -> do
               lastState <- readIORef stateRef <&> fromMaybe (error "No game states available") . S.lookup 0
               let msgs = [ Fire | E.member Key'Space inputFrame.pressedKeys ]
-              newState <- fmap getCompact . compact . fst $ stepF (moveDir inputFrame) (inputFrame.delta, msgs) lastState
+              newState <- fmap getCompact . compact . fst $ stepF (mkMoveDir inputFrame) (inputFrame.delta, msgs) lastState
               modifyIORef' stateRef (\s -> S.take 500 $ newState S.<| s)
 
       GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
