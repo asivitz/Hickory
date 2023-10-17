@@ -4,7 +4,6 @@
  -}
 
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE BlockArguments #-}
@@ -14,24 +13,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
-import Hickory.FRP.CoreEvents (mkCoreEvents, CoreEvents(..), CoreEventGenerators)
-import Hickory.FRP.Game (gameNetwork)
 import Hickory.FRP.UI (topLeft)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..))
 import Hickory.Types
 import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero)
 import Linear.Metric
-import Platforms.GLFW.FRP (glfwCoreEventGenerators)
-import Reactive.Banana ((<@>))
 import qualified Graphics.UI.GLFW as GLFW
-import qualified Reactive.Banana as B
-import qualified Reactive.Banana.Frameworks as B
 import Acquire.Acquire (Acquire)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
@@ -53,9 +47,17 @@ import Hickory.Math.Vector (Scalar)
 import Hickory.Color (white, red)
 import Hickory.Vulkan.Forward.Types (OverlayGlobals(..), DrawCommand (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
-import Hickory.FRP.Combinators (unionAll)
-import Data.Bool (bool)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource, runResources)
+import Platforms.GLFW.Bridge (glfwFrameBuilder, getWindowSizeRef)
+import Data.IORef (readIORef, IORef, newIORef, modifyIORef', atomicModifyIORef')
+import qualified Data.Sequence as S
+import Data.Maybe (fromMaybe)
+import Data.Functor ((<&>))
+import Ki
+import qualified Data.Enum.Set as E
+import GHC.Conc (atomically)
+import GHC.Compact (compact, getCompact)
+import qualified Data.Map.Strict as HashMap
 
 -- ** GAMEPLAY **
 
@@ -65,12 +67,16 @@ type Vec = V2 Scalar
 data Model = Model
   { playerPos :: Vec
   , playerDir :: Vec
-  , missiles  :: [(Vec, Vec)]
+  , missiles  :: HashMap.Map Int (Vec, Vec)
+  , nFired    :: Int
   }
 
 instance Interpolatable Model where
-  glerp fr a b = (if fr > 0.5 then b else a)
-    { playerPos = glerp fr (playerPos a) (playerPos b)
+  glerp fr a b =
+    b
+    { playerPos = glerp fr a.playerPos b.playerPos
+    , playerDir = glerp fr a.playerDir b.playerDir
+    , missiles  = HashMap.differenceWith (\y x -> Just $ glerp fr x y) b.missiles a.missiles
     }
 
 -- Input messages
@@ -78,7 +84,7 @@ data Msg = Fire
 
 -- By default, our firingDirection is to the right
 newGame :: Model
-newGame = Model (V2 0 0) (V2 0 0) []
+newGame = Model (V2 0 0) (V2 0 0) mempty 0
 
 -- Move our game state forward in time
 stepF :: Vec -> (NominalDiffTime, [Msg]) -> Model -> (Model, [()])
@@ -86,16 +92,16 @@ stepF moveDir (delta, msgs) mdl = (,[]) $ foldr stepMsg (physics delta moveDir m
 
 -- Process an input message
 stepMsg :: Msg -> Model -> Model
-stepMsg msg model@Model { playerPos, playerDir, missiles } = case msg of
-  Fire -> model { missiles = (playerPos, playerDir) : missiles }
+stepMsg msg model@Model { playerPos, playerDir, missiles, nFired } = case msg of
+  Fire -> model { nFired = nFired + 1, missiles = HashMap.insert nFired (playerPos, playerDir) missiles }
 
 -- Step the world forward by some small delta, using the input state
 physics :: NominalDiffTime -> Vec -> Model -> Model
 physics (realToFrac -> delta) movedir model@Model { .. } = model
   { playerPos = playerPos + (movedir ^* (delta * playerMovementSpeed))
   , playerDir = if vnull movedir then playerDir else movedir
-  , missiles = filter missileInBounds $
-      map (\(pos, dir) -> (pos + (dir ^* (delta * missileMovementSpeed)), dir)) missiles
+  , missiles = HashMap.filter missileInBounds $ flip HashMap.map missiles
+      (\(pos, dir) -> (pos + (dir ^* (delta * missileMovementSpeed)), dir))
   }
 
 -- Some gameplay constants
@@ -188,52 +194,80 @@ moveKeyVec key = case key of
   _ -> V2 0 0
 
 physicsTimeStep :: NominalDiffTime
-physicsTimeStep = 1/60
+physicsTimeStep = 1/20
 
+{-
 -- Build the FRP network
-buildNetwork :: H.VulkanResources -> CoreEventGenerators (H.Renderer, H.FrameContext) -> Acquire ()
-buildNetwork vulkanResources evGens = do
-  resStore <- loadResources "Example/Shooter/assets/" vulkanResources
-  res <- liftIO $ getResourcesStoreResources resStore
+runFrame :: Resources -> H.VulkanResources -> H.Renderer -> H.FrameContext -> InputFrame -> IO ()
+runFrame vulkanResources evGens renderer frameContext inputFrame = do
+  -- Input state
+  let moveDir = fmap sum (traverse (\k -> bool zero (moveKeyVec k) <$> keyHeldB coreEvents k) ([ Key'Up, Key'Down, Key'Left, Key'Right ] :: [Key]))
 
-  liftIO $ B.actuate <=< B.compile $ mdo
-    coreEvents <- mkCoreEvents evGens
+  -- Input events
+  let inputs = unionAll
+        [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
+        ]
 
-    -- Input state
-    let moveDir = fmap sum (traverse (\k -> bool zero (moveKeyVec k) <$> keyHeldB coreEvents k) ([ Key'Up, Key'Down, Key'Left, Key'Right ] :: [Key]))
+  -- Run the game network
+  (mdl, _, _) <- gameNetwork
+    physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
+    Key'Escape -- Key to pause game for debugging
+    coreEvents
+    newGame -- Initial game state
+    B.never -- Event to load a game state
+    inputs -- Event containing inputs. Gathered every step interval and passed to step function.
+    (stepF <$> moveDir) -- Game state step function
+    B.never
 
-    -- Input events
-    let inputs = unionAll
-          [ Fire <$ B.filterE (==Key'Space) (keyDown coreEvents)
-          ]
+  -- every time we get a 'render' event tick, draw the screen
+  B.reactimate
+  -}
 
-    -- Run the game network
-    (mdl, _, _) <- gameNetwork
-      physicsTimeStep -- Time interval for running the step function (may be less than rendering interval)
-      Key'Escape -- Key to pause game for debugging
-      coreEvents
-      newGame -- Initial game state
-      B.never -- Event to load a game state
-      inputs -- Event containing inputs. Gathered every step interval and passed to step function.
-      (stepF <$> moveDir) -- Game state step function
-      B.never
-
-    -- every time we get a 'render' event tick, draw the screen
-    B.reactimate
-      (renderGame res <$> (fmap realToFrac <$> scrSizeB coreEvents) <*> mdl <@> eRender coreEvents)
+moveDir :: InputFrame -> Vec
+moveDir InputFrame {..} = sum
+  (([ Key'Up, Key'Down, Key'Left, Key'Right ] <&> \k -> if E.member k heldKeys || E.member k pressedKeys then moveKeyVec k else zero) :: [Vec])
 
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
   vulkanResources <- initGLFWVulkan win
-  -- setup event generators for core input (keys, mouse clicks, and elapsed time, etc.)
-  (coreEvProc, evGens) <- liftIO $ glfwCoreEventGenerators win
+  resStore <- loadResources "Example/Shooter/assets/" vulkanResources
+  liftIO do
+    frameBuilder <- glfwFrameBuilder win
+    res <- getResourcesStoreResources resStore
+    scrSizeRef <- getWindowSizeRef win
+    inputRef    :: IORef InputFrame <- newIORef mempty
+    stateRef    :: IORef (S.Seq Model) <- newIORef $ S.singleton newGame
+    stateIdxRef :: IORef Int <- newIORef 0
 
-  -- build and run the FRP network
-  buildNetwork vulkanResources evGens
+    Ki.scoped \scope -> do
+      _thr <- Ki.fork scope do
+        forever do
+          batched <- atomicModifyIORef' inputRef \cur ->
+            let timeRemaining = physicsTimeStep - cur.delta
+            in if timeRemaining > 0
+                then (cur, Left timeRemaining)
+                else (mempty { heldKeys = cur.heldKeys }, Right cur { delta = physicsTimeStep })
+          case batched of
+            Left timeRemaining -> threadDelay (ceiling $ realToFrac timeRemaining * 1000000)
+            Right inputFrame -> do
+              lastState <- readIORef stateRef <&> fromMaybe (error "No game states available") . S.lookup 0
+              let msgs = [ Fire | E.member Key'Space inputFrame.pressedKeys ]
+              newState <- fmap getCompact . compact . fst $ stepF (moveDir inputFrame) (inputFrame.delta, msgs) lastState
+              modifyIORef' stateRef (\s -> S.take 500 $ newState S.<| s)
 
-  liftIO $ GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
-    coreEvProc (renderer, frameContext)
+      GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
+        inputFrame <- frameBuilder
+        modifyIORef' inputRef (inputFrame<>)
+        curInputFrame <- readIORef inputRef
 
-    focused <- GLFW.getWindowFocused win
-    -- don't consume CPU when the window isn't focused
-    unless focused (threadDelay 100000)
+        scrSize <- readIORef scrSizeRef
+        mdl <- ((,) <$> readIORef stateRef <*> readIORef stateIdxRef) <&> \(gameSeq, idx) ->
+          let idx' = min idx (S.length gameSeq - 2)
+          in case (,) <$> S.lookup idx' gameSeq <*> S.lookup (idx'+1) gameSeq of
+              Just (to, from) -> glerp (realToFrac $ curInputFrame.delta / physicsTimeStep) from to
+              Nothing -> fromMaybe (error "No game states available") $ S.lookup 0 gameSeq
+        renderGame res (realToFrac <$> scrSize) mdl (renderer, frameContext)
+
+        focused <- GLFW.getWindowFocused win
+        -- don't consume CPU when the window isn't focused
+        unless focused (threadDelay 100000)

@@ -191,3 +191,72 @@ glfwTouchIdent button = case button of
 
 touchPosToScreenPos :: (Double, Double) -> V2 Scalar
 touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
+
+glfwFrameBuilder :: GLFW.Window -> IO (IO InputFrame)
+glfwFrameBuilder win = do
+  builder <- inputFrameBuilder
+
+  initialGamepads <- getCurrentGamePads
+
+  indat <- InputData
+    <$> newIORef mempty
+    <*> newIORef mempty
+    <*> newIORef initialGamepads
+
+  inputsRef <- newIORef []
+
+  let addInput i = atomicModifyIORef' inputsRef \is -> (i:is, ())
+  GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback indat addInput)
+  GLFW.setKeyCallback win $ Just (keyCallback indat addInput)
+  GLFW.setJoystickCallback $ Just (joystickCallback indat addInput)
+
+  pure do
+    touches <- readIORef indat.touches
+    GLFW.pollEvents
+    curPos <- GLFW.getCursorPos win
+    let curloc = touchPosToScreenPos curPos
+        ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
+    addInput $ InputTouchesLoc [(curloc,ident)]
+
+    newGamePads <- (HashMap.toList <$> readIORef indat.gamepads) >>= traverse \(toEnum -> js, _gs) -> do
+      GLFW.getGamepadState js >>= \case
+        Just gsNew -> do
+          let GLFW.GamepadState getButtonState getAxisState = gsNew
+              gp = GamePad {..}
+              leftStick = V2 (getAxisState GLFW.GamepadAxis'LeftX)
+                            (getAxisState GLFW.GamepadAxis'LeftY)
+              rightStick = V2 (getAxisState GLFW.GamepadAxis'RightX)
+                              (getAxisState GLFW.GamepadAxis'RightY)
+              leftTrigger  = getAxisState GLFW.GamepadAxis'LeftTrigger
+              rightTrigger = getAxisState GLFW.GamepadAxis'RightTrigger
+
+              toButton = \case
+                GLFW.GamepadButtonState'Pressed  -> Pressed
+                GLFW.GamepadButtonState'Released -> Released
+              a = toButton $ getButtonState GLFW.GamepadButton'A
+              b = toButton $ getButtonState GLFW.GamepadButton'B
+              x = toButton $ getButtonState GLFW.GamepadButton'X
+              y = toButton $ getButtonState GLFW.GamepadButton'Y
+              leftBumper = toButton $ getButtonState GLFW.GamepadButton'LeftBumper
+              rightBumper = toButton $ getButtonState GLFW.GamepadButton'RightBumper
+              back = toButton $ getButtonState GLFW.GamepadButton'Back
+              start = toButton $ getButtonState GLFW.GamepadButton'Start
+              guide = toButton $ getButtonState GLFW.GamepadButton'Guide
+              leftThumb = toButton $ getButtonState GLFW.GamepadButton'LeftThumb
+              rightThumb = toButton $ getButtonState GLFW.GamepadButton'RightThumb
+              dpadUp = toButton $ getButtonState GLFW.GamepadButton'DpadUp
+              dpadRight = toButton $ getButtonState GLFW.GamepadButton'DpadRight
+              dpadDown = toButton $ getButtonState GLFW.GamepadButton'DpadDown
+              dpadLeft = toButton $ getButtonState GLFW.GamepadButton'DpadLeft
+              cross = toButton $ getButtonState GLFW.GamepadButton'Cross
+              circle = toButton $ getButtonState GLFW.GamepadButton'Circle
+              square = toButton $ getButtonState GLFW.GamepadButton'Square
+              triangle = toButton $ getButtonState GLFW.GamepadButton'Triangle
+
+          addInput $ InputGamePad (fromEnum js) gp
+
+          pure $ Just (fromEnum js, gsNew)
+
+        Nothing -> pure Nothing
+    writeIORef indat.gamepads (HashMap.fromList $ catMaybes newGamePads)
+    atomicModifyIORef' inputsRef (\is -> ([], reverse is)) >>= builder

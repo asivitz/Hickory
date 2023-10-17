@@ -1,7 +1,7 @@
 module Platforms.GLFW.FRP where
 
 import Hickory.FRP.CoreEvents (CoreEventGenerators, coreEventGenerators)
-import Hickory.Platform (makeTimePoller)
+import Hickory.Input (makeTimePoller)
 import Platforms.GLFW (getGLFWWindowSizeRef, makeGLFWInputPoller)
 import qualified Graphics.UI.GLFW as GLFW
 

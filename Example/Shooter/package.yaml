@@ -35,6 +35,9 @@ dependencies:
     - extra
     - derive-storable
     - acquire
+    - ki
+    - bitwise-enum
+    - ghc-compact
 
 default-extensions:
     - LambdaCase

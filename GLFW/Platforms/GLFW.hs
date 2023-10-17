@@ -2,7 +2,6 @@ module Platforms.GLFW where
 
 import Data.IORef (IORef)
 import Hickory.Input
-import Hickory.Platform
 import Hickory.Types (Size)
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Platforms.GLFW.Bridge as Bridge

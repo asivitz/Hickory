@@ -22,6 +22,7 @@ extra-deps:
 - VulkanMemoryAllocator-0.10.4
 - derive-storable-0.3.1.0
 - acquire-0.2.0.1
+- ki-1.0.1.1
 # - dear-imgui-2.1.0
 - git: https://github.com/asivitz/dear-imgui.hs.git
   commit: 38248c2848cdec1699adc21de8daa313bcabe59b

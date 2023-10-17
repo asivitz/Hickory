@@ -3,7 +3,7 @@
 
 module Hickory.Input where
 
-import Linear (V2(..))
+import Linear (V2(..), zero)
 import Hickory.Math.Vector
 import qualified Data.HashMap.Strict as HashMap
 import Data.Hashable
@@ -11,8 +11,18 @@ import GHC.Generics (Generic)
 import Control.Lens (over)
 import Data.Generics.Labels ()
 
-import Data.Enum.Set as E
+import qualified Data.Enum.Set as E
 import Data.Word (Word32)
+import Data.Time (NominalDiffTime, getCurrentTime, diffUTCTime)
+import Hickory.Types (Size)
+import Data.IORef (IORef, atomicModifyIORef, newIORef, atomicModifyIORef')
+import Data.Foldable (for_, foldl')
+import Data.Functor ((<&>))
+import Data.List (nubBy)
+import Data.Ord (comparing)
+import Data.Maybe (fromMaybe)
+import Data.Tuple (swap)
+import Data.WideWord.Word128 (Word128)
 
 type Point = (V2 Scalar, Int) -- Location, Ident
 
@@ -63,6 +73,33 @@ data GamePad = GamePad
   , triangle     :: ButtonState
   } deriving Show
 
+emptyGamePad :: GamePad
+emptyGamePad = GamePad {..}
+  where
+  leftStick = zero
+  rightStick = zero
+  leftTrigger = 0
+  rightTrigger = 0
+  a = Released
+  b = Released
+  x = Released
+  y = Released
+  leftBumper = Released
+  rightBumper = Released
+  back = Released
+  start = Released
+  guide = Released
+  leftThumb = Released
+  rightThumb = Released
+  dpadUp = Released
+  dpadDown = Released
+  dpadRight = Released
+  dpadLeft = Released
+  cross = Released
+  circle = Released
+  square = Released
+  triangle = Released
+
 data GamePadButton
   = A
   | B
@@ -91,7 +128,7 @@ data GamePadButton
   | RightStickRight
   | RightStickDown
   | RightStickLeft
-  deriving (Enum, Bounded, Eq)
+  deriving (Enum, Bounded, Eq, Show)
 
 gamePadButtonState :: GamePad -> GamePadButton -> ButtonState
 gamePadButtonState gp = \case
@@ -125,6 +162,9 @@ gamePadButtonState gp = \case
 
 instance E.AsEnumSet GamePadButton where
   type EnumSetRep GamePadButton = Word32
+
+instance E.AsEnumSet Key where
+  type EnumSetRep Key = Word128
 
 data Key =
     Key'Unknown
@@ -269,3 +309,106 @@ data TouchEventType
 
 mapTouchEvent :: (V2 Scalar -> V2 Scalar) -> TouchEvent -> TouchEvent
 mapTouchEvent = over #loc
+
+makeTimePoller :: IO (IO NominalDiffTime)
+makeTimePoller = do
+  initial_time <- getCurrentTime
+  time <- newIORef initial_time
+  pure do
+    new_time <- getCurrentTime
+    atomicModifyIORef time (\prev_time -> (new_time, min 0.1 (diffUTCTime new_time prev_time)))
+
+makeInputPoller :: ((RawInput -> IO ()) -> IO (IO ())) -> IO (IO [RawInput])
+makeInputPoller inputSetup = do
+  is <- newIORef []
+  stepInp <- inputSetup (addRawInput is)
+
+  pure do
+    stepInp
+    atomicModifyIORef is ([],)
+  where
+  addRawInput stream event = atomicModifyIORef stream (\evs -> (evs ++ [event], ()))
+
+data InputFrame = InputFrame
+  { delta              :: NominalDiffTime
+  , pressedKeys        :: E.EnumSet Key
+  , releasedKeys       :: E.EnumSet Key
+  , heldKeys           :: E.EnumSet Key
+  , touchesDown        :: [Point]
+  , touchesUp          :: [PointUp]
+  , touchesLoc         :: [Point]
+  , gamePadPressed     :: [(Int, E.EnumSet GamePadButton)]
+  , gamePadReleased    :: [(Int, E.EnumSet GamePadButton)]
+  , gamePad            :: [(Int, GamePad)] -- GamePad Index, GamePad
+  , gamePadConnections :: [(Int, Bool)]    -- GamePad Index, True == connected
+  }
+  deriving Show
+
+instance Semigroup InputFrame where
+  a <> b = InputFrame {..}
+    where
+    delta          = a.delta + b.delta
+    pressedKeys    = a.pressedKeys `E.union` b.pressedKeys
+    releasedKeys   = a.releasedKeys `E.union` b.releasedKeys
+    heldKeys       = (b.heldKeys `E.union` a.pressedKeys) E.\\ a.releasedKeys
+    touchesDown    = a.touchesDown <> b.touchesDown
+    touchesUp      = a.touchesUp   <> b.touchesUp
+    touchesLoc     = a.touchesLoc  <> b.touchesLoc
+    gamePadPressed     = a.gamePadPressed <> b.gamePadPressed
+    gamePadReleased    = a.gamePadReleased <> b.gamePadReleased
+    gamePad            = a.gamePad <> b.gamePad
+    gamePadConnections = a.gamePadConnections <> b.gamePadConnections
+
+instance Monoid InputFrame where
+  mempty = InputFrame {..}
+    where
+    delta = 0
+    pressedKeys = E.empty
+    releasedKeys = E.empty
+    heldKeys = E.empty
+    touchesDown = mempty
+    touchesUp = mempty
+    touchesLoc = mempty
+    gamePadPressed = mempty
+    gamePadReleased = mempty
+    gamePad = mempty
+    gamePadConnections = mempty
+
+inputFrameBuilder :: IO ([RawInput] -> IO InputFrame)
+inputFrameBuilder = do
+  timePoller     <- makeTimePoller
+  heldKeysRef    <- newIORef E.empty
+  -- heldTouchesRef <- newIORef mempty
+  gamepadsRef    <- newIORef mempty
+
+  pure $ \newInputs -> do
+    delta <- timePoller
+
+    let pressedKeys  = foldl' (flip E.insert) E.empty $ [k | InputKeyDown k <- newInputs]
+        releasedKeys = foldl' (flip E.insert) E.empty $ [k | InputKeyUp k _ <- newInputs]
+    heldKeys <- atomicModifyIORef' heldKeysRef \curKeys -> (\a -> (a,a)) $ E.union curKeys pressedKeys E.\\ releasedKeys
+
+    let gamePadConnections = [(i,b) | InputGamePadConnection i b <- newInputs]
+        newGamepadStates = [(i, gp) | InputGamePad i gp <- newInputs]
+    (gamePad, gamePadPressed, gamePadReleased) <- atomicModifyIORef' gamepadsRef \curGamePads ->
+      let newGamePad = nubBy (\a b -> fst a == fst b) $ newGamepadStates ++ curGamePads
+          states oldGp newGp = [minBound..maxBound] <&> \but -> (but, gamePadButtonState oldGp but, gamePadButtonState newGp but)
+          newPressed = newGamepadStates <&> \(i,newGP) ->
+            let oldGP = fromMaybe emptyGamePad $ lookup i curGamePads
+            in (i,) $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Released && new == Pressed
+          newReleased = newGamepadStates <&> \(i,newGP) ->
+            let oldGP = fromMaybe emptyGamePad $ lookup i curGamePads
+            in (i,) $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Pressed && new == Released
+      in (newGamePad, (newGamePad, newPressed, newReleased))
+
+    let touchesDown = [p | InputTouchesDown ps <- newInputs, p <- ps]
+        touchesUp   = [p | InputTouchesUp ps <- newInputs, p <- ps]
+        touchesLoc  = [p | InputTouchesLoc ps <- newInputs, p <- ps]
+    -- touchesLoc <- atomicModifyIORef' heldTouchesRef \curTouches ->
+    --   let newTouches =
+    --           flip (foldl' (\m PointUp {..} -> HashMap.delete ident m)) touchesUp
+    --         . flip (foldl' (\m (v,i) -> HashMap.insert i v m)) touchesDown
+    --         $ curTouches
+    --   in (newTouches, swap <$> HashMap.toList newTouches)
+
+    pure InputFrame {..}

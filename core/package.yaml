@@ -69,6 +69,7 @@ dependencies:
     - bitwise-enum
     - safe
     - ghc-compact
+    - wide-word
 
 when:
     - condition: os(osx)
@@ -111,7 +112,6 @@ library:
     - Hickory.ModelLoading.Parsing
     - Hickory.ModelLoading.Wavefront
     - Hickory.ModelLoading.Packed
-    - Hickory.Platform
     - Hickory.Resources
     - Hickory.Serialize
     # - Hickory.Text.ParseFnt
