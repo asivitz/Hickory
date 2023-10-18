@@ -36,6 +36,9 @@ dependencies:
   - extra
   - acquire
   - dear-imgui
+  - ki
+  - containers
+  - ghc-compact
 
 library:
   verbatim:
@@ -46,6 +49,7 @@ library:
     - Platforms.GLFW.FRP
     - Platforms.GLFW.Vulkan
     - Platforms.GLFW.DearImGui
+    - Platforms.GLFW.GameLoop
     - Platforms.GLFW
 
 executables:

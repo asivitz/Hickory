@@ -3,20 +3,12 @@
  - as well as shooting simple missiles with the SpaceBar.
  -}
 
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE TypeApplications #-}
 
-import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
@@ -24,9 +16,8 @@ import Hickory.FRP.UI (topLeft)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..))
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero, identity)
+import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero)
 import Linear.Metric
-import qualified Graphics.UI.GLFW as GLFW
 import Acquire.Acquire (Acquire)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
@@ -34,7 +25,6 @@ import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Forward.Types as H
 import qualified Hickory.Vulkan.Forward.Renderer as H
 
-import Control.Monad
 import Vulkan
   ( pattern FILTER_LINEAR
   , SamplerAddressMode(..)
@@ -49,15 +39,10 @@ import Hickory.Color (white, red)
 import Hickory.Vulkan.Forward.Types (OverlayGlobals(..), DrawCommand (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource, runResources)
-import Platforms.GLFW.Bridge (glfwFrameBuilder, getWindowSizeRef)
-import Data.IORef (readIORef, IORef, newIORef, modifyIORef', atomicModifyIORef', writeIORef)
-import qualified Data.Sequence as S
-import Data.Maybe (fromMaybe)
 import Data.Functor ((<&>))
-import Ki
 import qualified Data.Enum.Set as E
-import GHC.Compact (compact, getCompact)
 import qualified Data.Map.Strict as HashMap
+import Platforms.GLFW.GameLoop (gameLoop, pureGameScene)
 
 -- ** GAMEPLAY **
 
@@ -87,8 +72,12 @@ newGame :: Model
 newGame = Model (V2 0 0) (V2 0 0) mempty 0
 
 -- Move our game state forward in time
-stepF :: Vec -> (NominalDiffTime, [Msg]) -> Model -> (Model, [()])
-stepF moveDir (delta, msgs) mdl = (,[]) $ foldr stepMsg (physics delta moveDir mdl) msgs
+stepF :: InputFrame -> Model -> (Model, [()])
+stepF inputFrame mdl = (actionStep,[])
+  where
+  actionStep = foldr stepMsg simulationStep msgs
+  simulationStep = physics inputFrame.delta (mkMoveDir inputFrame) mdl
+  msgs = [ Fire | E.member Key'Space inputFrame.pressedKeys ]
 
 -- Process an input message
 stepMsg :: Msg -> Model -> Model
@@ -129,21 +118,6 @@ loadResources path vulkanResources = do
     loadFontResource vulkanResources resourcesStore (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
   pure resourcesStore
-
-nullRenderF :: MonadIO m => Size Scalar -> (H.Renderer, H.FrameContext) -> m ()
-nullRenderF _ (renderer, frameContext) = H.renderToRenderer frameContext renderer renderSettings (pure ()) (pure ())
-  where
-  renderSettings = H.RenderSettings
-    { worldSettings = H.worldSettingsDefaults
-    , overlayGlobals = OverlayGlobals
-      { viewMat = identity
-      , projMat = identity
-      , viewProjMat = identity
-      }
-    , postSettings = H.postDefaults
-    , clearColor = V4 0 0 0 1
-    , highlightObjs = []
-    }
 
 -- Our render function
 renderGame :: (MonadIO m) => Resources -> Model -> Size Scalar -> (H.Renderer, H.FrameContext) -> m ()
@@ -200,70 +174,20 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
 
 -- ** INPUT **
 
-moveKeyVec :: Key -> Vec
-moveKeyVec key = case key of
-  Key'Up    -> V2 0 (-1)
-  Key'Down  -> V2 0 1
-  Key'Left  -> V2 (-1) 0
-  Key'Right -> V2 1 0
-  _ -> V2 0 0
-
-physicsTimeStep :: NominalDiffTime
-physicsTimeStep = 1/20
-
 mkMoveDir :: InputFrame -> Vec
 mkMoveDir InputFrame {..} = sum
   (([ Key'Up, Key'Down, Key'Left, Key'Right ] <&> \k -> if E.member k heldKeys || E.member k pressedKeys then moveKeyVec k else zero) :: [Vec])
+  where
+  moveKeyVec :: Key -> Vec
+  moveKeyVec key = case key of
+    Key'Up    -> V2 0 (-1)
+    Key'Down  -> V2 0 1
+    Key'Left  -> V2 (-1) 0
+    Key'Right -> V2 1 0
+    _ -> V2 0 0
 
-general
-  :: forall model b. Interpolatable model
-  => GLFW.Window
-  -> H.VulkanResources
-  -> (InputFrame -> model -> (model, b))
-  -> (model -> Size Scalar -> (H.Renderer, H.FrameContext) -> IO ())
-  -> model
-  -> IO ()
-general win vulkanResources stepFunction renderF initialModel = do
-  frameBuilder <- glfwFrameBuilder win
-  scrSizeRef <- getWindowSizeRef win
-  inputRef    :: IORef InputFrame <- newIORef mempty
-  stateRef    :: IORef (S.Seq model) <- newIORef $ S.singleton initialModel
-  renderFRef  :: IORef (Scalar -> Size Scalar -> (H.Renderer, H.FrameContext) -> IO ()) <- newIORef (const nullRenderF)
-  stateIdxRef :: IORef Int <- newIORef 0
-  Ki.scoped \scope -> do
-    _thr <- Ki.fork scope do
-      forever do
-        batched <- atomicModifyIORef' inputRef \cur ->
-          let timeRemaining = physicsTimeStep - cur.delta
-          in if timeRemaining > 0
-              then (cur, Left timeRemaining)
-              else (mempty { heldKeys = cur.heldKeys }, Right cur { delta = physicsTimeStep })
-        case batched of
-          Left timeRemaining -> threadDelay (ceiling @Double $ realToFrac timeRemaining * 1000000)
-          Right inputFrame -> do
-            lastState <- readIORef stateRef <&> fromMaybe (error "No game states available") . S.lookup 0
-            newState <- fmap getCompact . compact . fst $ stepFunction inputFrame lastState
-            modifyIORef' stateRef (\s -> S.take 500 $ newState S.<| s)
-            let interpolated frac = glerp frac lastState newState
-            writeIORef renderFRef (renderF . interpolated)
-
-      -- mdl <- ((,) <$> readIORef stateRef <*> readIORef stateIdxRef) <&> \(gameSeq, idx) ->
-      --   let idx' = min idx (S.length gameSeq - 2)
-      --   in case (,) <$> S.lookup idx' gameSeq <*> S.lookup (idx'+1) gameSeq of
-      --       Just (to, from) -> glerp (realToFrac $ curInputFrame.delta / physicsTimeStep) from to
-      --       Nothing -> fromMaybe (error "No game states available") $ S.lookup 0 gameSeq
-
-    GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
-      inputFrame <- frameBuilder
-      modifyIORef' inputRef (inputFrame<>)
-      curInputFrame <- readIORef inputRef
-
-      scrSize <- readIORef scrSizeRef
-      readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) (realToFrac <$> scrSize) (renderer, frameContext)
-
-      focused <- GLFW.getWindowFocused win
-      -- don't consume CPU when the window isn't focused
-      unless focused (threadDelay 100000)
+physicsTimeStep :: NominalDiffTime
+physicsTimeStep = 1/20
 
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
@@ -271,8 +195,4 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
   resStore <- loadResources "Example/Shooter/assets/" vulkanResources
   liftIO do
     res <- getResourcesStoreResources resStore
-
-    let steppper inputFrame = stepF (mkMoveDir inputFrame) (inputFrame.delta, msgs)
-          where
-          msgs = [ Fire | E.member Key'Space inputFrame.pressedKeys ]
-    general win vulkanResources steppper (renderGame res) newGame
+    gameLoop win vulkanResources physicsTimeStep (pureGameScene newGame stepF (renderGame res))
