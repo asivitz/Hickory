@@ -25,8 +25,8 @@ import qualified Hickory.Vulkan.Forward.Renderer as H
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import Control.Concurrent (threadDelay)
 
-pureGameScene :: Interpolatable model => model -> (InputFrame -> model -> (model, b)) -> (model -> RenderFunction) -> (Scene -> IO ()) -> IO (InputFrame -> IO (Scalar -> RenderFunction))
-pureGameScene initialModel stepFunction renderF _sceneChange = do
+pureGameScene :: Interpolatable model => model -> (InputFrame -> model -> (model, b)) -> (model -> RenderFunction) -> IO (InputFrame -> IO (Scalar -> RenderFunction))
+pureGameScene initialModel stepFunction renderF = do
   stateRef    :: IORef (S.Seq model) <- newIORef $ S.singleton initialModel
   stateIdxRef :: IORef Int <- newIORef 0
   pure \inputFrame -> do
@@ -49,7 +49,7 @@ gameLoop
   :: GLFW.Window
   -> H.VulkanResources
   -> NominalDiffTime
-  -> ((Scene -> IO ()) -> IO Scene)
+  -> ((Scene -> IO ()) -> Scene)
   -> IO ()
 gameLoop win vulkanResources physicsTimeStep initialScene = do
   frameBuilder <- glfwFrameBuilder win
@@ -57,8 +57,7 @@ gameLoop win vulkanResources physicsTimeStep initialScene = do
   inputRef   :: IORef InputFrame <- newIORef mempty
   renderFRef :: IORef (Scalar -> Size Scalar -> (H.Renderer, H.FrameContext) -> IO ()) <- newIORef (const nullRenderF)
   sceneRef   :: IORef Scene <- newIORef undefined
-  is <- initialScene (writeIORef sceneRef)
-  writeIORef sceneRef is
+  writeIORef sceneRef $ initialScene (writeIORef sceneRef)
 
   Ki.scoped \scope -> do
     _thr <- Ki.fork scope do

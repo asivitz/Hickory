@@ -48,24 +48,29 @@ import Platforms.GLFW.GameLoop (gameLoop, pureGameScene)
 
 type Vec = V2 Scalar
 
+-- Input messages
+data Msg = Fire
+
 -- Our game data
 data Model = Model
   { playerPos :: Vec
   , playerDir :: Vec
-  , missiles  :: HashMap.Map Int (Vec, Vec)
+  , missiles  :: HashMap.Map Int (Vec, Vec) -- Map from ids to a (pos,dir) pair
   , nFired    :: Int
   }
 
+-- Our physics thread runs at 20fps while we render at a much higher rate than that
+-- Therefore, in order for rendering to appear smooth, we need to
+-- interpolate between the latest frame and the previous frame
+-- This typeclass accomplishes that
 instance Interpolatable Model where
   glerp fr a b =
     b
     { playerPos = glerp fr a.playerPos b.playerPos
     , playerDir = glerp fr a.playerDir b.playerDir
+    -- The ids allow us to interpolate between missile states
     , missiles  = HashMap.differenceWith (\y x -> Just $ glerp fr x y) b.missiles a.missiles
     }
-
--- Input messages
-data Msg = Fire
 
 -- By default, our firingDirection is to the right
 newGame :: Model
@@ -195,4 +200,5 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
   resStore <- loadResources "Example/Shooter/assets/" vulkanResources
   liftIO do
     res <- getResourcesStoreResources resStore
-    gameLoop win vulkanResources physicsTimeStep (pureGameScene newGame stepF (renderGame res))
+    initialScene <- pureGameScene newGame stepF (renderGame res)
+    gameLoop win vulkanResources physicsTimeStep (const initialScene)
