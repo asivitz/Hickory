@@ -19,45 +19,29 @@ import qualified Ki
 import Control.Monad (forever)
 import Data.Time (NominalDiffTime)
 import Control.Monad.IO.Class (MonadIO)
-import Hickory.Vulkan.Forward.Types (RenderSettings(..), OverlayGlobals (..))
+import Hickory.Vulkan.Forward.Types (RenderSettings(..), OverlayGlobals (..), RenderFunction)
 import Linear (identity, V4 (..))
 import qualified Hickory.Vulkan.Forward.Renderer as H
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import Control.Concurrent (threadDelay)
-
-pureGameScene :: Interpolatable model => model -> (InputFrame -> model -> (model, b)) -> (model -> RenderFunction) -> IO (InputFrame -> IO (Scalar -> RenderFunction))
-pureGameScene initialModel stepFunction renderF = do
-  stateRef    :: IORef (S.Seq model) <- newIORef $ S.singleton initialModel
-  stateIdxRef :: IORef Int <- newIORef 0
-  pure \inputFrame -> do
-    lastState <- readIORef stateRef <&> fromMaybe (error "No game states available") . S.lookup 0
-    newState <- fmap getCompact . compact . fst $ stepFunction inputFrame lastState
-    modifyIORef' stateRef (\s -> S.take 500 $ newState S.<| s)
-    let interpolated frac = glerp frac lastState newState
-    pure $ renderF . interpolated
-
-  -- mdl <- ((,) <$> readIORef stateRef <*> readIORef stateIdxRef) <&> \(gameSeq, idx) ->
-  --   let idx' = min idx (S.length gameSeq - 2)
-  --   in case (,) <$> S.lookup idx' gameSeq <*> S.lookup (idx'+1) gameSeq of
-  --       Just (to, from) -> glerp (realToFrac $ curInputFrame.delta / physicsTimeStep) from to
-  --       Nothing -> fromMaybe (error "No game states available") $ S.lookup 0 gameSeq
-
-type RenderFunction = Size Scalar -> (H.Renderer, H.FrameContext) -> IO ()
-type Scene = InputFrame -> IO (Scalar -> RenderFunction)
+import Hickory.Vulkan.Forward.Types (Scene)
+import Acquire.Acquire (Acquire)
 
 gameLoop
   :: GLFW.Window
   -> H.VulkanResources
+  -> (H.Swapchain -> Acquire swapchainResources)
   -> NominalDiffTime
-  -> ((Scene -> IO ()) -> Scene)
+  -> ((Scene swapchainResources -> IO ()) -> IO (Scene swapchainResources))
   -> IO ()
-gameLoop win vulkanResources physicsTimeStep initialScene = do
+gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialScene = do
   frameBuilder <- glfwFrameBuilder win
   scrSizeRef <- getWindowSizeRef win
   inputRef   :: IORef InputFrame <- newIORef mempty
-  renderFRef :: IORef (Scalar -> Size Scalar -> (H.Renderer, H.FrameContext) -> IO ()) <- newIORef (const nullRenderF)
-  sceneRef   :: IORef Scene <- newIORef undefined
-  writeIORef sceneRef $ initialScene (writeIORef sceneRef)
+  renderFRef :: IORef (Scalar -> RenderFunction swapchainResources) <- newIORef (const nullRenderF)
+  sceneRef   :: IORef (Scene swapchainResources) <- newIORef undefined
+  is <- initialScene (writeIORef sceneRef)
+  writeIORef sceneRef is
 
   Ki.scoped \scope -> do
     _thr <- Ki.fork scope do
@@ -73,18 +57,20 @@ gameLoop win vulkanResources physicsTimeStep initialScene = do
             scene <- readIORef sceneRef
             scene inputFrame >>= writeIORef renderFRef
 
-    GLFWV.runFrames win vulkanResources (H.withRenderer vulkanResources) \renderer frameContext -> do
+    GLFWV.runFrames win vulkanResources acquireSwapchainResources \swapchainResources frameContext -> do
       inputFrame <- frameBuilder
       modifyIORef' inputRef (inputFrame<>)
       curInputFrame <- readIORef inputRef
 
       scrSize <- readIORef scrSizeRef
-      readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) (realToFrac <$> scrSize) (renderer, frameContext)
+      readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) (realToFrac <$> scrSize) (swapchainResources, frameContext)
 
       -- focused <- GLFW.getWindowFocused win
       -- -- don't consume CPU when the window isn't focused
       -- unless focused (threadDelay 100000)
 
+nullRenderF _ _ = pure () -- TODO: If we don't draw on the first app frame we get errors :(
+{-
 nullRenderF :: MonadIO m => Size Scalar -> (H.Renderer, H.FrameContext) -> m ()
 nullRenderF _ (renderer, frameContext) = H.renderToRenderer frameContext renderer renderSettings (pure ()) (pure ())
   where
@@ -99,3 +85,4 @@ nullRenderF _ (renderer, frameContext) = H.renderToRenderer frameContext rendere
     , clearColor = V4 0 0 0 1
     , highlightObjs = []
     }
+-}

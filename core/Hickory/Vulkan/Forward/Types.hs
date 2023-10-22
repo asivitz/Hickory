@@ -8,7 +8,7 @@
 
 module Hickory.Vulkan.Forward.Types where
 
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, Material, PostConstants, DataBuffer, BufferedMesh, Mesh)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
 import qualified Data.Vector.Fixed.Storable as VFS
 import GHC.Generics (Generic)
@@ -29,6 +29,8 @@ import Foreign (Ptr)
 import Hickory.Vulkan.DescriptorSet
 import Data.UUID (UUID)
 import Vulkan (DescriptorSetLayout)
+import Hickory.Types (Size)
+import Hickory.Input (InputFrame)
 
 data ForwardRenderTargets = ForwardRenderTargets
   { swapchainRenderTarget        :: !RenderTarget
@@ -247,3 +249,6 @@ runCommand = snd . runIdentity . runWriterT
 
 addCommand :: CommandMonad m => DrawCommand -> m ()
 addCommand = tell . pure
+
+type RenderFunction swapchainResources = Size Scalar -> (swapchainResources, FrameContext) -> IO ()
+type Scene swapchainResources = InputFrame -> IO (Scalar -> RenderFunction swapchainResources)

@@ -82,6 +82,7 @@ library:
   exposed-modules:
     - Hickory.Camera
     - Hickory.Color
+    - Hickory.GameLoop
     - Hickory.Graphics
     - Hickory.Graphics.Debug
     - Hickory.Graphics.DeferredRendering

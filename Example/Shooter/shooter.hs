@@ -42,7 +42,8 @@ import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTe
 import Data.Functor ((<&>))
 import qualified Data.Enum.Set as E
 import qualified Data.Map.Strict as HashMap
-import Platforms.GLFW.GameLoop (gameLoop, pureGameScene)
+import Platforms.GLFW.GameLoop (gameLoop)
+import Hickory.GameLoop (pureGameScene)
 
 -- ** GAMEPLAY **
 
@@ -200,5 +201,11 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
   resStore <- loadResources "Example/Shooter/assets/" vulkanResources
   liftIO do
     res <- getResourcesStoreResources resStore
-    initialScene <- pureGameScene newGame stepF (renderGame res)
-    gameLoop win vulkanResources physicsTimeStep (const initialScene)
+
+    let mkScene = do
+          processInput <- pureGameScene newGame stepF
+          pure \inputFrame -> do
+            pair <- processInput inputFrame
+            pure $ \frac -> renderGame res (uncurry (glerp frac) pair)
+
+    gameLoop win vulkanResources (H.withRenderer vulkanResources) physicsTimeStep $ const mkScene

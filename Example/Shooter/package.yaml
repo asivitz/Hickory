@@ -52,3 +52,4 @@ default-extensions:
 executables:
   shooter:
     main: shooter.hs
+    ghc-options: -threaded
