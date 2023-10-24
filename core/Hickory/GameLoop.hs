@@ -1,25 +1,32 @@
 module Hickory.GameLoop where
 
 import Hickory.Math (Interpolatable (..), Scalar)
-import Hickory.Input (InputFrame(..))
-import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef, atomicModifyIORef')
-import qualified Hickory.Vulkan.Types as H
-import Hickory.Types (Size)
-import qualified Hickory.Vulkan.Forward.Types as H
 import qualified Data.Sequence as S
-import GHC.Compact (getCompact, compact)
-import Data.Functor ((<&>))
 import Data.Maybe (fromMaybe)
-import Control.Monad (forever)
-import Data.Time (NominalDiffTime)
-import Control.Monad.IO.Class (MonadIO)
-import Hickory.Vulkan.Forward.Types (RenderSettings(..), OverlayGlobals (..), RenderFunction)
-import Linear (identity, V4 (..))
-import qualified Hickory.Vulkan.Forward.Renderer as H
-import Control.Concurrent (threadDelay)
-import Hickory.Vulkan.Forward.Types (Scene)
-import Acquire.Acquire (Acquire)
+import Data.Fixed (mod')
+import Linear (nearZero)
 
+newGameStateStack :: a -> S.Seq a
+newGameStateStack = S.singleton
+
+stepGameState :: (a -> (a, b)) -> S.Seq a -> (S.Seq a, b)
+stepGameState f s = let (model', evs) = f lastState in (S.take 500 $ model' S.<| s, evs)
+  where
+  lastState = fromMaybe (error "No game states available") . S.lookup 0 $ s
+
+queryGameState :: Interpolatable i => S.Seq i -> Scalar -> i
+queryGameState s (min (realToFrac $ S.length s - 1) -> idx) =
+  case (from, to) of
+    _ | nearZero idx  -> fromMaybe (error "No game states available") $ S.lookup 0 s
+    _ | nearZero frac -> fromMaybe (error "No game states available") $ from
+    (Just fr, Just t) -> if frac > 0 then glerp (1 - frac) fr t else t
+    _ -> fromMaybe (error "No game states available") $ S.lookup 0 s
+  where
+  frac = idx `mod'` 1
+  to   = S.lookup (floor idx) s
+  from = S.lookup (ceiling idx) s
+
+{-
 pureGameScene :: forall model evs. Interpolatable model => model -> (InputFrame -> model -> (model, evs)) -> IO (InputFrame -> IO (model, model))
 pureGameScene initialModel stepFunction = do
   stateRef    :: IORef (S.Seq model) <- newIORef $ S.singleton initialModel
@@ -29,6 +36,7 @@ pureGameScene initialModel stepFunction = do
     newState <- pure . fst $ stepFunction inputFrame lastState
     modifyIORef' stateRef (\s -> S.take 500 $ newState S.<| s)
     pure (lastState, newState)
+    -}
 
   -- mdl <- ((,) <$> readIORef stateRef <*> readIORef stateIdxRef) <&> \(gameSeq, idx) ->
   --   let idx' = min idx (S.length gameSeq - 2)
