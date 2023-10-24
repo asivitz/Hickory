@@ -38,7 +38,7 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
   frameBuilder <- glfwFrameBuilder win
   scrSizeRef <- getWindowSizeRef win
   inputRef   :: IORef InputFrame <- newIORef mempty
-  renderFRef :: IORef (Scalar -> RenderFunction swapchainResources) <- newIORef (const nullRenderF)
+  renderFRef :: IORef (Scalar -> NominalDiffTime -> RenderFunction swapchainResources) <- newIORef (const nullRenderF)
   sceneRef   :: IORef (Scene swapchainResources) <- newIORef undefined
   is <- initialScene (writeIORef sceneRef)
   writeIORef sceneRef is
@@ -63,13 +63,13 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
       curInputFrame <- readIORef inputRef
 
       scrSize <- readIORef scrSizeRef
-      readIORef renderFRef >>= \f -> f (min 1 . realToFrac $ curInputFrame.delta / physicsTimeStep) (realToFrac <$> scrSize) (swapchainResources, frameContext)
+      readIORef renderFRef >>= \f -> f (min 1 . realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame.delta (realToFrac <$> scrSize) (swapchainResources, frameContext)
 
       -- focused <- GLFW.getWindowFocused win
       -- -- don't consume CPU when the window isn't focused
       -- unless focused (threadDelay 100000)
 
-nullRenderF _ _ = pure () -- TODO: If we don't draw on the first app frame we get errors :(
+nullRenderF _ _ _ = pure () -- TODO: If we don't draw on the first app frame we get errors :(
 {-
 nullRenderF :: MonadIO m => Size Scalar -> (H.Renderer, H.FrameContext) -> m ()
 nullRenderF _ (renderer, frameContext) = H.renderToRenderer frameContext renderer renderSettings (pure ()) (pure ())

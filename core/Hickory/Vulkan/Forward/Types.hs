@@ -31,6 +31,7 @@ import Data.UUID (UUID)
 import Vulkan (DescriptorSetLayout)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
+import Data.Time (NominalDiffTime)
 
 data ForwardRenderTargets = ForwardRenderTargets
   { swapchainRenderTarget        :: !RenderTarget
@@ -251,4 +252,4 @@ addCommand :: CommandMonad m => DrawCommand -> m ()
 addCommand = tell . pure
 
 type RenderFunction swapchainResources = Size Scalar -> (swapchainResources, FrameContext) -> IO ()
-type Scene swapchainResources = InputFrame -> IO (Scalar -> RenderFunction swapchainResources)
+type Scene swapchainResources = InputFrame -> IO (Scalar -> NominalDiffTime -> RenderFunction swapchainResources)
