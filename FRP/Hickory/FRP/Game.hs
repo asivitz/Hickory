@@ -62,34 +62,14 @@ timeStep physicsTimeStep controlComs eInGameTime = do
 
 type Step input gameState gameEvent = (NominalDiffTime, [input]) -> gameState -> (gameState, [gameEvent])
 
--- This game loop features
--- - Pausing
--- - Rewind/Forward, slow motion replay
--- - Interpolating game state (for less frequent logic updates)
--- - Selecting objects in pause mode (for debugging)
--- TODO: Ideally, screen picking is supported through an iface,
--- rather than using a specific renderer
-gameNetwork
-  :: forall gameState input gameEvent
-   . Interpolatable gameState
-  => NominalDiffTime
-  -> Key
-  -> CoreEvents (Renderer, FrameContext)
-  -> gameState
-  -> B.Event gameState
-  -> B.Event [input]
-  -> B.Behavior (Step input gameState gameEvent)
-  -> B.Event [gameState]
-  -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent], B.Behavior Bool)
-gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput step eReplay = mdo
-  let frameSelect = B.whenE paused . fmap ((realToFrac . round) .) $
-        unionFirst [ (+1) <$ keyDownOrHeld coreEvents Key'Left
-                   , (+5) <$ keyDownOrHeld coreEvents Key'LeftBracket
-                   , subtract 1 <$ keyDownOrHeld coreEvents Key'Right
-                   , subtract 5 <$ keyDownOrHeld coreEvents Key'RightBracket
-                   , const 0 <$ eFlipPause
-                   , const 0 <$ eLoadState
-                   ]
+{-
+standardFrameSelect :: CoreEvents Scalar -> B.Event (Scalar -> Scalar)
+standardFrameSelect coreEvents = unionFirst
+  [ (+1) <$ keyDownOrHeld coreEvents Key'Left
+  , (+5) <$ keyDownOrHeld coreEvents Key'LeftBracket
+  , subtract 1 <$ keyDownOrHeld coreEvents Key'Right
+  , subtract 5 <$ keyDownOrHeld coreEvents Key'RightBracket
+  ]
 
   bAuto <- B.accumB False $ B.unions
     [ not <$ B.filterE (== Key'S) (keyDown coreEvents)
@@ -109,6 +89,12 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
     , 0.7 <$ B.filterE (== Key'9) (keyDown coreEvents)
     ]
 
+  let frameSelect = ((realToFrac . round @_ @Int) .) <$>
+        unionFirst [ eFrameChange
+                   , B.whenE paused $ const 0 <$ eFlipPause
+                   , const 0 <$ eLoadState
+                   ]
+
   bCurrentFrameSelect <- B.accumB 0 $ B.unions
     [ frameSelect
     , B.whenE bAuto $ (\factor time acc -> max 0 (acc - realToFrac time * factor / realToFrac logicTimeStep)) <$> bSpeedFactor <@> eTime coreEvents
@@ -126,33 +112,46 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
 
   let bShowingReplay = not . null <$> replayQueue
 
-  (frameFraction, eFrameInput) <- do
-    timeStep logicTimeStep eInput $
       unionFirst [ B.whenE bShowingReplay $ (/4) <$> eTime coreEvents
                  , B.whenE (not <$> bShowingReplay) $ B.whenE (not <$> paused) (eTime coreEvents)
                  ]
+                 -}
+
+-- This game loop features interpolating game state (for less frequent logic updates)
+gameNetwork
+  :: forall gameState input gameEvent
+   . Interpolatable gameState
+  => NominalDiffTime
+  -> B.Event NominalDiffTime
+  -> B.Event Scalar
+  -> gameState
+  -> B.Event gameState
+  -> B.Event [input]
+  -> B.Behavior (Step input gameState gameEvent)
+  -> B.Behavior Scalar
+  -> B.MomentIO (B.Behavior gameState, B.Event [gameEvent])
+gameNetwork logicTimeStep eTime eChopFrame initialState eLoadState eInput step bCurrentFrameSelect = mdo
+
+  (frameFraction, eFrameInput) <- do
+    timeStep logicTimeStep eInput eTime
 
   (history, gameEvs) <- historicalWithEvents
-    initialState
-    (B.unionWith const (const <$> ((,[]) <$> eLoadState)) (step <@> B.whenE (not <$> bShowingReplay) eFrameInput))
-    ((\f -> f <$> bCurrentFrameSelect <@ eUnpause) (S.drop . floor))
+    initialState $
+      unionFirst
+      [ (,) <$> (floor <$> bCurrentFrameSelect) <@> B.unionWith const (const <$> ((,[]) <$> eLoadState)) (step <@> eFrameInput)
+      , (\i -> (floor i, (,[]))) <$> eChopFrame
+      ]
 
-  let bCurrentFrameFraction = (\f -> f <$> frameFraction <*> bCurrentFrameSelect <*> paused) \frac frame p ->
-        if p then 1 - (frame `mod'` 1) else frac
-      actualGDPair = (\f -> f <$> history <*> bCurrentFrameSelect) \s (floor -> i) ->
-        let from = S.index s (max 0 (min (i + 1) (S.length s - 1)))
-            to = S.index s (max 0 (min (S.length s - 1) i))
-        in (from, to)
+  let gd = (\f -> f <$> history <*> bCurrentFrameSelect <*> frameFraction) \s fs ff ->
+        let idx :: Int = floor (fs / realToFrac logicTimeStep)
+            leftOver = fs - realToFrac idx * realToFrac logicTimeStep
+            from = S.index s (max 0 (min (idx + 1) (S.length s - 1)))
+            to = S.index s (max 0 (min (S.length s - 1) idx))
+        in if nearZero fs then glerp ff from to else glerp (leftOver / realToFrac logicTimeStep) from to
 
-      replayGDPair = (\case
-        x1:x2:_ -> (x1, x2)
-        x:_ -> (x,x)
-        [] -> (error "No replay data", error "Er")
-        ) <$> replayQueue
-      gdPair = bool <$> actualGDPair <*> replayGDPair <*> bShowingReplay
-      gd = (\f -> f <$> bCurrentFrameFraction <*> gdPair) \ff pair -> if nearZero ff then fst pair else uncurry (glerp ff) pair
+      -- gd = (\f -> f <$> frameFraction <*> gdPair) \ff pair -> if nearZero ff then fst pair else uncurry (glerp ff) pair
 
-  pure (gd, gameEvs, paused)
+  pure (gd, gameEvs)
 
 accumSelectedObjIds :: CoreEvents (Renderer, FrameContext) -> B.MomentIO (B.Behavior [Int])
 accumSelectedObjIds coreEvents = do
