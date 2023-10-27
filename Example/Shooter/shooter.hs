@@ -127,15 +127,15 @@ loadResources path vulkanResources = do
   pure resourcesStore
 
 -- Our render function
-renderGame :: (MonadIO m) => Resources -> Model -> Size Scalar -> (H.Renderer, H.FrameContext) -> m ()
+renderGame :: (MonadIO m) => Resources -> Model -> Size Int -> (H.Renderer, H.FrameContext) -> m ()
 renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, frameContext)
   = H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
   vm = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
-  pm = shotMatrix (Ortho w 1 100 False) (aspectRatio scrSize)
+  pm = shotMatrix (Ortho (realToFrac w) 1 100 False) (aspectRatio scrSize)
   renderSettings = H.RenderSettings
     { worldSettings = H.worldSettingsDefaults
-      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho w 1 100 True)
+      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho (realToFrac w) 1 100 True)
       }
     , overlayGlobals = OverlayGlobals
       { viewMat = vm

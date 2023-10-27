@@ -23,6 +23,7 @@ import Data.Ord (comparing)
 import Data.Maybe (fromMaybe)
 import Data.Tuple (swap)
 import Data.WideWord.Word128 (Word128)
+import Data.HashMap.Strict (HashMap)
 
 type Point = (V2 Scalar, Int) -- Location, Ident
 
@@ -337,9 +338,9 @@ data InputFrame = InputFrame
   , touchesDown        :: [Point]
   , touchesUp          :: [PointUp]
   , touchesLoc         :: [Point]
-  , gamePadPressed     :: [(Int, E.EnumSet GamePadButton)]
-  , gamePadReleased    :: [(Int, E.EnumSet GamePadButton)]
-  , gamePad            :: [(Int, GamePad)] -- GamePad Index, GamePad
+  , gamePadPressed     :: HashMap Int [E.EnumSet GamePadButton]
+  , gamePadReleased    :: HashMap Int [E.EnumSet GamePadButton]
+  , gamePad            :: HashMap Int GamePad -- GamePad Index, GamePad
   , gamePadConnections :: [(Int, Bool)]    -- GamePad Index, True == connected
   }
   deriving Show
@@ -354,9 +355,9 @@ instance Semigroup InputFrame where
     touchesDown    = a.touchesDown <> b.touchesDown
     touchesUp      = a.touchesUp   <> b.touchesUp
     touchesLoc     = a.touchesLoc  <> b.touchesLoc
-    gamePadPressed     = a.gamePadPressed <> b.gamePadPressed
-    gamePadReleased    = a.gamePadReleased <> b.gamePadReleased
-    gamePad            = a.gamePad <> b.gamePad
+    gamePadPressed     = HashMap.unionWith (++) a.gamePadPressed b.gamePadPressed
+    gamePadReleased    = HashMap.unionWith (++) a.gamePadReleased b.gamePadReleased
+    gamePad            = HashMap.union a.gamePad b.gamePad
     gamePadConnections = a.gamePadConnections <> b.gamePadConnections
 
 instance Monoid InputFrame where
@@ -389,16 +390,16 @@ inputFrameBuilder = do
     heldKeys <- atomicModifyIORef' heldKeysRef \curKeys -> (\a -> (a,a)) $ E.union curKeys pressedKeys E.\\ releasedKeys
 
     let gamePadConnections = [(i,b) | InputGamePadConnection i b <- newInputs]
-        newGamepadStates = [(i, gp) | InputGamePad i gp <- newInputs]
+        newGamepadStates = HashMap.fromList [(i, gp) | InputGamePad i gp <- newInputs]
     (gamePad, gamePadPressed, gamePadReleased) <- atomicModifyIORef' gamepadsRef \curGamePads ->
-      let newGamePad = nubBy (\a b -> fst a == fst b) $ newGamepadStates ++ curGamePads
+      let newGamePad = HashMap.union newGamepadStates curGamePads
           states oldGp newGp = [minBound..maxBound] <&> \but -> (but, gamePadButtonState oldGp but, gamePadButtonState newGp but)
-          newPressed = newGamepadStates <&> \(i,newGP) ->
-            let oldGP = fromMaybe emptyGamePad $ lookup i curGamePads
-            in (i,) $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Released && new == Pressed
-          newReleased = newGamepadStates <&> \(i,newGP) ->
-            let oldGP = fromMaybe emptyGamePad $ lookup i curGamePads
-            in (i,) $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Pressed && new == Released
+          newPressed = flip HashMap.mapWithKey newGamepadStates \i newGP ->
+            let oldGP = fromMaybe emptyGamePad $ HashMap.lookup i curGamePads
+            in pure $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Released && new == Pressed
+          newReleased = flip HashMap.mapWithKey newGamepadStates \i newGP ->
+            let oldGP = fromMaybe emptyGamePad $ HashMap.lookup i curGamePads
+            in pure $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Pressed && new == Released
       in (newGamePad, (newGamePad, newPressed, newReleased))
 
     let touchesDown = [p | InputTouchesDown ps <- newInputs, p <- ps]

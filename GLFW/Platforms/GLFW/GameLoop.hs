@@ -63,7 +63,7 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
       curInputFrame <- readIORef inputRef
 
       scrSize <- readIORef scrSizeRef
-      readIORef renderFRef >>= \f -> f (min 1 . realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame.delta (realToFrac <$> scrSize) (swapchainResources, frameContext)
+      readIORef renderFRef >>= \f -> f (min 1 . realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame.delta scrSize (swapchainResources, frameContext)
 
       -- focused <- GLFW.getWindowFocused win
       -- -- don't consume CPU when the window isn't focused

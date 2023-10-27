@@ -15,7 +15,7 @@ stepGameState f s = let (model', evs) = f lastState in (S.take 500 $ model' S.<|
   lastState = fromMaybe (error "No game states available") . S.lookup 0 $ s
 
 queryGameState :: Interpolatable i => S.Seq i -> Scalar -> i
-queryGameState s (min (realToFrac $ S.length s - 1) -> idx) =
+queryGameState s (max 0 . min (realToFrac $ S.length s - 1) -> idx) =
   case (from, to) of
     _ | nearZero idx  -> fromMaybe (error "No game states available") $ S.lookup 0 s
     _ | nearZero frac -> fromMaybe (error "No game states available") $ from
