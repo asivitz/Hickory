@@ -38,7 +38,7 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
   frameBuilder <- glfwFrameBuilder win
   scrSizeRef <- getWindowSizeRef win
   inputRef   :: IORef InputFrame <- newIORef mempty
-  renderFRef :: IORef (Scalar -> NominalDiffTime -> RenderFunction swapchainResources) <- newIORef (const nullRenderF)
+  renderFRef :: IORef (Scalar -> InputFrame -> RenderFunction swapchainResources) <- newIORef (const nullRenderF)
   sceneRef   :: IORef (Scene swapchainResources) <- newIORef undefined
   is <- initialScene (writeIORef sceneRef)
   writeIORef sceneRef is
@@ -63,7 +63,7 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
       curInputFrame <- readIORef inputRef
 
       scrSize <- readIORef scrSizeRef
-      readIORef renderFRef >>= \f -> f (min 1 . realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame.delta scrSize (swapchainResources, frameContext)
+      readIORef renderFRef >>= \f -> f (min 1 . realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame scrSize (swapchainResources, frameContext)
 
       -- focused <- GLFW.getWindowFocused win
       -- -- don't consume CPU when the window isn't focused

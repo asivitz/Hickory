@@ -252,4 +252,4 @@ addCommand :: CommandMonad m => DrawCommand -> m ()
 addCommand = tell . pure
 
 type RenderFunction swapchainResources = Size Int -> (swapchainResources, FrameContext) -> IO ()
-type Scene swapchainResources = InputFrame -> IO (Scalar -> NominalDiffTime -> RenderFunction swapchainResources)
+type Scene swapchainResources = InputFrame -> IO (Scalar -> InputFrame -> RenderFunction swapchainResources)
