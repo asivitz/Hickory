@@ -24,6 +24,7 @@ module Hickory.FRP.Editor
   , fromAttrRefType
   , eqAttr
   , Attr
+  , PostEditorState(..)
   ) where
 
 import Hickory.FRP.Editor.Network
