@@ -50,7 +50,7 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
           let timeRemaining = physicsTimeStep - cur.delta
           in if timeRemaining > 0
               then (cur, Left timeRemaining)
-              else (mempty { heldKeys = cur.heldKeys }, Right cur { delta = physicsTimeStep })
+              else (mempty { heldKeys = cur.heldKeys, delta = cur.delta - physicsTimeStep }, Right cur { delta = physicsTimeStep })
         case batched of
           Left timeRemaining -> threadDelay (ceiling @Double $ realToFrac timeRemaining * 1000000)
           Right inputFrame -> do
