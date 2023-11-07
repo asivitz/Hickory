@@ -146,6 +146,11 @@ withAttrVal attrs name f = case Map.lookup name attrs of
     Nothing -> error "Wrong type for attribute"
   Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
 
+setSomeAttribute :: forall f a. Attr a => f a -> SomeAttribute f -> SomeAttribute f
+setSomeAttribute newV (SomeAttribute attr _) = case eqAttr attr (mkAttr :: Attribute a) of
+    Just HRefl -> SomeAttribute attr newV
+    Nothing -> error "Wrong type for attribute"
+
 mkComponent :: forall a m state. Attr a => String -> (a -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> Maybe state -> Int -> m ()) -> Component m state
 mkComponent arg acquire f =
   Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)]

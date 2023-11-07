@@ -18,6 +18,7 @@ module Hickory.FRP.Editor
   , mkComponent6
   , mkComponent7
   , withAttrVal
+  , setSomeAttribute
   , mkSomeAttr
   , SomeAttributeRef(..)
   , toAttrRefType
