@@ -183,10 +183,8 @@ withDataBuffer VulkanResources {..} num usageBits = do
     (fromIntegral $ sizeOf (undefined :: a) * num)
   pure DataBuffer {..}
 
-withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Acquire (BufferDescriptorSet a)
-withBufferDescriptorSet vulkanResources = do
-  -- TODO: Don't hardcode # of uniforms
-  let size = 2048
+withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Int -> Acquire (BufferDescriptorSet a)
+withBufferDescriptorSet vulkanResources size = do
   dataBuffer <- withDataBuffer vulkanResources size BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   ds <-  withDescriptorSet vulkanResources [BufferDescriptor (buf dataBuffer)]

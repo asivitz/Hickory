@@ -43,7 +43,7 @@ dependencies:
     - bytestring
     - containers
     - derive-storable
-    - fixed-vector
+    - vector-sized
     - generic-lens
     - groom
     - hashable

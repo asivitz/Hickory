@@ -76,6 +76,7 @@ withAllStageMaterial
   => VulkanResources
   -> ForwardRenderTargets
   -> FramedResource PointedDescriptorSet
+  -> Int
   -> PipelineOptions
   -> [HVT.Attribute]
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
@@ -88,13 +89,13 @@ withAllStageMaterial
   -> Maybe ByteString
   -> Maybe ByteString
   -> Acquire (AllStageMaterial uniform)
-withAllStageMaterial vulkanResources ForwardRenderTargets {..} globalDescriptorSet pipelineOptions attributes perDrawLayout
+withAllStageMaterial vulkanResources ForwardRenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout
   worldVertShader worldFragShader
   shadowVertShader shadowFragShader
   objectIDVertShader objectIDFragShader
   oVS oFS  = do
   uuid <- liftIO nextRandom
-  descriptor <- frameResource $ withBufferDescriptorSet vulkanResources
+  descriptor <- frameResource $ withBufferDescriptorSet vulkanResources maxNumDraws
   let uniformSize = sizeOf (undefined :: uniform)
       materialSet = view #descriptorSet <$> descriptor
       materialSets =
@@ -114,6 +115,7 @@ withAllStageMaterialFromRenderer
   :: Storable uniform
   => VulkanResources
   -> Renderer
+  -> Int
   -> PipelineOptions
   -> [HVT.Attribute]
   -> Maybe DescriptorSetLayout
@@ -126,10 +128,12 @@ withAllStageMaterialFromRenderer
   -> Maybe ByteString
   -> Maybe ByteString
   -> Acquire (AllStageMaterial uniform)
-withAllStageMaterialFromRenderer vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+withAllStageMaterialFromRenderer vulkanResources Renderer {..} maxNumDraws = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet maxNumDraws
+
+standardMaxNumDraws = 2048
 
 withStandardStaticMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial StaticConstants)
-withStandardStaticMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+withStandardStaticMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
   pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] (Just imageSetLayout)
   staticLitVertShader staticLitFragShader
   staticVertShader whiteFragShader
@@ -137,7 +141,7 @@ withStandardStaticMaterial vulkanResources Renderer {..} = withAllStageMaterial 
   Nothing Nothing
 
 withStandardStaticUnlitMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial StaticConstants)
-withStandardStaticUnlitMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+withStandardStaticUnlitMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
   pipelineDefaults [HVT.Position, HVT.TextureCoord] (Just imageSetLayout)
   staticUnlitVertShader unlitFragShader
   staticVertShader whiteFragShader
@@ -145,7 +149,7 @@ withStandardStaticUnlitMaterial vulkanResources Renderer {..} = withAllStageMate
   (Just overlayVertShader) (Just unlitFragShader)
 
 withStandardAnimatedMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial AnimatedConstants)
-withStandardAnimatedMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+withStandardAnimatedMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
   pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] (Just imageSetLayout)
   animatedLitVertShader animatedLitFragShader
   animatedVertShader whiteFragShader
@@ -153,7 +157,7 @@ withStandardAnimatedMaterial vulkanResources Renderer {..} = withAllStageMateria
   Nothing Nothing
 
 withStandardMSDFMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial MSDFMatConstants)
-withStandardMSDFMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet
+withStandardMSDFMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
   pipelineDefaults [HVT.Position, HVT.TextureCoord] (Just imageSetLayout)
   msdfVertShader msdfFragShader
   staticVertShader whiteFragShader

@@ -10,7 +10,7 @@ module Hickory.Vulkan.Forward.Types where
 
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
-import qualified Data.Vector.Fixed.Storable as VFS
+import qualified Data.Vector.Storable.Sized as VS
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial)
 import Hickory.Vulkan.Forward.ObjectPicking (ObjectIDConstants)
@@ -140,8 +140,8 @@ data MeshType
 
 data AnimatedMesh = AnimatedMesh
   { albedo   :: PointedDescriptorSet
-  , boneMat  :: VFS.Vec 66 (M44 Float)
-  , colors   :: VFS.Vec 6 (V4 Float)
+  , boneMat  :: VS.Vector 66 (M44 Float)
+  , colors   :: VS.Vector 6 (V4 Float)
   }
 
 data StaticMesh = StaticMesh
@@ -172,8 +172,8 @@ data AnimatedConstants = AnimatedConstants
   , normalMat   :: M33 Float
   , color       :: V4 Float
   , specularity :: Float
-  , boneMat     :: VFS.Vec 66 (M44 Float) -- TODO: Parameterize
-  , colors      :: VFS.Vec 6 (V4 Float)
+  , boneMat     :: VS.Vector 66 (M44 Float) -- TODO: Parameterize
+  , colors      :: VS.Vector 6 (V4 Float)
   , objectID    :: Word32
   } deriving Generic
     deriving anyclass GStorable

@@ -9,8 +9,8 @@ import Control.Lens ((&), _2, each, over)
 import Data.Maybe (mapMaybe)
 import Data.Binary
 import Data.Vector.Binary ()
-import Data.Vector.Storable qualified as SV
-import Data.Vector qualified as V
+import qualified Data.Vector.Storable as SV
+import qualified Data.Vector as V
 import Data.Functor ((<&>))
 import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle, CommandBuffer
   )
