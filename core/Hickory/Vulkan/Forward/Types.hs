@@ -230,7 +230,7 @@ data WorldSettings = WorldSettings
 worldSettingsDefaults :: WorldSettings
 worldSettingsDefaults = WorldSettings {..}
   where
-  camera = Camera zero (V3 (-1) (-1) (-1)) (V3 0 0 1) (Perspective (pi/4) 0.1 100)
+  camera = Camera zero (V3 (-1) (-1) (-1)) (V3 0 0 1) (Perspective (pi/4) 0.1 100) "DefaultWorldSettings"
   lightTransform = identity
   lightDirection = V3 1 1 1
   sunColor = V3 1 1 1

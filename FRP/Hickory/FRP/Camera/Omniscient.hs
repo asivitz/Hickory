@@ -113,7 +113,7 @@ omniscientCamera coreEvents = mdo
 
       orthoSize = perspectiveFocusPlaneSize <$> scrSizeB coreEvents <*> cameraAngleVec <*> pure camFov
 
-  pure $ Camera <$> cameraFocusPos <*> cameraAngleVec <*> up <*> projection
+  pure $ Camera <$> cameraFocusPos <*> cameraAngleVec <*> up <*> projection <*> pure "Omniscient"
 
 isOrthographicViewMode :: CameraViewMode -> Bool
 isOrthographicViewMode = \case

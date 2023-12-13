@@ -83,7 +83,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           }
 
     let settings = RenderSettings
-          { worldSettings = H.worldSettingsDefaults { camera = Camera (V3 50 50 0) (V3 0 0 (1)) (V3 0 (-1) 0) (Ortho 100 0 100 True) }
+          { worldSettings = H.worldSettingsDefaults { camera = Camera (V3 50 50 0) (V3 0 0 (1)) (V3 0 (-1) 0) (Ortho 100 0 100 True) "Main" }
           , overlayGlobals = OverlayGlobals identity identity identity
           , postSettings = H.postDefaults
           , clearColor = V4 0 0 0 1

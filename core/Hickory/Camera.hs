@@ -10,6 +10,7 @@ import GHC.Generics (Generic)
 import Hickory.Types (Size(..), aspectRatio)
 import Control.Lens (has)
 import Data.Generics.Labels ()
+import Data.Text (Text)
 
 data Projection = Perspective
   { fov       :: Scalar -- Vertical fov
@@ -58,6 +59,7 @@ data Camera = Camera
   , angleVec     :: V3 Scalar -- Vec toward the focus position
   , up           :: V3 Scalar
   , projection   :: Projection
+  , name         :: Text      -- For interpolating shot changes
   } deriving (Generic, Show)
 
 cameraNear :: Camera -> Scalar
