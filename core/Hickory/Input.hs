@@ -342,6 +342,8 @@ data InputFrame = InputFrame
   , gamePadReleased    :: HashMap Int [E.EnumSet GamePadButton]
   , gamePad            :: HashMap Int GamePad -- GamePad Index, GamePad
   , gamePadConnections :: [(Int, Bool)]    -- GamePad Index, True == connected
+  , frameNum           :: Word -- Needed to handle switchover of interpolation from
+                               -- one frame to the next
   }
   deriving Show
 
@@ -359,6 +361,7 @@ instance Semigroup InputFrame where
     gamePadReleased    = HashMap.unionWith (++) a.gamePadReleased b.gamePadReleased
     gamePad            = HashMap.union a.gamePad b.gamePad
     gamePadConnections = a.gamePadConnections <> b.gamePadConnections
+    frameNum       = b.frameNum
 
 instance Monoid InputFrame where
   mempty = InputFrame {..}
@@ -374,6 +377,7 @@ instance Monoid InputFrame where
     gamePadReleased = mempty
     gamePad = mempty
     gamePadConnections = mempty
+    frameNum = 0
 
 inputFrameBuilder :: IO ([RawInput] -> IO InputFrame)
 inputFrameBuilder = do
@@ -405,6 +409,8 @@ inputFrameBuilder = do
     let touchesDown = [p | InputTouchesDown ps <- newInputs, p <- ps]
         touchesUp   = [p | InputTouchesUp ps <- newInputs, p <- ps]
         touchesLoc  = [p | InputTouchesLoc ps <- newInputs, p <- ps]
+
+        frameNum = 0
     -- touchesLoc <- atomicModifyIORef' heldTouchesRef \curTouches ->
     --   let newTouches =
     --           flip (foldl' (\m PointUp {..} -> HashMap.delete ident m)) touchesUp

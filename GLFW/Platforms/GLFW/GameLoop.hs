@@ -50,7 +50,7 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
           let timeRemaining = physicsTimeStep - cur.delta
           in if timeRemaining > 0
               then (cur, Left timeRemaining)
-              else (mempty { heldKeys = cur.heldKeys, delta = cur.delta - physicsTimeStep }, Right cur { delta = physicsTimeStep })
+              else (mempty { heldKeys = cur.heldKeys, delta = cur.delta - physicsTimeStep, frameNum = cur.frameNum + 1 }, Right cur { delta = physicsTimeStep })
         case batched of
           Left timeRemaining -> threadDelay (ceiling @Double $ realToFrac timeRemaining * 1000000)
           Right inputFrame -> do
@@ -63,7 +63,7 @@ gameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialSc
       curInputFrame <- readIORef inputRef
 
       scrSize <- readIORef scrSizeRef
-      readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame scrSize (swapchainResources, frameContext)
+      readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame { frameNum = curInputFrame.frameNum } scrSize (swapchainResources, frameContext)
 
       -- focused <- GLFW.getWindowFocused win
       -- -- don't consume CPU when the window isn't focused
