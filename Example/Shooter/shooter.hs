@@ -135,7 +135,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
   pm = shotMatrix (Ortho (realToFrac w) 1 100 False) (aspectRatio scrSize)
   renderSettings = H.RenderSettings
     { worldSettings = H.worldSettingsDefaults
-      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho (realToFrac w) 1 100 True)
+      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho (realToFrac w) 1 100 True) "Main"
       }
     , overlayGlobals = OverlayGlobals
       { viewMat = vm
@@ -209,6 +209,6 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
             _evs <- atomicModifyIORef' stack (stepGameState $ stepF inputFrame)
             pure $ \frac _ size (sr,fc) -> do
               model <- queryGameState <$> readIORef stack
-              renderGame res (model (1 - frac)) size (sr, fc)
+              renderGame res (model (2 - frac)) size (sr, fc)
 
     gameLoop win vulkanResources (H.withRenderer vulkanResources) physicsTimeStep $ const mkScene
