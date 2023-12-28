@@ -72,7 +72,7 @@ data GamePad = GamePad
   , circle       :: ButtonState
   , square       :: ButtonState
   , triangle     :: ButtonState
-  } deriving Show
+  } deriving (Show, Generic)
 
 emptyGamePad :: GamePad
 emptyGamePad = GamePad {..}
@@ -345,7 +345,7 @@ data InputFrame = InputFrame
   , frameNum           :: Word -- Needed to handle switchover of interpolation from
                                -- one frame to the next
   }
-  deriving Show
+  deriving (Show, Generic)
 
 instance Semigroup InputFrame where
   a <> b = InputFrame {..}
