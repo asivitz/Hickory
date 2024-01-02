@@ -177,9 +177,11 @@ litFragCalc = [qt|
 staticVertCalc :: String
 staticVertCalc = [qt|
   vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
+  vec4 screenPosition
+    = globals.viewProjMat
+    * worldPosition;
 
-  gl_Position = globals.viewProjMat
-              * worldPosition;
+  gl_Position = screenPosition;
 |]
 
 buildWorldVertShader :: String -> String

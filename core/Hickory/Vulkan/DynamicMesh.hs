@@ -25,7 +25,7 @@ withDynamicBufferedMesh VulkanResources{..} maxVertices = do
     BUFFER_USAGE_VERTEX_BUFFER_BIT
     (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
     -- Assume a worst case and make space for every kind of attribute
-    (fromIntegral $ sizeOf (undefined :: Float) * (sum . fmap attrStride $ [minBound..maxBound]) * maxVertices)
+    (fromIntegral $ sizeOf (undefined :: Float) * 20 * maxVertices)
 
   (indexBuffer, indexAlloc, _) <- withBuffer' allocator
     BUFFER_USAGE_INDEX_BUFFER_BIT

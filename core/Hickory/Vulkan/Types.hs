@@ -82,7 +82,8 @@ data Attribute
   | MaterialIndex
   | JointIndices
   | JointWeights
-  deriving (Bounded, Enum, Generic, Show, Eq)
+  | FloatAttribute Word32
+  deriving (Generic, Show, Eq)
 
 data Mesh = Mesh
   { vertices :: [(Attribute, SV.Vector Float)]
