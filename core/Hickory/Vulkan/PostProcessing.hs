@@ -114,10 +114,10 @@ void main()
   // Tonemapping
   color = aces_tonemapping(saturated);
 
-  // Edge detection
-  ivec2 tsize = textureSize(depthSampler);
-  float variance = depthVariance(tsize);
-  color = mix(color, vec3(0), variance);
+  // Edge detection -- Disable for now (slow and not needed)
+  //ivec2 tsize = textureSize(depthSampler);
+  //float variance = depthVariance(tsize);
+  //color = mix(color, vec3(0), variance);
 
   // Film grain
   float grainIntensity =
