@@ -1,5 +1,5 @@
-{-# LANGUAGE ForeignFunctionInterface, BlockArguments, ViewPatterns #-}
-{-# LANGUAGE TupleSections, PatternSynonyms, OverloadedLists, RecordWildCards #-}
+{-# LANGUAGE ForeignFunctionInterface, BlockArguments, ViewPatterns, ScopedTypeVariables, OverloadedRecordDot #-}
+{-# LANGUAGE TupleSections, PatternSynonyms, OverloadedLists, RecordWildCards, TypeApplications #-}
 
 module Platforms.IOS where
 
@@ -13,16 +13,17 @@ import System.Mem (performMinorGC)
 import qualified Data.HashMap.Strict as HashMap
 import Hickory.Types
 import Linear.V2 (V2(V2))
-import Hickory.FRP.CoreEvents (CoreEventGenerators, coreEventGenerators)
 import Hickory.Vulkan.Vulkan (unWrapAcquire)
 import Vulkan (MetalSurfaceCreateInfoEXT(..), CAMetalLayer, createMetalSurfaceEXT, pattern EXT_METAL_SURFACE_EXTENSION_NAME)
 import Vulkan.Zero (Zero(..))
 import Hickory.Vulkan.Utils (buildFrameFunction, initVulkan)
 import Acquire.Acquire (Acquire)
-import Hickory.Vulkan.Types (VulkanResources(..), Swapchain (..), FrameContext (..))
+import Hickory.Vulkan.Types (VulkanResources(..), Swapchain (..))
 import Control.Monad.IO.Class (liftIO)
 import Data.Bool (bool)
-import Data.Foldable (for_)
+import Hickory.Vulkan.Forward.Types (Scene, RenderFunction)
+import Control.Monad
+import Control.Concurrent (forkIO, threadDelay)
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
@@ -55,16 +56,6 @@ foreign export ccall "gamepad_disconnected" gamepadDisconnected :: StablePtr (a,
 
 type CDrawInit = Ptr CAMetalLayer -> CInt -> CInt -> IO (StablePtr (IO (), InputData, IO ()))
 
-type RenderInit renderer
-  =  VulkanResources
-  -> Swapchain
-  -> Acquire renderer
-
-type DrawInit renderer gamedata
-  =  VulkanResources
-  -> CoreEventGenerators (renderer, FrameContext)
-  -> Acquire ()
-
 initIOSVulkan :: Ptr CAMetalLayer -> Acquire VulkanResources
 initIOSVulkan layerPtr = do
   let reqExts = [EXT_METAL_SURFACE_EXTENSION_NAME]
@@ -72,23 +63,46 @@ initIOSVulkan layerPtr = do
   initVulkan reqExts mkSurface
 
 mkDrawInit
-  :: RenderInit renderer        -- Creates renderer
-  -> DrawInit renderer gamedata -- Initializes logic/draw system
+  :: (VulkanResources -> Swapchain -> Acquire swapchainResources)
+  -> NominalDiffTime
+  -> (VulkanResources -> (Scene swapchainResources -> IO ()) -> Acquire (Scene swapchainResources))
   -> CDrawInit
-mkDrawInit ri di layerPtr w h = do
+mkDrawInit acquireSwapchainResources physicsTimeStep initialScene layerPtr w h = do
   td           <- initTouchData
-  inputPoller  <- makeInputPoller (touchFunc td)
-  timePoller   <- makeTimePoller
   wSizeRef     <- newIORef (Size (fromIntegral w) (fromIntegral h))
 
-  (coreEvProc, evGens) <- coreEventGenerators inputPoller timePoller wSizeRef
+  builder <- inputFrameBuilder
+
   ((exeFrame, cleanupUserRes), cleanupVulkan)
     <- unWrapAcquire do
       vulkanResources <- initIOSVulkan layerPtr
-      di vulkanResources evGens
-      liftIO $ buildFrameFunction vulkanResources (pure $ Size (fromIntegral w) (fromIntegral h)) (ri vulkanResources)
-                          \renderer frameContext -> do
-                            coreEvProc (renderer, frameContext)
+      inputRef   :: IORef InputFrame <- liftIO $ newIORef mempty
+      sceneRef   :: IORef (Scene swapchainResources) <- liftIO $ newIORef undefined
+      is <- initialScene vulkanResources (writeIORef sceneRef)
+      liftIO $ writeIORef sceneRef is
+      renderFRef :: IORef (Scalar -> InputFrame -> RenderFunction swapchainResources) <- liftIO $ newIORef =<< is mempty
+
+      liftIO $ forkIO do
+        forever do
+          batched <- atomicModifyIORef' inputRef \cur ->
+            let timeRemaining = physicsTimeStep - cur.delta
+            in if timeRemaining > 0
+                then (cur, Left timeRemaining)
+                else (mempty { heldKeys = cur.heldKeys, delta = cur.delta - physicsTimeStep, frameNum = cur.frameNum + 1 }, Right cur { delta = physicsTimeStep })
+          case batched of
+            Left timeRemaining -> threadDelay (ceiling @Double $ realToFrac timeRemaining * 1000000)
+            Right inputFrame -> do
+              scene <- readIORef sceneRef
+              scene inputFrame >>= writeIORef renderFRef
+
+      liftIO $ buildFrameFunction vulkanResources (pure $ Size (fromIntegral w) (fromIntegral h)) (acquireSwapchainResources vulkanResources)
+                          \swapchainResources frameContext -> do
+        rawInputs <- touchFunc td
+        inputFrame <- builder rawInputs
+        modifyIORef' inputRef (inputFrame<>)
+        curInputFrame <- readIORef inputRef
+        scrSize <- readIORef wSizeRef
+        readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame { frameNum = curInputFrame.frameNum } scrSize (swapchainResources , frameContext)
 
   newStablePtr (exeFrame, td, cleanupUserRes >> cleanupVulkan)
 
@@ -134,8 +148,8 @@ touchEnded touchData ident x y = do
   time <- getCurrentTime
   modifyIORef newUps ((fromIntegral ident, realToFrac x, realToFrac y, time):)
 
-touchFunc :: InputData -> (RawInput -> IO ()) -> IO (IO ())
-touchFunc touchData handleRawInput = pure $ do
+touchFunc :: InputData -> IO [RawInput]
+touchFunc touchData = do
   let InputData {..} = touchData
 
   curhash <- readIORef touches
@@ -148,25 +162,25 @@ touchFunc touchData handleRawInput = pure $ do
   let hash' = foldl (\hsh (ident, x, y) -> HashMap.adjust (\(_, time, origv) -> (V2 x y, time, origv)) ident hsh) curhash moves
 
   -- Broadcast a loc event for touches held over from last frame
-  handleRawInput (InputTouchesLoc (map (\(ident, (loc', _, origv)) -> (loc', ident)) (HashMap.toList hash')))
+  let locRaw = InputTouchesLoc (map (\(ident, (loc', _, origv)) -> (loc', ident)) (HashMap.toList hash'))
 
   -- Add new touches
-  handleRawInput (InputTouchesDown (map (\(ident, x, y, _time) -> (V2 x y, ident)) downs))
+  let downRaw = InputTouchesDown (map (\(ident, x, y, _time) -> (V2 x y, ident)) downs)
   let hash'' = foldl (\hsh (ident, x, y, time) -> HashMap.insert ident (V2 x y, time, V2 x y) hsh) hash' downs
 
   -- Remove released touches
-  handleRawInput (InputTouchesUp (map (\(ident, x, y, time) ->
+  let upRaw = InputTouchesUp (map (\(ident, x, y, time) ->
                                                           case HashMap.lookup ident hash'' of
                                                               Nothing -> PointUp { duration = 0, location = V2 x y, origLocation = V2 x y, ident = ident }
                                                               Just (_, prev,origv) ->
                                                                 PointUp { duration = realToFrac (diffUTCTime time prev), location = V2 x y, origLocation = origv, ident = ident })
-                                                      ups))
+                                                      ups)
   let hash''' = foldl (\hsh (ident, _x, _y, _time) -> HashMap.delete ident hsh) hash'' ups
 
   -- Record the new hash
   writeIORef touches hash'''
 
-  for_ rawMessages handleRawInput
+  pure $ locRaw : downRaw : upRaw : rawMessages
 
 gamepadState
   :: StablePtr (a,InputData)
