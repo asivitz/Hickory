@@ -103,9 +103,13 @@ data BufferedMesh = BufferedMesh
   , maxPosition  :: V3 Float
   } deriving Generic
 
-data RenderTarget = RenderTarget
+data FrameInOut = FrameInOut
+  { frameBuffer :: Framebuffer
+  , descriptorSpecs :: [DescriptorSpec]
+  }
+
+data RenderConfig = RenderConfig
   { renderPass      :: RenderPass
-  , frameBuffers    :: FramedResource (Framebuffer, [DescriptorSpec])
   , extent          :: Extent2D
   , samples         :: SampleCountFlagBits
   , cullModeOverride :: Maybe CullModeFlagBits
@@ -134,15 +138,6 @@ data DescriptorSpec
   = ImageDescriptor [(ViewableImage, Sampler)]
   | DepthImageDescriptor ViewableImage Sampler
   | BufferDescriptor Buffer
-
-data ForwardRenderTarget = ForwardRenderTarget
-  { swapchainRenderTarget :: !RenderTarget
-  , shadowRenderTarget    :: !RenderTarget
-  , litRenderTarget       :: !RenderTarget
-  , postProcessMaterial   :: !(Material PostConstants)
-  , globalDescriptorSet   :: !PointedDescriptorSet
-  , globalsBuffer         :: (Buffer, Allocation, Allocator)
-  } deriving Generic
 
 data PostConstants = PostConstants
   { exposure    :: Float

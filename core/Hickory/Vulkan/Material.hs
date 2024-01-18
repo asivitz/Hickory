@@ -43,14 +43,14 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire.Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderTarget (..), VulkanResources (..), Attribute, DeviceContext (..), FrameContext (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderConfig (..), VulkanResources (..), Attribute, DeviceContext (..), FrameContext (..))
 import Data.Maybe (isJust, fromMaybe)
 import GHC.Generics (Generic)
 
 withMaterial
   :: forall f a. Storable a
   => VulkanResources
-  -> RenderTarget
+  -> RenderConfig
   -> f a -- Push Const proxy
   -> [Attribute]
   -> PipelineOptions
@@ -61,7 +61,7 @@ withMaterial
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
-  RenderTarget {..}
+  RenderConfig {..}
   _pushConstProxy
   (sortOn attrLocation -> attributes)
   pipelineOptions vertShader fragShader

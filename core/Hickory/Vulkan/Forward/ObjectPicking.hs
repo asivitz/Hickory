@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds, PatternSynonyms, QuasiQuotes, TemplateHaskell  #-}
-{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields, OverloadedRecordDot #-}
 {-# LANGUAGE DeriveGeneric, DerivingStrategies, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
 module Hickory.Vulkan.Forward.ObjectPicking where
@@ -22,7 +22,7 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..)
+  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..), Framebuffer
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -38,42 +38,47 @@ import Foreign.Storable.Generic (GStorable)
 import Linear (M44)
 import Data.ByteString (ByteString)
 import Data.Word (Word32)
-import Hickory.Vulkan.Framing (FramedResource, frameResource)
+import Hickory.Vulkan.Framing (FramedResource)
 import Data.Proxy (Proxy)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Forward.ShaderDefinitions
 
+withObjectIDFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, [DescriptorSpec])
+withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
+  sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+
+  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits 1
+  depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
+
+  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
+  objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw 0 1
+  let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
+
+  let descriptorSpecs = [ ImageDescriptor [(objIDImage,sampler)]
+                        ]
+  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [depthImageView, objIDImageView]
+
+objIDFormat :: Format
+objIDFormat = FORMAT_R16_UINT
+depthFormat :: Format
+depthFormat = FORMAT_D16_UNORM
+
+
 -- For e.g. mouse picking objects in scene
-withObjectIDRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
-withObjectIDRenderTarget vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
+withObjectIDRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
+withObjectIDRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [depthDescription, objIDDescription]
     , subpasses    = [subpass]
     , dependencies = [dependency]
     } Nothing mkAcquire
 
-  sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-
-  frameBuffers <- frameResource do
-    depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits
-    depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
-
-    objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
-    objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw
-    let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
-
-    let descriptorSpecs = [ ImageDescriptor [(objIDImage,sampler)]
-                          ]
-    (,descriptorSpecs) <$> createFramebuffer device renderPass extent [depthImageView, objIDImageView]
-
   let cullModeOverride = Nothing
 
-  pure RenderTarget {..}
+  pure RenderConfig {..}
   where
   samples = SAMPLE_COUNT_1_BIT
-  objIDFormat     = FORMAT_R16_UINT
-  depthFormat = FORMAT_D16_UNORM
   subpass :: SubpassDescription
   subpass = zero
     { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
@@ -127,7 +132,7 @@ data ObjectIDConstants = ObjectIDConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withObjectIDMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
+withObjectIDMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
 withObjectIDMaterial vulkanResources renderTarget globalDS
   = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) objectIDVertShader objectIDFragShader globalDS Nothing
 
@@ -214,9 +219,9 @@ void main() {
 }
 |])
 
-withObjectHighlightMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
-withObjectHighlightMaterial vulkanResources renderTarget globalDescriptorSet materialDescriptorSet =
-  withMaterial vulkanResources renderTarget (undefined :: Proxy Word32)
+withObjectHighlightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
+withObjectHighlightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
+  withMaterial vulkanResources renderConfig (undefined :: Proxy Word32)
     [] pipelineDefaults { depthTestEnable = False } vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

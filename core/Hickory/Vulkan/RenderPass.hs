@@ -47,24 +47,26 @@ import Data.Generics.Labels ()
 import Data.Traversable (for)
 import Control.Monad.IO.Class (MonadIO)
 import Hickory.Vulkan.Types
-import Hickory.Vulkan.Framing (resourceForFrame)
+import Hickory.Vulkan.Framing (resourceForFrame, FramedResource)
 import Data.Word (Word32)
 
-withSwapchainRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
-withSwapchainRenderTarget VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+withSwapchainFramebuffers :: VulkanResources -> Swapchain -> RenderConfig -> Acquire (FramedResource (Framebuffer, [DescriptorSpec]))
+withSwapchainFramebuffers VulkanResources { deviceContext = DeviceContext{..} } sc RenderConfig {..} = do
+  for sc.images \(ViewableImage _img imgView _format) ->
+    (,mempty) <$> createFramebuffer device renderPass extent [imgView]
+
+withSwapchainRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
+withSwapchainRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [outColorAttachmentDescription]
     , subpasses    = [postOverlaySubpass]
     , dependencies = [postOverlayDependency]
     } Nothing mkAcquire
 
-  frameBuffers <- for images \(ViewableImage _img imgView _format) ->
-    (,mempty) <$> createFramebuffer device renderPass extent [imgView]
-
   let cullModeOverride = Nothing
       samples = SAMPLE_COUNT_1_BIT
 
-  pure RenderTarget {..}
+  pure RenderConfig {..}
   where
   outColorAttachmentDescription :: AttachmentDescription
   outColorAttachmentDescription = zero
@@ -110,12 +112,12 @@ createFramebuffer dev renderPass swapchainExtent imageViews =
         }
   in withFramebuffer dev framebufferCreateInfo Nothing mkAcquire
 
-useRenderTarget :: (MonadIO io) => RenderTarget -> Vulkan.CommandBuffer -> V.Vector ClearValue -> Word32 -> io r -> io r
-useRenderTarget RenderTarget {..} commandBuffer clearValues swapchainImageIndex f = do
+useRenderConfig :: (MonadIO io) => RenderConfig -> Vulkan.CommandBuffer -> V.Vector ClearValue -> Word32 -> FramedResource Framebuffer -> io r -> io r
+useRenderConfig RenderConfig {..} commandBuffer clearValues swapchainImageIndex frameBuffers f = do
   let
       renderPassBeginInfo = zero
         { renderPass  = renderPass
-        , framebuffer = fst $ resourceForFrame swapchainImageIndex frameBuffers
+        , framebuffer = resourceForFrame swapchainImageIndex frameBuffers
         , renderArea  = Rect2D { offset = zero , extent = extent }
         , clearValues = clearValues
         }

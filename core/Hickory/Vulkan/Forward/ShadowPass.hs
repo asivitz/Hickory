@@ -22,7 +22,7 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , CullModeFlagBits (..), ImageUsageFlagBits (..), Extent2D (..)
+  , CullModeFlagBits (..), ImageUsageFlagBits (..), Extent2D (..), Sampler, Framebuffer
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -34,12 +34,14 @@ import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Data.ByteString (ByteString)
-import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants)
+import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants, maxShadowCascades, MaxShadowCascadesNat)
 import Hickory.Types (Size(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Forward.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource, frameResource)
+import qualified Data.Vector.Sized as VS
+import Data.Finite (getFinite)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -50,28 +52,36 @@ shadowDim = Extent2D 2048 2048
 shadowMapSize :: Size Int
 shadowMapSize = Size 2048 2048
 
-withShadowRenderTarget :: VulkanResources -> Acquire RenderTarget
-withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do
+withShadowMap :: VulkanResources -> RenderConfig -> Acquire (VS.Vector MaxShadowCascadesNat(Framebuffer, [DescriptorSpec]), DescriptorSpec)
+withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
+  sampler <- withShadowSampler vulkanResources
+  -- Shadowmap depth texture
+  shadowmapImageRaw  <- withDepthImage vulkanResources shadowDim depthFormat SAMPLE_COUNT_1_BIT (IMAGE_USAGE_SAMPLED_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) maxShadowCascades
+  shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw 0 maxShadowCascades
+  let image = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
+  let shadowmapDescriptorSpec = DepthImageDescriptor image sampler
+
+  cascades <- VS.generateM \(fromIntegral . getFinite -> i) -> do
+    cascadeImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw i 1
+    let cascadeImage = ViewableImage shadowmapImageRaw cascadeImageView depthFormat
+    let descriptorSpecs = [DepthImageDescriptor cascadeImage sampler]
+
+    (,descriptorSpecs) <$> createFramebuffer device renderPass shadowDim [shadowmapImageView]
+  pure (cascades, shadowmapDescriptorSpec)
+
+withShadowRenderConfig :: VulkanResources -> Acquire RenderConfig
+withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do
+  let extent = shadowDim
+      cullModeOverride = Just CULL_MODE_FRONT_BIT
+      samples = SAMPLE_COUNT_1_BIT
+
   renderPass <- withRenderPass device zero
     { attachments  = [shadowmapAttachmentDescription]
     , subpasses    = [shadowSubpass]
     , dependencies = [shadowDependency]
     } Nothing mkAcquire
 
-  let extent = shadowDim
-      cullModeOverride = Just CULL_MODE_FRONT_BIT
-      samples = SAMPLE_COUNT_1_BIT
-  sampler <- withShadowSampler vulkanResources
-
-  frameBuffers <- frameResource do
-    -- Shadowmap depth texture
-    shadowmapImageRaw  <- withDepthImage vulkanResources shadowDim depthFormat SAMPLE_COUNT_1_BIT (IMAGE_USAGE_SAMPLED_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
-    shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw
-    let image = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
-    let descriptorSpecs = [DepthImageDescriptor image sampler]
-    (,descriptorSpecs) <$> createFramebuffer device renderPass shadowDim [shadowmapImageView]
-
-  pure RenderTarget {..}
+  pure RenderConfig {..}
   where
   shadowSubpass :: SubpassDescription
   shadowSubpass = zero
@@ -102,13 +112,13 @@ withShadowRenderTarget vulkanResources@VulkanResources { deviceContext = deviceC
     , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
     }
 
-withStaticShadowMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
-withStaticShadowMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineDefaults { depthClampEnable = True } staticVertShader whiteFragShader globalDS Nothing
+withStaticShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticShadowMaterial vulkanResources renderConfig globalDS
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineDefaults { depthClampEnable = True } staticVertShader whiteFragShader globalDS Nothing
 
-withAnimatedShadowMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial AnimatedConstants)
-withAnimatedShadowMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader whiteFragShader globalDS Nothing
+withAnimatedShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial AnimatedConstants)
+withAnimatedShadowMaterial vulkanResources renderConfig globalDS
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader whiteFragShader globalDS Nothing
 
 staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

@@ -15,9 +15,9 @@ import Hickory.Vulkan.Types
 import Data.String.QM (qm)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 
-withPostProcessMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
-withPostProcessMaterial vulkanResources renderTarget globalDescriptorSet materialDescriptorSet =
-  withMaterial vulkanResources renderTarget (undefined :: Proxy PostConstants)
+withPostProcessMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
+withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
+  withMaterial vulkanResources renderConfig (undefined :: Proxy PostConstants)
     [] pipelineDefaults vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = [vert|

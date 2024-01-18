@@ -147,7 +147,6 @@ withResourcesStore vulkanResources = do
     join $ loadResource' meshes "square" (withSquareMesh vulkanResources)
     join $ loadResource' meshes "cube" (withCubeMesh vulkanResources)
 
-
   mkAcquire (pure ()) (const $ cleanupStore meshes)
   mkAcquire (pure ()) (const $ cleanupStore textures)
   mkAcquire (pure ()) (const $ cleanupStore fonts)

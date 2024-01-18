@@ -15,7 +15,7 @@ import Linear (M44, V2)
 import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, VulkanResources, Attribute (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, VulkanResources, Attribute (..))
 import Hickory.Vulkan.Material (pipelineDefaults)
 import Vulkan (DescriptorSetLayout, SamplerAddressMode (..), Filter (..))
 import Hickory.Text (Font(..), makeFont)
@@ -49,8 +49,8 @@ data MSDFMatConstants = MSDFMatConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withOverlayMSDFMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
-withOverlayMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults vertShader msdfFragShader globalPds (Just perDrawLayout )
+withOverlayMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withOverlayMSDFMaterial vulkanResources renderConfig globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults vertShader msdfFragShader globalPds (Just perDrawLayout )
   where
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -72,7 +72,7 @@ void main() {
 
 |])
 
-withMSDFMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
 withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults msdfVertShader msdfFragShader globalPds (Just perDrawLayout )
 
 msdfVertShader :: ByteString

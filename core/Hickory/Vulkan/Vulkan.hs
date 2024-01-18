@@ -252,12 +252,12 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
 
   (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
   images <- for rawImages $ \image -> let form = surfaceFormat.format in
-    ViewableImage image <$> with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image <*> pure form
+    ViewableImage image <$> with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image 0 1 <*> pure form
 
   pure $ Swapchain {..}
 
-withDepthImage :: VulkanResources -> Extent2D -> Format -> SampleCountFlagBits -> ImageUsageFlagBits -> Acquire Image
-withDepthImage VulkanResources { allocator } (Extent2D width height) format samples usage = do
+withDepthImage :: VulkanResources -> Extent2D -> Format -> SampleCountFlagBits -> ImageUsageFlagBits -> Word32 -> Acquire Image
+withDepthImage VulkanResources { allocator } (Extent2D width height) format samples usage layers = do
 
   let imageCreateInfo :: ImageCreateInfo '[]
       imageCreateInfo = zero
@@ -265,7 +265,7 @@ withDepthImage VulkanResources { allocator } (Extent2D width height) format samp
         , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
         , format        = format
         , mipLevels     = 1
-        , arrayLayers   = 1
+        , arrayLayers   = layers
         , tiling        = IMAGE_TILING_OPTIMAL
         , samples       = samples
         , usage         = IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT .|. usage
@@ -296,8 +296,8 @@ vmaVulkanFunctions Instance { instanceCmds } Device { deviceCmds } = zero
   , vkGetDeviceProcAddr   = castFunPtr $ VD.pVkGetDeviceProcAddr deviceCmds
   }
 
-with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Acquire ImageView
-with2DImageView DeviceContext { device } format flags image =
+with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Word32 -> Word32 -> Acquire ImageView
+with2DImageView DeviceContext { device } format flags image baseLayer numLayers =
   withImageView device imageViewCreateInfo Nothing mkAcquire
   where
   imageViewCreateInfo = zero
@@ -309,8 +309,8 @@ with2DImageView DeviceContext { device } format flags image =
       { aspectMask     = flags
       , baseMipLevel   = 0
       , levelCount     = 1
-      , baseArrayLayer = 0
-      , layerCount     = 1
+      , baseArrayLayer = baseLayer
+      , layerCount     = numLayers
       }
     }
 

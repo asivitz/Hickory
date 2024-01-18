@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedLabels, OverloadedRecordDot #-}
 
 module Hickory.FRP.Editor.Post where
 
@@ -22,7 +22,7 @@ import Hickory.Vulkan.Forward.Types (Renderer(..), ForwardRenderTargets(..))
 import Vulkan (Extent2D (..), objectTypeAndHandle)
 import Foreign (with, castPtr, wordPtrToPtr, WordPtr(..))
 import Control.Lens (view)
-import Hickory.Vulkan.Types (FrameContext(..))
+import Hickory.Vulkan.Types (FrameContext(..), RenderConfig(..))
 import Hickory.Vulkan.Framing (resourceForFrame)
 
 data PostEditorState = PostEditorState
@@ -108,7 +108,7 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100
 
     let ForwardRenderTargets {..} = renderTargets
-        Extent2D w h = view #extent shadowRenderTarget
+        Extent2D w h = shadowRenderConfig.extent
         desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet (resourceForFrame swapchainImageIndex shadowMapDescriptorSet))
         imagePtr = wordPtrToPtr (WordPtr $ fromIntegral desSetHandle)
     with (ImVec2 (realToFrac w / 4) (realToFrac h / 4)) \sizeptr ->

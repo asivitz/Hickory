@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -44,41 +44,46 @@ import Hickory.Vulkan.Framing (FramedResource, frameResource)
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
 
-withLitRenderTarget :: VulkanResources -> Swapchain -> Acquire RenderTarget
-withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
+resolveFormat :: Format
+resolveFormat = hdrFormat
+
+hdrFormat :: Format
+hdrFormat     = FORMAT_R16G16B16A16_SFLOAT
+
+withLitFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, [DescriptorSpec])
+withLitFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
+  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+
+  -- Target textures for the lit pass
+  hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
+  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw 0 1
+  let _hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
+
+  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount IMAGE_USAGE_SAMPLED_BIT 1
+  depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
+  let depthImage = ViewableImage depthImageRaw depthImageView depthFormat
+
+  -- Target tex for the multisample resolve pass
+  resolveImageRaw  <- withIntermediateImage vulkanResources resolveFormat
+    (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+    extent SAMPLE_COUNT_1_BIT
+  resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw 0 1
+  let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
+      descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)], ImageDescriptor [(depthImage,sampler)]]
+  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
+
+withLitRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
+withLitRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription]
     , subpasses    = [litSubpass]
     , dependencies = [litDependency]
     } Nothing mkAcquire
 
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-  frameBuffers <- frameResource do
-
-    -- Target textures for the lit pass
-    hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
-    hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw
-    let _hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
-
-    depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount IMAGE_USAGE_SAMPLED_BIT
-    depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw
-    let depthImage = ViewableImage depthImageRaw depthImageView depthFormat
-
-    -- Target tex for the multisample resolve pass
-    resolveImageRaw  <- withIntermediateImage vulkanResources resolveFormat
-      (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
-      extent SAMPLE_COUNT_1_BIT
-    resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw
-    let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
-        descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)], ImageDescriptor [(depthImage,sampler)]]
-    (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
-
   let cullModeOverride = Nothing
       samples = maxSampleCount
-  pure RenderTarget {..}
+  pure RenderConfig {..}
   where
-  resolveFormat = hdrFormat
-  hdrFormat     = FORMAT_R16G16B16A16_SFLOAT
   hdrColorAttachmentDescription :: AttachmentDescription
   hdrColorAttachmentDescription = zero
     { format         = hdrFormat
@@ -142,13 +147,13 @@ withLitRenderTarget vulkanResources@VulkanResources { deviceContext = deviceCont
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
-withStaticLitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
-withStaticLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord] pipelineDefaults staticLitVertShader staticLitFragShader globalPDS (Just perDrawLayout)
+withStaticLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticLitMaterial vulkanResources renderConfig globalPDS perDrawLayout
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord] pipelineDefaults staticLitVertShader staticLitFragShader globalPDS (Just perDrawLayout)
 
-withAnimatedLitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial AnimatedConstants)
-withAnimatedLitMaterial vulkanResources renderTarget globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedLitVertShader animatedLitFragShader globalPDS (Just perDrawLayout)
+withAnimatedLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial AnimatedConstants)
+withAnimatedLitMaterial vulkanResources renderConfig globalPDS perDrawLayout
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedLitVertShader animatedLitFragShader globalPDS (Just perDrawLayout)
 
 staticLitVertShader :: ByteString
 staticLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -247,9 +252,9 @@ void main()
 }
 |])
 
-withStaticUnlitMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
-withStaticUnlitMaterial vulkanResources renderTarget globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
+withStaticUnlitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticUnlitMaterial vulkanResources renderConfig globalPDS perDrawLayout
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
 
 
 simpleFragShader :: ByteString
@@ -263,8 +268,8 @@ void main() {
 
 |])
 
-withLineMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
-withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
+withLineMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
   pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
   vertShader :: ByteString
@@ -283,8 +288,8 @@ withLineMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMat
 
   |])
 
-withPointMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
-withPointMaterial vulkanResources renderTarget globalPDS = withBufferedUniformMaterial vulkanResources renderTarget [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
+withPointMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
   pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
   vertShader :: ByteString
@@ -360,6 +365,6 @@ void main() {
 
 |])
 
-withOverlayMaterial :: VulkanResources -> RenderTarget -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
-withOverlayMaterial vulkanResources renderTarget globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults overlayVertShader unlitFragShader globalPDS (Just perDrawLayout)
+withOverlayMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withOverlayMaterial vulkanResources renderConfig globalPDS perDrawLayout
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults overlayVertShader unlitFragShader globalPDS (Just perDrawLayout)

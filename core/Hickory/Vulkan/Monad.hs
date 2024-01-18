@@ -43,7 +43,7 @@ import Acquire.Acquire (Acquire)
 import Data.Proxy (Proxy)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
-import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderTarget (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))
+import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderConfig (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))
 import Linear (liftI2)
 import GHC.List (foldl1')
 
@@ -58,7 +58,7 @@ withBufferedUniformMaterial
   :: forall uniform
   .  Storable uniform
   => VulkanResources
-  -> RenderTarget
+  -> RenderConfig
   -> [Attribute]
   -> PipelineOptions
   -> B.ByteString
@@ -66,12 +66,12 @@ withBufferedUniformMaterial
   -> FramedResource PointedDescriptorSet -- Global descriptor set
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial uniform)
-withBufferedUniformMaterial vulkanResources renderTarget attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
+withBufferedUniformMaterial vulkanResources renderConfig attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources 2048
   let
     materialSet = view #descriptorSet <$> descriptor
     uniformSize = sizeOf (undefined :: uniform)
-  material <- withMaterial vulkanResources renderTarget (undefined :: Proxy Word32) attributes pipelineOptions vert frag
+  material <- withMaterial vulkanResources renderConfig (undefined :: Proxy Word32) attributes pipelineOptions vert frag
     [ globalDescriptorSet
     , materialSet
     ]

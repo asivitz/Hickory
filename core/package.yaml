@@ -44,6 +44,7 @@ dependencies:
     - containers
     - derive-storable
     - vector-sized
+    - finite-typelits
     - generic-lens
     - groom
     - hashable

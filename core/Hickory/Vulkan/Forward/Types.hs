@@ -5,12 +5,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE CPP #-}
 
 module Hickory.Vulkan.Forward.Types where
 
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderTarget, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
-import qualified Data.Vector.Storable.Sized as VS
+import qualified Data.Vector.Storable.Sized as VSS
+import qualified Data.Vector.Sized as VS
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial)
 import Hickory.Vulkan.Forward.ObjectPicking (ObjectIDConstants)
@@ -28,17 +30,31 @@ import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
 import Hickory.Vulkan.DescriptorSet
 import Data.UUID (UUID)
-import Vulkan (DescriptorSetLayout)
+import Vulkan (DescriptorSetLayout, Framebuffer)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
 import Data.Time (NominalDiffTime)
+import Data.Fixed (Fixed)
+import GHC.TypeLits (Nat, natVal)
+import Data.Proxy (Proxy(..))
+
+type MaxShadowCascadesNat :: Nat
+type MaxShadowCascadesNat = 1
+
+maxShadowCascades :: Word32
+maxShadowCascades = fromIntegral $ natVal (Proxy @MaxShadowCascadesNat)
 
 data ForwardRenderTargets = ForwardRenderTargets
-  { swapchainRenderTarget        :: !RenderTarget
-  , shadowRenderTarget           :: !RenderTarget
-  , litRenderTarget              :: !RenderTarget
-  , pickingRenderTarget          :: !RenderTarget
-  , currentSelectionRenderTarget :: !RenderTarget
+  { swapchainRenderConfig        :: !RenderConfig
+  , swapchainRenderFrame         :: FramedResource (Framebuffer, [DescriptorSpec])
+  , litRenderConfig              :: !RenderConfig
+  , litRenderFrame               :: FramedResource (Framebuffer, [DescriptorSpec])
+  , objectIDRenderConfig         :: !RenderConfig
+  , pickingRenderFrame           :: FramedResource (Framebuffer, [DescriptorSpec])
+  , currentSelectionRenderFrame  :: FramedResource (Framebuffer, [DescriptorSpec])
+  -- Shadows
+  , shadowRenderConfig           :: !RenderConfig
+  , cascadedShadowMap            :: FramedResource (VS.Vector MaxShadowCascadesNat (Framebuffer, [DescriptorSpec]), DescriptorSpec)
   }
 
 data Renderer = Renderer
@@ -121,7 +137,7 @@ data CustomDrawCommand = forall uniform. CustomDrawCommand
 data Stage
   = Picking
   | ShowSelection
-  | ShadowMap
+  | CreateShadowMap
   | World
   | Overlay
   deriving Eq
@@ -140,8 +156,8 @@ data MeshType
 
 data AnimatedMesh = AnimatedMesh
   { albedo   :: PointedDescriptorSet
-  , boneMat  :: VS.Vector 66 (M44 Float)
-  , colors   :: VS.Vector 6 (V4 Float)
+  , boneMat  :: VSS.Vector 66 (M44 Float)
+  , colors   :: VSS.Vector 6 (V4 Float)
   }
 
 data StaticMesh = StaticMesh
@@ -172,8 +188,8 @@ data AnimatedConstants = AnimatedConstants
   , normalMat   :: M33 Float
   , color       :: V4 Float
   , specularity :: Float
-  , boneMat     :: VS.Vector 66 (M44 Float) -- TODO: Parameterize
-  , colors      :: VS.Vector 6 (V4 Float)
+  , boneMat     :: VSS.Vector 66 (M44 Float) -- TODO: Parameterize
+  , colors      :: VSS.Vector 6 (V4 Float)
   , objectID    :: Word32
   } deriving Generic
     deriving anyclass GStorable
