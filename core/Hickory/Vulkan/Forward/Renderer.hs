@@ -3,7 +3,7 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), CustomDrawCommand(..), Stage(..), OverlayGlobals (..), AllStageMaterial (..), ForwardRenderTargets (..))
+import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), CustomDrawCommand(..), Stage(..), OverlayGlobals (..), AllStageMaterial (..), ForwardRenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..))
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -20,7 +20,7 @@ import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout)
 import Foreign (Storable, plusPtr, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
-import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has)
+import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?))
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults)
 import Data.List (partition, sortOn, mapAccumL)
@@ -58,9 +58,11 @@ import Data.UUID.V4 (nextRandom)
 import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
+import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades)
 
 withRendererMaterial
-  :: VulkanResources
+  :: forall a. Storable a
+  => VulkanResources
   -> RenderConfig
   -> [HVT.Attribute]
   -> PipelineOptions
@@ -68,8 +70,8 @@ withRendererMaterial
   -> B.ByteString
   -> [FramedResource PointedDescriptorSet]
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
-  -> Acquire (Material Word32)
-withRendererMaterial vulkanResources renderConfig = withMaterial vulkanResources renderConfig (undefined :: Proxy Word32)
+  -> Acquire (Material a)
+withRendererMaterial vulkanResources renderConfig = withMaterial vulkanResources renderConfig
 
 withAllStageMaterial
   :: forall uniform
@@ -232,8 +234,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
 data RegisteredMaterial const extra
   = NullMat
-  | Universal (BufferedUniformMaterial const) extra
-  | LitAndUnlit (BufferedUniformMaterial const, extra) (BufferedUniformMaterial const, extra)
+  | Universal (BufferedUniformMaterial Word32 const) extra
+  | LitAndUnlit (BufferedUniformMaterial Word32 const, extra) (BufferedUniformMaterial Word32 const, extra)
 
 isPointWithinCameraFrustum :: Scalar -> Camera -> V3 Scalar -> Bool
 isPointWithinCameraFrustum _ Camera {projection = Ortho {}} _ = True -- Ortho culling not yet implemented
@@ -401,8 +403,6 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         projMat = cameraProjMat (Size (fromIntegral w) (fromIntegral h)) camera
         viewMat = cameraViewMat camera
         viewProjMat = projMat !*! viewMat
-        lightProj = lightProjection viewProjMat lightView shadowRenderConfig.extent
-        lightViewProj = lightProj !*! lightView
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
@@ -414,7 +414,34 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         shadowCullTest cdc   = cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
         overlayCullTest _    = True
         showSelectionCullTest cdc = isJust cdc.hasIdent && (cdc.hasIdent `elem` fmap Just highlightObjs) && inWorldCull cdc
-        shadowPassGlobals = OverlayGlobals lightView lightProj lightViewProj
+
+
+        near = fromMaybe 0 $ camera ^? #projection . #_Perspective . _2
+        far = fromMaybe 0 $ camera ^? #projection . #_Perspective . _3
+        clipRange = far - near
+
+        minZ = near
+        maxZ = near + clipRange
+
+        range = maxZ - minZ
+        ratio = maxZ / minZ
+
+        cascadeSplitLambda = 0.95
+
+        -- From https://github.com/SaschaWillems/Vulkan/blob/master/examples/shadowmappingcascade/shadowmappingcascade.cpp
+        splitDepths = VS.generate \i ->
+          let p = realToFrac $ (fromIntegral i + 1) / realToFrac maxShadowCascades
+              lg = minZ * (ratio ** p)
+              uniform = minZ + range * p
+          in cascadeSplitLambda * (lg - uniform) + uniform
+        lightViewProjs = VS.generate \(fromIntegral -> i) ->
+          let dist = VS.unsafeIndex splitDepths i
+              lastDist = if i == 0 then near else VS.unsafeIndex splitDepths (i-1)
+              cam = camera & #projection . #_Perspective . _2 .~ lastDist
+                           & #projection . #_Perspective . _3 .~ dist
+              lightProj = lightProjection (cameraProjMat (Size (fromIntegral w) (fromIntegral h)) cam !*! viewMat) lightView shadowRenderConfig.extent
+          in  lightProj !*! lightView
+        shadowPassGlobals = ShadowGlobals lightViewProjs splitDepths
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->
       uploadBufferDescriptor buf
@@ -423,7 +450,6 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     withResourceForFrame swapchainImageIndex globalWorldBuffer \buf ->
       uploadBufferDescriptor buf
         $ worldGlobals
-        & #lightTransform .~ lightViewProj
 
     withResourceForFrame swapchainImageIndex globalShadowPassBuffer $
       flip uploadBufferDescriptor shadowPassGlobals
@@ -462,21 +488,22 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
 
     useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> pickingRenderFrame) do
       processIDRenderPass frameContext (Universal pickingMaterial ()) $ filter (isJust . ident) nonCustomWorldCommands
-      processCustomCommandGroups frameContext Picking (filter (pickingCullTest . snd) <$> allWorldGrouped)
+      processCustomCommandGroups frameContext Picking (filter (pickingCullTest . snd) <$> allWorldGrouped) Nothing
 
     useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
       processIDRenderPass frameContext (Universal currentSelectionMaterial ()) $ filter ((\x -> x `elem` map Just highlightObjs) . ident) nonCustomWorldCommands
-      processCustomCommandGroups frameContext ShowSelection (filter (showSelectionCullTest . snd) <$> allWorldGrouped)
+      processCustomCommandGroups frameContext ShowSelection (filter (showSelectionCullTest . snd) <$> allWorldGrouped) Nothing
 
-    useRenderConfig shadowRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex (fst . (`VS.unsafeIndex` 0) . fst <$> cascadedShadowMap) do
-      processRenderPass frameContext
-        ( Universal animatedShadowMaterial ()
-        , Universal staticShadowMaterial ()
-        , NullMat
-        , NullMat
-        , NullMat
-        ) $ filter castsShadow nonCustomWorldCommands
-      processCustomCommandGroups frameContext CreateShadowMap (filter (shadowCullTest . snd) <$> allWorldGrouped)
+    for_ ([0..maxShadowCascades-1] :: [Word32]) \i ->
+      useRenderConfig shadowRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex (fst . (`VS.unsafeIndex` fromIntegral i) . fst <$> cascadedShadowMap) do
+        -- processRenderPass frameContext
+        --   ( Universal animatedShadowMaterial ()
+        --   , Universal staticShadowMaterial ()
+        --   , NullMat
+        --   , NullMat
+        --   , NullMat
+        --   ) $ filter castsShadow nonCustomWorldCommands
+        processCustomCommandGroups frameContext CreateShadowMap (filter (shadowCullTest . snd) <$> allWorldGrouped) (Just i)
 
     let V4 r g b a = clearColor
     useRenderConfig litRenderConfig commandBuffer
@@ -484,7 +511,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       , DepthStencil (ClearDepthStencilValue 1 0)
       , Color (Float32 1 1 1 1)
       ] swapchainImageIndex (fst <$> litRenderFrame) do
-      processCustomCommandGroups frameContext World (filter (worldCullTest . snd) <$> worldOpaqueGrouped)
+      processCustomCommandGroups frameContext World (filter (worldCullTest . snd) <$> worldOpaqueGrouped) Nothing
       processRenderPass frameContext
         ( Universal animatedLitWorldMaterial ()
         , LitAndUnlit (staticLitWorldMaterial, ()) (staticUnlitWorldMaterial, ())
@@ -555,16 +582,16 @@ bindMaterialIfNeeded fc material = do
     put curUUID
 
 renderCommand
-  :: (MonadIO m, DynamicMeshMonad m)
+  :: (MonadIO m, DynamicMeshMonad m, Storable a)
   => FrameContext
-  -> Material Word32
+  -> Material a
   -> MeshType
   -> Word32
   -> Maybe PointedDescriptorSet
-  -> Word32
+  -> a
   -> m ()
-renderCommand FrameContext {..} material mesh instanceCount drawDS uniformIdx = do
-  cmdPushMaterialConstants commandBuffer material uniformIdx
+renderCommand FrameContext {..} material mesh instanceCount drawDS pushConsts = do
+  cmdPushMaterialConstants commandBuffer material pushConsts
   when (hasPerDrawDescriptorSet material) do
     for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
   case mesh of
@@ -583,7 +610,7 @@ renderCommand FrameContext {..} material mesh instanceCount drawDS uniformIdx = 
       DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
       cmdDrawBufferedMesh commandBuffer material vertexSizeThusFar meshOffsets vertexBuffer instanceCount numIndices numVertices (fromIntegral indexSizeThusFar) (Just indexBuffer)
 
-uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial a -> [a] -> m ()
+uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial pushConst a -> [a] -> m ()
 uploadUniformsBuffer FrameContext {..} BufferedUniformMaterial {..} uniforms = do
   let BufferDescriptorSet { dataBuffer } = resourceForFrame swapchainImageIndex descriptor
 
@@ -770,22 +797,32 @@ processCustomCommandGroups
   => FrameContext
   -> Stage
   -> [[(Word32, CustomDrawCommand)]]
+  -> Maybe Word32
   -> m ()
-processCustomCommandGroups fc stage grouped = do
+processCustomCommandGroups fc CreateShadowMap grouped (Just shadowCascadeIndex) = do
+  for_ grouped \group ->
+    case headMay group of
+      Nothing -> pure ()
+      Just (_, CustomDrawCommand { material }) -> do
+        let theMat = material.shadowMaterial
+        cmdBindMaterial fc theMat
+        for_ group \(i, CustomDrawCommand {mesh, descriptorSet, instanceCount}) -> do
+          renderCommand fc theMat mesh instanceCount descriptorSet (ShadowPushConsts i shadowCascadeIndex)
+processCustomCommandGroups fc stage grouped Nothing = do
   for_ grouped \group ->
     case headMay group of
       Nothing -> pure ()
       Just (_, CustomDrawCommand { material }) -> do
         let theMat = case stage of
               World -> material.worldMaterial
-              CreateShadowMap -> material.shadowMaterial
               Picking -> material.objectIDMaterial
               Overlay -> fromMaybe (error "Material set has no overlay material") material.overlayMaterial
               ShowSelection -> material.showSelectionMaterial
+              CreateShadowMap -> error "Shadow stage needs cascade"
         cmdBindMaterial fc theMat
         for_ group \(i, CustomDrawCommand {mesh, descriptorSet, instanceCount}) -> do
-          -- if stage == _
           renderCommand fc theMat mesh instanceCount descriptorSet i
+processCustomCommandGroups _ _ _ _ = error "Bad stage/cascade combo"
 
 processCustomCommandUngrouped
   :: (MonadIO m, DynamicMeshMonad m)
@@ -798,7 +835,7 @@ processCustomCommandUngrouped fc stage commands = do
     for_ commands \(i, CustomDrawCommand {mesh, descriptorSet, material, instanceCount}) -> do
       let theMat = case stage of
             World -> material.worldMaterial
-            CreateShadowMap -> material.shadowMaterial
+            CreateShadowMap -> error "Shadow map creation not supported for ungrouped commands" --  material.shadowMaterial
             Picking -> material.objectIDMaterial
             Overlay -> fromMaybe (error "Material set has no overlay material") material.overlayMaterial
             ShowSelection -> material.showSelectionMaterial

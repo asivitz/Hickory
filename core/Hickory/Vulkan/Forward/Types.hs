@@ -33,16 +33,7 @@ import Data.UUID (UUID)
 import Vulkan (DescriptorSetLayout, Framebuffer)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
-import Data.Time (NominalDiffTime)
-import Data.Fixed (Fixed)
-import GHC.TypeLits (Nat, natVal)
-import Data.Proxy (Proxy(..))
-
-type MaxShadowCascadesNat :: Nat
-type MaxShadowCascadesNat = 1
-
-maxShadowCascades :: Word32
-maxShadowCascades = fromIntegral $ natVal (Proxy @MaxShadowCascadesNat)
+import Hickory.Vulkan.Forward.ShaderDefinitions (MaxShadowCascadesNat)
 
 data ForwardRenderTargets = ForwardRenderTargets
   { swapchainRenderConfig        :: !RenderConfig
@@ -61,23 +52,23 @@ data Renderer = Renderer
   { renderTargets :: ForwardRenderTargets
 
   -- Pipelines
-  , pickingMaterial            :: !(BufferedUniformMaterial ObjectIDConstants)
-  , currentSelectionMaterial   :: !(BufferedUniformMaterial ObjectIDConstants)
-  , staticShadowMaterial       :: !(BufferedUniformMaterial StaticConstants)
-  , animatedShadowMaterial     :: !(BufferedUniformMaterial AnimatedConstants)
-  , staticLitWorldMaterial     :: !(BufferedUniformMaterial StaticConstants)
-  , staticUnlitWorldMaterial   :: !(BufferedUniformMaterial StaticConstants)
-  , animatedLitWorldMaterial   :: !(BufferedUniformMaterial AnimatedConstants)
-  , msdfWorldMaterial          :: !(BufferedUniformMaterial MSDFMatConstants)
-  , linesWorldMaterial         :: !(BufferedUniformMaterial StaticConstants)
-  , pointsWorldMaterial        :: !(BufferedUniformMaterial StaticConstants)
+  , pickingMaterial            :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
+  , currentSelectionMaterial   :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
+  , staticShadowMaterial       :: !(BufferedUniformMaterial ShadowPushConsts StaticConstants)
+  , animatedShadowMaterial     :: !(BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
+  , staticLitWorldMaterial     :: !(BufferedUniformMaterial Word32 StaticConstants)
+  , staticUnlitWorldMaterial   :: !(BufferedUniformMaterial Word32 StaticConstants)
+  , animatedLitWorldMaterial   :: !(BufferedUniformMaterial Word32 AnimatedConstants)
+  , msdfWorldMaterial          :: !(BufferedUniformMaterial Word32 MSDFMatConstants)
+  , linesWorldMaterial         :: !(BufferedUniformMaterial Word32 StaticConstants)
+  , pointsWorldMaterial        :: !(BufferedUniformMaterial Word32 StaticConstants)
   , objHighlightMaterial       :: !(Material Word32)
-  , staticOverlayMaterial      :: !(BufferedUniformMaterial StaticConstants)
-  , msdfOverlayMaterial        :: !(BufferedUniformMaterial MSDFMatConstants)
+  , staticOverlayMaterial      :: !(BufferedUniformMaterial Word32 StaticConstants)
+  , msdfOverlayMaterial        :: !(BufferedUniformMaterial Word32 MSDFMatConstants)
 
   , postProcessMaterial      :: !(Material PostConstants)
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
-  , globalShadowPassBuffer   :: !(FramedResource (DataBuffer OverlayGlobals))
+  , globalShadowPassBuffer   :: !(FramedResource (DataBuffer ShadowGlobals))
   , globalWorldBuffer        :: !(FramedResource (DataBuffer WorldGlobals))
   , globalOverlayBuffer      :: !(FramedResource (DataBuffer OverlayGlobals))
   , dynamicMesh              :: FramedResource DynamicBufferedMesh
@@ -194,9 +185,15 @@ data AnimatedConstants = AnimatedConstants
   } deriving Generic
     deriving anyclass GStorable
 
+data ShadowPushConsts = ShadowPushConsts
+  { uniformIndex :: Word32
+  , cascadeIndex :: Word32
+  } deriving Generic
+    deriving anyclass GStorable
+
 data AllStageMaterial uniform = AllStageMaterial
   { worldMaterial            :: Material Word32
-  , shadowMaterial           :: Material Word32
+  , shadowMaterial           :: Material ShadowPushConsts
   , objectIDMaterial         :: Material Word32
   , showSelectionMaterial    :: Material Word32
   , overlayMaterial          :: Maybe (Material Word32)
@@ -218,7 +215,6 @@ data WorldGlobals = WorldGlobals
   , projMat        :: M44 Scalar
   , viewProjMat    :: M44 Scalar
   , camPos         :: V3 Scalar
-  , lightTransform :: M44 Scalar
   , lightDirection :: V3 Scalar
   , sunColor       :: V3 Scalar -- HDR
   , ambientColor   :: V3 Scalar -- HDR
@@ -232,6 +228,12 @@ data OverlayGlobals = OverlayGlobals
   { viewMat        :: M44 Scalar
   , projMat        :: M44 Scalar
   , viewProjMat    :: M44 Scalar
+  } deriving Generic
+    deriving anyclass GStorable
+
+data ShadowGlobals = ShadowGlobals
+  { viewProjMats :: VS.Vector MaxShadowCascadesNat (M44 Scalar)
+  , splitDepths  :: VS.Vector MaxShadowCascadesNat Scalar -- Far plane of each cascade
   } deriving Generic
     deriving anyclass GStorable
 

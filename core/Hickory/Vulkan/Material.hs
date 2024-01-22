@@ -48,10 +48,9 @@ import Data.Maybe (isJust, fromMaybe)
 import GHC.Generics (Generic)
 
 withMaterial
-  :: forall f a. Storable a
+  :: forall a. Storable a
   => VulkanResources
   -> RenderConfig
-  -> f a -- Push Const proxy
   -> [Attribute]
   -> PipelineOptions
   -> B.ByteString
@@ -62,7 +61,6 @@ withMaterial
 withMaterial
   bag@VulkanResources {..}
   RenderConfig {..}
-  _pushConstProxy
   (sortOn attrLocation -> attributes)
   pipelineOptions vertShader fragShader
   descriptorSets

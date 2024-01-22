@@ -21,7 +21,7 @@ import Vulkan
   , ImageSubresourceRange(..)
   , ImageUsageFlagBits (..)
   , ImageViewCreateInfo(..)
-  , ImageViewType (IMAGE_VIEW_TYPE_2D)
+  , ImageViewType (..)
   , Instance (..)
   , PhysicalDevice
   , PhysicalDeviceProperties (..)
@@ -302,7 +302,7 @@ with2DImageView DeviceContext { device } format flags image baseLayer numLayers 
   where
   imageViewCreateInfo = zero
     { image      = image
-    , viewType   = IMAGE_VIEW_TYPE_2D
+    , viewType   = if numLayers > 1 then IMAGE_VIEW_TYPE_2D_ARRAY else IMAGE_VIEW_TYPE_2D
     , format     = format
     , components = zero
     , subresourceRange = zero

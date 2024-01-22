@@ -48,15 +48,15 @@ import Linear (liftI2)
 import GHC.List (foldl1')
 
 
-data BufferedUniformMaterial uniform = BufferedUniformMaterial
-  { material    :: Material Word32
+data BufferedUniformMaterial pushConst uniform = BufferedUniformMaterial
+  { material    :: Material pushConst
   , descriptor  :: FramedResource (BufferDescriptorSet uniform)
   , uniformSize :: Int -- Bytes
   } deriving Generic
 
 withBufferedUniformMaterial
-  :: forall uniform
-  .  Storable uniform
+  :: forall pushConst uniform
+  .  (Storable uniform, Storable pushConst)
   => VulkanResources
   -> RenderConfig
   -> [Attribute]
@@ -65,13 +65,13 @@ withBufferedUniformMaterial
   -> B.ByteString
   -> FramedResource PointedDescriptorSet -- Global descriptor set
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
-  -> Acquire (BufferedUniformMaterial uniform)
+  -> Acquire (BufferedUniformMaterial pushConst uniform)
 withBufferedUniformMaterial vulkanResources renderConfig attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources 2048
   let
     materialSet = view #descriptorSet <$> descriptor
     uniformSize = sizeOf (undefined :: uniform)
-  material <- withMaterial vulkanResources renderConfig (undefined :: Proxy Word32) attributes pipelineOptions vert frag
+  material <- withMaterial vulkanResources renderConfig attributes pipelineOptions vert frag
     [ globalDescriptorSet
     , materialSet
     ]
@@ -179,7 +179,7 @@ textMesh font tc = Mesh { indices = Just (SV.fromList indices)
   minPosition = foldl1' (liftI2 min) posVecs
   maxPosition = foldl1' (liftI2 max) posVecs
 
-cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material Word32 -> Word32 -> [(Attribute, Word32)] -> Buffer -> Word32 -> Maybe Word32 -> Word32 -> Word64 -> Maybe Buffer -> m ()
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material a -> Word32 -> [(Attribute, Word32)] -> Buffer -> Word32 -> Maybe Word32 -> Word32 -> Word64 -> Maybe Buffer -> m ()
 cmdDrawBufferedMesh commandBuffer Material {..} (fromIntegral -> vertexOffset) meshOffsets vertexBuffer instanceCount mNumIndices numVertices indexOffset mIndexBuffer = do
   let
       bindOffsets = V.fromList $ attributes <&> \a -> (+vertexOffset) . fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in mesh")

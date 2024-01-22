@@ -40,6 +40,7 @@ import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
 import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants)
 import Hickory.Vulkan.Forward.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource, frameResource)
+import Data.Word (Word32)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -147,11 +148,11 @@ withLitRenderConfig vulkanResources@VulkanResources { deviceContext = deviceCont
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
-withStaticLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
 withStaticLitMaterial vulkanResources renderConfig globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord] pipelineDefaults staticLitVertShader staticLitFragShader globalPDS (Just perDrawLayout)
 
-withAnimatedLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial AnimatedConstants)
+withAnimatedLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 AnimatedConstants)
 withAnimatedLitMaterial vulkanResources renderConfig globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedLitVertShader animatedLitFragShader globalPDS (Just perDrawLayout)
 
@@ -159,6 +160,8 @@ staticLitVertShader :: ByteString
 staticLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
+$shadowPassGlobalsDef
+$pushConstantsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -185,6 +188,7 @@ animatedLitFragShader :: ByteString
 animatedLitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
 $worldGlobalsDef
+$pushConstantsDef
 $animatedUniformsDef
 $litFragDef
 
@@ -204,6 +208,7 @@ staticLitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
 $worldGlobalsDef
 $litFragDef
+$pushConstantsDef
 $staticUniformsDef
 
 layout(location = 1) in vec2 texCoord;
@@ -221,6 +226,8 @@ animatedLitVertShader :: ByteString
 animatedLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
+$shadowPassGlobalsDef
+$pushConstantsDef
 $animatedUniformsDef
 $litVertexDef
 
@@ -252,7 +259,7 @@ void main()
 }
 |])
 
-withStaticUnlitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticUnlitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
 withStaticUnlitMaterial vulkanResources renderConfig globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
 
@@ -260,6 +267,7 @@ withStaticUnlitMaterial vulkanResources renderConfig globalPDS perDrawLayout
 simpleFragShader :: ByteString
 simpleFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
+$pushConstantsDef
 $staticUniformsDef
 
 void main() {
@@ -268,7 +276,7 @@ void main() {
 
 |])
 
-withLineMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withLineMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
 withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
   pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
@@ -276,6 +284,7 @@ withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMat
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
   $worldGlobalsDef
+  $pushConstantsDef
   $staticUniformsDef
 
   layout(location = 0) in vec3 inPosition;
@@ -288,7 +297,7 @@ withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMat
 
   |])
 
-withPointMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withPointMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
 withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
   pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
@@ -296,6 +305,7 @@ withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMa
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
   $worldGlobalsDef
+  $pushConstantsDef
   $staticUniformsDef
 
   layout(location = 0) in vec3 inPosition;
@@ -313,6 +323,7 @@ staticUnlitVertShader :: ByteString
 staticUnlitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
+$pushConstantsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -333,6 +344,7 @@ overlayVertShader :: ByteString
 overlayVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $overlayGlobalsDef
+$pushConstantsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -352,6 +364,7 @@ void main() {
 unlitFragShader :: ByteString
 unlitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
+$pushConstantsDef
 $staticUniformsDef
 
 layout(location = 1) in vec2 texCoord;
@@ -365,6 +378,6 @@ void main() {
 
 |])
 
-withOverlayMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial StaticConstants)
+withOverlayMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
 withOverlayMaterial vulkanResources renderConfig globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults overlayVertShader unlitFragShader globalPDS (Just perDrawLayout)

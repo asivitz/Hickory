@@ -34,7 +34,7 @@ import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Data.ByteString (ByteString)
-import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants, maxShadowCascades, MaxShadowCascadesNat)
+import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants, ShadowPushConsts)
 import Hickory.Types (Size(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
@@ -66,7 +66,7 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
     let cascadeImage = ViewableImage shadowmapImageRaw cascadeImageView depthFormat
     let descriptorSpecs = [DepthImageDescriptor cascadeImage sampler]
 
-    (,descriptorSpecs) <$> createFramebuffer device renderPass shadowDim [shadowmapImageView]
+    (,descriptorSpecs) <$> createFramebuffer device renderPass shadowDim [cascadeImageView]
   pure (cascades, shadowmapDescriptorSpec)
 
 withShadowRenderConfig :: VulkanResources -> Acquire RenderConfig
@@ -112,11 +112,11 @@ withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceC
     , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
     }
 
-withStaticShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial StaticConstants)
+withStaticShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts StaticConstants)
 withStaticShadowMaterial vulkanResources renderConfig globalDS
   = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineDefaults { depthClampEnable = True } staticVertShader whiteFragShader globalDS Nothing
 
-withAnimatedShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial AnimatedConstants)
+withAnimatedShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
 withAnimatedShadowMaterial vulkanResources renderConfig globalDS
   = withBufferedUniformMaterial vulkanResources renderConfig [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader whiteFragShader globalDS Nothing
 
@@ -124,6 +124,7 @@ staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $shadowPassGlobalsDef
+$shadowPushConstantsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -134,7 +135,7 @@ void main() {
   vec4 worldPosition = uniforms.modelMat
                       * vec4(inPosition, 1.0);
 
-  gl_Position = globals.viewProjMat
+  gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
               * worldPosition;
 }
 
@@ -144,6 +145,7 @@ animatedVertShader :: ByteString
 animatedVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $shadowPassGlobalsDef
+$shadowPushConstantsDef
 $animatedUniformsDef
 
 layout(location = 0) in vec3 inPosition;
@@ -163,7 +165,7 @@ void main() {
                       * skinMat
                       * vec4(inPosition, 1.0);
 
-  gl_Position = globals.viewProjMat
+  gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
               * worldPosition;
 }
 

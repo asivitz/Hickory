@@ -132,7 +132,7 @@ data ObjectIDConstants = ObjectIDConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withObjectIDMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ObjectIDConstants)
+withObjectIDMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 ObjectIDConstants)
 withObjectIDMaterial vulkanResources renderTarget globalDS
   = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults { blendEnable = False }) objectIDVertShader objectIDFragShader globalDS Nothing
 
@@ -150,6 +150,7 @@ staticObjectIDVertShader :: ByteString
 staticObjectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $vertHeader
 $worldGlobalsDef
+$pushConstantsDef
 $staticUniformsDef
 
 void main() { $staticVertCalc }
@@ -159,6 +160,7 @@ void main() { $staticVertCalc }
 staticObjectIDFragShader :: ByteString
 staticObjectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
+$pushConstantsDef
 $staticUniformsDef
 
 layout(location = 0) out uint outColor;
@@ -172,6 +174,7 @@ animatedObjectIDVertShader :: ByteString
 animatedObjectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $vertHeader
 $worldGlobalsDef
+$pushConstantsDef
 $animatedUniformsDef
 
 layout(location = 2) in vec3 inNormal;
@@ -198,6 +201,7 @@ void main()
 animatedObjectIDFragShader :: ByteString
 animatedObjectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
+$pushConstantsDef
 $animatedUniformsDef
 
 layout(location = 0) out uint outColor;
@@ -221,7 +225,7 @@ void main() {
 
 withObjectHighlightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withObjectHighlightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
-  withMaterial vulkanResources renderConfig (undefined :: Proxy Word32)
+  withMaterial vulkanResources renderConfig
     [] pipelineDefaults { depthTestEnable = False } vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

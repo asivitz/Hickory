@@ -17,7 +17,7 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 
 withPostProcessMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
-  withMaterial vulkanResources renderConfig (undefined :: Proxy PostConstants)
+  withMaterial vulkanResources renderConfig
     [] pipelineDefaults vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = [vert|

@@ -27,6 +27,7 @@ import Hickory.Vulkan.Framing (FramedResource)
 import Data.String.QM (qm)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Hickory.Vulkan.Forward.ShaderDefinitions
+import Data.Word (Word32)
 
 type TextRenderer = (Font, PointedDescriptorSet, Float)
 
@@ -49,7 +50,7 @@ data MSDFMatConstants = MSDFMatConstants
   } deriving Generic
     deriving anyclass GStorable
 
-withOverlayMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withOverlayMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 MSDFMatConstants)
 withOverlayMSDFMaterial vulkanResources renderConfig globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults vertShader msdfFragShader globalPds (Just perDrawLayout )
   where
   vertShader :: ByteString
@@ -72,7 +73,7 @@ void main() {
 
 |])
 
-withMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial MSDFMatConstants)
+withMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 MSDFMatConstants)
 withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults msdfVertShader msdfFragShader globalPds (Just perDrawLayout )
 
 msdfVertShader :: ByteString
