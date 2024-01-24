@@ -145,6 +145,8 @@ library:
     - Hickory.Vulkan.Forward.Renderer
     - Hickory.Vulkan.Forward.Types
     - Hickory.Vulkan.Forward.GBuffer
+    - Hickory.Vulkan.Forward.Lights
+    - Hickory.Vulkan.Forward.Direct
     - Hickory.Vulkan.Forward.ShadowPass
     - Hickory.Vulkan.Forward.DrawingPrimitives
     - Hickory.Vulkan.Forward.ShaderDefinitions

@@ -75,6 +75,7 @@ data Renderer = Renderer
   -}
 
   , postProcessMaterial      :: !(Material PostConstants)
+  , sunMaterial              :: !(Material ())
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
   , globalShadowPassBuffer   :: !(FramedResource (DataBuffer ShadowGlobals))
   , globalWorldBuffer        :: !(FramedResource (DataBuffer WorldGlobals))
@@ -218,6 +219,8 @@ data WorldGlobals = WorldGlobals
   { viewMat        :: M44 Scalar
   , projMat        :: M44 Scalar
   , viewProjMat    :: M44 Scalar
+  , invViewMat     :: M44 Scalar
+  , invProjMat     :: M44 Scalar
   , camPos         :: V3 Scalar
   , lightDirection :: V3 Scalar
   , sunColor       :: V3 Scalar -- HDR

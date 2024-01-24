@@ -20,6 +20,8 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
   { mat4 viewMat;
     mat4 projMat;
     mat4 viewProjMat;
+    mat4 invViewMat;
+    mat4 invProjMat;
     vec3 cameraPos;
     vec3 lightDirection;
     vec3 sunColor;
@@ -130,6 +132,11 @@ $uniformDef
 pushConstantsDef :: String
 pushConstantsDef = [qm|
 layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
+  |]
+
+gbufferPushConstantsDef :: String
+gbufferPushConstantsDef = [qm|
+layout (push_constant) uniform constants { uint uniformIdx; uint objectID; } PushConstants;
   |]
 
 shadowPushConstantsDef :: String

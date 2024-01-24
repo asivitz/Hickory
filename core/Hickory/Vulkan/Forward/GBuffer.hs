@@ -187,16 +187,15 @@ staticGBufferVertShader :: ByteString
 staticGBufferVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
-$shadowPassGlobalsDef
-$pushConstantsDef
+$gbufferPushConstantsDef
 $staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
 
-layout(location = 1) out vec2 texCoord;
-$litVertexDef
+layout(location = 0) out vec2 texCoord;
+layout(location = 1) out vec3 normal;
 
 void main() {
   vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
@@ -205,47 +204,34 @@ void main() {
   gl_Position = globals.viewProjMat
               * worldPosition;
 
-  $litVertexCalc
   texCoord = inTexCoord;
+  normal   = worldNormal;
 }
 
-|])
-
-animatedGBufferFragShader :: ByteString
-animatedGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$fragHeader
-$worldGlobalsDef
-$pushConstantsDef
-$animatedUniformsDef
-$litFragDef
-
-layout(location = 1) in vec2 texCoord;
-layout (set = 2, binding = 0) uniform sampler2D texSampler;
-
-void main() {
-  vec4 texColor = texture(texSampler, texCoord);
-  vec4 surfaceColor = uniforms.color;
-  $litFragCalc
-  outColor = vec4(litColor.rgb * texColor.rgb, litColor.a * texColor.a);
-}
 |])
 
 staticGBufferFragShader :: ByteString
 staticGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$fragHeader
+$header
 $worldGlobalsDef
-$litFragDef
-$pushConstantsDef
+$gbufferPushConstantsDef
 $staticUniformsDef
 
-layout(location = 1) in vec2 texCoord;
+layout(location = 0) in vec2 inTexCoord;
+layout(location = 1) in vec3 inNormal;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
+layout(location = 0) out vec4 outAlbedo;
+layout(location = 1) out vec3 outNormal;
+layout(location = 2) out float outObjectID;
+
 void main() {
-  vec4 texColor = texture(texSampler, texCoord);
+  vec4 texColor = texture(texSampler, inTexCoord);
   vec4 surfaceColor = uniforms.color;
-  $litFragCalc
-  outColor = vec4(litColor.rgb * texColor.rgb, litColor.a * texColor.a);
+
+  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, texColor.a);
+  outNormal   = inNormal;
+  outObjectID = PushConstants.objectID;
 }
 |])
 
@@ -253,10 +239,8 @@ animatedGBufferVertShader :: ByteString
 animatedGBufferVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
-$shadowPassGlobalsDef
-$pushConstantsDef
+$gbufferPushConstantsDef
 $animatedUniformsDef
-$litVertexDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
@@ -264,25 +248,50 @@ layout(location = 3) in vec2 inTexCoord;
 layout(location = 6) in vec4 inJointIndices;
 layout(location = 7) in vec4 inJointWeights;
 
-layout(location = 1) out vec2 texCoord;
+layout(location = 0) out vec2 texCoord;
+layout(location = 1) out vec3 normal;
 
-void main()
-{
-    mat4 skinMat
-      = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
-      + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
-      + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
-      + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
+void main() {
+  mat4 skinMat
+    = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
+    + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
+    + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
+    + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
 
-    vec4 modelPos = skinMat * vec4(inPosition,1.0);
-    vec4 worldPosition = uniforms.modelMat * modelPos;
-    vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
+  vec4 modelPos = skinMat * vec4(inPosition,1.0);
+  vec4 worldPosition = uniforms.modelMat * modelPos;
+  vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
-    gl_Position = globals.viewProjMat
-                * worldPosition;
+  gl_Position = globals.viewProjMat
+              * worldPosition;
 
-    texCoord = inTexCoord;
-    $litVertexCalc
+  texCoord = inTexCoord;
+  normal   = worldNormal;
+}
+|])
+
+animatedGBufferFragShader :: ByteString
+animatedGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
+$worldGlobalsDef
+$gbufferPushConstantsDef
+$animatedUniformsDef
+
+layout(location = 0) in vec2 inTexCoord;
+layout(location = 1) in vec3 inNormal;
+layout (set = 2, binding = 0) uniform sampler2D texSampler;
+
+layout(location = 0) out vec4 outAlbedo;
+layout(location = 1) out vec3 outNormal;
+layout(location = 2) out float outObjectID;
+
+void main() {
+  vec4 texColor = texture(texSampler, inTexCoord);
+  vec4 surfaceColor = uniforms.color;
+
+  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, texColor.a);
+  outNormal   = inNormal;
+  outObjectID = PushConstants.objectID;
 }
 |])
 

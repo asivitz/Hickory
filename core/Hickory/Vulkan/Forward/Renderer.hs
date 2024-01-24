@@ -60,6 +60,7 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades)
 import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer)
+import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial)
 
 withRendererMaterial
   :: forall a. Storable a
@@ -203,7 +204,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
         ] ++ targetDescriptorSpecs
 
   -- For debugging
-  shadowMapDescriptorSet <- for (concat . fmap snd . VS.toList . fst <$> cascadedShadowMap) $ withDescriptorSet vulkanResources
+  shadowMapDescriptorSet <- for (concatMap snd . VS.toList . fst <$> cascadedShadowMap) $ withDescriptorSet vulkanResources
 
   imageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
@@ -233,8 +234,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderConfig globalDescriptorSet objHighlightDescriptorSet
   -}
+  sunMaterialDescriptorSet <- for (snd <$> gbufferRenderFrame) $ withDescriptorSet vulkanResources
+  sunMaterial              <- withDirectionalLightMaterial vulkanResources directRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
-  postMaterialDescriptorSet <- for (snd <$> swapchainRenderFrame) $ withDescriptorSet vulkanResources
+  postMaterialDescriptorSet <- for (snd <$> directRenderFrame) $ withDescriptorSet vulkanResources
   postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderConfig globalDescriptorSet postMaterialDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
@@ -543,10 +546,10 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     -- Stage 5 Lighting + Extra Direct Color
     useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
       -- Sun is a full screen light
-      -- cmdBindMaterial frameContext sunMaterial
-      -- liftIO do
-      --   cmdPushMaterialConstants commandBuffer sunMaterial sunSettings
-      --   cmdDraw commandBuffer 3 1 0 0
+      cmdBindMaterial frameContext sunMaterial
+      liftIO do
+        cmdPushMaterialConstants commandBuffer sunMaterial ()
+        cmdDraw commandBuffer 3 1 0 0
 
       -- Layer in extra direct color commands
       processDirectUngrouped frameContext (filter (worldCullTest . snd) directWorldDrawCommandsWithUniformIdx)
