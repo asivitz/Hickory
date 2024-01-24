@@ -144,7 +144,7 @@ library:
     - Hickory.Vulkan.Forward.ObjectPicking
     - Hickory.Vulkan.Forward.Renderer
     - Hickory.Vulkan.Forward.Types
-    - Hickory.Vulkan.Forward.Lit
+    - Hickory.Vulkan.Forward.GBuffer
     - Hickory.Vulkan.Forward.ShadowPass
     - Hickory.Vulkan.Forward.DrawingPrimitives
     - Hickory.Vulkan.Forward.ShaderDefinitions

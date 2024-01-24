@@ -9,7 +9,7 @@
 
 module Hickory.Vulkan.Forward.Types where
 
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
 import qualified Data.Vector.Storable.Sized as VSS
 import qualified Data.Vector.Sized as VS
@@ -35,36 +35,44 @@ import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
 import Hickory.Vulkan.Forward.ShaderDefinitions (MaxShadowCascadesNat)
 
-data ForwardRenderTargets = ForwardRenderTargets
-  { swapchainRenderConfig        :: !RenderConfig
-  , swapchainRenderFrame         :: FramedResource (Framebuffer, [DescriptorSpec])
-  , litRenderConfig              :: !RenderConfig
-  , litRenderFrame               :: FramedResource (Framebuffer, [DescriptorSpec])
-  , objectIDRenderConfig         :: !RenderConfig
-  , pickingRenderFrame           :: FramedResource (Framebuffer, [DescriptorSpec])
-  , currentSelectionRenderFrame  :: FramedResource (Framebuffer, [DescriptorSpec])
-  -- Shadows
-  , shadowRenderConfig           :: !RenderConfig
+data RenderTargets = RenderTargets
+  -- Stage 1 Shadows
+  { shadowRenderConfig           :: !RenderConfig
   , cascadedShadowMap            :: FramedResource (VS.Vector MaxShadowCascadesNat (Framebuffer, [DescriptorSpec]), DescriptorSpec)
+  -- Stage 2 Current Selection
+  , objectIDRenderConfig         :: !RenderConfig
+  , currentSelectionRenderFrame  :: FramedResource (Framebuffer, [DescriptorSpec])
+  -- Stage 3 GBuffer
+  , gbufferRenderConfig          :: !RenderConfig
+  , gbufferRenderFrame           :: FramedResource (Framebuffer, [DescriptorSpec])
+  -- Stage 4 Decals (TODO)
+  -- Stage 5 Lighting + Extra Direct Color
+  , directRenderConfig           :: !RenderConfig
+  , directRenderFrame            :: FramedResource (Framebuffer, [DescriptorSpec])
+  -- Stage 6 Post + Overlay
+  , swapchainRenderConfig        :: !RenderConfig
+  , swapchainRenderFrame         :: FramedResource (Framebuffer, [DescriptorSpec])
   }
 
 data Renderer = Renderer
-  { renderTargets :: ForwardRenderTargets
+  { renderTargets :: RenderTargets
 
   -- Pipelines
-  , pickingMaterial            :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
   , currentSelectionMaterial   :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
   , staticShadowMaterial       :: !(BufferedUniformMaterial ShadowPushConsts StaticConstants)
   , animatedShadowMaterial     :: !(BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
-  , staticLitWorldMaterial     :: !(BufferedUniformMaterial Word32 StaticConstants)
+  , staticGBufferMaterial      :: !(BufferedUniformMaterial GBufferPushConsts StaticConstants)
+  , animatedGBufferMaterial    :: !(BufferedUniformMaterial GBufferPushConsts AnimatedConstants)
+
+  {-
   , staticUnlitWorldMaterial   :: !(BufferedUniformMaterial Word32 StaticConstants)
-  , animatedLitWorldMaterial   :: !(BufferedUniformMaterial Word32 AnimatedConstants)
   , msdfWorldMaterial          :: !(BufferedUniformMaterial Word32 MSDFMatConstants)
   , linesWorldMaterial         :: !(BufferedUniformMaterial Word32 StaticConstants)
   , pointsWorldMaterial        :: !(BufferedUniformMaterial Word32 StaticConstants)
   , objHighlightMaterial       :: !(Material Word32)
   , staticOverlayMaterial      :: !(BufferedUniformMaterial Word32 StaticConstants)
   , msdfOverlayMaterial        :: !(BufferedUniformMaterial Word32 MSDFMatConstants)
+  -}
 
   , postProcessMaterial      :: !(Material PostConstants)
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
@@ -98,22 +106,8 @@ data Globals = Globals
   } deriving Generic
     deriving anyclass GStorable
 
-data DrawCommand = DrawCommand
-  { modelMat    :: M44 Float
-  , mesh        :: MeshType
-  , color       :: V4 Float
-  , specularity :: Float
-  , drawType    :: DrawType
-  , lit         :: Bool
-  , castsShadow :: Bool
-  , blend       :: Bool
-  , ident       :: Maybe Int
-  }
-  | Custom CustomDrawCommand
-  deriving Generic
-
-data CustomDrawCommand = forall uniform. CustomDrawCommand
-  { material        :: AllStageMaterial uniform
+data DrawCommand = forall uniform. DrawCommand
+  { materialConfig  :: MaterialConfig uniform
   , pokeData        :: Ptr uniform -> IO ()
   , mesh            :: MeshType
   , instanceCount   :: Word32
@@ -125,13 +119,9 @@ data CustomDrawCommand = forall uniform. CustomDrawCommand
   , cull            :: Bool
   }
 
-data Stage
-  = Picking
-  | ShowSelection
-  | CreateShadowMap
-  | World
-  | Overlay
-  deriving Eq
+data MaterialConfig uniform
+  = GBufferConfig (GBufferMaterialStack uniform)
+  | DirectConfig (DirectMaterial uniform)
 
 data DrawType
   = Animated AnimatedMesh
@@ -191,15 +181,29 @@ data ShadowPushConsts = ShadowPushConsts
   } deriving Generic
     deriving anyclass GStorable
 
-data AllStageMaterial uniform = AllStageMaterial
-  { worldMaterial            :: Material Word32
+data GBufferPushConsts = GBufferPushConsts
+  { uniformIndex :: Word32
+  , objectID     :: Word32
+  } deriving Generic
+    deriving anyclass GStorable
+
+data GBufferMaterialStack uniform = GBufferMaterialStack
+  { gbufferMaterial          :: Material GBufferPushConsts
   , shadowMaterial           :: Material ShadowPushConsts
-  , objectIDMaterial         :: Material Word32
   , showSelectionMaterial    :: Material Word32
-  , overlayMaterial          :: Maybe (Material Word32)
   , descriptor               :: FramedResource (BufferDescriptorSet uniform)
   , uniformSize              :: Int -- Bytes
   , uuid                     :: UUID
+  }
+
+data DirectStage = WorldDirect | OverlayDirect
+
+data DirectMaterial uniform = DirectMaterial
+  { directMaterial :: Material Word32
+  , descriptor     :: FramedResource (BufferDescriptorSet uniform)
+  , uniformSize    :: Int -- Bytes
+  , uuid           :: UUID
+  , directStage    :: DirectStage
   }
 
 data RenderSettings = RenderSettings

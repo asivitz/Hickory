@@ -3,7 +3,7 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), castsShadow, DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), CustomDrawCommand(..), Stage(..), OverlayGlobals (..), AllStageMaterial (..), ForwardRenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..))
+import Hickory.Vulkan.Forward.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), OverlayGlobals (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..), GBufferMaterialStack(..), DirectMaterial(..), DirectStage, MaterialConfig (..), GBufferPushConsts (..))
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -13,14 +13,14 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Forward.Lit (withStaticUnlitMaterial, withAnimatedLitMaterial, withLitRenderConfig, withStaticLitMaterial, withLineMaterial, withPointMaterial, withOverlayMaterial, staticLitVertShader, staticLitFragShader, animatedLitVertShader, animatedLitFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withLitFrameBuffer)
+import Hickory.Vulkan.Forward.GBuffer (withStaticUnlitMaterial, withAnimatedGBufferMaterial, withGBufferRenderConfig, withStaticGBufferMaterial, withLineMaterial, withPointMaterial, withOverlayMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderConfig, withStaticShadowMaterial, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout)
 import Foreign (Storable, plusPtr, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
-import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?))
+import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?), over)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults)
 import Data.List (partition, sortOn, mapAccumL)
@@ -32,7 +32,7 @@ import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDMaterial, withObjectIDR
 import qualified Hickory.Vulkan.Forward.ObjectPicking as OP
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
-import Control.Monad (when, unless)
+import Control.Monad (when, unless, void)
 import Hickory.Types (Size (..))
 import Hickory.Camera (cameraViewMat, cameraPos, cameraProjMat, cameraNear, cameraFar, Camera (..), Projection (..))
 import Hickory.Math.Matrix ( viewDirection )
@@ -59,6 +59,7 @@ import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades)
+import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer)
 
 withRendererMaterial
   :: forall a. Storable a
@@ -73,11 +74,11 @@ withRendererMaterial
   -> Acquire (Material a)
 withRendererMaterial vulkanResources renderConfig = withMaterial vulkanResources renderConfig
 
-withAllStageMaterial
+withGBufferMaterialStack
   :: forall uniform
   .  Storable uniform
   => VulkanResources
-  -> ForwardRenderTargets
+  -> RenderTargets
   -> FramedResource PointedDescriptorSet
   -> Int
   -> PipelineOptions
@@ -86,17 +87,11 @@ withAllStageMaterial
   -> ByteString
   -> ByteString
   -> ByteString
-  -> ByteString
-  -> ByteString
-  -> ByteString
-  -> Maybe ByteString
-  -> Maybe ByteString
-  -> Acquire (AllStageMaterial uniform)
-withAllStageMaterial vulkanResources ForwardRenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout
-  worldVertShader worldFragShader
-  shadowVertShader shadowFragShader
-  objectIDVertShader objectIDFragShader
-  oVS oFS  = do
+  -> Acquire (GBufferMaterialStack uniform)
+withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout
+  gbufferVertShader gbufferFragShader
+  shadowVertShader
+  = do
   uuid <- liftIO nextRandom
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources maxNumDraws
   let uniformSize = sizeOf (undefined :: uniform)
@@ -106,35 +101,44 @@ withAllStageMaterial vulkanResources ForwardRenderTargets {..} globalDescriptorS
         , materialSet
         ]
 
-  worldMaterial         <- withRendererMaterial vulkanResources litRenderConfig attributes pipelineOptions worldVertShader worldFragShader materialSets perDrawLayout
-  shadowMaterial        <- withRendererMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } shadowVertShader shadowFragShader materialSets perDrawLayout
-  objectIDMaterial      <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
-  showSelectionMaterial <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
-  overlayMaterial       <- for ((,) <$> oVS <*> oFS)
-    \(v,f) -> withRendererMaterial vulkanResources swapchainRenderConfig attributes pipelineOptions v f materialSets perDrawLayout
-  pure AllStageMaterial {..}
+  gbufferMaterial <- withRendererMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions gbufferVertShader gbufferFragShader materialSets perDrawLayout
+  shadowMaterial  <- withRendererMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets perDrawLayout
+  showSelectionMaterial <- error "TODO" -- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
+  pure GBufferMaterialStack {..}
 
-withAllStageMaterialFromRenderer
-  :: Storable uniform
+withDirectMaterialStack
+  :: forall uniform
+  .  Storable uniform
   => VulkanResources
-  -> Renderer
+  -> RenderTargets
+  -> FramedResource PointedDescriptorSet
   -> Int
   -> PipelineOptions
   -> [HVT.Attribute]
-  -> Maybe DescriptorSetLayout
+  -> Maybe DescriptorSetLayout -- Per draw descriptor set
+  -> DirectStage
   -> ByteString
   -> ByteString
-  -> ByteString
-  -> ByteString
-  -> ByteString
-  -> ByteString
-  -> Maybe ByteString
-  -> Maybe ByteString
-  -> Acquire (AllStageMaterial uniform)
-withAllStageMaterialFromRenderer vulkanResources Renderer {..} maxNumDraws = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet maxNumDraws
+  -> Acquire (DirectMaterial uniform)
+withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout directStage
+  vertShader fragShader
+  = do
+  uuid <- liftIO nextRandom
+  descriptor <- frameResource $ withBufferDescriptorSet vulkanResources maxNumDraws
+  let uniformSize = sizeOf (undefined :: uniform)
+      materialSet = view #descriptorSet <$> descriptor
+      materialSets =
+        [ globalDescriptorSet
+        , materialSet
+        ]
 
+  directMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions vertShader fragShader materialSets perDrawLayout
+  pure DirectMaterial {..}
+
+standardMaxNumDraws :: Num a => a
 standardMaxNumDraws = 2048
 
+{-
 withStandardStaticMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial StaticConstants)
 withStandardStaticMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
   pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] (Just imageSetLayout)
@@ -166,14 +170,18 @@ withStandardMSDFMaterial vulkanResources Renderer {..} = withAllStageMaterial vu
   staticVertShader whiteFragShader
   OP.staticObjectIDVertShader OP.objectIDFragShader
   Nothing Nothing
+  -}
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
   shadowRenderConfig <- withShadowRenderConfig vulkanResources
   cascadedShadowMap <- frameResource $ withShadowMap vulkanResources shadowRenderConfig
 
-  litRenderConfig       <- withLitRenderConfig vulkanResources swapchain
-  litRenderFrame        <- frameResource $ withLitFrameBuffer vulkanResources litRenderConfig
+  depthViewableImage    <- frameResource $ withDepthViewableImage vulkanResources swapchain.extent
+  gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
+  gbufferRenderFrame    <- depthViewableImage & V.mapM (withGBufferFrameBuffer vulkanResources gbufferRenderConfig)
+  directRenderConfig    <- withDirectRenderConfig vulkanResources swapchain
+  directRenderFrame     <- depthViewableImage & V.mapM (withDirectFrameBuffer vulkanResources directRenderConfig)
   swapchainRenderConfig <- withSwapchainRenderConfig vulkanResources swapchain
   swapchainRenderFrame  <- withSwapchainFramebuffers vulkanResources swapchain swapchainRenderConfig
   objectIDRenderConfig  <- withObjectIDRenderConfig vulkanResources swapchain
@@ -201,14 +209,17 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
 
-  pickingMaterial          <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
   currentSelectionMaterial <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
-
   staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
   animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
-  staticLitWorldMaterial   <- withStaticLitMaterial vulkanResources litRenderConfig globalDescriptorSet imageSetLayout
+  staticGBufferMaterial    <- withStaticGBufferMaterial vulkanResources gbufferRenderConfig globalDescriptorSet imageSetLayout
+  animatedGBufferMaterial  <- withAnimatedGBufferMaterial vulkanResources gbufferRenderConfig globalDescriptorSet imageSetLayout
+
+  {-
+  pickingMaterial          <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
+
+
   staticUnlitWorldMaterial <- withStaticUnlitMaterial vulkanResources litRenderConfig globalDescriptorSet imageSetLayout
-  animatedLitWorldMaterial <- withAnimatedLitMaterial vulkanResources litRenderConfig globalDescriptorSet imageSetLayout
 
   msdfWorldMaterial        <- withMSDFMaterial vulkanResources litRenderConfig globalDescriptorSet imageSetLayout
   linesWorldMaterial       <- withLineMaterial vulkanResources litRenderConfig globalDescriptorSet
@@ -217,18 +228,20 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   staticOverlayMaterial    <- withOverlayMaterial vulkanResources swapchainRenderConfig globalDescriptorSet imageSetLayout
   msdfOverlayMaterial      <- withOverlayMSDFMaterial vulkanResources swapchainRenderConfig globalDescriptorSet imageSetLayout
 
-  postMaterialDescriptorSet <- for (snd <$> litRenderFrame) $ withDescriptorSet vulkanResources
 
   objHighlightDescriptorSet <- for (snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
 
-  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderConfig globalDescriptorSet postMaterialDescriptorSet
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderConfig globalDescriptorSet objHighlightDescriptorSet
+  -}
+
+  postMaterialDescriptorSet <- for (snd <$> swapchainRenderFrame) $ withDescriptorSet vulkanResources
+  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderConfig globalDescriptorSet postMaterialDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
   objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 0 (snd <$> pickingRenderFrame)
 
-  let renderTargets = ForwardRenderTargets {..}
+  let renderTargets = RenderTargets {..}
 
   pure Renderer {..}
 
@@ -383,8 +396,8 @@ lightProjection viewProjMat lightView shadowMapExtent = orthographicProjection l
   where
   (l', r', b', t', n', f') = viewFrustumBoundaryInLightSpace viewProjMat lightView shadowMapExtent
 
-boundingSphere :: CustomDrawCommand -> (V3 Float, Float)
-boundingSphere CustomDrawCommand {..} = (center, norm (max' - center))
+boundingSphere :: DrawCommand -> (V3 Float, Float)
+boundingSphere DrawCommand {..} = (center, norm (max' - center))
   where
   (min', max') = case mesh of
     Dynamic  m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
@@ -395,7 +408,7 @@ renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings ->
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame swapchainImageIndex dynamicMesh) do
     let WorldSettings {..} = worldSettings
-        ForwardRenderTargets {..} = renderTargets
+        RenderTargets {..} = renderTargets
         Extent2D w h = extent
         lightOrigin = V3 0 0 0
         lightUp = V3 0 0 1
@@ -444,12 +457,10 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         shadowPassGlobals = ShadowGlobals lightViewProjs splitDepths
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->
-      uploadBufferDescriptor buf
-        $ Globals frameNumber
+      uploadBufferDescriptor buf $ Globals frameNumber
 
     withResourceForFrame swapchainImageIndex globalWorldBuffer \buf ->
-      uploadBufferDescriptor buf
-        $ worldGlobals
+      uploadBufferDescriptor buf worldGlobals
 
     withResourceForFrame swapchainImageIndex globalShadowPassBuffer $
       flip uploadBufferDescriptor shadowPassGlobals
@@ -457,122 +468,109 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     withResourceForFrame swapchainImageIndex globalOverlayBuffer $
       flip uploadBufferDescriptor overlayGlobals
 
+    let bucketOn on = HashMap.elems . HashMap.fromListWith (++) . map (on &&& pure)
+        dcMaterialUUID DrawCommand {..} = case materialConfig of
+          GBufferConfig mat -> mat.uuid
+          DirectConfig mat -> mat.uuid
+
     let worldDrawCommands = runCommand litF
         overlayDrawCommands = runCommand overlayF
-        (customWorldCommands, nonCustomWorldCommands) = partition (has #_Custom) worldDrawCommands
-        (customOverlayCommands, nonCustomOverlayCommands) = partition (has #_Custom) overlayDrawCommands
-        -- id all commands and tag by stage (World/Overlay)
-        customDrawCommands = zip [0..] $ map (\(Custom c) -> (World,c)) customWorldCommands ++ map (\(Custom c) -> (Overlay,c)) customOverlayCommands
+        isGBufferDrawCommand DrawCommand {..} = case materialConfig of
+          GBufferConfig _ -> True
+          _ -> False
+        (gbufDrawCommands, directWorldDrawCommands) = partition isGBufferDrawCommand worldDrawCommands
 
-        -- group by material and give uniform numbers
-        grouped = bucketOn (\(_, (_,CustomDrawCommand { material = m })) -> m.uuid) customDrawCommands
-        bucketOn on = HashMap.elems . HashMap.fromListWith (++) . map (on &&& pure)
+        -- Direct commands, whether world or overlay, could be using the same material stacks.
+        -- So we need to upload all the uniforms together. But also need to
+        -- preserve their original orders b/c direct commands are often blended.
+        -- So we'll take them with unique ids that we can later use to look up the uniform ids.
+        directWorldDrawCommandsTagged   = zip [0..] directWorldDrawCommands
+        directOverlayDrawCommandsTagged = zip [length directWorldDrawCommands..] overlayDrawCommands
+        allDirectCommandsTagged = directWorldDrawCommandsTagged ++ directOverlayDrawCommandsTagged
+        allDirectCommandsGrouped = bucketOn (dcMaterialUUID . snd) allDirectCommandsTagged
+        groupHead = fromMaybe (error "empty group") . headMay
 
     -- upload uniforms
-    groupedByMaterial :: [[(Int, Word32, Stage, CustomDrawCommand)]] <- for grouped \group -> case headMay group of
-      Nothing -> pure []
-      Just (_, (_, CustomDrawCommand { material })) -> do
-        let BufferDescriptorSet { dataBuffer } = resourceForFrame swapchainImageIndex material.descriptor
-            DataBuffer {..} = dataBuffer
-        liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
-          for (zip group [0..]) \((i, (stage, cdc@CustomDrawCommand {pokeData})), uniIdx) -> do
-            liftIO $ pokeData (plusPtr bufptr (material.uniformSize * uniIdx))
-            pure (i, fromIntegral uniIdx, stage, cdc)
+    gbufDCsGroupedByMaterial :: [[(Word32, DrawCommand)]] <- for (bucketOn dcMaterialUUID gbufDrawCommands) \group ->
+      case groupHead group of
+        DrawCommand {materialConfig} -> case materialConfig of
+          GBufferConfig material -> do
+            let BufferDescriptorSet { dataBuffer } = resourceForFrame swapchainImageIndex material.descriptor
+                DataBuffer {..} = dataBuffer
+            liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
+              for (zip group [0..]) \(dc@DrawCommand {pokeData}, uniIdx) -> do
+                liftIO $ pokeData (plusPtr bufptr (material.uniformSize * uniIdx))
+                pure (fromIntegral uniIdx, dc)
+          _ -> error "Non gbuffer draw commands not supported here"
 
-    -- map from id to uniform number
-    let idToUni = HashMap.fromList $ (\(i,uni,_,_) -> (i,uni)) <$> concat groupedByMaterial
-        allOverlay      = (\(i,(_,cdc)) -> (fromMaybe (error "No id!") $ HashMap.lookup i idToUni,cdc)) <$> filter (\(_,(stage,_)) -> stage == Overlay) customDrawCommands
-        allWorldGrouped = fmap (\(_, uni, _, cdc) -> (uni,cdc)) . filter (\(_,_,stage,_) -> stage == World) <$> groupedByMaterial
-        worldBlended    = (\(i,(_,cdc)) -> (fromMaybe (error "No id!") $ HashMap.lookup i idToUni,cdc)) <$> filter (\(_, (stage,cdc)) -> stage == World && cdc.doBlend) customDrawCommands
-        worldOpaqueGrouped = filter (\(_, cdc) -> not cdc.doBlend) <$> allWorldGrouped
+    directDCIdsToUniformIdx :: HashMap.HashMap Int Word32 <- HashMap.fromList . concat <$> for allDirectCommandsGrouped \group -> do
+      case groupHead group of
+        (_,DrawCommand {materialConfig}) -> case materialConfig of
+          DirectConfig material -> do
+            let BufferDescriptorSet { dataBuffer } = resourceForFrame swapchainImageIndex material.descriptor
+                DataBuffer {..} = dataBuffer
+            liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
+              for (zip group [0..]) \((dcId, DrawCommand {pokeData}), uniIdx) -> do
+                liftIO $ pokeData (plusPtr bufptr (material.uniformSize * uniIdx))
+                pure (dcId, fromIntegral uniIdx)
+          _ -> error "Non direct draw commands not supported here"
 
-    useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> pickingRenderFrame) do
-      processIDRenderPass frameContext (Universal pickingMaterial ()) $ filter (isJust . ident) nonCustomWorldCommands
-      processCustomCommandGroups frameContext Picking (filter (pickingCullTest . snd) <$> allWorldGrouped) Nothing
+    let directWorldDrawCommandsWithUniformIdx = map (over _1 (error "Can't find uniform index" . (`HashMap.lookup` directDCIdsToUniformIdx))) directWorldDrawCommandsTagged
+        directOverlayDrawCommandsWithUniformIdx     = map (over _1 (error "Can't find uniform index" . (`HashMap.lookup` directDCIdsToUniformIdx))) directOverlayDrawCommandsTagged
 
-    useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
-      processIDRenderPass frameContext (Universal currentSelectionMaterial ()) $ filter ((\x -> x `elem` map Just highlightObjs) . ident) nonCustomWorldCommands
-      processCustomCommandGroups frameContext ShowSelection (filter (showSelectionCullTest . snd) <$> allWorldGrouped) Nothing
-
+    -- Stage 1 Shadows
     for_ ([0..maxShadowCascades-1] :: [Word32]) \i ->
       useRenderConfig shadowRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex (fst . (`VS.unsafeIndex` fromIntegral i) . fst <$> cascadedShadowMap) do
-        -- processRenderPass frameContext
-        --   ( Universal animatedShadowMaterial ()
-        --   , Universal staticShadowMaterial ()
-        --   , NullMat
-        --   , NullMat
-        --   , NullMat
-        --   ) $ filter castsShadow nonCustomWorldCommands
-        processCustomCommandGroups frameContext CreateShadowMap (filter (shadowCullTest . snd) <$> allWorldGrouped) (Just i)
+        processDrawCommandShadows frameContext (filter (shadowCullTest . snd) <$> gbufDCsGroupedByMaterial) i
 
+    -- Stage 2 Current Selection
+    {- TODO Show selection pass
+    useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
+      processCustomCommandGroups frameContext ShowSelection (filter (showSelectionCullTest . snd) <$> allWorldGrouped) Nothing
+    -}
+
+    -- Stage 3 GBuffer
     let V4 r g b a = clearColor
-    useRenderConfig litRenderConfig commandBuffer
+    useRenderConfig gbufferRenderConfig commandBuffer
       [ Color (Float32 r g b a)
-      , DepthStencil (ClearDepthStencilValue 1 0)
       , Color (Float32 1 1 1 1)
-      ] swapchainImageIndex (fst <$> litRenderFrame) do
-      processCustomCommandGroups frameContext World (filter (worldCullTest . snd) <$> worldOpaqueGrouped) Nothing
-      processRenderPass frameContext
-        ( Universal animatedLitWorldMaterial ()
-        , LitAndUnlit (staticLitWorldMaterial, ()) (staticUnlitWorldMaterial, ())
-        , Universal msdfWorldMaterial ()
-        , Universal linesWorldMaterial ()
-        , Universal pointsWorldMaterial ()
-        ) nonCustomWorldCommands
-      processCustomCommandUngrouped frameContext World (filter (worldCullTest . snd) worldBlended)
+      , Color (Uint32 0 0 0 0)
+      , DepthStencil (ClearDepthStencilValue 1 0)
+      ] swapchainImageIndex (fst <$> gbufferRenderFrame) do
+      processDrawCommandGBuffer frameContext (filter (worldCullTest . snd) <$> gbufDCsGroupedByMaterial)
 
+    -- Stage 4 Decals (TODO)
+    -- Stage 5 Lighting + Extra Direct Color
+    useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
+      -- Sun is a full screen light
+      -- cmdBindMaterial frameContext sunMaterial
+      -- liftIO do
+      --   cmdPushMaterialConstants commandBuffer sunMaterial sunSettings
+      --   cmdDraw commandBuffer 3 1 0 0
+
+      -- Layer in extra direct color commands
+      processDirectUngrouped frameContext (filter (worldCullTest . snd) directWorldDrawCommandsWithUniformIdx)
+
+      {- TODO Show selection
       case highlightObjs of
         (_:_) -> do
           cmdBindMaterial frameContext objHighlightMaterial
           liftIO $ cmdDraw commandBuffer 3 1 0 0
         _ -> pure ()
+      -}
 
-    useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex (fst <$> swapchainRenderFrame) do
+    -- Stage 6 Post + Overlay
+    void $ useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex (fst <$> swapchainRenderFrame) do
+      -- Post processing
       cmdBindMaterial frameContext postProcessMaterial
       liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postSettings
       liftIO $ cmdDraw commandBuffer 3 1 0 0
 
-      processRenderPass frameContext
-        ( NullMat
-        , Universal staticOverlayMaterial ()
-        , Universal msdfOverlayMaterial ()
-        , NullMat
-        , NullMat
-        ) nonCustomOverlayCommands
-      processCustomCommandUngrouped frameContext Overlay (filter (overlayCullTest . snd) allOverlay)
+      -- Extra direct commands over the top
+      processDirectUngrouped frameContext (filter (overlayCullTest . snd) directOverlayDrawCommandsWithUniformIdx)
+
+    -- Make object picking texture available for reading
     liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame swapchainImageIndex objectPickingImageBuffer)
-
-type MaterialConfig c = RegisteredMaterial c (IORef [c])
-
-regMatToConfig :: RegisteredMaterial a () -> IO (MaterialConfig a)
-regMatToConfig = \case
-  NullMat -> pure NullMat
-  Universal mat () -> Universal mat <$> newIORef []
-  LitAndUnlit (mat1,()) (mat2,()) -> LitAndUnlit <$> ((mat1,) <$> newIORef [])
-                                                 <*> ((mat2,) <$> newIORef [])
-
-uploadUniforms :: (Storable a, MonadIO m) => FrameContext -> MaterialConfig a -> m ()
-uploadUniforms fc = \case
-  Universal mat ref -> uploadConfig (mat,ref)
-  LitAndUnlit c1 c2 -> uploadConfig c1 >> uploadConfig c2
-  NullMat -> pure ()
-  where
-  uploadConfig (mat, ref) = do
-    unis <- liftIO (readIORef ref)
-    unless (null unis) do
-      uploadUniformsBuffer fc mat $ reverse unis
-
-submitCommand :: (MonadIO m, DynamicMeshMonad m, MonadState UUID m) => FrameContext -> DrawCommand -> MaterialConfig a -> (a, Maybe PointedDescriptorSet) -> m ()
-submitCommand _ (Custom _) _ _ = error "Custom not supported here"
-submitCommand frameContext DrawCommand{..} c (uniform, ds) = do
-  let config = case c of
-        Universal mat ref -> (mat, ref)
-        LitAndUnlit c1 c2 -> if lit then c1 else c2
-        NullMat -> error "No mat registered to handle this draw command"
-  unis <- liftIO $ readIORef (snd config)
-  bindMaterialIfNeeded frameContext (fst config).material
-  renderCommand frameContext (fst config).material mesh 1 ds (fromIntegral $ length unis)
-  liftIO $ modifyIORef (snd config) (uniform:)
 
 bindMaterialIfNeeded :: (MonadState UUID m, MonadIO m) => FrameContext -> Material Word32 -> m ()
 bindMaterialIfNeeded fc material = do
@@ -626,6 +624,8 @@ drawText
   -> TextCommand
   -> m ()
 drawText (font, fontTex, sdfPixelRange) mat color outlineColor outlineSize tc =
+  pure ()
+  {-
   addCommand $ DrawCommand
     { modelMat = mat
     , mesh = Dynamic (textMesh font tc)
@@ -637,207 +637,53 @@ drawText (font, fontTex, sdfPixelRange) mat color outlineColor outlineSize tc =
     , ident = Nothing
     , specularity = 8
     }
-
--- Main Command Processor
-
-type MaterialSet
-  = ( RegisteredMaterial AnimatedConstants ()
-    , RegisteredMaterial StaticConstants ()
-    , RegisteredMaterial MSDFMatConstants ()
-    , RegisteredMaterial StaticConstants ()
-    , RegisteredMaterial StaticConstants ()
-    )
-
-type MaterialConfigSet
-  = ( MaterialConfig AnimatedConstants
-    , MaterialConfig StaticConstants
-    , MaterialConfig MSDFMatConstants
-    , MaterialConfig StaticConstants
-    , MaterialConfig StaticConstants
-    )
-
-processRenderPass
-  :: (MonadIO m, DynamicMeshMonad m)
-  => FrameContext
-  -> MaterialSet
-  -> [DrawCommand]
-  -> m ()
-processRenderPass fc mps commands = do
-  config <- liftIO $
-    (,,,,) <$> regMatToConfig (view _1 mps)
-           <*> regMatToConfig (view _2 mps)
-           <*> regMatToConfig (view _3 mps)
-           <*> regMatToConfig (view _4 mps)
-           <*> regMatToConfig (view _5 mps)
-
-  let (blended, opaque) = partition blend commands
-
-  flip evalStateT UUID.nil do
-    -- Sort opaque by material to minimize binding
-    for_ (sortOn identifyDCMat opaque) $ processCommand fc config
-    -- Render blended in order to maintain visual layering TODO: Should sort by distance to camera instead
-    for_ blended $ processCommand fc config
-
-  -- IORefs are now bursting full of uniform goodness. Here comes the airplane. Yum!
-  uploadUniforms fc $ view _1 config
-  uploadUniforms fc $ view _2 config
-  uploadUniforms fc $ view _3 config
-  uploadUniforms fc $ view _4 config
-  uploadUniforms fc $ view _5 config
-  where
-  identifyDCMat :: DrawCommand -> Int
-  identifyDCMat (Custom _) = error "Custom not supported here"
-  identifyDCMat DrawCommand {..} = (if lit then 2 else 1) * case drawType of
-    Animated _ -> 5
-    Static   _ -> 4
-    MSDF     _ -> 3
-    Points     -> 2
-    Lines      -> 1 -- Draw lines first. Might need to be configurable
-
-processCommand
-  :: (MonadIO m, DynamicMeshMonad m, MonadState UUID m)
-  => FrameContext
-  -> MaterialConfigSet
-  -> DrawCommand
-  -> m ()
-processCommand _ _ (Custom _) = error "Custom not supported here"
-processCommand frameContext
-  ( animatedConfig
-  , staticConfig
-  , msdfConfig
-  , linesConfig
-  , pointsConfig
-  )
-  dc@DrawCommand {..} = case drawType of
-  Animated AnimatedMesh {..} -> submitCommand frameContext dc animatedConfig (AnimatedConstants
-    { modelMat  = modelMat
-    , normalMat = transpose . inv33 $ modelMat ^. _m33
-    , color
-    , boneMat
-    , colors
-    , specularity
-    , objectID = fromIntegral $ fromMaybe 0 ident
-    }, Just albedo)
-  Static StaticMesh {..} -> submitCommand frameContext dc staticConfig (StaticConstants
-    { modelMat  = modelMat
-    , normalMat = transpose . inv33 $ modelMat ^. _m33
-    , color = color
-    , tiling = tiling
-    , specularity
-    , objectID = fromIntegral $ fromMaybe 0 ident
-    }, Just albedo)
-  Lines -> submitCommand frameContext dc linesConfig (StaticConstants
-    { modelMat  = modelMat
-    , normalMat = transpose . inv33 $ modelMat ^. _m33
-    , color = color
-    , tiling = V2 1 1
-    , specularity
-    , objectID = fromIntegral $ fromMaybe 0 ident
-    }, Nothing)
-  Points -> submitCommand frameContext dc pointsConfig (StaticConstants
-    { modelMat  = modelMat
-    , normalMat = transpose . inv33 $ modelMat ^. _m33
-    , color = color
-    , tiling = V2 1 1
-    , specularity
-    , objectID = fromIntegral $ fromMaybe 0 ident
-    }, Nothing)
-  MSDF MSDFMesh {..} -> submitCommand frameContext dc msdfConfig (MSDFMatConstants
-    { modelMat  = modelMat
-    , outlineColor = outlineColor
-    , outlineSize = outlineSize
-    , sdfPixelRange = sdfPixelRange
-    , tiling = tiling
-    , color = color
-    }, Just tex)
-
--- Object ID Command Processor
-
-processIDRenderPass
-  :: (MonadIO m, DynamicMeshMonad m)
-  => FrameContext
-  -> RegisteredMaterial ObjectIDConstants ()
-  -> [DrawCommand]
-  -> m ()
-processIDRenderPass fc mps commands = do
-  config <- liftIO $ regMatToConfig mps
-
-  flip evalStateT UUID.nil do
-    for_ commands $ processIDCommand fc config
-
-  -- IORefs are now bursting full of uniform goodness. Here comes the airplane. Yum!
-  uploadUniforms fc config
-
-processIDCommand
-  :: (MonadIO m, DynamicMeshMonad m, MonadState UUID m)
-  => FrameContext
-  -> MaterialConfig ObjectIDConstants
-  -> DrawCommand
-  -> m ()
-processIDCommand _ _ (Custom _) = error "Custom not supported here"
-processIDCommand frameContext
-  objectConfig
-  dc@DrawCommand {..} = case ident of
-    Just i ->
-      go objectConfig $ (,Nothing) ObjectIDConstants
-        { modelMat = modelMat
-        , objectID = fromIntegral i
-        }
-    _ -> pure ()
-
-  where
-  go = submitCommand frameContext dc
+    -}
 
 pickObjectID :: FrameContext -> Renderer -> (Scalar,Scalar) -> IO Int
 pickObjectID FrameContext {..} Renderer{..} = fmap fromIntegral . readPixel (resourceForFrame (swapchainImageIndex - 1) objectPickingImageBuffer)
 
--- Custom Commands
-processCustomCommandGroups
+processDrawCommandShadows
   :: (MonadIO m, DynamicMeshMonad m)
   => FrameContext
-  -> Stage
-  -> [[(Word32, CustomDrawCommand)]]
-  -> Maybe Word32
+  -> [[(Word32, DrawCommand)]]
+  -> Word32
   -> m ()
-processCustomCommandGroups fc CreateShadowMap grouped (Just shadowCascadeIndex) = do
+processDrawCommandShadows fc grouped shadowCascadeIndex = do
   for_ grouped \group ->
     case headMay group of
-      Nothing -> pure ()
-      Just (_, CustomDrawCommand { material }) -> do
-        let theMat = material.shadowMaterial
-        cmdBindMaterial fc theMat
-        for_ group \(i, CustomDrawCommand {mesh, descriptorSet, instanceCount}) -> do
-          renderCommand fc theMat mesh instanceCount descriptorSet (ShadowPushConsts i shadowCascadeIndex)
-processCustomCommandGroups fc stage grouped Nothing = do
-  for_ grouped \group ->
-    case headMay group of
-      Nothing -> pure ()
-      Just (_, CustomDrawCommand { material }) -> do
-        let theMat = case stage of
-              World -> material.worldMaterial
-              Picking -> material.objectIDMaterial
-              Overlay -> fromMaybe (error "Material set has no overlay material") material.overlayMaterial
-              ShowSelection -> material.showSelectionMaterial
-              CreateShadowMap -> error "Shadow stage needs cascade"
-        cmdBindMaterial fc theMat
-        for_ group \(i, CustomDrawCommand {mesh, descriptorSet, instanceCount}) -> do
-          renderCommand fc theMat mesh instanceCount descriptorSet i
-processCustomCommandGroups _ _ _ _ = error "Bad stage/cascade combo"
+      Just (_, DrawCommand { materialConfig }) -> case materialConfig of
+        GBufferConfig GBufferMaterialStack {..} -> do
+          cmdBindMaterial fc shadowMaterial
+          for_ group \(i, DrawCommand {mesh, descriptorSet, instanceCount}) -> do
+            renderCommand fc shadowMaterial mesh instanceCount descriptorSet (ShadowPushConsts i shadowCascadeIndex)
+        _ -> error "Only gbuffer rendering supported here"
+      _ -> pure ()
 
-processCustomCommandUngrouped
+processDrawCommandGBuffer
   :: (MonadIO m, DynamicMeshMonad m)
   => FrameContext
-  -> Stage
-  -> [(Word32, CustomDrawCommand)]
+  -> [[(Word32, DrawCommand)]]
   -> m ()
-processCustomCommandUngrouped fc stage commands = do
+processDrawCommandGBuffer fc grouped = do
+  for_ grouped \group ->
+    case headMay group of
+      Just (_, DrawCommand { materialConfig }) -> case materialConfig of
+        GBufferConfig GBufferMaterialStack {..} -> do
+          cmdBindMaterial fc gbufferMaterial
+          for_ group \(i, DrawCommand {mesh, descriptorSet, instanceCount, hasIdent}) -> do
+            renderCommand fc gbufferMaterial mesh instanceCount descriptorSet (GBufferPushConsts i (fromIntegral $ fromMaybe 0 hasIdent))
+        _ -> error "Only gbuffer rendering supported here"
+      _ -> pure ()
+
+processDirectUngrouped
+  :: (MonadIO m, DynamicMeshMonad m)
+  => FrameContext
+  -> [(Word32, DrawCommand)]
+  -> m ()
+processDirectUngrouped fc commands = do
   flip evalStateT UUID.nil do
-    for_ commands \(i, CustomDrawCommand {mesh, descriptorSet, material, instanceCount}) -> do
-      let theMat = case stage of
-            World -> material.worldMaterial
-            CreateShadowMap -> error "Shadow map creation not supported for ungrouped commands" --  material.shadowMaterial
-            Picking -> material.objectIDMaterial
-            Overlay -> fromMaybe (error "Material set has no overlay material") material.overlayMaterial
-            ShowSelection -> material.showSelectionMaterial
-      bindMaterialIfNeeded fc theMat
-      renderCommand fc theMat mesh instanceCount descriptorSet (fromIntegral i)
+    for_ commands \(i, DrawCommand {mesh, descriptorSet, materialConfig, instanceCount}) -> case materialConfig of
+      DirectConfig material -> do
+        bindMaterialIfNeeded fc material.directMaterial
+        renderCommand fc material.directMaterial mesh instanceCount descriptorSet (fromIntegral i)
+      _ -> error "Only direct rendering supported here"

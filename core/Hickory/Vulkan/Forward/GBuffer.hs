@@ -1,8 +1,8 @@
-{-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
+{-# LANGUAGE PatternSynonyms, DuplicateRecordFields, OverloadedRecordDot #-}
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, DerivingStrategies #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
-module Hickory.Vulkan.Forward.Lit where
+module Hickory.Vulkan.Forward.GBuffer where
 
 import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -37,69 +37,105 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
-import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants)
+import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
 import Hickory.Vulkan.Forward.ShaderDefinitions
-import Hickory.Vulkan.Framing (FramedResource, frameResource)
+import Hickory.Vulkan.Framing (FramedResource)
 import Data.Word (Word32)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
 
-resolveFormat :: Format
-resolveFormat = hdrFormat
-
 hdrFormat :: Format
-hdrFormat     = FORMAT_R16G16B16A16_SFLOAT
+hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
-withLitFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, [DescriptorSpec])
-withLitFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
+normalFormat :: Format
+normalFormat = FORMAT_R16G16B16_SFLOAT
+
+objIDFormat :: Format
+objIDFormat = FORMAT_R16_UINT
+
+withDepthViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
+withDepthViewableImage vulkanResources extent = do
+  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat SAMPLE_COUNT_1_BIT IMAGE_USAGE_SAMPLED_BIT 1
+  depthImageView <- with2DImageView vulkanResources.deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
+  pure $ ViewableImage depthImageRaw depthImageView depthFormat
+
+withGBufferFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
+withGBufferFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} depthImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
-  -- Target textures for the lit pass
-  hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent maxSampleCount
-  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw 0 1
-  let _hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
+  -- Target textures for the gbuffer pass
 
-  depthImageRaw  <- withDepthImage vulkanResources extent depthFormat maxSampleCount IMAGE_USAGE_SAMPLED_BIT 1
-  depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
-  let depthImage = ViewableImage depthImageRaw depthImageView depthFormat
+  albedoImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
+  albedoImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT albedoImageRaw 0 1
+  let albedoImage = ViewableImage albedoImageRaw albedoImageView hdrFormat
 
-  -- Target tex for the multisample resolve pass
-  resolveImageRaw  <- withIntermediateImage vulkanResources resolveFormat
-    (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
-    extent SAMPLE_COUNT_1_BIT
-  resolveImageView <- with2DImageView deviceContext resolveFormat IMAGE_ASPECT_COLOR_BIT resolveImageRaw 0 1
-  let resolveImage = ViewableImage resolveImageRaw resolveImageView resolveFormat
-      descriptorSpecs = [ImageDescriptor [(resolveImage,sampler)], ImageDescriptor [(depthImage,sampler)]]
-  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView, depthImageView, resolveImageView]
+  normalImageRaw  <- withIntermediateImage vulkanResources normalFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
+  normalImageView <- with2DImageView deviceContext normalFormat IMAGE_ASPECT_COLOR_BIT normalImageRaw 0 1
+  let normalImage = ViewableImage normalImageRaw normalImageView normalFormat
 
-withLitRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withLitRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
+  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
+  objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw 0 1
+  let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
+
+  let ViewableImage _ depthImageView _ = depthImage
+
+  let descriptorSpecs = [ ImageDescriptor [(albedoImage,sampler)]
+                        , ImageDescriptor [(normalImage,sampler)]
+                        , ImageDescriptor [(objIDImage,sampler)]
+                        , ImageDescriptor [(depthImage,sampler)]
+                        ]
+  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [albedoImageView, depthImageView]
+
+withGBufferRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
+withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
-    { attachments  = [hdrColorAttachmentDescription, depthAttachmentDescription, resolveAttachmentDescription]
-    , subpasses    = [litSubpass]
-    , dependencies = [litDependency]
+    { attachments  = [albedoAttachmentDescription, normalAttachmentDescription, objIDAttachmentDescription, depthAttachmentDescription ]
+    , subpasses    = [gbufferSubpass]
+    , dependencies = [gbufferDependency]
     } Nothing mkAcquire
 
   let cullModeOverride = Nothing
-      samples = maxSampleCount
+      samples = SAMPLE_COUNT_1_BIT
   pure RenderConfig {..}
   where
-  hdrColorAttachmentDescription :: AttachmentDescription
-  hdrColorAttachmentDescription = zero
+  albedoAttachmentDescription :: AttachmentDescription
+  albedoAttachmentDescription = zero
     { format         = hdrFormat
-    , samples        = maxSampleCount
+    , samples        = SAMPLE_COUNT_1_BIT
     , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
     , storeOp        = ATTACHMENT_STORE_OP_STORE
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    }
+  normalAttachmentDescription :: AttachmentDescription
+  normalAttachmentDescription = zero
+    { format         = hdrFormat
+    , samples        = SAMPLE_COUNT_1_BIT
+    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
+    , storeOp        = ATTACHMENT_STORE_OP_STORE
+    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
+    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
+    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
   depthAttachmentDescription :: AttachmentDescription
   depthAttachmentDescription = zero
     { format         = depthFormat
-    , samples        = maxSampleCount
+    , samples        = SAMPLE_COUNT_1_BIT
+    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
+    , storeOp        = ATTACHMENT_STORE_OP_STORE
+    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
+    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
+    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    }
+  objIDAttachmentDescription :: AttachmentDescription
+  objIDAttachmentDescription = zero
+    { format         = objIDFormat
+    , samples        = SAMPLE_COUNT_1_BIT
     , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
     , storeOp        = ATTACHMENT_STORE_OP_STORE
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
@@ -107,39 +143,30 @@ withLitRenderConfig vulkanResources@VulkanResources { deviceContext = deviceCont
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
     , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
-  resolveAttachmentDescription :: AttachmentDescription
-  resolveAttachmentDescription = zero
-    { format         = resolveFormat
-    , samples        = SAMPLE_COUNT_1_BIT -- Resolve multisampling
-    , loadOp         = ATTACHMENT_LOAD_OP_DONT_CARE
-    , storeOp        = ATTACHMENT_STORE_OP_STORE
-    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
-    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    }
-  litSubpass :: SubpassDescription
-  litSubpass = zero
+  gbufferSubpass :: SubpassDescription
+  gbufferSubpass = zero
     { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
     , colorAttachments =
       [ zero
         { attachment = 0
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
-      ]
-    , depthStencilAttachment = Just $ zero
-      { attachment = 1
-      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-      }
-    , resolveAttachments =
-      [ zero
+      , zero
+        { attachment = 1
+        , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        }
+      , zero
         { attachment = 2
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
       ]
+    , depthStencilAttachment = Just $ zero
+      { attachment = 3
+      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+      }
     }
-  litDependency :: SubpassDependency
-  litDependency = zero
+  gbufferDependency :: SubpassDependency
+  gbufferDependency = zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
     , srcStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
@@ -148,16 +175,16 @@ withLitRenderConfig vulkanResources@VulkanResources { deviceContext = deviceCont
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
-withStaticLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
-withStaticLitMaterial vulkanResources renderConfig globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord] pipelineDefaults staticLitVertShader staticLitFragShader globalPDS (Just perDrawLayout)
+withStaticGBufferMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial GBufferPushConsts StaticConstants)
+withStaticGBufferMaterial vulkanResources renderConfig globalPDS perDrawLayout
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord] pipelineDefaults staticGBufferVertShader staticGBufferFragShader globalPDS (Just perDrawLayout)
 
-withAnimatedLitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 AnimatedConstants)
-withAnimatedLitMaterial vulkanResources renderConfig globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedLitVertShader animatedLitFragShader globalPDS (Just perDrawLayout)
+withAnimatedGBufferMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial GBufferPushConsts AnimatedConstants)
+withAnimatedGBufferMaterial vulkanResources renderConfig globalPDS perDrawLayout
+  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedGBufferVertShader animatedGBufferFragShader globalPDS (Just perDrawLayout)
 
-staticLitVertShader :: ByteString
-staticLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+staticGBufferVertShader :: ByteString
+staticGBufferVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
 $shadowPassGlobalsDef
@@ -184,8 +211,8 @@ void main() {
 
 |])
 
-animatedLitFragShader :: ByteString
-animatedLitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+animatedGBufferFragShader :: ByteString
+animatedGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
 $worldGlobalsDef
 $pushConstantsDef
@@ -203,8 +230,8 @@ void main() {
 }
 |])
 
-staticLitFragShader :: ByteString
-staticLitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+staticGBufferFragShader :: ByteString
+staticGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
 $worldGlobalsDef
 $litFragDef
@@ -222,8 +249,8 @@ void main() {
 }
 |])
 
-animatedLitVertShader :: ByteString
-animatedLitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+animatedGBufferVertShader :: ByteString
+animatedGBufferVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
 $shadowPassGlobalsDef
