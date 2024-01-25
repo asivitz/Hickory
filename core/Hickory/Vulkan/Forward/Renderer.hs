@@ -13,16 +13,16 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Forward.GBuffer (withStaticUnlitMaterial, withGBufferRenderConfig, withLineMaterial, withPointMaterial, withOverlayMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage)
-import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderConfig, withStaticShadowMaterial, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
+import Hickory.Vulkan.Forward.GBuffer (withGBufferRenderConfig, withLineMaterial, withPointMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage)
+import Hickory.Vulkan.Forward.ShadowPass (withShadowRenderConfig, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout)
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..))
 import Foreign (Storable, plusPtr, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?), over)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
-import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults)
+import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend)
 import Data.List (partition, sortOn, mapAccumL)
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
@@ -60,7 +60,8 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades)
 import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
-import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial)
+import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer)
+import Hickory.Vulkan.Textures (transitionImageLayout)
 
 withRendererMaterial
   :: forall a. Storable a
@@ -104,16 +105,16 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
 
   gbufferMaterial <- withRendererMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions gbufferVertShader gbufferFragShader materialSets perDrawLayout
   shadowMaterial  <- withRendererMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets perDrawLayout
-  showSelectionMaterial <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { blendEnable = False } OP.objectIDVertShader OP.objectIDFragShader materialSets perDrawLayout
+  showSelectionMaterial <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} OP.objectIDVertShader OP.objectIDFragShader materialSets perDrawLayout
   pure GBufferMaterialStack {..}
 
 withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
 withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = GBufferConfig <$>
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferVertShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferVertShader
 
 withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants)
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = GBufferConfig <$>
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferVertShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferVertShader
 
 withDirectMaterialStack
   :: forall uniform
@@ -146,7 +147,7 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
 
 withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
 withStaticDirectMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = DirectConfig <$>
-  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineDefaults [HVT.Position, HVT.TextureCoord] perDrawLayout staticDirectVertShader staticDirectFragShader
+  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout staticDirectVertShader staticDirectFragShader
 
 standardMaxNumDraws :: Num a => a
 standardMaxNumDraws = 2048
@@ -193,12 +194,14 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   depthViewableImage    <- frameResource $ withDepthViewableImage vulkanResources swapchain.extent
   gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
   gbufferRenderFrame    <- depthViewableImage & V.mapM (withGBufferFrameBuffer vulkanResources gbufferRenderConfig)
+  lightingRenderConfig  <- withLightingRenderConfig vulkanResources swapchain
+  lightingRenderFrame   <- frameResource $ withLightingFrameBuffer vulkanResources lightingRenderConfig
   directRenderConfig    <- withDirectRenderConfig vulkanResources swapchain
   directRenderFrame     <- depthViewableImage & V.mapM (withDirectFrameBuffer vulkanResources directRenderConfig)
   swapchainRenderConfig <- withSwapchainRenderConfig vulkanResources swapchain
   swapchainRenderFrame  <- withSwapchainFramebuffers vulkanResources swapchain swapchainRenderConfig
   objectIDRenderConfig  <- withObjectIDRenderConfig vulkanResources swapchain
-  pickingRenderFrame    <- frameResource $ withObjectIDFrameBuffer vulkanResources objectIDRenderConfig
+  -- pickingRenderFrame    <- frameResource $ withObjectIDFrameBuffer vulkanResources objectIDRenderConfig
   currentSelectionRenderFrame <- frameResource $ withObjectIDFrameBuffer vulkanResources objectIDRenderConfig
 
   globalBuffer             <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
@@ -224,8 +227,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
 
   currentSelectionMaterial <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
-  staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
-  animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
+  -- staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
+  -- animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
 
   {-
   pickingMaterial          <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
@@ -246,14 +249,14 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderConfig globalDescriptorSet objHighlightDescriptorSet
   -}
   sunMaterialDescriptorSet <- for (snd <$> gbufferRenderFrame) $ withDescriptorSet vulkanResources
-  sunMaterial              <- withDirectionalLightMaterial vulkanResources directRenderConfig globalDescriptorSet sunMaterialDescriptorSet
+  sunMaterial              <- withDirectionalLightMaterial vulkanResources lightingRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
   postMaterialDescriptorSet <- for (snd <$> directRenderFrame) $ withDescriptorSet vulkanResources
   postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderConfig globalDescriptorSet postMaterialDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
-  objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 0 (snd <$> pickingRenderFrame)
+  objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 2 (snd <$> gbufferRenderFrame)
 
   let renderTargets = RenderTargets {..}
 
@@ -503,7 +506,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         -- Direct commands, whether world or overlay, could be using the same material stacks.
         -- So we need to upload all the uniforms together. But also need to
         -- preserve their original orders b/c direct commands are often blended.
-        -- So we'll take them with unique ids that we can later use to look up the uniform ids.
+        -- So we'll tag them with unique ids that we can later use to look up the uniform ids.
         directWorldDrawCommandsTagged   = zip [0..] directWorldDrawCommands
         directOverlayDrawCommandsTagged = zip [length directWorldDrawCommands..] overlayDrawCommands
         allDirectCommandsTagged = directWorldDrawCommandsTagged ++ directOverlayDrawCommandsTagged
@@ -535,8 +538,8 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
                 pure (dcId, fromIntegral uniIdx)
           _ -> error "Non direct draw commands not supported here"
 
-    let directWorldDrawCommandsWithUniformIdx = map (over _1 (error "Can't find uniform index" . (`HashMap.lookup` directDCIdsToUniformIdx))) directWorldDrawCommandsTagged
-        directOverlayDrawCommandsWithUniformIdx     = map (over _1 (error "Can't find uniform index" . (`HashMap.lookup` directDCIdsToUniformIdx))) directOverlayDrawCommandsTagged
+    let directWorldDrawCommandsWithUniformIdx   = map (over _1 (fromMaybe (error "Can't find uniform index") . (`HashMap.lookup` directDCIdsToUniformIdx))) directWorldDrawCommandsTagged
+        directOverlayDrawCommandsWithUniformIdx = map (over _1 (fromMaybe (error "Can't find uniform index") . (`HashMap.lookup` directDCIdsToUniformIdx))) directOverlayDrawCommandsTagged
 
     -- Stage 1 Shadows
     for_ ([0..maxShadowCascades-1] :: [Word32]) \i ->
@@ -560,14 +563,19 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       processDrawCommandGBuffer frameContext (filter (worldCullTest . snd) <$> gbufDCsGroupedByMaterial)
 
     -- Stage 4 Decals (TODO)
-    -- Stage 5 Lighting + Extra Direct Color
-    useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
+    -- Stage 5 Lighting
+    useRenderConfig lightingRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> lightingRenderFrame) do
       -- Sun is a full screen light
       cmdBindMaterial frameContext sunMaterial
       liftIO do
-        cmdPushMaterialConstants commandBuffer sunMaterial ()
+        cmdPushMaterialConstants commandBuffer sunMaterial 0
         cmdDraw commandBuffer 3 1 0 0
 
+    -- We use depth as a texture for lighting, but need it for z-testing in forward rendering
+    transitionImageLayout (resourceForFrame swapchainImageIndex depthViewableImage).image IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL commandBuffer
+
+    -- Stage 6 Forward
+    useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
       -- Layer in extra direct color commands
       processDirectUngrouped frameContext (filter (worldCullTest . snd) directWorldDrawCommandsWithUniformIdx)
 
@@ -579,7 +587,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         _ -> pure ()
       -}
 
-    -- Stage 6 Post + Overlay
+    -- Stage 7 Post + Overlay
     void $ useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex (fst <$> swapchainRenderFrame) do
       -- Post processing
       cmdBindMaterial frameContext postProcessMaterial

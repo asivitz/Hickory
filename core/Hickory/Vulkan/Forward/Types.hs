@@ -9,7 +9,7 @@
 
 module Hickory.Vulkan.Forward.Types where
 
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
 import qualified Data.Vector.Storable.Sized as VSS
 import qualified Data.Vector.Sized as VS
@@ -46,21 +46,25 @@ data RenderTargets = RenderTargets
   , gbufferRenderConfig          :: !RenderConfig
   , gbufferRenderFrame           :: FramedResource (Framebuffer, [DescriptorSpec])
   -- Stage 4 Decals (TODO)
-  -- Stage 5 Lighting + Extra Direct Color
+  -- Stage 5 Lighting
+  , lightingRenderConfig         :: !RenderConfig
+  , lightingRenderFrame          :: FramedResource (Framebuffer, [DescriptorSpec])
+  -- Stage 6 Forward
   , directRenderConfig           :: !RenderConfig
   , directRenderFrame            :: FramedResource (Framebuffer, [DescriptorSpec])
-  -- Stage 6 Post + Overlay
+  -- Stage 7 Post + Overlay
   , swapchainRenderConfig        :: !RenderConfig
   , swapchainRenderFrame         :: FramedResource (Framebuffer, [DescriptorSpec])
   }
 
 data Renderer = Renderer
   { renderTargets :: RenderTargets
+  , depthViewableImage :: FramedResource ViewableImage
 
   -- Pipelines
   , currentSelectionMaterial   :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
-  , staticShadowMaterial       :: !(BufferedUniformMaterial ShadowPushConsts StaticConstants)
-  , animatedShadowMaterial     :: !(BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
+  -- , staticShadowMaterial       :: !(BufferedUniformMaterial ShadowPushConsts StaticConstants)
+  -- , animatedShadowMaterial     :: !(BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
   , staticGBufferMaterialConfig   :: MaterialConfig StaticConstants
   , animatedGBufferMaterialConfig :: MaterialConfig AnimatedConstants
   , staticDirectMaterialConfig    :: MaterialConfig StaticConstants
@@ -76,7 +80,7 @@ data Renderer = Renderer
   -}
 
   , postProcessMaterial      :: !(Material PostConstants)
-  , sunMaterial              :: !(Material ())
+  , sunMaterial              :: !(Material Word32) -- Word32 isn't actually used. But can't be ()
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
   , globalShadowPassBuffer   :: !(FramedResource (DataBuffer ShadowGlobals))
   , globalWorldBuffer        :: !(FramedResource (DataBuffer WorldGlobals))

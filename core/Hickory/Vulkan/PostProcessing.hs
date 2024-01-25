@@ -6,7 +6,7 @@ module Hickory.Vulkan.PostProcessing where
 
 import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Material (withMaterial, pipelineDefaults)
+import Hickory.Vulkan.Material (withMaterial, pipelineDefaults, defaultBlend)
 import Hickory.Vulkan.Framing (FramedResource)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert)
 import Hickory.Vulkan.Forward.ShaderDefinitions
@@ -18,7 +18,7 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 withPostProcessMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
   withMaterial vulkanResources renderConfig
-    [] pipelineDefaults vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+    [] (pipelineDefaults [defaultBlend]) vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = [vert|
 #version 450

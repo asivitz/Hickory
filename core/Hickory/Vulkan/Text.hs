@@ -1,7 +1,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedLabels, OverloadedLists #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -16,7 +16,7 @@ import Linear.V4 (V4)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, VulkanResources, Attribute (..))
-import Hickory.Vulkan.Material (pipelineDefaults)
+import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend)
 import Vulkan (DescriptorSetLayout, SamplerAddressMode (..), Filter (..))
 import Hickory.Text (Font(..), makeFont)
 import Control.Monad.IO.Class (liftIO)
@@ -51,7 +51,7 @@ data MSDFMatConstants = MSDFMatConstants
     deriving anyclass GStorable
 
 withOverlayMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 MSDFMatConstants)
-withOverlayMSDFMaterial vulkanResources renderConfig globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults vertShader msdfFragShader globalPds (Just perDrawLayout )
+withOverlayMSDFMaterial vulkanResources renderConfig globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] (pipelineDefaults [defaultBlend]) vertShader msdfFragShader globalPds (Just perDrawLayout )
   where
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -74,7 +74,7 @@ void main() {
 |])
 
 withMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 MSDFMatConstants)
-withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] pipelineDefaults msdfVertShader msdfFragShader globalPds (Just perDrawLayout )
+withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] (pipelineDefaults [defaultBlend]) msdfVertShader msdfFragShader globalPds (Just perDrawLayout )
 
 msdfVertShader :: ByteString
 msdfVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

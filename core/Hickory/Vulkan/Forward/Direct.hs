@@ -64,8 +64,8 @@ withDirectRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [hdrAttachmentDescription, depthAttachmentDescription ]
-    , subpasses    = [gbufferSubpass]
-    , dependencies = [gbufferDependency]
+    , subpasses    = [subpass]
+    , dependencies = [dependency]
     } Nothing mkAcquire
 
   let cullModeOverride = Nothing
@@ -94,8 +94,8 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
     , initialLayout  = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
     , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
-  gbufferSubpass :: SubpassDescription
-  gbufferSubpass = zero
+  subpass :: SubpassDescription
+  subpass = zero
     { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
     , colorAttachments =
       [ zero
@@ -108,8 +108,8 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
       , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
       }
     }
-  gbufferDependency :: SubpassDependency
-  gbufferDependency = zero
+  dependency :: SubpassDependency
+  dependency = zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
     , srcStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT

@@ -141,6 +141,13 @@ transitionImageLayout image oldLayout newLayout commandBuffer = do
           , PIPELINE_STAGE_FRAGMENT_SHADER_BIT
           , IMAGE_ASPECT_DEPTH_BIT
           )
+        (IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ) ->
+          ( ACCESS_SHADER_READ_BIT
+          , ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+          , PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+          , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+          , IMAGE_ASPECT_DEPTH_BIT
+          )
         _ -> error "Unsupported image layout transition"
 
   let barrier :: ImageMemoryBarrier '[]

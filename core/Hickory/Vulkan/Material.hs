@@ -110,16 +110,15 @@ data PipelineOptions = PipelineOptions
   { primitiveTopology :: PrimitiveTopology
   , depthTestEnable   :: Bool
   , depthClampEnable  :: Bool
-  , blendEnable       :: Bool
+  , colorBlends       :: V.Vector PipelineColorBlendAttachmentState
   , cullMode          :: CullModeFlagBits
   } deriving Generic
 
-pipelineDefaults :: PipelineOptions
-pipelineDefaults = PipelineOptions {..}
+pipelineDefaults :: V.Vector PipelineColorBlendAttachmentState -> PipelineOptions
+pipelineDefaults colorBlends = PipelineOptions {..}
   where
   primitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
   depthTestEnable = True
-  blendEnable     = True
   depthClampEnable = False
   cullMode = CULL_MODE_BACK_BIT
 
@@ -160,8 +159,8 @@ withGraphicsPipeline
           [ Viewport
               { x        = 0
               , y        = 0
-              , width    = realToFrac $ extent.width
-              , height   = realToFrac $ extent.height
+              , width    = realToFrac extent.width
+              , height   = realToFrac extent.height
               , minDepth = 0
               , maxDepth = 1
               }
@@ -190,22 +189,7 @@ withGraphicsPipeline
         }
       , colorBlendState = Just . SomeStruct $ zero
           { logicOpEnable = False
-          , attachments =
-            [ zero
-              { colorWriteMask
-                =   COLOR_COMPONENT_R_BIT
-                .|. COLOR_COMPONENT_G_BIT
-                .|. COLOR_COMPONENT_B_BIT
-                .|. COLOR_COMPONENT_A_BIT
-              , blendEnable = blendEnable
-              , srcColorBlendFactor = BLEND_FACTOR_SRC_ALPHA
-              , dstColorBlendFactor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
-              , colorBlendOp = BLEND_OP_ADD
-              , srcAlphaBlendFactor = BLEND_FACTOR_ONE
-              , dstAlphaBlendFactor = BLEND_FACTOR_ZERO
-              , alphaBlendOp = BLEND_OP_ADD
-              }
-            ]
+          , attachments = colorBlends
           }
       , dynamicState       = Nothing
       , layout             = pipelineLayout
@@ -215,3 +199,24 @@ withGraphicsPipeline
       }
   V.head . snd
     <$> withGraphicsPipelines device zero [SomeStruct pipelineCreateInfo] Nothing mkAcquire
+
+defaultBlend :: PipelineColorBlendAttachmentState
+defaultBlend = zero
+  { colorWriteMask
+    =   COLOR_COMPONENT_R_BIT
+    .|. COLOR_COMPONENT_G_BIT
+    .|. COLOR_COMPONENT_B_BIT
+    .|. COLOR_COMPONENT_A_BIT
+  , blendEnable = True
+  , srcColorBlendFactor = BLEND_FACTOR_SRC_ALPHA
+  , dstColorBlendFactor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+  , colorBlendOp = BLEND_OP_ADD
+  , srcAlphaBlendFactor = BLEND_FACTOR_ONE
+  , dstAlphaBlendFactor = BLEND_FACTOR_ZERO
+  , alphaBlendOp = BLEND_OP_ADD
+  }
+
+noBlend :: PipelineColorBlendAttachmentState
+noBlend = zero
+  { blendEnable = False
+  }

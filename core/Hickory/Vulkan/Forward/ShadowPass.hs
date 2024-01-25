@@ -112,13 +112,13 @@ withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceC
     , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
     }
 
-withStaticShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts StaticConstants)
-withStaticShadowMaterial vulkanResources renderConfig globalDS
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineDefaults { depthClampEnable = True } staticVertShader whiteFragShader globalDS Nothing
-
-withAnimatedShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
-withAnimatedShadowMaterial vulkanResources renderConfig globalDS
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader whiteFragShader globalDS Nothing
+-- withStaticShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts StaticConstants)
+-- withStaticShadowMaterial vulkanResources renderConfig globalDS
+--   = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineDefaults { depthClampEnable = True } staticVertShader whiteFragShader globalDS Nothing
+--
+-- withAnimatedShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
+-- withAnimatedShadowMaterial vulkanResources renderConfig globalDS
+--   = withBufferedUniformMaterial vulkanResources renderConfig [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader whiteFragShader globalDS Nothing
 
 staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

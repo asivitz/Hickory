@@ -36,7 +36,7 @@ import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
+import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), defaultBlend)
 import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
 import Hickory.Vulkan.Forward.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
@@ -85,7 +85,7 @@ withGBufferFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceC
                         , ImageDescriptor [(objIDImage,sampler)]
                         , ImageDescriptor [(depthImage,sampler)]
                         ]
-  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [albedoImageView, depthImageView]
+  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [albedoImageView, normalImageView, objIDImageView, depthImageView]
 
 withGBufferRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
@@ -130,7 +130,7 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
   objIDAttachmentDescription :: AttachmentDescription
   objIDAttachmentDescription = zero
@@ -224,15 +224,15 @@ layout(location = 1) in vec3 inNormal;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 layout(location = 0) out vec4 outAlbedo;
-layout(location = 1) out vec3 outNormal;
-layout(location = 2) out float outObjectID;
+layout(location = 1) out vec4 outNormal;
+layout(location = 2) out uint outObjectID;
 
 void main() {
   vec4 texColor = texture(texSampler, inTexCoord);
   vec4 surfaceColor = uniforms.color;
 
   outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, texColor.a);
-  outNormal   = inNormal;
+  outNormal   = vec4(inNormal,1);
   outObjectID = PushConstants.objectID;
 }
 |])
@@ -284,23 +284,22 @@ layout(location = 1) in vec3 inNormal;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 layout(location = 0) out vec4 outAlbedo;
-layout(location = 1) out vec3 outNormal;
-layout(location = 2) out float outObjectID;
+layout(location = 1) out vec4 outNormal;
+layout(location = 2) out uint outObjectID;
 
 void main() {
   vec4 texColor = texture(texSampler, inTexCoord);
   vec4 surfaceColor = uniforms.color;
 
   outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, texColor.a);
-  outNormal   = inNormal;
+  outNormal   = vec4(inNormal,1);
   outObjectID = PushConstants.objectID;
 }
 |])
 
-withStaticUnlitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
-withStaticUnlitMaterial vulkanResources renderConfig globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
-
+-- withStaticUnlitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
+-- withStaticUnlitMaterial vulkanResources renderConfig globalPDS perDrawLayout
+--   = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
 
 simpleFragShader :: ByteString
 simpleFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
@@ -317,7 +316,7 @@ void main() {
 withLineMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
 withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
-  pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
+  pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
@@ -338,7 +337,7 @@ withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMat
 withPointMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
 withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
-  pipelineOptions = pipelineDefaults { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
+  pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
   $header
@@ -416,6 +415,6 @@ void main() {
 
 |])
 
-withOverlayMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
-withOverlayMaterial vulkanResources renderConfig globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults overlayVertShader unlitFragShader globalPDS (Just perDrawLayout)
+-- withOverlayMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
+-- withOverlayMaterial vulkanResources renderConfig globalPDS perDrawLayout
+--   = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults overlayVertShader unlitFragShader globalPDS (Just perDrawLayout)
