@@ -49,7 +49,7 @@ hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
 normalFormat :: Format
-normalFormat = FORMAT_R16G16B16_SFLOAT
+normalFormat = FORMAT_R16G16B16A16_SFLOAT
 
 objIDFormat :: Format
 objIDFormat = FORMAT_R16_UINT
@@ -175,6 +175,7 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
+{-
 withStaticGBufferMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial GBufferPushConsts StaticConstants)
 withStaticGBufferMaterial vulkanResources renderConfig globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord] pipelineDefaults staticGBufferVertShader staticGBufferFragShader globalPDS (Just perDrawLayout)
@@ -182,6 +183,7 @@ withStaticGBufferMaterial vulkanResources renderConfig globalPDS perDrawLayout
 withAnimatedGBufferMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial GBufferPushConsts AnimatedConstants)
 withAnimatedGBufferMaterial vulkanResources renderConfig globalPDS perDrawLayout
   = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedGBufferVertShader animatedGBufferFragShader globalPDS (Just perDrawLayout)
+  -}
 
 staticGBufferVertShader :: ByteString
 staticGBufferVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

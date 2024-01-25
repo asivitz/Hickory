@@ -16,9 +16,11 @@ import Hickory.FRP.UI (topLeft)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..))
 import Hickory.Types
-import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero)
+import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero, transpose, _m33, inv33)
 import Linear.Metric
 import Acquire.Acquire (Acquire)
+import Control.Lens ((^.))
+import Foreign (poke)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
@@ -149,29 +151,47 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
   litF = runResources res do
     square <- getMesh "square"
     circleTex <- getTexture "circle.png"
-    for_ missiles \(pos, _) ->
+    for_ missiles \(pos, _) -> do
+      let mat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
       H.addCommand $ DrawCommand
         { modelMat = mkTranslation pos !*! mkScale (V2 5 5)
         , mesh = H.Buffered square
-        , color = white
-        , drawType = H.Static $ H.StaticMesh circleTex (V2 1 1)
-        , lit = False
-        , castsShadow = False
-        , blend = True
-        , ident = Nothing
-        , specularity = 1
+        , pokeData = flip poke $ H.StaticConstants
+            { modelMat    = mat
+            , normalMat   = transpose . inv33 $ mat ^. _m33
+            , color       = white
+            , specularity = 1
+            , tiling      = V2 1 1
+            , objectID    = 0
+            }
+        , cull = False
+        , hasIdent = Nothing
+        , doCastShadow = False
+        , doBlend = True
+        , descriptorSet = Just circleTex
+        , instanceCount = 1
+        , materialConfig = renderer.staticDirectMaterialConfig
         }
 
+    let mat = mkTranslation playerPos !*! mkScale (V2 10 10)
     H.addCommand $ DrawCommand
-      { modelMat = mkTranslation playerPos !*! mkScale (V2 10 10)
+      { modelMat = mat
       , mesh = H.Buffered square
-      , color = red
-      , drawType = H.Static $ H.StaticMesh circleTex (V2 1 1)
-      , lit = False
-      , castsShadow = False
-      , blend = False
-      , ident = Nothing
-      , specularity = 1
+      , pokeData = flip poke $ H.StaticConstants
+          { modelMat    = mat
+          , normalMat   = transpose . inv33 $ mat ^. _m33
+          , color       = white
+          , specularity = 1
+          , tiling      = V2 1 1
+          , objectID    = 0
+          }
+      , cull = False
+      , hasIdent = Nothing
+      , doCastShadow = False
+      , doBlend = False
+      , descriptorSet = Just circleTex
+      , instanceCount = 1
+      , materialConfig = renderer.staticDirectMaterialConfig
       }
 
   overlayF = runResources res do

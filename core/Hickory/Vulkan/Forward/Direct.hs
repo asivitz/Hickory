@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingStrategies, TemplateHaskell, QuasiQuotes #-}
 {-# LANGUAGE DataKinds, OverloadedLists #-}
 
 module Hickory.Vulkan.Forward.Direct where
@@ -80,7 +80,7 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
     , storeOp        = ATTACHMENT_STORE_OP_STORE
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , initialLayout  = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
   depthAttachmentDescription :: AttachmentDescription
@@ -117,3 +117,44 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+
+staticDirectVertShader :: ByteString
+staticDirectVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$worldGlobalsDef
+$pushConstantsDef
+$staticUniformsDef
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 3) in vec2 inTexCoord;
+
+layout(location = 0) out vec2 texCoord;
+
+void main() {
+  vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
+
+  gl_Position = globals.viewProjMat
+              * worldPosition;
+
+  texCoord = inTexCoord;
+}
+
+|])
+
+staticDirectFragShader :: ByteString
+staticDirectFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$header
+$worldGlobalsDef
+$pushConstantsDef
+$staticUniformsDef
+
+layout(location = 0) in vec2 inTexCoord;
+layout (set = 2, binding = 0) uniform sampler2D texSampler;
+
+layout(location = 0) out vec4 outColor;
+
+void main() {
+  vec4 texColor = texture(texSampler, inTexCoord);
+  outColor   = vec4(texColor * uniforms.color);
+}
+|])

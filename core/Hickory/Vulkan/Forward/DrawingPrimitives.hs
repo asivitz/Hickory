@@ -1,6 +1,6 @@
 module Hickory.Vulkan.Forward.DrawingPrimitives where
 
-import Linear (M44, V3 (..), V4, _w, _xyz, (!*), inv44, (^/), V2 (..), (^*), norm, zero)
+import Linear (M44, V3 (..), V4, _w, _xyz, _m33, (!*), inv44, (^/), V2 (..), (^*), norm, zero, inv33, transpose)
 import Hickory.Vulkan.Forward.Types
 import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
@@ -9,63 +9,87 @@ import Hickory.Math (Scalar, v2tov3, v2rotate, mkRotation)
 import Hickory.Graphics (askMatrix, MatrixMonad, xform)
 import Hickory.Vulkan.Forward.Renderer (ndcBoundaryPoints)
 import Control.Lens ((^.))
-import Foreign (Storable)
+import Foreign (Storable, poke)
 import Data.Foldable (toList)
 import Data.Functor ((<&>))
 
-drawLine :: (CommandMonad m, MatrixMonad m) => V4 Float -> V3 Float -> V3 Float -> m ()
-drawLine color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
+drawLine :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> V3 Float -> V3 Float -> m ()
+drawLine materialConfig color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
   mat <- askMatrix
   addCommand $ DrawCommand
     { modelMat = mat
     , mesh = Dynamic mesh
-    , color = color
-    , drawType = Lines
-    , lit = False
-    , castsShadow = False
-    , blend = False
-    , ident = Nothing
-    , specularity = 0
+    , pokeData = flip poke $ StaticConstants
+        { modelMat    = mat
+        , normalMat   = transpose . inv33 $ mat ^. _m33
+        , color       = color
+        , specularity = 0
+        , tiling      = zero
+        , objectID    = 0
+        }
+    , cull = False
+    , hasIdent = Nothing
+    , doCastShadow = False
+    , doBlend = False
+    , descriptorSet = Nothing
+    , instanceCount = 1
+    , materialConfig = materialConfig
     }
   where
   mesh = Mesh { vertices = [ (Position, SV.fromList [p1x, p1y, p1z, p2x, p2y, p2z]) ], indices = Just $ SV.fromList [0, 1], minPosition = zero, maxPosition = zero, morphTargets = [] }
 
-drawPoint :: (CommandMonad m, MatrixMonad m) => V4 Float -> V3 Float -> m ()
-drawPoint color (V3 px py pz)  = do
+drawPoint :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> V3 Float -> m ()
+drawPoint materialConfig color (V3 px py pz)  = do
   mat <- askMatrix
   addCommand $ DrawCommand
     { modelMat = mat
     , mesh = Dynamic mesh
-    , color = color
-    , drawType = Points
-    , lit = False
-    , castsShadow = False
-    , blend = False
-    , ident = Nothing
-    , specularity = 0
+    , pokeData = flip poke $ StaticConstants
+        { modelMat    = mat
+        , normalMat   = transpose . inv33 $ mat ^. _m33
+        , color       = color
+        , specularity = 0
+        , tiling      = zero
+        , objectID    = 0
+        }
+    , cull = False
+    , hasIdent = Nothing
+    , doCastShadow = False
+    , doBlend = False
+    , descriptorSet = Nothing
+    , instanceCount = 1
+    , materialConfig = materialConfig
     }
   where
   mesh = Mesh { vertices = [ (Position, SV.fromList [px, py, pz]) ], indices = Just $ SV.fromList [0], minPosition = V3 px py pz, maxPosition = V3 px py pz, morphTargets = [] }
 
-drawSolidCube :: (CommandMonad m, ResourcesMonad m, MatrixMonad m) => V4 Float -> m ()
-drawSolidCube color = do
+drawSolidCube :: (CommandMonad m, ResourcesMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> m ()
+drawSolidCube materialConfig color = do
   cube <- getMesh "cube"
   whiteTex <- getTexture "white"
   mat <- askMatrix
   addCommand $ DrawCommand
     { modelMat = mat
     , mesh = Buffered cube
-    , color = color
-    , drawType = Static $ StaticMesh whiteTex (V2 1 1)
-    , lit = False
-    , castsShadow = False
-    , blend = False
-    , ident = Nothing
-    , specularity = 0
+    , pokeData = flip poke $ StaticConstants
+        { modelMat    = mat
+        , normalMat   = transpose . inv33 $ mat ^. _m33
+        , color       = color
+        , specularity = 0
+        , tiling      = V2 1 1
+        , objectID    = 0
+        }
+    , cull = False
+    , hasIdent = Nothing
+    , doCastShadow = False
+    , doBlend = False
+    , descriptorSet = Just whiteTex
+    , instanceCount = 1
+    , materialConfig = materialConfig
     }
 
-drawWireCube :: (CommandMonad m, MatrixMonad m) => V4 Float -> m ()
-drawWireCube color = do
+drawWireCube :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> m ()
+drawWireCube materialConfig color = do
   drawFace
   xform (mkRotation (V3 1 0 0) (pi/2)) drawFace
   xform (mkRotation (V3 1 0 0) pi) drawFace
@@ -74,34 +98,35 @@ drawWireCube color = do
   xform (mkRotation (V3 0 1 0) (pi/2)) drawFace
   where
   drawFace = do
-    drawLine color (V3 (-0.5) (-0.5) (-0.5)) (V3 0.5 (-0.5) (-0.5))
-    drawLine color (V3 0.5 (-0.5) (-0.5)) (V3 0.5 0.5 (-0.5))
-    drawLine color (V3 0.5 0.5 (-0.5)) (V3 (-0.5) 0.5 (-0.5))
-    drawLine color (V3 (-0.5) 0.5 (-0.5)) (V3 (-0.5) (-0.5) (-0.5))
+    drawLine materialConfig color (V3 (-0.5) (-0.5) (-0.5)) (V3 0.5 (-0.5) (-0.5))
+    drawLine materialConfig color (V3 0.5 (-0.5) (-0.5)) (V3 0.5 0.5 (-0.5))
+    drawLine materialConfig color (V3 0.5 0.5 (-0.5)) (V3 (-0.5) 0.5 (-0.5))
+    drawLine materialConfig color (V3 (-0.5) 0.5 (-0.5)) (V3 (-0.5) (-0.5) (-0.5))
 
-drawFrustum :: (CommandMonad m, MatrixMonad m) => V4 Float -> M44 Float -> m ()
-drawFrustum color mat = do
+drawFrustum :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> M44 Float -> m ()
+drawFrustum materialConfig color mat = do
   let [p1, p2, p3, p4, p5, p6, p7, p8] = (^. _xyz) . (\v -> v ^/ (v ^. _w)) . (inv44 mat !*) <$> ndcBoundaryPoints
-  drawLine color p1 p2
-  drawLine color p2 p3
-  drawLine color p3 p4
-  drawLine color p4 p1
+  drawLine materialConfig color p1 p2
+  drawLine materialConfig color p2 p3
+  drawLine materialConfig color p3 p4
+  drawLine materialConfig color p4 p1
 
-  drawLine color p5 p6
-  drawLine color p6 p7
-  drawLine color p7 p8
-  drawLine color p8 p5
+  drawLine materialConfig color p5 p6
+  drawLine materialConfig color p6 p7
+  drawLine materialConfig color p7 p8
+  drawLine materialConfig color p8 p5
 
-  drawLine color p1 p5
-  drawLine color p2 p6
-  drawLine color p3 p7
-  drawLine color p4 p8
+  drawLine materialConfig color p1 p5
+  drawLine materialConfig color p2 p6
+  drawLine materialConfig color p3 p7
+  drawLine materialConfig color p4 p8
 
 data ArcStyle = RadialCenter | RadialBegin | RadialEnd
 
 drawWideArc
   :: (CommandMonad m, MatrixMonad m, ResourcesMonad m)
-  => V4 Scalar
+  => MaterialConfig StaticConstants
+  -> V4 Scalar
   -> ArcStyle -- Is the radial in the middle or edge of arc
   -> Scalar -- Distance from front edge of arc to back edge of arc
   -> V2 Scalar -- Point that the arc curves around
@@ -109,7 +134,7 @@ drawWideArc
   -> Scalar -- How wide of an arc to draw (0 to 2pi)
   -> Int -- Sections (level of detail)
   -> m ()
-drawWideArc color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
+drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
   mat <- askMatrix
   whiteTex <- getTexture "white"
   let radialLen = norm radial
@@ -137,25 +162,34 @@ drawWideArc color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realT
   addCommand $ DrawCommand
     { modelMat = mat
     , mesh = Dynamic mesh
-    , color = color
-    , drawType = Static $ StaticMesh whiteTex (V2 1 1)
-    , lit = False
-    , castsShadow = False
-    , blend = True
-    , ident = Nothing
-    , specularity = 8
+    , pokeData = flip poke $ StaticConstants
+        { modelMat    = mat
+        , normalMat   = transpose . inv33 $ mat ^. _m33
+        , color       = color
+        , specularity = 0
+        , tiling      = V2 1 1
+        , objectID    = 0
+        }
+    , cull = False
+    , hasIdent = Nothing
+    , doCastShadow = False
+    , doBlend = True
+    , descriptorSet = Just whiteTex
+    , instanceCount = 1
+    , materialConfig = materialConfig
     }
 
 drawLineArc
   :: (CommandMonad m, MatrixMonad m, ResourcesMonad m)
-  => V4 Scalar
+  => MaterialConfig StaticConstants
+  -> V4 Scalar
   -> ArcStyle -- Is the radial in the middle or edge of arc
   -> V2 Scalar -- Point that the arc curves around
   -> V2 Scalar -- Vec from center to front edge of arc
   -> Scalar -- How wide of an arc to draw (0 to 2pi)
   -> Int -- Sections (level of detail)
   -> m ()
-drawLineArc color arcStyle circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
+drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
   mat <- askMatrix
   let angles   = case arcStyle of
         RadialCenter -> [0..sections-1] <&> \s -> arcWidthAngle/2 - arcWidthAngle/(sections - 1) * s
@@ -177,13 +211,21 @@ drawLineArc color arcStyle circleCenterPos radial arcWidthAngle (realToFrac -> s
   addCommand $ DrawCommand
     { modelMat = mat
     , mesh = Dynamic mesh
-    , color = color
-    , drawType = Lines
-    , lit = False
-    , castsShadow = False
-    , blend = True
-    , ident = Nothing
-    , specularity = 8
+    , pokeData = flip poke $ StaticConstants
+        { modelMat    = mat
+        , normalMat   = transpose . inv33 $ mat ^. _m33
+        , color       = color
+        , specularity = 0
+        , tiling      = V2 1 1
+        , objectID    = 0
+        }
+    , cull = False
+    , hasIdent = Nothing
+    , doCastShadow = False
+    , doBlend = True
+    , descriptorSet = Nothing
+    , instanceCount = 1
+    , materialConfig = materialConfig
     }
 
 packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a

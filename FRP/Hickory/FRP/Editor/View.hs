@@ -77,18 +77,18 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
   where
   snapVec by = fmap (snap by)
   snap by x = let r :: Int = x `div'` by in realToFrac r * by
-  drawLines mat mesh color =
-    H.addCommand $ H.DrawCommand
-      { modelMat = mat
-      , mesh = H.Buffered mesh
-      , color = color
-      , drawType = H.Lines
-      , lit = False
-      , castsShadow = False
-      , blend = False
-      , ident = Nothing
-      , specularity = 0
-      }
+  drawLines mat mesh color = undefined
+    -- H.addCommand $ H.DrawCommand
+    --   { modelMat = mat
+    --   , mesh = H.Buffered mesh
+    --   , color = color
+    --   , drawType = H.Lines
+    --   , lit = False
+    --   , castsShadow = False
+    --   , blend = False
+    --   , ident = Nothing
+    --   , specularity = 0
+    --   }
 
 drawObject :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Maybe a -> Int -> Object -> m ()
 drawObject componentDefs state objId Object {..} = do
@@ -106,20 +106,20 @@ editorOverlayView scrSize cs cursorLoc selected mode = do
     Just OTranslate -> pure ()
   where
   objCenter = project scrSize cs (avgObjTranslation selected)
-  drawArr p1 p2 = do
-    squareMesh <- getMesh "cube"
-    tex        <- getTexture "white"
-    for_ [0..num] \i -> H.addCommand $ H.DrawCommand
-      { modelMat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
-      , mesh = Buffered squareMesh
-      , color = black
-      , drawType = Static StaticMesh { albedo = tex, tiling = V2 1 1}
-      , lit = False
-      , castsShadow = False
-      , blend = False
-      , ident = Nothing
-      , specularity = 0
-      }
+  drawArr p1 p2 = undefined
+    -- squareMesh <- getMesh "cube"
+    -- tex        <- getTexture "white"
+    -- for_ [0..num] \i -> H.addCommand $ H.DrawCommand
+    --   { modelMat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
+    --   , mesh = Buffered squareMesh
+    --   , color = black
+    --   , drawType = Static StaticMesh { albedo = tex, tiling = V2 1 1}
+    --   , lit = False
+    --   , castsShadow = False
+    --   , blend = False
+    --   , ident = Nothing
+    --   , specularity = 0
+    --   }
     where
     diff = p2 - p1
     num = norm diff / stride

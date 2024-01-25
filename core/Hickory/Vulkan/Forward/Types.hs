@@ -61,8 +61,9 @@ data Renderer = Renderer
   , currentSelectionMaterial   :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
   , staticShadowMaterial       :: !(BufferedUniformMaterial ShadowPushConsts StaticConstants)
   , animatedShadowMaterial     :: !(BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
-  , staticGBufferMaterial      :: !(BufferedUniformMaterial GBufferPushConsts StaticConstants)
-  , animatedGBufferMaterial    :: !(BufferedUniformMaterial GBufferPushConsts AnimatedConstants)
+  , staticGBufferMaterialConfig   :: MaterialConfig StaticConstants
+  , animatedGBufferMaterialConfig :: MaterialConfig AnimatedConstants
+  , staticDirectMaterialConfig    :: MaterialConfig StaticConstants
 
   {-
   , staticUnlitWorldMaterial   :: !(BufferedUniformMaterial Word32 StaticConstants)
@@ -204,7 +205,7 @@ data DirectMaterial uniform = DirectMaterial
   , descriptor     :: FramedResource (BufferDescriptorSet uniform)
   , uniformSize    :: Int -- Bytes
   , uuid           :: UUID
-  , directStage    :: DirectStage
+  -- , directStage    :: DirectStage
   }
 
 data RenderSettings = RenderSettings

@@ -13,7 +13,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Forward.GBuffer (withStaticUnlitMaterial, withAnimatedGBufferMaterial, withGBufferRenderConfig, withStaticGBufferMaterial, withLineMaterial, withPointMaterial, withOverlayMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage)
+import Hickory.Vulkan.Forward.GBuffer (withStaticUnlitMaterial, withGBufferRenderConfig, withLineMaterial, withPointMaterial, withOverlayMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage)
 import Hickory.Vulkan.Forward.ShadowPass (withAnimatedShadowMaterial, withShadowRenderConfig, withStaticShadowMaterial, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
@@ -59,7 +59,7 @@ import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades)
-import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer)
+import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
 import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial)
 
 withRendererMaterial
@@ -104,8 +104,16 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
 
   gbufferMaterial <- withRendererMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions gbufferVertShader gbufferFragShader materialSets perDrawLayout
   shadowMaterial  <- withRendererMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets perDrawLayout
-  showSelectionMaterial <- error "TODO" -- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { blendEnable = False } objectIDVertShader objectIDFragShader materialSets perDrawLayout
+  showSelectionMaterial <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { blendEnable = False } OP.objectIDVertShader OP.objectIDFragShader materialSets perDrawLayout
   pure GBufferMaterialStack {..}
+
+withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
+withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = GBufferConfig <$>
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferVertShader
+
+withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants)
+withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = GBufferConfig <$>
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferVertShader
 
 withDirectMaterialStack
   :: forall uniform
@@ -117,11 +125,11 @@ withDirectMaterialStack
   -> PipelineOptions
   -> [HVT.Attribute]
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
-  -> DirectStage
+  -- -> DirectStage
   -> ByteString
   -> ByteString
   -> Acquire (DirectMaterial uniform)
-withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout directStage
+withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout
   vertShader fragShader
   = do
   uuid <- liftIO nextRandom
@@ -135,6 +143,10 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
 
   directMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions vertShader fragShader materialSets perDrawLayout
   pure DirectMaterial {..}
+
+withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
+withStaticDirectMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = DirectConfig <$>
+  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineDefaults [HVT.Position, HVT.TextureCoord] perDrawLayout staticDirectVertShader staticDirectFragShader
 
 standardMaxNumDraws :: Num a => a
 standardMaxNumDraws = 2048
@@ -210,11 +222,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
 
+
   currentSelectionMaterial <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
   staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
   animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
-  staticGBufferMaterial    <- withStaticGBufferMaterial vulkanResources gbufferRenderConfig globalDescriptorSet imageSetLayout
-  animatedGBufferMaterial  <- withAnimatedGBufferMaterial vulkanResources gbufferRenderConfig globalDescriptorSet imageSetLayout
 
   {-
   pickingMaterial          <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
@@ -245,6 +256,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 0 (snd <$> pickingRenderFrame)
 
   let renderTargets = RenderTargets {..}
+
+  staticGBufferMaterialConfig   <- withStaticGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just imageSetLayout)
+  animatedGBufferMaterialConfig <- withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just imageSetLayout)
+  staticDirectMaterialConfig    <- withStaticDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just imageSetLayout)
 
   pure Renderer {..}
 
@@ -419,6 +434,8 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         projMat = cameraProjMat (Size (fromIntegral w) (fromIntegral h)) camera
         viewMat = cameraViewMat camera
         viewProjMat = projMat !*! viewMat
+        invViewMat = inv44 viewMat
+        invProjMat = inv44 projMat
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}

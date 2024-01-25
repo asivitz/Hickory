@@ -18,7 +18,7 @@ import Control.Monad.Extra (whenM)
 import Hickory.Math (Scalar)
 import Linear (V3 (..))
 import Control.Monad (void)
-import Hickory.Vulkan.Forward.Types (Renderer(..), ForwardRenderTargets(..))
+import Hickory.Vulkan.Forward.Types (Renderer(..), RenderTargets(..))
 import Vulkan (Extent2D (..), objectTypeAndHandle)
 import Foreign (with, castPtr, wordPtrToPtr, WordPtr(..))
 import Control.Lens (view)
@@ -107,7 +107,7 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
     void $ dragFloat "Sun Strength" sunStrengthRef 0.1 0 10
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100
 
-    let ForwardRenderTargets {..} = renderTargets
+    let RenderTargets {..} = renderTargets
         Extent2D w h = shadowRenderConfig.extent
         desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet (resourceForFrame swapchainImageIndex shadowMapDescriptorSet))
         imagePtr = wordPtrToPtr (WordPtr $ fromIntegral desSetHandle)
