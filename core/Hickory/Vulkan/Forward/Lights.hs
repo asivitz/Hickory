@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -46,17 +46,21 @@ import Hickory.Vulkan.Forward.GBuffer (depthFormat)
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
-withLightingFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, [DescriptorSpec])
-withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-
+withColorViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
+withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext } extent = do
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw 0 1
-  let hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
+  pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
-  let descriptorSpecs = [ ImageDescriptor [(hdrImage,sampler)]
+withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
+withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} colorImage = do
+  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+
+  let ViewableImage _ colorImageView _ = colorImage
+
+  let descriptorSpecs = [ ImageDescriptor [(colorImage,sampler)]
                         ]
-  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView]
+  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [colorImageView]
 
 withLightingRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
@@ -78,8 +82,8 @@ withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } S
     , storeOp        = ATTACHMENT_STORE_OP_STORE
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    , initialLayout  = IMAGE_LAYOUT_UNDEFINED
+    , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     }
   subpass :: SubpassDescription
   subpass = zero

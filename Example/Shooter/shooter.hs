@@ -152,14 +152,14 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
     square <- getMesh "square"
     circleTex <- getTexture "circle.png"
     for_ missiles \(pos, _) -> do
-      let mat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
+      let mat = mkTranslation pos !*! mkScale (V2 5 5)
       H.addCommand $ DrawCommand
-        { modelMat = mkTranslation pos !*! mkScale (V2 5 5)
+        { modelMat = mat
         , mesh = H.Buffered square
         , pokeData = flip poke $ H.StaticConstants
             { modelMat    = mat
             , normalMat   = transpose . inv33 $ mat ^. _m33
-            , color       = white
+            , color       = red
             , specularity = 1
             , tiling      = V2 1 1
             , objectID    = 0

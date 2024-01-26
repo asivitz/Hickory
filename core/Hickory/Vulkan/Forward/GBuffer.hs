@@ -74,7 +74,7 @@ withGBufferFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceC
   normalImageView <- with2DImageView deviceContext normalFormat IMAGE_ASPECT_COLOR_BIT normalImageRaw 0 1
   let normalImage = ViewableImage normalImageRaw normalImageView normalFormat
 
-  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
+  objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent SAMPLE_COUNT_1_BIT
   objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw 0 1
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
 

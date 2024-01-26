@@ -3,7 +3,7 @@
 
 module Hickory.Vulkan.Forward.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), OverlayGlobals (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..), GBufferMaterialStack(..), DirectMaterial(..), DirectStage, MaterialConfig (..), GBufferPushConsts (..))
+import Hickory.Vulkan.Forward.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), OverlayGlobals (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..), GBufferMaterialStack(..), DirectMaterial(..), DirectStage (..), MaterialConfig (..), GBufferPushConsts (..))
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -60,7 +60,7 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades)
 import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
-import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer)
+import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
 import Hickory.Vulkan.Textures (transitionImageLayout)
 
 withRendererMaterial
@@ -142,7 +142,8 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
         , materialSet
         ]
 
-  directMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions vertShader fragShader materialSets perDrawLayout
+  directMaterial  <- withRendererMaterial vulkanResources directRenderConfig  attributes pipelineOptions vertShader fragShader materialSets perDrawLayout
+  overlayMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions vertShader fragShader materialSets perDrawLayout
   pure DirectMaterial {..}
 
 withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
@@ -191,13 +192,15 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   shadowRenderConfig <- withShadowRenderConfig vulkanResources
   cascadedShadowMap <- frameResource $ withShadowMap vulkanResources shadowRenderConfig
 
+  colorViewableImage    <- frameResource $ withColorViewableImage vulkanResources swapchain.extent
   depthViewableImage    <- frameResource $ withDepthViewableImage vulkanResources swapchain.extent
+
   gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
   gbufferRenderFrame    <- depthViewableImage & V.mapM (withGBufferFrameBuffer vulkanResources gbufferRenderConfig)
   lightingRenderConfig  <- withLightingRenderConfig vulkanResources swapchain
-  lightingRenderFrame   <- frameResource $ withLightingFrameBuffer vulkanResources lightingRenderConfig
+  lightingRenderFrame   <- colorViewableImage & V.mapM (withLightingFrameBuffer vulkanResources lightingRenderConfig)
   directRenderConfig    <- withDirectRenderConfig vulkanResources swapchain
-  directRenderFrame     <- depthViewableImage & V.mapM (withDirectFrameBuffer vulkanResources directRenderConfig)
+  directRenderFrame     <- V.zip colorViewableImage depthViewableImage & V.mapM (uncurry $ withDirectFrameBuffer vulkanResources directRenderConfig)
   swapchainRenderConfig <- withSwapchainRenderConfig vulkanResources swapchain
   swapchainRenderFrame  <- withSwapchainFramebuffers vulkanResources swapchain swapchainRenderConfig
   objectIDRenderConfig  <- withObjectIDRenderConfig vulkanResources swapchain
@@ -577,7 +580,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     -- Stage 6 Forward
     useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
       -- Layer in extra direct color commands
-      processDirectUngrouped frameContext (filter (worldCullTest . snd) directWorldDrawCommandsWithUniformIdx)
+      processDirectUngrouped frameContext (filter (worldCullTest . snd) directWorldDrawCommandsWithUniformIdx) WorldDirect
 
       {- TODO Show selection
       case highlightObjs of
@@ -595,7 +598,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       liftIO $ cmdDraw commandBuffer 3 1 0 0
 
       -- Extra direct commands over the top
-      processDirectUngrouped frameContext (filter (overlayCullTest . snd) directOverlayDrawCommandsWithUniformIdx)
+      processDirectUngrouped frameContext (filter (overlayCullTest . snd) directOverlayDrawCommandsWithUniformIdx) OverlayDirect
 
     -- Make object picking texture available for reading
     liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame swapchainImageIndex objectPickingImageBuffer)
@@ -707,11 +710,13 @@ processDirectUngrouped
   :: (MonadIO m, DynamicMeshMonad m)
   => FrameContext
   -> [(Word32, DrawCommand)]
+  -> DirectStage
   -> m ()
-processDirectUngrouped fc commands = do
+processDirectUngrouped fc commands stage = do
   flip evalStateT UUID.nil do
     for_ commands \(i, DrawCommand {mesh, descriptorSet, materialConfig, instanceCount}) -> case materialConfig of
       DirectConfig material -> do
-        bindMaterialIfNeeded fc material.directMaterial
-        renderCommand fc material.directMaterial mesh instanceCount descriptorSet (fromIntegral i)
+        let mat = if stage == WorldDirect then material.directMaterial else material.overlayMaterial
+        bindMaterialIfNeeded fc mat
+        renderCommand fc mat mesh instanceCount descriptorSet (fromIntegral i)
       _ -> error "Only direct rendering supported here"

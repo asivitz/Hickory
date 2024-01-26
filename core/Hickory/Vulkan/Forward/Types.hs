@@ -59,6 +59,7 @@ data RenderTargets = RenderTargets
 
 data Renderer = Renderer
   { renderTargets :: RenderTargets
+  -- , colorViewableImage :: FramedResource ViewableImage
   , depthViewableImage :: FramedResource ViewableImage
 
   -- Pipelines
@@ -203,12 +204,14 @@ data GBufferMaterialStack uniform = GBufferMaterialStack
   }
 
 data DirectStage = WorldDirect | OverlayDirect
+  deriving (Eq)
 
 data DirectMaterial uniform = DirectMaterial
-  { directMaterial :: Material Word32
-  , descriptor     :: FramedResource (BufferDescriptorSet uniform)
-  , uniformSize    :: Int -- Bytes
-  , uuid           :: UUID
+  { directMaterial  :: Material Word32
+  , overlayMaterial :: Material Word32
+  , descriptor      :: FramedResource (BufferDescriptorSet uniform)
+  , uniformSize     :: Int -- Bytes
+  , uuid            :: UUID
   -- , directStage    :: DirectStage
   }
 

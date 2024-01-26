@@ -46,19 +46,16 @@ import Hickory.Vulkan.Forward.GBuffer (depthFormat)
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
-withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
-withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} depthImage = do
+withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
+withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} colorImage depthImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
-  hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
-  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw 0 1
-  let hdrImage = ViewableImage hdrImageRaw hdrImageView hdrFormat
-
-  let ViewableImage _ depthImageView _ = depthImage
-  let descriptorSpecs = [ ImageDescriptor [(hdrImage,sampler)]
+  let ViewableImage _ colorImageView _ = colorImage
+      ViewableImage _ depthImageView _ = depthImage
+  let descriptorSpecs = [ ImageDescriptor [(colorImage,sampler)]
                         , ImageDescriptor [(depthImage,sampler)]
                         ]
-  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [hdrImageView, depthImageView]
+  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [colorImageView, depthImageView]
 
 withDirectRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
@@ -76,7 +73,7 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
   hdrAttachmentDescription = zero
     { format         = hdrFormat
     , samples        = SAMPLE_COUNT_1_BIT
-    , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
+    , loadOp         = ATTACHMENT_LOAD_OP_LOAD
     , storeOp        = ATTACHMENT_STORE_OP_STORE
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
