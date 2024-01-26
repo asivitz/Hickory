@@ -80,7 +80,6 @@ struct Uniforms
   vec4 color;
   float specularity;
   vec2 tiling;
-  uint objectID;
 };
 
 $uniformDef
@@ -95,7 +94,6 @@ struct Uniforms {
   float specularity;
   mat4 boneMat[66];
   vec4 colors[6];
-  uint objectID;
 };
 
 $uniformDef
@@ -111,18 +109,6 @@ struct Uniforms
   float outlineSize;
   float sdfPixelRange;
   vec2 tiling;
-};
-
-$pushConstantsDef
-$uniformDef
-  |]
-
-objectIDUniformsDef :: String
-objectIDUniformsDef = [qm|
-struct Uniforms
-{
-  mat4 modelMat;
-  uint objectID;
 };
 
 $pushConstantsDef

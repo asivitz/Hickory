@@ -206,10 +206,37 @@ void main() {
   gl_Position = globals.viewProjMat
               * worldPosition;
 
-  texCoord = inTexCoord;
+  texCoord = inTexCoord * uniforms.tiling;
   normal   = worldNormal;
 }
 
+|])
+
+staticGBufferShadowVertShader :: ByteString
+staticGBufferShadowVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$worldGlobalsDef
+$shadowPassGlobalsDef
+$shadowPushConstantsDef
+$staticUniformsDef
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 2) in vec3 inNormal;
+layout(location = 3) in vec2 inTexCoord;
+
+layout(location = 0) out vec2 texCoord;
+layout(location = 1) out vec3 normal;
+
+void main() {
+  vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
+  vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
+
+  gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
+              * worldPosition;
+
+  texCoord = inTexCoord * uniforms.tiling;
+  normal   = worldNormal;
+}
 |])
 
 staticGBufferFragShader :: ByteString
@@ -265,6 +292,41 @@ void main() {
   vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
   gl_Position = globals.viewProjMat
+              * worldPosition;
+
+  texCoord = inTexCoord;
+  normal   = worldNormal;
+}
+|])
+
+animatedGBufferShadowVertShader :: ByteString
+animatedGBufferShadowVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+$header
+$shadowPassGlobalsDef
+$shadowPushConstantsDef
+$animatedUniformsDef
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 2) in vec3 inNormal;
+layout(location = 3) in vec2 inTexCoord;
+layout(location = 6) in vec4 inJointIndices;
+layout(location = 7) in vec4 inJointWeights;
+
+layout(location = 0) out vec2 texCoord;
+layout(location = 1) out vec3 normal;
+
+void main() {
+  mat4 skinMat
+    = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
+    + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
+    + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
+    + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
+
+  vec4 modelPos = skinMat * vec4(inPosition,1.0);
+  vec4 worldPosition = uniforms.modelMat * modelPos;
+  vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
+
+  gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
               * worldPosition;
 
   texCoord = inTexCoord;

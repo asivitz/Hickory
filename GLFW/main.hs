@@ -71,7 +71,6 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
                 , color       = white
                 , specularity = 1
                 , tiling      = V2 1 1
-                , objectID    = 0
                 }
             , cull = False
             , hasIdent = Nothing
@@ -93,7 +92,6 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
                 , color       = white
                 , specularity = 1
                 , tiling      = V2 1 1
-                , objectID    = 0
                 }
             , cull = False
             , hasIdent = Nothing

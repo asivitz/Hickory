@@ -63,12 +63,13 @@ data Renderer = Renderer
   , depthViewableImage :: FramedResource ViewableImage
 
   -- Pipelines
-  , currentSelectionMaterial   :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
+  -- , currentSelectionMaterial   :: !(BufferedUniformMaterial Word32 ObjectIDConstants)
   -- , staticShadowMaterial       :: !(BufferedUniformMaterial ShadowPushConsts StaticConstants)
   -- , animatedShadowMaterial     :: !(BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
   , staticGBufferMaterialConfig   :: MaterialConfig StaticConstants
   , animatedGBufferMaterialConfig :: MaterialConfig AnimatedConstants
   , staticDirectMaterialConfig    :: MaterialConfig StaticConstants
+  , msdfMaterialConfig            :: MaterialConfig MSDFMatConstants
 
   {-
   , staticUnlitWorldMaterial   :: !(BufferedUniformMaterial Word32 StaticConstants)
@@ -167,7 +168,6 @@ data StaticConstants = StaticConstants
   , color       :: V4 Float
   , specularity :: Float
   , tiling      :: V2 Float
-  , objectID    :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -178,7 +178,6 @@ data AnimatedConstants = AnimatedConstants
   , specularity :: Float
   , boneMat     :: VSS.Vector 66 (M44 Float) -- TODO: Parameterize
   , colors      :: VSS.Vector 6 (V4 Float)
-  , objectID    :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -197,7 +196,7 @@ data GBufferPushConsts = GBufferPushConsts
 data GBufferMaterialStack uniform = GBufferMaterialStack
   { gbufferMaterial          :: Material GBufferPushConsts
   , shadowMaterial           :: Material ShadowPushConsts
-  , showSelectionMaterial    :: Material Word32
+  , showSelectionMaterial    :: Material GBufferPushConsts
   , descriptor               :: FramedResource (BufferDescriptorSet uniform)
   , uniformSize              :: Int -- Bytes
   , uuid                     :: UUID

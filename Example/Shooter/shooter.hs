@@ -162,7 +162,6 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
             , color       = red
             , specularity = 1
             , tiling      = V2 1 1
-            , objectID    = 0
             }
         , cull = False
         , hasIdent = Nothing
@@ -183,7 +182,6 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
           , color       = white
           , specularity = 1
           , tiling      = V2 1 1
-          , objectID    = 0
           }
       , cull = False
       , hasIdent = Nothing
@@ -196,7 +194,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
 
   overlayF = runResources res do
     textRenderer <- getSomeFont
-    H.drawText textRenderer (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12)))
+    H.drawText renderer.msdfMaterialConfig textRenderer (mkTranslation (topLeft 20 20 scrSize) !*! mkScale (V2 (12/12) (12/12)))
       white white 0 $ textcommand { text = "Arrow keys move, Space shoots", align = AlignLeft }
 
 -- ** INPUT **

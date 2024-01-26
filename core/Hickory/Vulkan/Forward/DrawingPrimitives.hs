@@ -25,7 +25,6 @@ drawLine materialConfig color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
         , color       = color
         , specularity = 0
         , tiling      = zero
-        , objectID    = 0
         }
     , cull = False
     , hasIdent = Nothing
@@ -50,7 +49,6 @@ drawPoint materialConfig color (V3 px py pz)  = do
         , color       = color
         , specularity = 0
         , tiling      = zero
-        , objectID    = 0
         }
     , cull = False
     , hasIdent = Nothing
@@ -77,7 +75,6 @@ drawSolidCube materialConfig color = do
         , color       = color
         , specularity = 0
         , tiling      = V2 1 1
-        , objectID    = 0
         }
     , cull = False
     , hasIdent = Nothing
@@ -168,7 +165,6 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
         , color       = color
         , specularity = 0
         , tiling      = V2 1 1
-        , objectID    = 0
         }
     , cull = False
     , hasIdent = Nothing
@@ -217,7 +213,6 @@ drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (
         , color       = color
         , specularity = 0
         , tiling      = V2 1 1
-        , objectID    = 0
         }
     , cull = False
     , hasIdent = Nothing

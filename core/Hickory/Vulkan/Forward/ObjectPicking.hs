@@ -128,45 +128,22 @@ withObjectIDRenderConfig vulkanResources@VulkanResources { deviceContext = devic
 
 data ObjectIDConstants = ObjectIDConstants
   { modelMat :: M44 Float
-  , objectID :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
-withObjectIDMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 ObjectIDConstants)
-withObjectIDMaterial vulkanResources renderTarget globalDS
-  = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults [noBlend]) objectIDVertShader objectIDFragShader globalDS Nothing
+-- withObjectIDMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 ObjectIDConstants)
+-- withObjectIDMaterial vulkanResources renderTarget globalDS
+  -- = withBufferedUniformMaterial vulkanResources renderTarget [Position] (pipelineDefaults [noBlend]) staticObjectIDVertShader staticObjectIDFragShader globalDS Nothing
 
-objectIDVertShader :: ByteString
-objectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-$vertHeader
-$worldGlobalsDef
-$objectIDUniformsDef
-
-void main() { $staticVertCalc }
-
-|])
-
-staticObjectIDVertShader :: ByteString
-staticObjectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-$vertHeader
-$worldGlobalsDef
-$pushConstantsDef
-$staticUniformsDef
-
-void main() { $staticVertCalc }
-
-|])
-
-staticObjectIDFragShader :: ByteString
-staticObjectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+objectIDFragShader :: ByteString
+objectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
-$pushConstantsDef
-$staticUniformsDef
+$gbufferPushConstantsDef
 
 layout(location = 0) out uint outColor;
 
 void main() {
-  outColor = uniforms.objectID;
+  outColor = PushConstants.objectID;
 }
 |])
 
@@ -201,25 +178,12 @@ void main()
 animatedObjectIDFragShader :: ByteString
 animatedObjectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
-$pushConstantsDef
-$animatedUniformsDef
+$gbufferPushConstantsDef
 
 layout(location = 0) out uint outColor;
 
 void main() {
-  outColor = uniforms.objectID;
-}
-|])
-
-objectIDFragShader :: ByteString
-objectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$header
-$objectIDUniformsDef
-
-layout(location = 0) out uint outColor;
-
-void main() {
-  outColor = uniforms.objectID;
+  outColor = PushConstants.objectID;
 }
 |])
 
