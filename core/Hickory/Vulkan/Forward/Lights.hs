@@ -139,6 +139,7 @@ void main()
     vec4 farTopView    = mix(farTopLeftView,    farTopRightView, texCoords.x);
     vec4 farBottomView = mix(farBottomLeftView, farBottomRightView, texCoords.x);
     vec4 farView       = mix(farTopView,        farBottomView, texCoords.y); //Upside down?
+    farView.xyz /= farView.w;
 
     viewDir = (farView - nearView).xyz;
     worldDir = mat3(globals.invViewMat) * viewDir;

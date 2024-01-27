@@ -250,3 +250,17 @@ $fragHeader
 $worldGlobalsDef
 $fragShader
   |]
+
+buildDirectVertShader :: String -> String
+buildDirectVertShader vertShader = [qm|
+$header
+$worldGlobalsDef
+$vertShader
+  |]
+
+buildOverlayVertShader :: String -> String
+buildOverlayVertShader vertShader = [qm|
+$header
+$overlayGlobalsDef
+$vertShader
+  |]

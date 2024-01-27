@@ -73,19 +73,16 @@ void main() {
 
 |])
 
-withMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 MSDFMatConstants)
-withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] (pipelineDefaults [defaultBlend]) msdfVertShader msdfFragShader globalPds (Just perDrawLayout )
+-- withMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 MSDFMatConstants)
+-- withMSDFMaterial vulkanResources renderTarget globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderTarget [Position, TextureCoord] (pipelineDefaults [defaultBlend]) msdfVertShader msdfFragShader globalPds (Just perDrawLayout )
 
-msdfVertShader :: ByteString
-msdfVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-  $header
-
+msdfVertShader :: String
+msdfVertShader = [qm|
   layout(location = 0) in vec3 inPosition;
   layout(location = 3) in vec2 inTexCoord;
 
   layout(location = 1) out vec2 texCoord;
 
-  $worldGlobalsDef
   $msdfUniformsDef
 
   void main() {
@@ -94,7 +91,7 @@ msdfVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
                   * vec4(inPosition, 1.0);
       texCoord = uniforms.tiling * inTexCoord;
   }
-|])
+|]
 
 msdfFragShader :: ByteString
 msdfFragShader = [frag|

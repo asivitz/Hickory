@@ -115,10 +115,8 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
-staticDirectVertShader :: ByteString
-staticDirectVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-$header
-$worldGlobalsDef
+staticDirectVertShader :: String
+staticDirectVertShader = [qm|
 $pushConstantsDef
 $staticUniformsDef
 
@@ -136,7 +134,7 @@ void main() {
   texCoord = inTexCoord;
 }
 
-|])
+|]
 
 staticDirectFragShader :: ByteString
 staticDirectFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|

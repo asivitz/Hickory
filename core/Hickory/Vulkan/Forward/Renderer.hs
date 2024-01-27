@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds, OverloadedLists, OverloadedLabels #-}
-{-# LANGUAGE FlexibleContexts, OverloadedRecordDot #-}
+{-# LANGUAGE FlexibleContexts, OverloadedRecordDot, TemplateHaskell #-}
 
 module Hickory.Vulkan.Forward.Renderer where
 
@@ -12,7 +12,7 @@ import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBuff
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..))
 import qualified Hickory.Vulkan.Types as HVT
-import Hickory.Vulkan.Text (withMSDFMaterial, MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial, msdfVertShader, msdfFragShader)
+import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial, msdfVertShader, msdfFragShader)
 import Hickory.Vulkan.Forward.GBuffer (withGBufferRenderConfig, withLineMaterial, withPointMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
 import Hickory.Vulkan.Forward.ShadowPass (withShadowRenderConfig, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
@@ -58,10 +58,13 @@ import Data.UUID.V4 (nextRandom)
 import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
-import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades)
+import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades, buildWorldVertShader)
 import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
 import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
 import Hickory.Vulkan.Textures (transitionImageLayout)
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
+import Hickory.Vulkan.Forward.ShaderDefinitions (buildDirectVertShader)
+import Hickory.Vulkan.Forward.ShaderDefinitions (buildOverlayVertShader)
 
 withRendererMaterial
   :: forall a. Storable a
@@ -129,9 +132,10 @@ withDirectMaterialStack
   -- -> DirectStage
   -> ByteString
   -> ByteString
+  -> ByteString
   -> Acquire (MaterialConfig uniform)
 withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout
-  vertShader fragShader
+  directVertShader overlayVertShader fragShader
   = DirectConfig <$> do
   uuid <- liftIO nextRandom
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources maxNumDraws
@@ -142,17 +146,23 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
         , materialSet
         ]
 
-  directMaterial  <- withRendererMaterial vulkanResources directRenderConfig  attributes pipelineOptions vertShader fragShader materialSets perDrawLayout
-  overlayMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions vertShader fragShader materialSets perDrawLayout
+  directMaterial  <- withRendererMaterial vulkanResources directRenderConfig  attributes pipelineOptions directVertShader fragShader materialSets perDrawLayout
+  overlayMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions overlayVertShader fragShader materialSets perDrawLayout
   pure DirectMaterial {..}
 
 withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
 withStaticDirectMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout staticDirectVertShader staticDirectFragShader
+  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout
+    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader staticDirectVertShader))
+    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader staticDirectVertShader))
+    staticDirectFragShader
 
 withMSDFMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig MSDFMatConstants)
 withMSDFMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout msdfVertShader msdfFragShader
+  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout
+    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader msdfVertShader))
+    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader msdfVertShader))
+    msdfFragShader
 
 standardMaxNumDraws :: Num a => a
 standardMaxNumDraws = 2048
