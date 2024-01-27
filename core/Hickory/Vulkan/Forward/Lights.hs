@@ -114,35 +114,17 @@ $header
 $worldGlobalsDef
 
 layout (location = 0) out vec2 texCoords;
-layout (location = 1) out vec3 viewDir;
-layout (location = 2) out vec3 worldDir;
+layout (location = 1) out vec3 viewRay;
+layout (location = 2) out vec3 worldRay;
 
 void main()
 {
     texCoords = vec2(gl_VertexIndex & 2, (gl_VertexIndex << 1) & 2 );
     gl_Position = vec4(texCoords * 2.0f + -1.0f, 1.0f, 1.0f);
 
-    vec4 nearTopLeftView     = globals.invProjMat * vec4(-1,-1,0,1);
-    vec4 nearTopRightView    = globals.invProjMat * vec4(1,-1,0,1);
-    vec4 nearBottomLeftView  = globals.invProjMat * vec4(-1,1,0,1);
-    vec4 nearBottomRightView = globals.invProjMat * vec4(1,1,0,1);
-
-    vec4 farTopLeftView     = globals.invProjMat * vec4(-1,-1,1,1);
-    vec4 farTopRightView    = globals.invProjMat * vec4(1,-1,1,1);
-    vec4 farBottomLeftView  = globals.invProjMat * vec4(-1,1,1,1);
-    vec4 farBottomRightView = globals.invProjMat * vec4(1,1,1,1);
-
-    vec4 nearTopView    = mix(nearTopLeftView,    nearTopRightView, texCoords.x);
-    vec4 nearBottomView = mix(nearBottomLeftView, nearBottomRightView, texCoords.x);
-    vec4 nearView       = mix(nearTopView,        nearBottomView, texCoords.y); //Upside down?
-
-    vec4 farTopView    = mix(farTopLeftView,    farTopRightView, texCoords.x);
-    vec4 farBottomView = mix(farBottomLeftView, farBottomRightView, texCoords.x);
-    vec4 farView       = mix(farTopView,        farBottomView, texCoords.y); //Upside down?
-    farView.xyz /= farView.w;
-
-    viewDir = (farView - nearView).xyz;
-    worldDir = mat3(globals.invViewMat) * viewDir;
+    vec4 view = globals.invProjMat * vec4(gl_Position.x,gl_Position.y,1,1);
+    viewRay = view.xyz / view.w;
+    worldRay = mat3(globals.invViewMat) * viewRay;
 }
 
 |])
@@ -152,8 +134,8 @@ $worldGlobalsDef
 $shadowPassGlobalsDef
 
 layout (location = 0) in vec2 inTexCoords;
-layout (location = 1) in vec3 inViewDir;
-layout (location = 2) in vec3 inWorldDir;
+layout (location = 1) in vec3 inViewRay;
+layout (location = 2) in vec3 inWorldRay;
 
 layout (location = 0) out vec4 outColor;
 
@@ -190,10 +172,10 @@ void main()
 {
   float depth = texture(depthSampler, inTexCoords).r;
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
-  vec3 viewDir  = normalize(inViewDir);
-  vec3 worldDir = normalize(inWorldDir);
-  vec3 viewPos  = viewDir * depth;
-  vec3 worldPos = worldDir * depth + globals.cameraPos;
+  vec3 viewDir  = normalize(inViewRay);
+  vec3 worldDir = normalize(inWorldRay);
+  vec3 viewPos  = inViewRay * (depth / (globals.farPlane - globals.nearPlane));
+  vec3 worldPos = inWorldRay * (depth / (globals.farPlane - globals.nearPlane)) + globals.cameraPos;
 
   vec3 worldNormal = texture(normalSampler, inTexCoords).xyz;
   vec3 albedo      = texture(albedoSampler, inTexCoords).xyz;
