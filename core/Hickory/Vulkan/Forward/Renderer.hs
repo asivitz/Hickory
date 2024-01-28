@@ -260,11 +260,11 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   staticOverlayMaterial    <- withOverlayMaterial vulkanResources swapchainRenderConfig globalDescriptorSet imageSetLayout
   msdfOverlayMaterial      <- withOverlayMSDFMaterial vulkanResources swapchainRenderConfig globalDescriptorSet imageSetLayout
 
+  -}
 
   objHighlightDescriptorSet <- for (snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
+  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources directRenderConfig globalDescriptorSet objHighlightDescriptorSet
 
-  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources litRenderConfig globalDescriptorSet objHighlightDescriptorSet
-  -}
   sunMaterialDescriptorSet <- for (snd <$> gbufferRenderFrame) $ withDescriptorSet vulkanResources
   sunMaterial              <- withDirectionalLightMaterial vulkanResources lightingRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
@@ -565,10 +565,8 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         processDrawCommandShadows frameContext (filter (shadowCullTest . snd) <$> gbufDCsGroupedByMaterial) i
 
     -- Stage 2 Current Selection
-    {- TODO Show selection pass
     useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
-      processCustomCommandGroups frameContext ShowSelection (filter (showSelectionCullTest . snd) <$> allWorldGrouped) Nothing
-    -}
+      processDrawCommandShowSelection frameContext (filter (showSelectionCullTest . snd) <$> gbufDCsGroupedByMaterial)
 
     -- Stage 3 GBuffer
     let V4 r g b a = clearColor
@@ -597,13 +595,11 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       -- Layer in extra direct color commands
       processDirectUngrouped frameContext (filter (worldCullTest . snd) directWorldDrawCommandsWithUniformIdx) WorldDirect
 
-      {- TODO Show selection
       case highlightObjs of
         (_:_) -> do
           cmdBindMaterial frameContext objHighlightMaterial
           liftIO $ cmdDraw commandBuffer 3 1 0 0
         _ -> pure ()
-      -}
 
     -- Stage 7 Post + Overlay
     void $ useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex (fst <$> swapchainRenderFrame) do
@@ -708,6 +704,22 @@ processDrawCommandShadows fc grouped shadowCascadeIndex = do
           cmdBindMaterial fc shadowMaterial
           for_ group \(i, DrawCommand {mesh, descriptorSet, instanceCount}) -> do
             renderCommand fc shadowMaterial mesh instanceCount descriptorSet (ShadowPushConsts i shadowCascadeIndex)
+        _ -> error "Only gbuffer rendering supported here"
+      _ -> pure ()
+
+processDrawCommandShowSelection
+  :: (MonadIO m, DynamicMeshMonad m)
+  => FrameContext
+  -> [[(Word32, DrawCommand)]]
+  -> m ()
+processDrawCommandShowSelection fc grouped = do
+  for_ grouped \group ->
+    case headMay group of
+      Just (_, DrawCommand { materialConfig }) -> case materialConfig of
+        GBufferConfig GBufferMaterialStack {..} -> do
+          cmdBindMaterial fc showSelectionMaterial
+          for_ group \(i, DrawCommand {mesh, descriptorSet, instanceCount, hasIdent}) -> do
+            renderCommand fc gbufferMaterial mesh instanceCount descriptorSet (GBufferPushConsts i (fromIntegral $ fromMaybe 0 hasIdent))
         _ -> error "Only gbuffer rendering supported here"
       _ -> pure ()
 

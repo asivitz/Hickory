@@ -29,7 +29,7 @@ import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits (zeroBits, Bits ((.|.)))
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), withMaterial, noBlend)
+import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), withMaterial, noBlend, defaultBlend)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
@@ -190,7 +190,7 @@ void main() {
 withObjectHighlightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withObjectHighlightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
   withMaterial vulkanResources renderConfig
-    [] (pipelineDefaults [noBlend]) { depthTestEnable = False } vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+    [] (pipelineDefaults [defaultBlend]) { depthTestEnable = False } vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header

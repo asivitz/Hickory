@@ -76,11 +76,11 @@ data Renderer = Renderer
   , msdfWorldMaterial          :: !(BufferedUniformMaterial Word32 MSDFMatConstants)
   , linesWorldMaterial         :: !(BufferedUniformMaterial Word32 StaticConstants)
   , pointsWorldMaterial        :: !(BufferedUniformMaterial Word32 StaticConstants)
-  , objHighlightMaterial       :: !(Material Word32)
   , staticOverlayMaterial      :: !(BufferedUniformMaterial Word32 StaticConstants)
   , msdfOverlayMaterial        :: !(BufferedUniformMaterial Word32 MSDFMatConstants)
   -}
 
+  , objHighlightMaterial     :: !(Material Word32)
   , postProcessMaterial      :: !(Material PostConstants)
   , sunMaterial              :: !(Material Word32) -- Word32 isn't actually used. But can't be ()
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
