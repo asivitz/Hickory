@@ -77,6 +77,7 @@ data Attribute
   = Position
   | Normal
   | TextureCoord
+  | Tangent
   | Color
   | BoneIndex
   | MaterialIndex
@@ -112,7 +113,6 @@ data RenderConfig = RenderConfig
   { renderPass      :: RenderPass
   , extent          :: Extent2D
   , samples         :: SampleCountFlagBits
-  , cullModeOverride :: Maybe CullModeFlagBits
   } deriving Generic
 
 data Material a = Material

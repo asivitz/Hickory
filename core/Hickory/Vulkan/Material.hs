@@ -53,6 +53,7 @@ withMaterial
   -> RenderConfig
   -> [Attribute]
   -> PipelineOptions
+  -> CullModeFlagBits
   -> B.ByteString
   -> B.ByteString
   -> [FramedResource PointedDescriptorSet]
@@ -62,7 +63,7 @@ withMaterial
   bag@VulkanResources {..}
   RenderConfig {..}
   (sortOn attrLocation -> attributes)
-  pipelineOptions vertShader fragShader
+  pipelineOptions cullMode vertShader fragShader
   descriptorSets
   perDrawDescriptorSetLayout
   = do
@@ -79,12 +80,10 @@ withMaterial
                                <$> descriptorSets) Prelude.++ maybe [] pure perDrawDescriptorSetLayout
       }
     (globalDescriptorSet : materialDescriptorSet : _) = descriptorSets
-    cm :: CullModeFlagBits = fromMaybe pipelineOptions.cullMode cullModeOverride :: CullModeFlagBits
-    pipelineOptions' = set #cullMode cm pipelineOptions
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
   pipeline <-
-    withGraphicsPipeline bag renderPass 0 samples extent pipelineOptions' vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+    withGraphicsPipeline bag renderPass 0 samples extent pipelineOptions cullMode vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
@@ -112,6 +111,7 @@ data PipelineOptions = PipelineOptions
   , depthClampEnable  :: Bool
   , colorBlends       :: V.Vector PipelineColorBlendAttachmentState
   , cullMode          :: CullModeFlagBits
+  , shadowCullMode    :: CullModeFlagBits
   } deriving Generic
 
 pipelineDefaults :: V.Vector PipelineColorBlendAttachmentState -> PipelineOptions
@@ -121,6 +121,7 @@ pipelineDefaults colorBlends = PipelineOptions {..}
   depthTestEnable = True
   depthClampEnable = False
   cullMode = CULL_MODE_BACK_BIT
+  shadowCullMode = CULL_MODE_FRONT_BIT
 
 withGraphicsPipeline
   :: VulkanResources
@@ -129,6 +130,7 @@ withGraphicsPipeline
   -> SampleCountFlagBits
   -> Extent2D
   -> PipelineOptions
+  -> CullModeFlagBits
   -> B.ByteString
   -> B.ByteString
   -> PipelineLayout
@@ -137,7 +139,7 @@ withGraphicsPipeline
   -> Acquire Pipeline
 withGraphicsPipeline
   VulkanResources {..} renderPass subpassIndex samples extent
-  PipelineOptions {..} vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
+  pipelineOptions cullMode vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
   shaderStages   <- V.sequence [ createVertShader device vertShader, createFragShader device fragShader ]
@@ -151,7 +153,7 @@ withGraphicsPipeline
         , vertexAttributeDescriptions = vertexAttributeDescriptions
         }
       , inputAssemblyState = Just zero
-          { topology = primitiveTopology
+          { topology = pipelineOptions.primitiveTopology
           , primitiveRestartEnable = False
           }
       , viewportState = Just . SomeStruct $ zero
@@ -168,7 +170,7 @@ withGraphicsPipeline
         , scissors  = [ Rect2D { offset = Offset2D 0 0, extent = extent } ]
         }
       , rasterizationState = Just . SomeStruct $ zero
-          { depthClampEnable        = depthClampEnable
+          { depthClampEnable        = pipelineOptions.depthClampEnable
           , rasterizerDiscardEnable = False
           , polygonMode             = POLYGON_MODE_FILL
           , lineWidth               = 1
@@ -183,13 +185,13 @@ withGraphicsPipeline
       , depthStencilState = Just $ zero
         { depthTestEnable       = True
         , depthWriteEnable      = True
-        , depthCompareOp        = if depthTestEnable then COMPARE_OP_LESS else COMPARE_OP_ALWAYS
+        , depthCompareOp        = if pipelineOptions.depthTestEnable then COMPARE_OP_LESS else COMPARE_OP_ALWAYS
         , depthBoundsTestEnable = False
         , stencilTestEnable     = False
         }
       , colorBlendState = Just . SomeStruct $ zero
           { logicOpEnable = False
-          , attachments = colorBlends
+          , attachments = pipelineOptions.colorBlends
           }
       , dynamicState       = Nothing
       , layout             = pipelineLayout

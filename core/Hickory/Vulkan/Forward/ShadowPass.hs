@@ -72,7 +72,6 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
 withShadowRenderConfig :: VulkanResources -> Acquire RenderConfig
 withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do
   let extent = shadowDim
-      cullModeOverride = Just CULL_MODE_FRONT_BIT
       samples = SAMPLE_COUNT_1_BIT
 
   renderPass <- withRenderPass device zero

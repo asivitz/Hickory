@@ -96,9 +96,9 @@ orthographicProjection l r b t n f = V4
 -- |Perspective projection following Vulkan conventions
 -- (right handed coordinate system, depth dimension along +z, bottom of screen is toward -y)
 perspectiveProjection :: Floating a => a -> a -> a -> a -> M44 a
-perspectiveProjection screenRatio fov n f = V4
-  (V4 (1 / (screenRatio * tan (fov/2))) 0                 0             0)
-  (V4 0                                 (1 / tan (fov/2)) 0             0)
+perspectiveProjection screenRatio vfov n f = V4
+  (V4 (1 / (screenRatio * tan (vfov/2))) 0                 0             0)
+  (V4 0                                 (1 / tan (vfov/2)) 0             0)
   (V4 0                                 0                 (f / (f - n)) (- f * n / (f - n)))
   (V4 0                                 0                 1             0)
 

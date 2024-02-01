@@ -190,7 +190,7 @@ void main() {
 withObjectHighlightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withObjectHighlightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
   withMaterial vulkanResources renderConfig
-    [] (pipelineDefaults [defaultBlend]) { depthTestEnable = False } vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+    [] (pipelineDefaults [defaultBlend]) { depthTestEnable = False } CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header

@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Hickory.Vulkan.Monad where
 
@@ -29,7 +30,7 @@ import Hickory.Graphics.DrawText (squareIndices)
 import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (BufferDescriptorSet(..), withBufferDescriptorSet)
 import Hickory.Vulkan.Framing (FramedResource, frameResource)
-import Hickory.Vulkan.Material (withMaterial, PipelineOptions)
+import Hickory.Vulkan.Material (withMaterial, PipelineOptions(..))
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Vulkan
@@ -71,7 +72,7 @@ withBufferedUniformMaterial vulkanResources renderConfig attributes pipelineOpti
   let
     materialSet = view #descriptorSet <$> descriptor
     uniformSize = sizeOf (undefined :: uniform)
-  material <- withMaterial vulkanResources renderConfig attributes pipelineOptions vert frag
+  material <- withMaterial vulkanResources renderConfig attributes pipelineOptions pipelineOptions.cullMode vert frag
     [ globalDescriptorSet
     , materialSet
     ]

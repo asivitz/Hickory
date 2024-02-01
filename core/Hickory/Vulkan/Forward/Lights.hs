@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D, CullModeFlagBits (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -107,7 +107,7 @@ withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } S
 
 withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
-  withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+  withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
@@ -164,8 +164,7 @@ const mat4 biasMat = mat4(
 
 float linearizeDepth(float depth, float nearPlane, float farPlane)
 {
-    float z = depth * 2.0 - 1.0;
-    return (2.0 * nearPlane * farPlane) / (farPlane + nearPlane - z * (farPlane - nearPlane));
+    return nearPlane * farPlane / (farPlane - depth * (farPlane - nearPlane));
 }
 
 void main()
@@ -174,8 +173,8 @@ void main()
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
   vec3 viewDir  = normalize(inViewRay);
   vec3 worldDir = normalize(inWorldRay);
-  vec3 viewPos  = inViewRay * (depth / (globals.farPlane - globals.nearPlane));
-  vec3 worldPos = inWorldRay * (depth / (globals.farPlane - globals.nearPlane)) + globals.cameraPos;
+  vec3 viewPos  = inViewRay * (depth / globals.farPlane);
+  vec3 worldPos = inWorldRay * (depth / globals.farPlane) + globals.cameraPos;
 
   vec3 worldNormal = texture(normalSampler, inTexCoords).xyz;
   vec3 albedo      = texture(albedoSampler, inTexCoords).xyz;

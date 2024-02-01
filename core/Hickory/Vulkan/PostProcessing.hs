@@ -14,11 +14,12 @@ import Data.Proxy (Proxy)
 import Hickory.Vulkan.Types
 import Data.String.QM (qm)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
+import Vulkan (CullModeFlagBits(..))
 
 withPostProcessMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
   withMaterial vulkanResources renderConfig
-    [] (pipelineDefaults [defaultBlend]) vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+    [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
   vertShader = [vert|
 #version 450
@@ -69,8 +70,7 @@ vec3 aces_tonemapping(vec3 x) {
 
 float linearizeDepth(float depth, float nearPlane, float farPlane)
 {
-    float z = depth * 2.0 - 1.0;
-    return (2.0 * nearPlane * farPlane) / (farPlane + nearPlane - z * (farPlane - nearPlane));
+    return nearPlane * farPlane / (farPlane - depth * (farPlane - nearPlane));
 }
 
 float depthVariance(ivec2 tsize)

@@ -5,7 +5,7 @@
 
 module Hickory.Vulkan.Mesh where
 
-import Control.Lens ((&), _2, each, over)
+import Control.Lens ((&))
 import Data.Maybe (mapMaybe)
 import Data.Binary
 import Data.Vector.Binary ()
@@ -41,6 +41,7 @@ attrStride :: Attribute -> Int
 attrStride Position      = 3
 attrStride Normal        = 3
 attrStride TextureCoord  = 2
+attrStride Tangent       = 4
 attrStride Color         = 4
 attrStride BoneIndex     = 1
 attrStride MaterialIndex = 1
@@ -57,12 +58,14 @@ attrLocation BoneIndex     = 4
 attrLocation MaterialIndex = 5
 attrLocation JointIndices  = 6
 attrLocation JointWeights  = 7
+attrLocation Tangent       = 8
 attrLocation (FloatAttribute i)  = i
 
 attrFormat :: Attribute -> Format
 attrFormat Position      = FORMAT_R32G32B32_SFLOAT
 attrFormat Normal        = FORMAT_R32G32B32_SFLOAT
 attrFormat TextureCoord  = FORMAT_R32G32_SFLOAT
+attrFormat Tangent       = FORMAT_R32G32B32A32_SFLOAT
 attrFormat Color         = FORMAT_R32G32B32A32_SFLOAT
 attrFormat BoneIndex     = FORMAT_R32_SFLOAT
 attrFormat MaterialIndex = FORMAT_R32_SFLOAT
@@ -111,11 +114,23 @@ morphMesh Mesh {..} morphs = Mesh { indices, minPosition, maxPosition, morphTarg
   where
   additionals = morphs & mapMaybe \(name, amt) ->
     case find ((==name) . fst) morphTargets of
-      Just morph -> Just . snd $ over (_2 . each . _2) (SV.map (*amt)) morph
+      Just (_name, vals) -> Just $ vals <&> \(attr, floats) -> (attr,) $
+        case attr of
+          -- For Tangents only, the morph is a 3 component offset, while
+          -- the mesh's tangent has an extra w component that indicates the
+          -- handedness
+          Tangent -> SV.map (*amt) $ add0WComponent floats
+          _       -> SV.map (*amt) floats
       Nothing -> Nothing
   vertices' = vertices <&> \(attr, dat) ->
     let adds = additionals & mapMaybe (fmap snd . find ((==attr) . fst))
     in (attr, foldl1' (SV.zipWith (+)) (dat:adds))
+  add0WComponent v = SV.concat $ go v
+    where
+    go v' = case SV.splitAt 3 v' of
+      (taken, rest) -> if SV.null rest
+                       then [taken, SV.singleton 0]
+                       else taken : SV.singleton 0 : go rest
 
 {- Buffer Utils -}
 

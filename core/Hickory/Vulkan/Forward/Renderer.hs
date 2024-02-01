@@ -17,7 +17,7 @@ import Hickory.Vulkan.Forward.GBuffer (withGBufferRenderConfig, withLineMaterial
 import Hickory.Vulkan.Forward.ShadowPass (withShadowRenderConfig, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..))
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), CullModeFlagBits)
 import Foreign (Storable, plusPtr, sizeOf, poke)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?), over)
@@ -72,6 +72,7 @@ withRendererMaterial
   -> RenderConfig
   -> [HVT.Attribute]
   -> PipelineOptions
+  -> CullModeFlagBits
   -> B.ByteString
   -> B.ByteString
   -> [FramedResource PointedDescriptorSet]
@@ -92,10 +93,11 @@ withGBufferMaterialStack
   -> ByteString
   -> ByteString
   -> ByteString
+  -> ByteString
   -> Acquire (MaterialConfig uniform)
 withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout
   gbufferVertShader gbufferFragShader
-  shadowVertShader
+  shadowVertShader shadowFragShader
   = GBufferConfig <$> do
   uuid <- liftIO nextRandom
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources maxNumDraws
@@ -106,18 +108,18 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
         , materialSet
         ]
 
-  gbufferMaterial <- withRendererMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions gbufferVertShader gbufferFragShader materialSets perDrawLayout
-  shadowMaterial  <- withRendererMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } shadowVertShader whiteFragShader materialSets perDrawLayout
-  showSelectionMaterial <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} gbufferVertShader OP.objectIDFragShader materialSets perDrawLayout
+  gbufferMaterial <- withRendererMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions pipelineOptions.cullMode gbufferVertShader gbufferFragShader materialSets perDrawLayout
+  shadowMaterial  <- withRendererMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } pipelineOptions.shadowCullMode shadowVertShader shadowFragShader materialSets perDrawLayout
+  showSelectionMaterial <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} pipelineOptions.cullMode gbufferVertShader OP.objectIDFragShader materialSets perDrawLayout
   pure GBufferMaterialStack {..}
 
 withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
 withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader whiteFragShader
 
 withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants)
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
 
 withDirectMaterialStack
   :: forall uniform
@@ -146,8 +148,8 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
         , materialSet
         ]
 
-  directMaterial  <- withRendererMaterial vulkanResources directRenderConfig  attributes pipelineOptions directVertShader fragShader materialSets perDrawLayout
-  overlayMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions overlayVertShader fragShader materialSets perDrawLayout
+  directMaterial  <- withRendererMaterial vulkanResources directRenderConfig  attributes pipelineOptions pipelineOptions.cullMode directVertShader fragShader materialSets perDrawLayout
+  overlayMaterial <- withRendererMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions pipelineOptions.cullMode overlayVertShader fragShader materialSets perDrawLayout
   pure DirectMaterial {..}
 
 withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
