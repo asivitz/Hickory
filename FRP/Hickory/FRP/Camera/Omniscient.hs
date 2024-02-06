@@ -3,25 +3,32 @@
 
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Hickory.FRP.Camera.Omniscient where
 
 import qualified Reactive.Banana as B
-import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents)
+-- import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents)
 import qualified Reactive.Banana.Frameworks as B
 import Reactive.Banana ((<@>))
 import Hickory.Math (Scalar)
 import Hickory.Types (Size (..))
 import Hickory.FRP.UI (trackTouches, TouchChange(..))
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, fromMaybe, isJust)
 import Hickory.FRP.Combinators (unionFirst)
-import Hickory.Input (Key(..))
-import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross)
+import Hickory.Input (Key(..), InputFrame(..))
+import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross, zero)
 import Control.Lens ((<&>))
 import Safe (headMay)
 import Hickory.Camera (Projection(..), Camera (..), perspectiveFocusPlaneSize)
+import Data.IORef (newIORef, readIORef, writeIORef)
+import qualified Data.Enum.Set as ES
+import Control.Monad (mfilter)
+import Control.Applicative (asum, Alternative (..))
 
 data CameraMoveMode = Pan | Rotate | Zoom
   deriving Eq
@@ -29,91 +36,99 @@ data CameraMoveMode = Pan | Rotate | Zoom
 data CameraViewMode = OrthoTop | OrthoFront | OrthoRight | OrthoLeft | OrthoBack | PerspView
   deriving Eq
 
-omniscientCamera :: CoreEvents a -> B.MomentIO (B.Behavior Camera)
-omniscientCamera coreEvents = mdo
-  (eChanges, _bTouches) <- trackTouches (concatTouchEvents coreEvents)
+data Omniscient = Omniscient
+  { captured :: Maybe (V2 Scalar, V3 Scalar, ((Scalar, Scalar), Scalar))
+  , zoom     :: Scalar
+  , focusPos :: V3 Scalar
+  , angles   :: (Scalar, Scalar)
+  , viewMode :: CameraViewMode
+  }
 
-  let eOrthoTop = B.filterE (==Key'0) $ keyDown coreEvents
-      eOrthoFront = B.filterE (==Key'1) $ keyDown coreEvents
-      eOrthoRight = B.filterE (==Key'2) $ keyDown coreEvents
-      eOrthoLeft  = B.filterE (==Key'3) $ keyDown coreEvents
-      eOrthoBack  = B.filterE (==Key'4) $ keyDown coreEvents
-      bSuper = (||) <$> keyHeldB coreEvents Key'LeftSuper <*> keyHeldB coreEvents Key'RightSuper
+omniscientCamera :: IO (Size Int -> InputFrame -> IO Camera)
+omniscientCamera = do
+  stateRef <- newIORef $ Omniscient Nothing 20 zero (-pi/4, -3*pi/4) PerspView
 
-  let mode = (\cmd shift -> if cmd then Zoom else if shift then Pan else Rotate) <$> bSuper <*> keyHeldB coreEvents Key'LeftShift
+  pure $ \size inFr -> do
+    st <- readIORef stateRef
+    let keyPressed k = ES.member k inFr.pressedKeys
+        keyHeld k    = ES.member k inFr.heldKeys
 
-  let clickMove = B.filterJust $ fmap headMay $ eChanges <&> mapMaybe \case
-        LocTouch _ 0 v -> Just v
-        _ -> Nothing
-      clickStart = B.filterJust $ fmap headMay $ eChanges <&> mapMaybe \case
-        AddTouch _ 0 v -> Just v
-        _ -> Nothing
-      clickEnd = B.filterJust $ fmap headMay $ eChanges <&> mapMaybe \case
-        AddTouch _ 0 v -> Just v
-        _ -> Nothing
+    let eOrthoTop   = keyPressed Key'0
+        eOrthoFront = keyPressed Key'1
+        eOrthoRight = keyPressed Key'2
+        eOrthoLeft  = keyPressed Key'3
+        eOrthoBack  = keyPressed Key'4
+        superHeld = keyHeld Key'LeftSuper || keyHeld Key'RightSuper
+        mode = if | superHeld -> Zoom
+                  | keyHeld Key'LeftShift -> Pan
+                  | otherwise -> Rotate
 
-      eRepositionCamera :: B.Event (V3 Scalar) = B.whenE ((==Pan) <$> mode) $
-        let f (Size scrW scrH) upv (Size orthoW orthoH) (Just (start, focusPos, triple)) v =
-              let angle = buildCameraAngleVec triple
-                  xaxis = normalize $ cross (normalize angle) upv
-                  yaxis = normalize $ cross xaxis (normalize angle)
-                  (V2 vx vy) = v - start
-              in focusPos - xaxis ^* (vx / realToFrac scrW * orthoW) + yaxis ^* (vy / realToFrac scrH * orthoH)
-        in f <$> scrSizeB coreEvents <*> up <*> orthoSize <*> captured <@> clickMove
+    let buildCameraAngleVec ((zang,ele),z) = (^* z)
+          . rotate (axisAngle (V3 0 0 1) zang)
+          . rotate (axisAngle (V3 1 0 0) ele)
+          $ V3 0 0 1
 
-      eZoomCamera :: B.Event Scalar = B.whenE ((==Zoom) <$> mode) $ ((,) <$> captured <@> clickMove ) <&> \(Just (start, _, (_,zoom)), v) ->
-        let V2 _vx vy = v - start
-        in zoom - vy / 10
+    let up = let (zang,ele) = st.angles
+             in rotate (axisAngle (V3 0 0 1) zang)
+              . rotate (axisAngle (V3 1 0 0) ele)
+              $ V3 0 (-1) 0
+    let oldCameraAngleVec = buildCameraAngleVec (st.angles, st.zoom)
+        orthoSize = perspectiveFocusPlaneSize size oldCameraAngleVec camFov
 
-      eRotateCamera :: B.Event (Scalar,Scalar) = B.whenE ((==Rotate) <$> mode) $ ((,) <$> captured <@> clickMove ) <&> \(Just (start, _, ((zang,ele),_)), v) ->
-        let V2 vx vy = v - start
-        in (zang - vx / 100, ele - vy / 100)
+    let clickMove  = fst <$> headMay inFr.touchesLoc
+        clickStart = fst <$> headMay inFr.touchesDown
+        clickEnd   = headMay inFr.touchesUp
 
-  captured :: B.Behavior (Maybe (V2 Scalar, V3 Scalar, ((Scalar, Scalar), Scalar))) <- B.stepper Nothing $ unionFirst
-    [ (\cfp ct ps -> Just (ps, cfp, ct)) <$> cameraFocusPos <*> cameraTriple <@> clickStart
-    , Nothing <$ clickEnd
-    ]
+        eRepositionCamera :: Maybe (V3 Scalar) = mfilter (const $ mode == Pan) $
+          let f (start, focusPos, triple) v =
+                let angle = buildCameraAngleVec triple
+                    xaxis = normalize $ cross (normalize angle) up
+                    yaxis = normalize $ cross xaxis (normalize angle)
+                    (V2 vx vy) = v - start
+                in focusPos - xaxis ^* (vx / realToFrac size.width * orthoSize.width) + yaxis ^* (vy / realToFrac size.height * orthoSize.height)
+          in f <$> st.captured <*> clickMove
 
-  cameraAngles <- B.stepper (-pi/4, -3*pi/4) $ unionFirst
-    [ eRotateCamera
-    , (0, pi) <$ eOrthoTop
-    , (0, -pi/2) <$ eOrthoFront
-    , (pi/2, -pi/2) <$ eOrthoRight
-    , (-pi/2, -pi/2) <$ eOrthoLeft
-    , (pi, -pi/2) <$ eOrthoBack
-    ]
-  cameraZoom     :: B.Behavior Scalar      <- B.stepper 20 eZoomCamera
-  cameraFocusPos :: B.Behavior (V3 Scalar) <- B.stepper (V3 0 0 0) eRepositionCamera
-  let cameraTriple = (,) <$> cameraAngles <*> cameraZoom
-  let buildCameraAngleVec ((zang,ele),zoom) = (^* zoom)
-        . rotate (axisAngle (V3 0 0 1) zang)
-        . rotate (axisAngle (V3 1 0 0) ele)
-        $ V3 0 0 1
+        eZoomCamera :: Maybe Scalar = mfilter (const $ mode == Zoom) $ ((,) <$> st.captured <*> clickMove ) <&> \((start, _, (_,zoom)), v) ->
+          let V2 _vx vy = v - start
+          in zoom - vy / 10
 
-  cameraViewMode <- B.stepper PerspView $ unionFirst
-    [ OrthoTop   <$ eOrthoTop
-    , OrthoFront <$ eOrthoFront
-    , OrthoLeft  <$ eOrthoLeft
-    , OrthoRight <$ eOrthoRight
-    , OrthoBack  <$ eOrthoBack
-    , PerspView  <$ eRotateCamera
-    ]
+        eRotateCamera :: Maybe (Scalar,Scalar) = mfilter (const $ mode == Rotate) $ ((,) <$> st.captured <*> clickMove ) <&> \((start, _, ((zang,ele),_)), v) ->
+          let V2 vx vy = v - start
+          in (zang - vx / 100, ele - vy / 100)
 
-  let up = cameraAngles <&> \(zang,ele)
-        -> rotate (axisAngle (V3 0 0 1) zang)
-         . rotate (axisAngle (V3 1 0 0) ele)
-         $ V3 0 (-1) 0
+    let angles =
+          if | eOrthoTop -> (0, pi)
+             | eOrthoFront -> (0, -pi/2)
+             | eOrthoRight -> (pi/2, -pi/2)
+             | eOrthoLeft -> (-pi/2, -pi/2)
+             | eOrthoBack -> (pi, -pi/2)
+             | otherwise -> fromMaybe st.angles eRotateCamera
 
-  let cameraAngleVec :: B.Behavior (V3 Scalar) = buildCameraAngleVec <$> cameraTriple
+    let zoom = fromMaybe st.zoom eZoomCamera
+        focusPos = fromMaybe st.focusPos eRepositionCamera
+        cameraTriple = (angles, zoom)
 
-      projection = let f (Size width _) = \case
-                        True -> Ortho width 0.1 400 True
-                        False -> Perspective camFov 0.1 400
-                   in f <$> orthoSize <*> (isOrthographicViewMode <$> cameraViewMode)
+    let captured :: Maybe (V2 Scalar, V3 Scalar, ((Scalar, Scalar), Scalar)) =
+          if isJust clickEnd
+          then Nothing
+          else (clickStart <&> \ps -> (ps, focusPos, cameraTriple)) <|> st.captured
 
-      orthoSize = perspectiveFocusPlaneSize <$> scrSizeB coreEvents <*> cameraAngleVec <*> pure camFov
+    let viewMode =
+          if | eOrthoTop -> OrthoTop
+             | eOrthoFront -> OrthoFront
+             | eOrthoLeft -> OrthoLeft
+             | eOrthoRight -> OrthoRight
+             | eOrthoBack -> OrthoBack
+             | otherwise -> fromMaybe st.viewMode (PerspView <$ eRotateCamera)
 
-  pure $ Camera <$> cameraFocusPos <*> cameraAngleVec <*> up <*> projection <*> pure "Omniscient"
+    let cameraAngleVec :: V3 Scalar = buildCameraAngleVec cameraTriple
+
+        projection = if isOrthographicViewMode viewMode
+                     then Ortho orthoSize.width 0.1 400 True
+                     else Perspective camFov 0.1 400
+    writeIORef stateRef Omniscient {..}
+
+    pure $ Camera focusPos cameraAngleVec up projection "Omniscient"
 
 isOrthographicViewMode :: CameraViewMode -> Bool
 isOrthographicViewMode = \case

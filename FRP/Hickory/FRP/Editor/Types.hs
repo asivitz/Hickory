@@ -312,15 +312,15 @@ data EditorState = EditorState
 -- Event when the attribute val changes, and a way to push val changes
 -- without firing an event
 data EditorChange a = EditorChange
-  { ev     :: B.Event a
+  { ev     :: IO (Maybe a)
   , setVal :: a -> IO ()
   }
 
-bimapEditorChange :: (B.Event a -> B.Event b) -> ((a -> IO ()) -> b -> IO ())
+bimapEditorChange :: (a -> b) -> ((a -> IO ()) -> b -> IO ())
   -> EditorChange a
   -> EditorChange b
 bimapEditorChange f g EditorChange {..} =
-  EditorChange { ev = f ev, setVal = g setVal }
+  EditorChange { ev = fmap f <$> ev, setVal = g setVal }
 
 data EditorChangeEvents = EditorChangeEvents
   { posChange         :: EditorChange (V3 Scalar)

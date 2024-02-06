@@ -1,4 +1,3 @@
-{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedLabels, OverloadedRecordDot #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -6,132 +5,149 @@
 
 module Hickory.FRP.Editor.Network where
 
-import qualified Reactive.Banana as B
-import Hickory.FRP.CoreEvents (CoreEvents (..), maskCoreEvents)
-import qualified Reactive.Banana.Frameworks as B
-import Reactive.Banana ((<@>), (<@), liftA2)
 import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar)
 import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..), Camera (..), project, cameraFocusPlaneSize)
 import Data.Maybe (fromMaybe, isJust)
-import Hickory.FRP.Combinators (unionFirst)
-import Hickory.Input (Key(..), PointUp(..))
+import Hickory.Input (Key(..), PointUp(..), InputFrame(..))
 import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
-import Hickory.Vulkan.Forward.Renderer (pickObjectID)
-import Control.Monad.IO.Class (liftIO)
+import Hickory.Vulkan.Forward.Renderer (renderToRenderer, pickObjectID)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
-import Control.Lens (traversed, (^.), (&), (%~), (<&>), (.~), at, _Just, (^?), ix, (?~), set)
+import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just)
 import Data.HashMap.Strict (HashMap, traverseWithKey)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
-import Hickory.FRP.Editor.General (mkCursorLoc, matEuler, matScale, refChangeEvent)
-import Hickory.Vulkan.Types (FrameContext)
-import Hickory.Vulkan.Forward.Types (Renderer, CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults)
+import Hickory.FRP.Editor.General (matEuler, matScale, refChangeEvent)
+import Hickory.Vulkan.Forward.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command)
 import Data.Text (unpack, pack)
-import Vulkan (SamplerAddressMode (..), Filter (..))
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
-import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, loadTextureResource, loadMeshResource)
+import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, runResources, getResourcesStoreResources, loadMeshResource, loadTextureResource, Resources)
 import Safe (maximumMay, headMay)
-import Data.Foldable (for_)
-import Hickory.FRP.Editor.Post (GraphicsParams (..))
+import Data.Foldable (for_, traverse_)
+import Hickory.FRP.Editor.Post (GraphicsParams (..), PostEditorState, readGraphicsParams)
 import Data.Functor.Const (Const(..))
 import Data.Traversable (for)
 import Data.Functor.Identity (Identity(..))
 import Type.Reflection ((:~~:)(..))
 import Hickory.FRP.Camera (omniscientCamera)
-import Hickory.FRP.Game (Scene(..))
 import Hickory.Graphics (MatrixMonad)
-import Control.Monad (void, join)
+import Control.Monad (join, mfilter, void, when)
+import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef', IORef)
+import Control.Applicative ((<|>), asum, liftA2)
+import Data.List.Extra (notNull)
+import qualified Data.Enum.Set as ES
+import Control.Monad.Writer.Strict (Writer)
+import Vulkan (Filter(..), SamplerAddressMode (..))
 
-objectManip :: CoreEvents a -> B.Behavior Camera -> B.Behavior (HashMap Int Object) -> B.Event (HashMap Int Object) -> B.MomentIO (B.Behavior (Maybe (ObjectManipMode, V3 Scalar)), B.Event (HashMap Int Object))
-objectManip coreEvents cameraState selectedObjects eEnterMoveMode = mdo
+data ObjectManip = ObjectManip
+  { mode       :: Maybe ObjectManipMode
+  , captured   :: Maybe (HashMap Int Object, V2 Scalar)
+  , activeAxes :: V3 Scalar
+  }
 
-  let eSelectMode :: B.Event (Maybe (ObjectManipMode, HashMap Int Object))
-      eSelectMode = unionFirst
-        [ Nothing <$ B.filterE ((==1) . (.ident) . head) (eTouchesUp coreEvents)
-        , Nothing <$ eCancelManip
-        , B.whenE (not . Map.null <$> selectedObjects) $ unionFirst
-          [ (\m -> Just (OTranslate, m)) <$> selectedObjects <@ B.filterE (==Key'G) (keyDown coreEvents)
-          , (\m -> Just (OScale,m))      <$> selectedObjects <@ B.filterE (==Key'S) (keyDown coreEvents)
-          , (\m -> Just (ORotate,m))     <$> selectedObjects <@ B.filterE (==Key'R) (keyDown coreEvents)
+objectManip
+  :: IO (Size Int -> InputFrame -> Camera -> HashMap Int Object -> Maybe (HashMap Int Object) -> IO (Maybe (ObjectManipMode, V3 Scalar), Maybe (HashMap Int Object)))
+objectManip = do
+  state <- newIORef $
+    ObjectManip
+      { mode = Nothing
+      , captured = Nothing
+      , activeAxes = V3 1 1 1
+      }
+  pure \size inFr camera selectedObjects eEnterMoveMode -> do
+    st <- readIORef state
+
+    let keyPressed k = ES.member k inFr.pressedKeys
+        keyHeld k    = ES.member k inFr.heldKeys
+        whenE f = mfilter (const f)
+
+    let eCancelManip = whenE (isJust st.mode) $ fmap fst $ st.captured <* asum
+          [ whenE (keyPressed Key'Escape) (Just ())
+          , whenE ((== Just 2) . fmap (.ident) . headMay $ inFr.touchesUp) (Just ())
           ]
-        , (\m -> Just (OTranslate, m)) <$> eEnterMoveMode
-        ]
 
-  mode :: B.Behavior (Maybe ObjectManipMode) <- B.stepper Nothing (fmap fst <$> eSelectMode)
+    let eSelectMode :: Maybe (Maybe (ObjectManipMode, HashMap Int Object))
+        eSelectMode = asum
+          [ whenE (notNull $ filter ((==1) . (.ident)) inFr.touchesUp) (pure Nothing)
+          , Nothing <$ eCancelManip
+          , whenE (not . Map.null $ selectedObjects) $ asum
+            [ whenE (keyPressed Key'G) $ Just $ Just (OTranslate, selectedObjects)
+            , whenE (keyPressed Key'S) $ Just $ Just (OScale,selectedObjects)
+            , whenE (keyPressed Key'R) $ Just $ Just (ORotate,selectedObjects)
+            ]
+          , (\m -> Just (OTranslate, m)) <$> eEnterMoveMode
+          ]
+        eInitialObjects = join $ fmap snd <$> eSelectMode
 
-  activeAxes :: B.Behavior (V3 Scalar) <- B.stepper (V3 1 1 1) $ unionFirst
-    [ V3 1 1 1 <$ eSelectMode
-    , B.whenE (keyHeldB coreEvents Key'LeftShift) $ V3 1 1 0 <$ B.filterE (==Key'Z) (keyDown coreEvents)
-    , B.whenE (keyHeldB coreEvents Key'LeftShift) $ V3 0 1 1 <$ B.filterE (==Key'X) (keyDown coreEvents)
-    , B.whenE (keyHeldB coreEvents Key'LeftShift) $ V3 1 0 1 <$ B.filterE (==Key'Y) (keyDown coreEvents)
-    , V3 1 0 0 <$ B.filterE (==Key'X) (keyDown coreEvents)
-    , V3 0 1 0 <$ B.filterE (==Key'Y) (keyDown coreEvents)
-    , V3 0 0 1 <$ B.filterE (==Key'Z) (keyDown coreEvents)
-    ]
+        mode :: Maybe ObjectManipMode = join $ (fmap fst <$> eSelectMode) <|> fmap Just st.mode
 
-  let
-      eMoveObject :: B.Event (HashMap Int Object) = B.filterJust $ B.whenE ((==Just OTranslate) <$> mode) $
-        let
-          f :: Size Int -> Camera -> Maybe (HashMap Int Object, V2 Scalar) -> V3 Scalar -> V2 Scalar -> Maybe (HashMap Int Object)
-          f _ _ Nothing _ _ = Nothing
-          f size@(Size scrW scrH) cam@Camera {..} (Just (objects, start)) axes v =
-              let yaxis = up
-                  xaxis = cross (normalize angleVec) (normalize up)
-                  (V2 vx vy) = v - start
-                  Size focusW focusH = cameraFocusPlaneSize size cam
-              in Just $ objects & traversed . #transform %~
-                (mkTranslation (liftA2 (*) axes (xaxis ^* (vx / realToFrac scrW * focusW) - yaxis ^* (vy / realToFrac scrH * focusH))) !*!)
-        in f <$> scrSizeB coreEvents <*> cameraState <*> captured <*> activeAxes <@> (fst . head <$> eTouchesLoc coreEvents)
+    let activeAxes :: V3 Scalar = fromMaybe st.activeAxes $ asum
+          [ V3 1 1 1 <$ eSelectMode
+          , whenE (keyHeld Key'LeftShift && keyPressed Key'Z) (Just $ V3 1 1 0)
+          , whenE (keyHeld Key'LeftShift && keyPressed Key'X) (Just $ V3 0 1 1)
+          , whenE (keyHeld Key'LeftShift && keyPressed Key'Y) (Just $ V3 1 0 1)
+          , whenE (keyPressed Key'X) (Just $ V3 1 0 0)
+          , whenE (keyPressed Key'Y) (Just $ V3 0 1 0)
+          , whenE (keyPressed Key'Z) (Just $ V3 0 0 1)
+          ]
 
-      eScaleObject :: B.Event (HashMap Int Object) = B.filterJust $ B.whenE ((==Just OScale) <$> mode) $
-        let
-          f _ _ Nothing _ _ = Nothing
-          f ss cs (Just (objects, start)) axes v =
-              let objv = project ss cs (avgObjTranslation objects)
-                  ratio = norm (v - objv) / norm (start - objv)
-              in Just $ objects & traversed . #transform %~ (!*! mkScale ((\fr -> glerp fr 1 ratio) <$> axes))
-        in f <$> scrSizeB coreEvents <*> cameraState <*> captured <*> activeAxes <@> (fst . head <$> eTouchesLoc coreEvents)
+    let cursorLoc = fromMaybe zero . fmap fst . headMay $ inFr.touchesLoc
 
-      eRotateObject :: B.Event (HashMap Int Object) = B.filterJust $ B.whenE ((==Just ORotate) <$> mode) $
-        let
-          f _ _ Nothing _ = Nothing
-          f ss cs@Camera {..} (Just (objects, start)) v =
-              let objv = project ss cs (avgObjTranslation objects)
-                  angle = negate $ v2angle (v - objv) (start - objv)
-              in Just $ objects & traversed . #transform %~ (\tr ->
-                mkTranslation (tr ^. translation)
-                    !*! m33_to_m44 (fromQuaternion (axisAngle angleVec angle))
-                    !*! mkTranslation (-tr ^. translation)
-                    !*! tr
-                )
-        in f <$> scrSizeB coreEvents <*> cameraState <*> captured <@> (fst . head <$> eTouchesLoc coreEvents)
+    let captured :: Maybe (HashMap Int Object, V2 Scalar) = asum
+          [ (,cursorLoc) <$> eInitialObjects
+          , st.captured
+          ]
+        Size scrW scrH = size
+        Camera {..} = camera
 
-  let eInitialObjects = snd <$> B.filterJust eSelectMode
-      eCancelManip = B.whenE (isJust <$> mode) $ fmap fst . B.filterJust $ captured <@ unionFirst
-        [ () <$ B.filterE (==Key'Escape) (keyDown coreEvents)
-        , () <$ B.filterE ((==2) . (.origLocation) . head) (eTouchesUp coreEvents)
-        ]
+    let eMoveObject :: Maybe (HashMap Int Object) = whenE (mode == Just OTranslate) $
+          let
+            f (objects, start) v =
+                let yaxis = up
+                    xaxis = cross (normalize angleVec) (normalize up)
+                    V2 vx vy = v - start
+                    Size focusW focusH = cameraFocusPlaneSize size camera
+                in objects & traversed . #transform %~
+                  (mkTranslation (liftA2 (*) activeAxes (xaxis ^* (vx / realToFrac scrW * focusW) - yaxis ^* (vy / realToFrac scrH * focusH))) !*!)
+          in f <$> captured <*> (fmap fst . headMay $ inFr.touchesLoc)
 
-  cursorLoc :: B.Behavior (V2 Scalar) <- mkCursorLoc coreEvents
+        eScaleObject :: Maybe (HashMap Int Object) = whenE (mode == Just OScale) $
+          let
+            f (objects, start) v =
+                let objv = project size camera (avgObjTranslation objects)
+                    ratio = norm (v - objv) / norm (start - objv)
+                in objects & traversed . #transform %~ (!*! mkScale ((\fr -> glerp fr 1 ratio) <$> activeAxes))
+          in f <$> captured <*> (fmap fst . headMay $ inFr.touchesLoc)
 
-  captured :: B.Behavior (Maybe (HashMap Int Object, V2 Scalar)) <- B.stepper Nothing $
-    (\x y -> Just (y,x)) <$> cursorLoc <@> eInitialObjects
+        eRotateObject :: Maybe (HashMap Int Object) = whenE (mode == Just ORotate) $
+          let
+            f (objects, start) v =
+                let objv = project size camera (avgObjTranslation objects)
+                    angle = negate $ v2angle (v - objv) (start - objv)
+                in objects & traversed . #transform %~ (\tr ->
+                  mkTranslation (tr ^. translation)
+                      !*! m33_to_m44 (fromQuaternion (axisAngle angleVec angle))
+                      !*! mkTranslation (-tr ^. translation)
+                      !*! tr
+                  )
+          in f <$> captured <*> (fmap fst . headMay $ inFr.touchesLoc)
 
-  let eModifyObject = unionFirst
-        [ eInitialObjects
-        , eScaleObject
-        , eRotateObject
-        , eMoveObject
-        , eCancelManip
-        ]
+    let eModifyObject = asum
+          [ eInitialObjects
+          , eScaleObject
+          , eRotateObject
+          , eMoveObject
+          , eCancelManip
+          ]
 
-  pure (liftA2 (,) <$> mode <*> (Just <$> activeAxes), eModifyObject)
+    writeIORef state $ ObjectManip {..}
+
+    pure ((,) <$> mode <*> (Just activeAxes), eModifyObject)
 
 writeEditorState :: EditorChangeEvents -> Object -> IO ()
 writeEditorState EditorChangeEvents {..} Object {..} = do
@@ -147,26 +163,26 @@ writeEditorState EditorChangeEvents {..} Object {..} = do
         Nothing -> error "Attributes don't match"
       _ -> setVal change (defaultAttrVal attr)
 
-mkChangeEvents :: HashMap String (Component m state) -> CoreEvents a -> EditorState -> B.MomentIO EditorChangeEvents
-mkChangeEvents componentDefs coreEvents EditorState {..} = do
-  posChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents posRef
-  scaChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents scaRef
-  rotChange   <- bimapEditorChange (fmap tripleToV3) (. v3ToTriple) <$> refChangeEvent coreEvents rotRef
-  colorChange <- bimapEditorChange (fmap imVec4ToV4) (. v4ToImVec4) <$> refChangeEvent coreEvents colorRef
-  modelChange <- bimapEditorChange (fmap unpack)     (. pack)       <$> refChangeEvent coreEvents modelRef
-  textureChange     <- bimapEditorChange (fmap unpack) (. pack)     <$> refChangeEvent coreEvents textureRef
-  litChange         <- refChangeEvent coreEvents litRef
-  castsShadowChange <- refChangeEvent coreEvents castsShadowRef
-  blendChange       <- refChangeEvent coreEvents blendRef
-  specularityChange <- refChangeEvent coreEvents specularityRef
-  componentsChange <- refChangeEvent coreEvents componentsRef
+mkChangeEvents :: HashMap String (Component m state) -> EditorState -> IO EditorChangeEvents
+mkChangeEvents componentDefs EditorState {..} = do
+  posChange   <- bimapEditorChange tripleToV3 (. v3ToTriple) <$> refChangeEvent posRef
+  scaChange   <- bimapEditorChange tripleToV3 (. v3ToTriple) <$> refChangeEvent scaRef
+  rotChange   <- bimapEditorChange tripleToV3 (. v3ToTriple) <$> refChangeEvent rotRef
+  colorChange <- bimapEditorChange imVec4ToV4 (. v4ToImVec4) <$> refChangeEvent colorRef
+  modelChange <- bimapEditorChange unpack     (. pack)       <$> refChangeEvent modelRef
+  textureChange     <- bimapEditorChange unpack (. pack)     <$> refChangeEvent textureRef
+  litChange         <- refChangeEvent litRef
+  castsShadowChange <- refChangeEvent castsShadowRef
+  blendChange       <- refChangeEvent blendRef
+  specularityChange <- refChangeEvent specularityRef
+  componentsChange <- refChangeEvent componentsRef
 
   componentChanges <- Map.fromList . concat <$> for (Map.toList componentDefs) \(name, Component{..}) ->
     for attributes \(SomeAttribute attr (Const attrName)) ->
       case Map.lookup (name, attrName) componentData of
         Just (SomeAttributeRef attr' ref) -> case eqAttr attr attr' of
           Just HRefl -> case proveAttrClasses attr of
-            AttrClasses -> ((name, attrName),) . SomeAttribute attr . bimapEditorChange (fmap fromAttrRefType) (. toAttrRefType) <$> refChangeEvent coreEvents ref
+            AttrClasses -> ((name, attrName),) . SomeAttribute attr . bimapEditorChange fromAttrRefType (. toAttrRefType) <$> refChangeEvent ref
           _ -> error "Can't find attribute ref"
         _ -> error "Attribute types don't match"
   pure EditorChangeEvents {..}
@@ -186,150 +202,191 @@ setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (mat
 mkObjectChangeEvent
   :: H.VulkanResources
   -> HashMap String (Component m state)
-  -> CoreEvents a
   -> ResourcesStore
   -> EditorState
-  -> B.Behavior (HashMap Int Object)
-  -> B.Event Object
-  -> B.MomentIO (B.Event (HashMap Int Object))
-mkObjectChangeEvent vulkanResources componentDefs coreEvents rs editorState selectedObjects ePopulateEditorState = do
-  eca@EditorChangeEvents {..} <- mkChangeEvents componentDefs coreEvents editorState
+  -> IO (HashMap Int Object -> Maybe Object -> IO (Maybe (HashMap Int Object)))
+mkObjectChangeEvent vulkanResources componentDefs rs editorState = do
+  eca@EditorChangeEvents {..} <- mkChangeEvents componentDefs editorState
 
-  B.reactimate $ writeEditorState eca <$> ePopulateEditorState
-  B.reactimate $ loadMeshResource vulkanResources rs <$> ev modelChange
-  B.reactimate $ (\t -> loadTextureResource vulkanResources rs t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) <$> ev textureChange
+  pure $ \selectedObjects ePopulateEditorState -> do
+    for_ (Map.toList componentChanges) \((compName, _attrName), SomeAttribute _attr ch) ->
+      case Map.lookup compName componentDefs of
+        Just Component {..} -> traverse_ (\_v -> void $ flip traverseWithKey selectedObjects (\k o -> acquire (fromMaybe mempty (Map.lookup compName o.components)) k vulkanResources rs)) =<< ev ch
+        Nothing -> error $ "Component not found: " ++ compName
 
-  for_ (Map.toList componentChanges) \((compName, _attrName), SomeAttribute _attr ch) ->
-    case Map.lookup compName componentDefs of
-      Just Component {..} -> B.reactimate $ (\os _v -> void $ flip traverseWithKey os (\k o -> acquire (fromMaybe mempty (Map.lookup compName o.components)) k vulkanResources rs)) <$> selectedObjects <@> ev ch
-      Nothing -> error $ "Component not found: " ++ compName
 
-  let compEvs :: [B.Event (HashMap Int Object)] = Map.toList componentChanges <&> \((compName, attrName), SomeAttribute attr ch) ->
-        (\os v -> os & traversed . #components . at compName . _Just . at attrName ?~ SomeAttribute attr (Identity v))
-          <$> selectedObjects <@> ev ch
+    traverse_ (writeEditorState eca) ePopulateEditorState
+    traverse_ (loadMeshResource vulkanResources rs) =<< ev modelChange
+    traverse_ (\t -> loadTextureResource vulkanResources rs t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) =<< ev textureChange
 
-  pure $ unionFirst $
-    [ (\os v -> os & traversed . #transform . translation .~ v) <$> selectedObjects <@> ev posChange
-    , (\os v -> os & traversed . #transform %~ setScale v)      <$> selectedObjects <@> ev scaChange
-    , (\os v -> os & traversed . #transform %~ setRotation v)   <$> selectedObjects <@> ev rotChange
-    , (\os v -> os & traversed . #components %~ syncMap v)      <$> selectedObjects <@> ev componentsChange
-    ] ++ compEvs
+    compEvs :: [Maybe (HashMap Int Object)] <- sequence $ Map.toList componentChanges <&> \((compName, attrName), SomeAttribute attr ch) ->
+          fmap (\v -> selectedObjects & traversed . #components . at compName . _Just . at attrName ?~ SomeAttribute attr (Identity v))
+            <$> ev ch
+    staticEvs <- sequence
+      [ fmap (\v -> selectedObjects & traversed . #transform . translation .~ v) <$> ev posChange
+      , fmap (\v -> selectedObjects & traversed . #transform %~ setScale v)      <$> ev scaChange
+      , fmap (\v -> selectedObjects & traversed . #transform %~ setRotation v)   <$> ev rotChange
+      , fmap (\v -> selectedObjects & traversed . #components %~ syncMap v)      <$> ev componentsChange
+      ]
+
+    pure $ mconcat $ staticEvs ++ compEvs
   where
   syncMap ks m = let om = Map.fromList $ (,mempty) <$> ks
                  in Map.intersection (Map.union m om) om
 
-editorNetwork
-  :: forall m a. (ResourcesMonad m, CommandMonad m, MatrixMonad m)
+data Editor = Editor
+  { -- objects :: HashMap Int Object
+    selectedObjectIDs :: [Int]
+  }
+
+editorScene
+  :: forall swapchainResources m a.
+    (ResourcesMonad m, MatrixMonad m, CommandMonad m)
   => H.VulkanResources
   -> ResourcesStore
-  -> CoreEvents (Renderer, FrameContext)
+  -> PostEditorState
+  -> FilePath
+  -- -> CoreEvents (Renderer, FrameContext)
+  -> IORef (HashMap Int Object)
   -> HashMap String (Component m a)
-  -> B.Event (HashMap Int Object, FilePath)
-  -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
-editorNetwork vulkanResources resourcesStore coreEvents componentDefs eLoadScene = mdo
-  editorState <- liftIO (mkEditorState componentDefs)
-  sceneFile <- B.stepper (error "No scene file") (snd <$> eLoadScene)
-  let eReplaceObjects = fst <$> eLoadScene
+  -> (swapchainResources -> Resources -> Camera -> m () -> Command ())
+  -> IO ()
+  -- -> B.Event (HashMap Int Object, FilePath)
+  -- -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
+  -> IO (Scene (Renderer, swapchainResources))
+editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef componentDefs renderComponent quitAction = do
+  editorState <- mkEditorState componentDefs
+  -- sceneFile <- B.stepper (error "No scene file") (snd <$> eLoadScene)
+  -- let eReplaceObjects = fst <$> eLoadScene
 
-  liftIO do
-    let ResourcesStore {..} = resourcesStore
-    join $ loadResource' meshes "line" $ H.withBufferedMesh vulkanResources $ H.Mesh
-      { vertices = [(H.Position, SV.fromList [-1000, 0, 0, 1000, 0, 0])]
-      , indices = Nothing
-      , minPosition = zero -- TODO
-      , maxPosition = zero -- TODO
-      , morphTargets = mempty
-      }
-    join $ loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources $ H.Mesh
-      { vertices =
-          [ ( H.Position
-            , SV.fromList $ concatMap (\i -> [-1000, realToFrac i, 0, 1000, realToFrac i, 0]) ([-1000..1000] :: [Int])
-            )
-          ]
-      , indices = Nothing
-      , minPosition = zero -- TODO
-      , maxPosition = zero -- TODO
-      , morphTargets = mempty
-      }
-
-  let objectEditingMaskedEvents = maskCoreEvents (not <$> editingObject) coreEvents
-  cameraState <- omniscientCamera objectEditingMaskedEvents
-
-  let defaultObject Camera {..} = Object (mkTransformationMat identity focusPos) mempty
-      eAddObj = (\o m -> (nextObjId m, o)) <$> (defaultObject <$> cameraState) <*> objects
-        <@ B.filterE (==Key'A) (keyDown coreEvents)
-      eDupeObjs = recalcIds <$> objects <*> selectedObjects <@ B.whenE (keyHeldB coreEvents Key'LeftShift) (B.filterE (==Key'D) (keyDown coreEvents))
-      nextObjId m = fromMaybe 0 (maximumMay (Map.keys m)) + 1
-      recalcIds objs forObjs = Map.fromList $ zip [nextObjId objs..] (Map.elems forObjs)
-      eDeleteObjs = B.filterE (==Key'X) (keyDown coreEvents)
-      pickExampleObject = fmap snd . headMay . Map.toList
-      ePopulateEditorState = unionFirst
-        [ B.filterJust $ pickExampleObject <$> eManipObjects
-        , eSelectObject
-        , snd <$> eAddObj
+  let ress@ResourcesStore {..} = resourcesStore
+  join $ loadResource' meshes "line" $ H.withBufferedMesh vulkanResources $ H.Mesh
+    { vertices = [(H.Position, SV.fromList [-1000, 0, 0, 1000, 0, 0])]
+    , indices = Nothing
+    , minPosition = zero -- TODO
+    , maxPosition = zero -- TODO
+    , morphTargets = mempty
+    }
+  join $ loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources $ H.Mesh
+    { vertices =
+        [ ( H.Position
+          , SV.fromList $ concatMap (\i -> [-1000, realToFrac i, 0, 1000, realToFrac i, 0]) ([-1000..1000] :: [Int])
+          )
         ]
+    , indices = Nothing
+    , minPosition = zero -- TODO
+    , maxPosition = zero -- TODO
+    , morphTargets = mempty
+    }
 
-  let eModifyObjects :: B.Event (HashMap Int Object) = unionFirst
-        [ eManipObjects
-        , ePropertyEditedObjects
-        ]
-  objects :: B.Behavior (HashMap Int Object) <- B.accumB mempty $ B.unions
-    [ uncurry Map.insert <$> eAddObj
-    , Map.union <$> eModifyObjects
-    , Map.union <$> eDupeObjs
-    , flip Map.difference <$> selectedObjects <@ eDeleteObjs
-    , const <$> eReplaceObjects
-    ]
+  state <- newIORef $ Editor []
+  stepCamera <- omniscientCamera
+  stepObjManip <- objectManip
+  stepObjChange <- mkObjectChangeEvent vulkanResources componentDefs ress editorState
+  guiPickObjIDMailbox <- newIORef Nothing
+  let guiPickObjectID = writeIORef guiPickObjIDMailbox . Just
 
-  renInfo <- B.stepper undefined (eRender coreEvents)
 
-  let eClick = (\(Size w h) PointUp { location = V2 x y } -> (x/ realToFrac w, y/ realToFrac h))
-           <$> scrSizeB coreEvents
-           <@> fmap head (B.filterE ((<0.3) . (.duration) . head) $ eTouchesUp objectEditingMaskedEvents)
-  eScreenPickedObjectID <- fmap (\x -> if x > 0 then Just x else Nothing) <$> B.execute (((\(r,fc) -> liftIO . pickObjectID fc r) <$> renInfo) <@> eClick)
-  (eGUIPickedObjectID, guiPickObjectID) <- B.newEvent
-  let ePickedObjectID = unionFirst
-        [ eScreenPickedObjectID
-        , Just <$> eGUIPickedObjectID
-        ]
-  let eSelectObject = B.filterJust $ flip Map.lookup <$> objects <@> B.filterJust ePickedObjectID
+  -- renInfo <- B.stepper undefined (eRender coreEvents)
 
-  selectedObjectIDs <- B.accumB [] $ B.unions
-    [ const . pure . fst <$> eAddObj
-    , const . Map.keys <$> eDupeObjs
-    , const [] <$ eDeleteObjs
-    , (\shift oid -> case oid of
-          Just i -> if shift then (i:) else const [i]
-          Nothing -> const []
 
-    )  <$> keyHeldB coreEvents Key'LeftShift <@> ePickedObjectID
-    , const [] <$ eReplaceObjects
-    ]
-  let selectedObjects = (\m ks -> Map.filterWithKey (\k _ -> k `elem` ks) m) <$> objects <*> selectedObjectIDs
 
-  (manipMode, eManipObjects) <- objectManip coreEvents cameraState selectedObjects eDupeObjs
-  let editingObject = isJust <$> manipMode
 
-  cursorLoc <- mkCursorLoc coreEvents
 
-  let
-      worldRender :: B.Behavior (m ())
-      worldRender = editorWorldView componentDefs <$> cameraState <*> selectedObjects <*> objects <*> manipMode
-      overlayRender :: B.Behavior (m ())
-      overlayRender = editorOverlayView <$> scrSizeB coreEvents <*> cameraState <*> cursorLoc <*> selectedObjects <*> (fmap fst <$> manipMode)
+  -- let scene = Scene <$> worldRender
+  --                   <*> overlayRender
+  --                   <*> cameraState
+  --                   <*> selectedObjectIDs
+  --                   <*> pure (set #clearColor (V4 0.07 0.07 0.07 1))
 
-  ePropertyEditedObjects :: B.Event (HashMap Int Object) <- mkObjectChangeEvent vulkanResources componentDefs coreEvents resourcesStore editorState selectedObjects ePopulateEditorState
+  pure \inputFrame -> do
+    when (ES.member Key'LeftShift inputFrame.heldKeys && ES.member Key'Escape inputFrame.pressedKeys) quitAction
 
-  B.reactimate $ drawMainEditorUI editorState <$> sceneFile <*> selectedObjects <*> objects <*> pure guiPickObjectID <@ eRender coreEvents
-  B.reactimate $ drawObjectEditorUI componentDefs editorState <$> B.filterE (not . Map.null) (selectedObjects <@ eRender coreEvents)
+    pure \frac renderInputFrame size ((renderer, sr),frameContext) -> do
+      let cursorLoc = fromMaybe zero . fmap fst . headMay $ renderInputFrame.touchesLoc
+      st <- readIORef state
+      objects <- readIORef objectsRef
+      camera@Camera {..} <- stepCamera size renderInputFrame
 
-  let scene = Scene <$> worldRender
-                    <*> overlayRender
-                    <*> cameraState
-                    <*> selectedObjectIDs
-                    <*> pure (set #clearColor (V4 0.07 0.07 0.07 1))
+      let keyPressed k = ES.member k renderInputFrame.pressedKeys
+          keyHeld k    = ES.member k renderInputFrame.heldKeys
+          whenE f = mfilter (const f)
 
-  pure (scene, objects)
+
+      res <- getResourcesStoreResources ress
+      graphicsParams <- readGraphicsParams postEditorState
+
+      let eLeftClick = (\PointUp { location = V2 x y } -> (x/ realToFrac size.width, y/ realToFrac size.height))
+                   <$> headMay (filter (\t -> t.duration < 0.3 && t.ident == 1) renderInputFrame.touchesUp)
+      eScreenPickedObjectID <- for eLeftClick $ \cl ->
+        mfilter (>0) . Just <$> pickObjectID frameContext renderer cl
+      eGUIPickedObjectID :: Maybe Int <- atomicModifyIORef' guiPickObjIDMailbox (Nothing,)
+      let ePickedObjectID :: Maybe (Maybe Int) = asum
+            [ eScreenPickedObjectID
+            , Just <$> eGUIPickedObjectID
+            ]
+      let eSelectObject :: Maybe Object = join $ ePickedObjectID <&> \oid -> oid >>= (`Map.lookup` objects)
+
+      let selectedObjects :: HashMap Int Object = Map.filterWithKey (\k _ -> k `elem` st.selectedObjectIDs) objects
+
+      let defaultObject = Object (mkTransformationMat identity focusPos) mempty
+          eAddObj = whenE (keyPressed Key'A) $ Just (nextObjId objects, defaultObject)
+          eDupeObjs = whenE (keyHeld Key'LeftShift && keyPressed Key'D) $ Just $ recalcIds objects selectedObjects
+          nextObjId m = fromMaybe 0 (maximumMay (Map.keys m)) + 1
+          recalcIds objs forObjs = Map.fromList $ zip [nextObjId objs..] (Map.elems forObjs)
+          eDeleteObjs = whenE (keyPressed Key'X) $ Just ()
+          pickExampleObject = fmap snd . headMay . Map.toList
+
+      (manipMode, eManipObjects) <- stepObjManip size renderInputFrame camera selectedObjects eDupeObjs
+      let editingObject = isJust manipMode
+          ePopulateEditorState = asum
+            [ pickExampleObject =<< eManipObjects
+            , eSelectObject
+            , snd <$> eAddObj
+            ]
+
+      ePropertyEditedObjects :: Maybe (HashMap Int Object) <- stepObjChange selectedObjects ePopulateEditorState
+
+      let eModifyObjects :: Maybe (HashMap Int Object) = asum
+            [ eManipObjects
+            , ePropertyEditedObjects
+            ]
+
+      let newObjects :: HashMap Int Object = objects & fromMaybe id (asum
+            [ uncurry Map.insert <$> eAddObj
+            , Map.union <$> eModifyObjects
+            , Map.union <$> eDupeObjs
+            , flip Map.difference selectedObjects <$ eDeleteObjs
+            -- , const <$> eReplaceObjects
+            ])
+
+      let selectedObjectIDs :: [Int] = st.selectedObjectIDs & fromMaybe id (asum
+            [ const . pure . fst <$> eAddObj
+            , const . Map.keys <$> eDupeObjs
+            , const [] <$ eDeleteObjs
+            , (\case
+                  Just i -> if keyHeld Key'LeftShift then (i:) else const [i]
+                  Nothing -> const []
+
+              ) <$> ePickedObjectID
+            -- , const [] <$ eReplaceObjects
+            ])
+
+      writeIORef state $ Editor {..}
+      writeIORef objectsRef newObjects
+
+      drawMainEditorUI editorState sceneFile selectedObjects objects guiPickObjectID
+      drawObjectEditorUI componentDefs editorState selectedObjects
+
+      let worldRender :: Writer [DrawCommand] ()
+          worldRender = renderComponent sr res camera $ editorWorldView componentDefs camera selectedObjects objects manipMode
+          overlayRender :: Writer [DrawCommand] ()
+          overlayRender = runResources res $ editorOverlayView renderer.staticDirectMaterialConfig size camera cursorLoc selectedObjects (fst <$> manipMode)
+
+      renderToRenderer frameContext renderer (renderSettings size graphicsParams (V4 0.07 0.07 0.07 1) camera st.selectedObjectIDs)
+        worldRender
+        overlayRender
+
 
 -- https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Quaternion_to_Euler_angles_conversion
 -- https://creativecommons.org/licenses/by-sa/3.0/

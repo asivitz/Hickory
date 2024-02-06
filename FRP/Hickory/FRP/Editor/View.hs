@@ -6,7 +6,7 @@ import qualified Hickory.Graphics as H
 import Hickory.Color (rgba, black, green, red, blue)
 import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
 import Hickory.Types (Size (..))
-import Linear (V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit)
+import Linear (V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit, zero, _m33, inv33, transpose)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
 import qualified Hickory.Vulkan.Forward.Types as H
@@ -19,6 +19,7 @@ import Control.Lens ((.~), (&), (^.))
 import Control.Monad (when)
 import Data.Foldable (for_)
 import Hickory.Camera (Camera(..), project, isOrthographic)
+import Foreign (poke)
 
 editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
@@ -77,7 +78,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
   where
   snapVec by = fmap (snap by)
   snap by x = let r :: Int = x `div'` by in realToFrac r * by
-  drawLines mat mesh color = undefined
+  drawLines mat mesh color = pure ()
     -- H.addCommand $ H.DrawCommand
     --   { modelMat = mat
     --   , mesh = H.Buffered mesh
@@ -97,8 +98,8 @@ drawObject componentDefs state objId Object {..} = do
       Just Component {..} -> draw vals state objId
       Nothing -> error $ "Can't find component definition: " ++ compName
 
-editorOverlayView :: (ResourcesMonad m, CommandMonad m) => Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
-editorOverlayView scrSize cs cursorLoc selected mode = do
+editorOverlayView :: (ResourcesMonad m, CommandMonad m) => H.MaterialConfig H.StaticConstants -> Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
+editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
   case mode of
     Nothing -> pure ()
     Just OScale     -> drawArr objCenter cursorLoc
@@ -106,20 +107,29 @@ editorOverlayView scrSize cs cursorLoc selected mode = do
     Just OTranslate -> pure ()
   where
   objCenter = project scrSize cs (avgObjTranslation selected)
-  drawArr p1 p2 = undefined
-    -- squareMesh <- getMesh "cube"
-    -- tex        <- getTexture "white"
-    -- for_ [0..num] \i -> H.addCommand $ H.DrawCommand
-    --   { modelMat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
-    --   , mesh = Buffered squareMesh
-    --   , color = black
-    --   , drawType = Static StaticMesh { albedo = tex, tiling = V2 1 1}
-    --   , lit = False
-    --   , castsShadow = False
-    --   , blend = False
-    --   , ident = Nothing
-    --   , specularity = 0
-    --   }
+  drawArr p1 p2 = do
+    squareMesh <- getMesh "cube"
+    tex        <- getTexture "white"
+    for_ [0..num] \i -> do
+      let mat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
+      H.addCommand $ H.DrawCommand
+        { modelMat = mat
+        , mesh = Buffered squareMesh
+        , hasIdent = Nothing
+        , doCastShadow = False
+        , doBlend = False
+        , cull = False
+        , materialConfig = materialConfig
+        , instanceCount = 1
+        , descriptorSet = Just tex
+        , pokeData = flip poke $ H.StaticConstants
+            { modelMat    = mat
+            , normalMat   = transpose . inv33 $ mat ^. _m33
+            , color       = black
+            , specularity = 0
+            , tiling      = zero
+            }
+        }
     where
     diff = p2 - p1
     num = norm diff / stride
