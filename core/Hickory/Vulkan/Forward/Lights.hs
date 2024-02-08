@@ -177,7 +177,7 @@ void main()
   vec3 worldPos = inWorldRay * (depth / globals.farPlane) + globals.cameraPos;
 
   vec3 worldNormal = texture(normalSampler, inTexCoords).xyz;
-  vec3 albedo      = texture(albedoSampler, inTexCoords).xyz;
+  vec4 albedo      = texture(albedoSampler, inTexCoords);
   float specularity = 8; //TODO
 
   uint cascadeIndex = 0;
@@ -205,6 +205,7 @@ void main()
   shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 1));
   shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, -1));
   shadow = shadow / 9.0;
+  shadow = min(shadow, 1 - albedo.w);
 
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;
@@ -216,6 +217,6 @@ void main()
 
   vec3 light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
-  outColor = vec4((shadow * light + globals.ambientColor) * albedo, 1);
+  outColor = vec4((shadow * light + globals.ambientColor) * albedo.rgb, 1);
 }
 |])

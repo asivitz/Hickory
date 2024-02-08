@@ -258,7 +258,7 @@ void main() {
   vec4 texColor = texture(texSampler, inTexCoord);
   vec4 surfaceColor = uniforms.color;
 
-  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, texColor.a);
+  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, 0);
   outNormal   = vec4(inNormal,1);
   outObjectID = PushConstants.objectID;
 }
@@ -353,7 +353,7 @@ void main() {
   vec4 texColor = texture(texSampler, inTexCoord);
   vec4 surfaceColor = uniforms.color;
 
-  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, texColor.a);
+  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, 0);
   outNormal   = vec4(inNormal,1);
   outObjectID = PushConstants.objectID;
 }
