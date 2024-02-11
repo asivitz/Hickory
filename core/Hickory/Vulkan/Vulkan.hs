@@ -66,7 +66,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp
+  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -297,7 +297,10 @@ vmaVulkanFunctions Instance { instanceCmds } Device { deviceCmds } = zero
   }
 
 with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Word32 -> Word32 -> Acquire ImageView
-with2DImageView DeviceContext { device } format flags image baseLayer numLayers =
+with2DImageView dc format flags image = with2DImageViewMips dc format flags image 1
+
+with2DImageViewMips :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Word32 -> Word32 -> Word32 -> Acquire ImageView
+with2DImageViewMips DeviceContext { device } format flags image mipLevels baseLayer numLayers =
   withImageView device imageViewCreateInfo Nothing mkAcquire
   where
   imageViewCreateInfo = zero
@@ -308,7 +311,7 @@ with2DImageView DeviceContext { device } format flags image baseLayer numLayers 
     , subresourceRange = zero
       { aspectMask     = flags
       , baseMipLevel   = 0
-      , levelCount     = 1
+      , levelCount     = mipLevels
       , baseArrayLayer = baseLayer
       , layerCount     = numLayers
       }

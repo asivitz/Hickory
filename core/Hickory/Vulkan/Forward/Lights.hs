@@ -205,7 +205,7 @@ void main()
   shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 1));
   shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, -1));
   shadow = shadow / 9.0;
-  shadow = min(shadow, 1 - albedo.w);
+  shadow = mix(0.2,1,shadow) * (1 - albedo.w);
 
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;

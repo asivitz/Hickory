@@ -4,14 +4,14 @@ module Hickory.Vulkan.Textures where
 
 import Vulkan
   ( Extent2D(..)
-  , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer
+  , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer, reductionMode, SamplerReductionMode (..)
   )
 import Hickory.Vulkan.Vulkan (runAcquire, mkAcquire)
 import qualified Codec.Picture as Png
 import qualified Codec.Picture.Extra as Png
 import Data.Word (Word8, Word32)
 import qualified Data.Vector.Storable as SV
-import Foreign (sizeOf, Bits ((.|.)), copyArray, castPtr)
+import Foreign (sizeOf, Bits ((.|.)), copyArray, castPtr, Storable)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Text.Printf (printf)
 import Hickory.Vulkan.Mesh (withBuffer', withSingleTimeCommands)
@@ -21,18 +21,21 @@ import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..))
-import Codec.Picture (Pixel(..), PixelRGBA8)
+import Data.Foldable (for_)
 
-withImageFromArray :: VulkanResources -> Int -> Int -> SV.Vector (PixelBaseComponent PixelRGBA8) -> Acquire Image
-withImageFromArray bag@VulkanResources { allocator } width height dat = do
-  let bufferSize = fromIntegral $ SV.length dat * sizeOf (undefined :: Word8)
+withImageFromArray :: forall a. Storable a => VulkanResources -> Int -> Int -> Format -> SV.Vector a -> Acquire Image
+withImageFromArray vr w h format dat = withImageFromArrayMips vr w h format [dat]
 
-  let imageCreateInfo :: ImageCreateInfo '[]
+withImageFromArrayMips :: forall a. Storable a => VulkanResources -> Int -> Int -> Format -> [SV.Vector a] -> Acquire Image
+withImageFromArrayMips bag@VulkanResources { allocator } width height format mips = do
+
+  let mipLevels = fromIntegral $ length mips
+      imageCreateInfo :: ImageCreateInfo '[]
       imageCreateInfo = zero
         { imageType     = IMAGE_TYPE_2D
         , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
-        , format        = FORMAT_R8G8B8A8_UNORM
-        , mipLevels     = 1
+        , format        = format
+        , mipLevels     = mipLevels
         , arrayLayers   = 1
         , tiling        = IMAGE_TILING_OPTIMAL
         , samples       = SAMPLE_COUNT_1_BIT
@@ -46,19 +49,25 @@ withImageFromArray bag@VulkanResources { allocator } width height dat = do
   (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
 
   liftIO $ runAcquire do
-    (stagingBuffer, stagingAlloc, _) <- withBuffer' allocator
-      BUFFER_USAGE_TRANSFER_SRC_BIT
-      (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
-      bufferSize
+    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
-    liftIO $ withMappedMemory allocator stagingAlloc bracket \bptr ->
-      SV.unsafeWith dat $ \iptr -> copyArray (castPtr bptr) iptr (SV.length dat)
+    let wpot = logBase 2 (realToFrac width)
+        hpot = logBase 2 (realToFrac height)
+    for_ (zip [0..] mips) \(mipLevel :: Word32, dat) -> do
+      let bufferSize = fromIntegral $ SV.length dat * sizeOf (undefined :: a)
+          w' :: Float = 2 ** (wpot - realToFrac mipLevel)
+          h' :: Float = 2 ** (hpot - realToFrac mipLevel)
+      (stagingBuffer, stagingAlloc, _) <- withBuffer' allocator
+        BUFFER_USAGE_TRANSFER_SRC_BIT
+        (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
+        bufferSize
 
-    withSingleTimeCommands bag $ transitionImageLayout image IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+      liftIO $ withMappedMemory allocator stagingAlloc bracket \bptr ->
+        SV.unsafeWith dat $ \iptr -> copyArray (castPtr bptr) iptr (SV.length dat)
 
-    copyBufferToImage bag stagingBuffer image (fromIntegral width) (fromIntegral height)
+      copyBufferToImage bag stagingBuffer image mipLevel (round w') (round h')
 
-    withSingleTimeCommands bag $ transitionImageLayout image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
   pure image
 
@@ -68,10 +77,10 @@ withTextureImage bag path = do
     Left s -> error $ printf "Can't load image at path %s: %s" path s
     Right dynImage -> pure . Png.flipVertically $ Png.convertRGBA8 dynImage
 
-  withImageFromArray bag width height dat
+  withImageFromArray bag width height FORMAT_R8G8B8A8_UNORM dat
 
-copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> m ()
-copyBufferToImage bag buffer image width height = withSingleTimeCommands bag \commandBuffer -> do
+copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> Word32 -> m ()
+copyBufferToImage bag buffer image mipLevel width height = withSingleTimeCommands bag \commandBuffer -> do
     let region :: BufferImageCopy
         region = zero
           { bufferOffset      = 0
@@ -79,7 +88,7 @@ copyBufferToImage bag buffer image width height = withSingleTimeCommands bag \co
           , bufferImageHeight = 0
           , imageSubresource = zero
             { aspectMask     = IMAGE_ASPECT_COLOR_BIT
-            , mipLevel       = 0
+            , mipLevel       = mipLevel
             , baseArrayLayer = 0
             , layerCount     = 1
             }
@@ -90,7 +99,10 @@ copyBufferToImage bag buffer image width height = withSingleTimeCommands bag \co
     cmdCopyBufferToImage commandBuffer buffer image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
 
 transitionImageLayout :: MonadIO m => Image -> ImageLayout -> ImageLayout -> CommandBuffer -> m ()
-transitionImageLayout image oldLayout newLayout commandBuffer = do
+transitionImageLayout image = transitionImageLayoutMips image 1
+
+transitionImageLayoutMips :: MonadIO m => Image -> Word32 -> ImageLayout -> ImageLayout -> CommandBuffer -> m ()
+transitionImageLayoutMips image mipLevels oldLayout newLayout commandBuffer = do
   let (srcAccessMask, dstAccessMask, sourceStage, destinationStage, aspectMask) = case (oldLayout, newLayout) of
         (IMAGE_LAYOUT_UNDEFINED, IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) ->
           ( zero
@@ -166,7 +178,7 @@ transitionImageLayout image oldLayout newLayout commandBuffer = do
       subResourceRange = ImageSubresourceRange
         { aspectMask     = aspectMask
         , baseMipLevel   = 0
-        , levelCount     = 1
+        , levelCount     = mipLevels
         , baseArrayLayer = 0
         , layerCount     = 1
         }
@@ -174,7 +186,10 @@ transitionImageLayout image oldLayout newLayout commandBuffer = do
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
 
 withImageSampler :: VulkanResources -> Filter -> SamplerAddressMode -> Acquire Sampler
-withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt addressMode =
+withImageSampler vr = withImageSamplerMips vr 0
+
+withImageSamplerMips :: VulkanResources -> Word32 -> Filter -> SamplerAddressMode -> Acquire Sampler
+withImageSamplerMips VulkanResources { deviceContext = DeviceContext {..} } mipLevels filt addressMode =
   withSampler device samplerInfo Nothing mkAcquire
   where
   samplerInfo = zero
@@ -191,7 +206,7 @@ withImageSampler VulkanResources { deviceContext = DeviceContext {..} } filt add
     , mipmapMode = SAMPLER_MIPMAP_MODE_LINEAR
     , mipLodBias = 0.0
     , minLod = 0.0
-    , maxLod = 0.0
+    , maxLod = realToFrac mipLevels
     }
 
 withShadowSampler :: VulkanResources -> Acquire Sampler
