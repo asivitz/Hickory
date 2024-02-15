@@ -14,6 +14,9 @@ type MaxShadowCascadesNat = 3
 maxShadowCascades :: Word32
 maxShadowCascades = fromIntegral $ natVal (Proxy @MaxShadowCascadesNat)
 
+cascadeOverlapThreshold :: Float
+cascadeOverlapThreshold = 10.0
+
 worldGlobalsDef :: String
 worldGlobalsDef = [qm|
 layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
@@ -43,6 +46,9 @@ layout (row_major, scalar, set = 0, binding = 2) uniform GlobalUniform
 
 maxShadowCascadesString :: String
 maxShadowCascadesString = show maxShadowCascades
+
+cascadeOverlapThresholdString :: String
+cascadeOverlapThresholdString = show cascadeOverlapThreshold
 
 shadowPassGlobalsDef :: String
 shadowPassGlobalsDef = [qm|

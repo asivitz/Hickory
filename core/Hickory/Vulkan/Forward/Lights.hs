@@ -167,6 +167,53 @@ float linearizeDepth(float depth, float nearPlane, float farPlane)
     return nearPlane * farPlane / (farPlane - depth * (farPlane - nearPlane));
 }
 
+vec4 shadowCoord(uint cascadeIndex, vec3 worldPos) {
+  vec4 shadowPos = biasMat * shadowGlobals.viewProjMat[cascadeIndex] * vec4(worldPos, 1);
+  vec4 smTexcoord;
+  smTexcoord.xyw = shadowPos.xyz / shadowPos.w;
+  smTexcoord.z = cascadeIndex;
+  return smTexcoord;
+}
+
+float sampleShadow(vec4 smTexcoord) {
+  float shadow = 0.0;
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2(-1,  1));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1,  1));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2(-1, -1));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1, -1));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 0));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1, 0));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2( -1, 0));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 1));
+  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, -1));
+  return shadow / 9.0;
+}
+
+float calcShadow(vec3 viewPos, vec3 worldPos)
+{
+  uint cascadeIndex = 0;
+  float blendFactor = 0.0;
+  float overlapThreshold = $cascadeOverlapThresholdString;
+
+  for (uint i = 0; i < $maxShadowCascadesString; i++) {
+    if (viewPos.z < shadowGlobals.splitDepths[i]) {
+      cascadeIndex = i;
+      if (i < $maxShadowCascadesString - 1 && viewPos.z > shadowGlobals.splitDepths[i] - overlapThreshold) {
+          blendFactor = (viewPos.z - (shadowGlobals.splitDepths[i] - overlapThreshold)) / overlapThreshold;
+      }
+      break;
+    }
+  }
+
+  float shadow = sampleShadow(shadowCoord(cascadeIndex, worldPos));
+
+  if (blendFactor > 0) {
+    float shadowNext = sampleShadow(shadowCoord(cascadeIndex + 1, worldPos));
+    shadow = mix(shadow, shadowNext, blendFactor);
+  }
+  return shadow;
+}
+
 void main()
 {
   float depth = texture(depthSampler, inTexCoords).r;
@@ -180,32 +227,7 @@ void main()
   vec4 albedo      = texture(albedoSampler, inTexCoords);
   float specularity = 8; //TODO
 
-  uint cascadeIndex = 0;
-
-  for (uint i = 0; i < $maxShadowCascadesString; i++) {
-    if (viewPos.z < shadowGlobals.splitDepths[i]) {
-      cascadeIndex = i; break;
-    }
-  }
-
-  vec4 shadowCoord = biasMat * shadowGlobals.viewProjMat[cascadeIndex] * vec4(worldPos, 1);
-
-  vec4 smTexcoord;
-  smTexcoord.xyw = shadowCoord.xyz / shadowCoord.w;
-  smTexcoord.z = cascadeIndex;
-
-  float shadow = 0.0;
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2(-1,  1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1,  1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2(-1, -1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1, -1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 0));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1, 0));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( -1, 0));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, -1));
-  shadow = shadow / 9.0;
-  shadow = mix(0.2,1,shadow) * (1 - albedo.w);
+  float shadow = calcShadow(viewPos, worldPos);
 
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;
@@ -217,6 +239,6 @@ void main()
 
   vec3 light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
-  outColor = vec4((shadow * light + globals.ambientColor) * albedo.rgb, 1);
+  outColor = vec4((shadow * light + globals.ambientColor * albedo.a) * albedo.rgb, 1);
 }
 |])

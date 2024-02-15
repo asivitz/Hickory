@@ -58,7 +58,7 @@ import Data.UUID.V4 (nextRandom)
 import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
-import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades, buildWorldVertShader)
+import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades, buildWorldVertShader, cascadeOverlapThreshold)
 import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
 import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
 import Hickory.Vulkan.Textures (transitionImageLayout)
@@ -493,7 +493,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         lightViewProjs = VS.generate \(fromIntegral -> i) ->
           let dist = VS.unsafeIndex splitDepths i
               lastDist = if i == 0 then near else VS.unsafeIndex splitDepths (i-1)
-              cam = camera & #projection . #_Perspective . _2 .~ lastDist
+              cam = camera & #projection . #_Perspective . _2 .~ lastDist - (if i == 0 then 0 else cascadeOverlapThreshold)
                            & #projection . #_Perspective . _3 .~ dist
               lightProj = lightProjection (cameraProjMat (Size (fromIntegral w) (fromIntegral h)) cam !*! viewMat) lightView shadowRenderConfig.extent
           in  lightProj !*! lightView
