@@ -120,7 +120,7 @@ loadResources :: String -> H.VulkanResources -> Acquire ResourcesStore
 loadResources path vulkanResources = do
   resourcesStore <- withResourcesStore vulkanResources
   liftIO do
-    loadTextureResource vulkanResources resourcesStore (path ++ "images/circle.png") (FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+    loadTextureResource vulkanResources resourcesStore (path ++ "images/circle.png") (FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, Nothing)
 
     -- gidolinya.json (font data) and gidolinya.png (font texture) were
     -- generated using https://github.com/Chlumsky/msdf-atlas-gen

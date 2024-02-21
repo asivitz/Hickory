@@ -66,7 +66,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax
+  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -92,7 +92,7 @@ import Hickory.Vulkan.Types (DeviceContext(..), Swapchain (..), VulkanResources 
 
 {- DEVICE CREATION -}
 
-selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (PhysicalDevice, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits)
+selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (PhysicalDevice, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits, PhysicalDeviceProperties)
 selectPhysicalDevice inst surface = do
   (_, devices)      <- enumeratePhysicalDevices inst
   elaboratedDevices <- V.mapMaybeM elaborateDevice devices
@@ -129,7 +129,7 @@ selectPhysicalDevice inst surface = do
               <*> graphicsQueueIndex
               <*> presentQueueIndex
               <*> pure maxSampleCount
-  project (dev, _props, format, presentMode, graphQIdx, presentQIdx, maxSampleCount) = (dev, format, presentMode, graphQIdx, presentQIdx, maxSampleCount)
+  project (dev, props, format, presentMode, graphQIdx, presentQIdx, maxSampleCount) = (dev, format, presentMode, graphQIdx, presentQIdx, maxSampleCount, props)
 
   vheadMay v = if V.null v then Nothing else Just (V.head v)
 
@@ -167,7 +167,7 @@ selectPhysicalDevice inst surface = do
 
 withLogicalDevice :: Instance -> SurfaceKHR -> Acquire DeviceContext
 withLogicalDevice inst surface = do
-  (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx, maxSampleCount) <- selectPhysicalDevice inst surface
+  (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx, maxSampleCount, properties) <- selectPhysicalDevice inst surface
 
   (_, V.toList . fmap extensionName -> availableExtensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
 
@@ -194,7 +194,7 @@ withLogicalDevice inst surface = do
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
       , enabledExtensionNames = V.fromList extensionsToEnable
-      , enabledFeatures = Just $ zero { depthClamp = True }
+      , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True }
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
                , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
                , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow

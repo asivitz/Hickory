@@ -17,7 +17,7 @@ import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (frag)
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, VulkanResources, Attribute (..))
 import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend)
-import Vulkan (DescriptorSetLayout, SamplerAddressMode (..), Filter (..))
+import Vulkan (DescriptorSetLayout, SamplerAddressMode (..), Filter (..), SamplerMipmapMode (..))
 import Hickory.Text (Font(..), makeFont)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Lazy as BS
@@ -33,7 +33,7 @@ type TextRenderer = (Font, PointedDescriptorSet, Float)
 
 withTextRenderer :: VulkanResources -> FilePath -> FilePath -> Float -> Acquire TextRenderer
 withTextRenderer vulkanResources fontPath imagePath sdfPixelRange = do
-  fontTex   <- view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(imagePath, FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)]
+  fontTex   <- view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(imagePath, FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, Just SAMPLER_MIPMAP_MODE_LINEAR)]
   text <- liftIO $ BS.readFile fontPath
   let font = case makeFont text of
                 Left s -> error s

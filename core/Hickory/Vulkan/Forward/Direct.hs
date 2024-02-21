@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -48,7 +48,7 @@ hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
 withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
 withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} colorImage depthImage = do
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
       ViewableImage _ depthImageView _ = depthImage

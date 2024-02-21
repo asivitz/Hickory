@@ -1,10 +1,11 @@
-{-# LANGUAGE DuplicateRecordFields, DataKinds, BlockArguments, PatternSynonyms, OverloadedLists  #-}
+{-# LANGUAGE DuplicateRecordFields, OverloadedRecordDot, DataKinds, BlockArguments, PatternSynonyms, OverloadedLists  #-}
 
 module Hickory.Vulkan.Textures where
 
 import Vulkan
   ( Extent2D(..)
-  , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer, reductionMode, SamplerReductionMode (..)
+  , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer, reductionMode, SamplerReductionMode (..), ImageBlit (..), getPhysicalDeviceFormatProperties, FormatProperties(..), FormatFeatureFlagBits (..), Offset3D (..), cmdBlitImage
+  , PhysicalDeviceProperties(..), PhysicalDeviceLimits(..)
   )
 import Hickory.Vulkan.Vulkan (runAcquire, mkAcquire)
 import qualified Codec.Picture as Png
@@ -22,12 +23,56 @@ import Vulkan.CStruct.Extends (SomeStruct(..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..))
 import Data.Foldable (for_)
+import Vulkan.Utils.Misc ((.&&.))
+import Control.Monad (unless)
 
-withImageFromArray :: forall a. Storable a => VulkanResources -> Int -> Int -> Format -> SV.Vector a -> Acquire Image
-withImageFromArray vr w h format dat = withImageFromArrayMips vr w h format [dat]
+withImageFromArray :: forall a. Storable a => VulkanResources -> Word32 -> Word32 -> Format -> Bool -> SV.Vector a -> Acquire (Image, Word32)
+withImageFromArray = withImageFromArrayGeneratedMips
 
-withImageFromArrayMips :: forall a. Storable a => VulkanResources -> Int -> Int -> Format -> [SV.Vector a] -> Acquire Image
-withImageFromArrayMips bag@VulkanResources { allocator } width height format mips = do
+withImageFromArrayGeneratedMips :: forall a. Storable a => VulkanResources -> Word32 -> Word32 -> Format -> Bool -> SV.Vector a -> Acquire (Image, Word32)
+withImageFromArrayGeneratedMips bag@VulkanResources { allocator } width height format shouldGenerateMips imageDat = do
+  let mipLevels = if shouldGenerateMips then floor (logBase 2 (realToFrac $ max width height)) + 1 else 1
+
+  let imageCreateInfo :: ImageCreateInfo '[]
+      imageCreateInfo = zero
+        { imageType     = IMAGE_TYPE_2D
+        , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
+        , format        = format
+        , mipLevels     = mipLevels
+        , arrayLayers   = 1
+        , tiling        = IMAGE_TILING_OPTIMAL
+        , samples       = SAMPLE_COUNT_1_BIT
+        , usage         = IMAGE_USAGE_TRANSFER_SRC_BIT .|. IMAGE_USAGE_TRANSFER_DST_BIT .|. IMAGE_USAGE_SAMPLED_BIT
+        , sharingMode   = SHARING_MODE_EXCLUSIVE
+        , initialLayout = IMAGE_LAYOUT_UNDEFINED
+        }
+      allocationCreateInfo :: AllocationCreateInfo
+      allocationCreateInfo = zero { requiredFlags = MEMORY_PROPERTY_DEVICE_LOCAL_BIT }
+
+  (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
+
+  liftIO $ runAcquire do
+    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+
+    let bufferSize = fromIntegral $ SV.length imageDat * sizeOf (undefined :: a)
+    (stagingBuffer, stagingAlloc, _) <- withBuffer' allocator
+      BUFFER_USAGE_TRANSFER_SRC_BIT
+      (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
+      bufferSize
+
+    liftIO $ withMappedMemory allocator stagingAlloc bracket \bptr ->
+      SV.unsafeWith imageDat $ \iptr -> copyArray (castPtr bptr) iptr (SV.length imageDat)
+
+    copyBufferToImage bag stagingBuffer image 0 width height
+
+    if shouldGenerateMips
+    then liftIO $ generateMipmaps bag image format width height mipLevels
+    else withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
+  pure (image, mipLevels)
+
+withImageFromArrayCustomMips :: forall a. Storable a => VulkanResources -> Int -> Int -> Format -> [SV.Vector a] -> Acquire Image
+withImageFromArrayCustomMips bag@VulkanResources { allocator } width height format mips = do
 
   let mipLevels = fromIntegral $ length mips
       imageCreateInfo :: ImageCreateInfo '[]
@@ -71,13 +116,13 @@ withImageFromArrayMips bag@VulkanResources { allocator } width height format mip
 
   pure image
 
-withTextureImage :: VulkanResources -> FilePath -> Acquire Image
-withTextureImage bag path = do
+withTextureImage :: VulkanResources -> Bool -> FilePath -> Acquire (Image, Word32)
+withTextureImage bag shouldGenerateMips path = do
   Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
     Left s -> error $ printf "Can't load image at path %s: %s" path s
     Right dynImage -> pure . Png.flipVertically $ Png.convertRGBA8 dynImage
 
-  withImageFromArray bag width height FORMAT_R8G8B8A8_UNORM dat
+  withImageFromArray bag (fromIntegral width) (fromIntegral height) FORMAT_R8G8B8A8_UNORM shouldGenerateMips dat
 
 copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> Word32 -> m ()
 copyBufferToImage bag buffer image mipLevel width height = withSingleTimeCommands bag \commandBuffer -> do
@@ -185,11 +230,11 @@ transitionImageLayoutMips image mipLevels oldLayout newLayout commandBuffer = do
 
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
 
-withImageSampler :: VulkanResources -> Filter -> SamplerAddressMode -> Acquire Sampler
+withImageSampler :: VulkanResources -> Filter -> SamplerAddressMode -> SamplerMipmapMode -> Acquire Sampler
 withImageSampler vr = withImageSamplerMips vr 0
 
-withImageSamplerMips :: VulkanResources -> Word32 -> Filter -> SamplerAddressMode -> Acquire Sampler
-withImageSamplerMips VulkanResources { deviceContext = DeviceContext {..} } mipLevels filt addressMode =
+withImageSamplerMips :: VulkanResources -> Word32 -> Filter -> SamplerAddressMode -> SamplerMipmapMode -> Acquire Sampler
+withImageSamplerMips VulkanResources { deviceContext = DeviceContext {..} } mipLevels filt addressMode mipmapMode =
   withSampler device samplerInfo Nothing mkAcquire
   where
   samplerInfo = zero
@@ -198,12 +243,13 @@ withImageSamplerMips VulkanResources { deviceContext = DeviceContext {..} } mipL
     , addressModeU = addressMode
     , addressModeV = addressMode
     , addressModeW = addressMode
-    , anisotropyEnable = False
+    , anisotropyEnable = True
+    , maxAnisotropy = properties.limits.maxSamplerAnisotropy
     , borderColor = BORDER_COLOR_INT_OPAQUE_BLACK
     , unnormalizedCoordinates = False
     , compareEnable = True
     , compareOp = COMPARE_OP_ALWAYS
-    , mipmapMode = SAMPLER_MIPMAP_MODE_LINEAR
+    , mipmapMode = mipmapMode
     , mipLodBias = 0.0
     , minLod = 0.0
     , maxLod = realToFrac mipLevels
@@ -250,3 +296,97 @@ withIntermediateImage VulkanResources { allocator } format usage (Extent2D width
 
   (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
   pure image
+
+generateMipmaps :: VulkanResources -> Image -> Format -> Word32 -> Word32 -> Word32 -> IO ()
+generateMipmaps bag image imageFormat texWidth texHeight mipLevels = do
+  props <- getPhysicalDeviceFormatProperties bag.deviceContext.physicalDevice imageFormat
+  unless (props.optimalTilingFeatures .&&. FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT) do
+    error "Image format does not support linear blit"
+
+  withSingleTimeCommands bag \cb -> do
+    for_ ([1..mipLevels-1] :: [Word32]) \level -> do
+      let barrier :: ImageMemoryBarrier '[]
+          barrier = zero
+            { oldLayout = IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+            , newLayout = IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+            , srcQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+            , dstQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+            , image = image
+            , srcAccessMask = ACCESS_TRANSFER_WRITE_BIT
+            , dstAccessMask = ACCESS_TRANSFER_READ_BIT
+            , subresourceRange = subResourceRange
+            }
+
+          subResourceRange :: ImageSubresourceRange
+          subResourceRange = ImageSubresourceRange
+            { aspectMask     = IMAGE_ASPECT_COLOR_BIT
+            , baseMipLevel   = level - 1
+            , levelCount     = 1
+            , baseArrayLayer = 0
+            , layerCount     = 1
+            }
+
+          mipWidth  :: Double = realToFrac texWidth * 0.5 ** realToFrac (level - 1)
+          mipHeight :: Double = realToFrac texHeight * 0.5 ** realToFrac (level - 1)
+
+          blit :: ImageBlit
+          blit = ImageBlit
+            { srcOffsets = ( Offset3D 0 0 0, Offset3D (floor mipWidth) (floor mipHeight) 1)
+            , dstOffsets = ( Offset3D 0 0 0, Offset3D (if mipWidth > 1 then floor (mipWidth / 2) else 1) (if mipHeight > 1 then floor (mipHeight / 2) else 1) 1)
+            , srcSubresource = blitSrcSubresourceRange
+            , dstSubresource = blitDstSubresourceRange
+            }
+
+          blitSrcSubresourceRange :: ImageSubresourceLayers
+          blitSrcSubresourceRange = ImageSubresourceLayers
+            { aspectMask = IMAGE_ASPECT_COLOR_BIT
+            , mipLevel = level - 1
+            , baseArrayLayer = 0
+            , layerCount = 1
+            }
+
+          blitDstSubresourceRange :: ImageSubresourceLayers
+          blitDstSubresourceRange = ImageSubresourceLayers
+            { aspectMask = IMAGE_ASPECT_COLOR_BIT
+            , mipLevel = level
+            , baseArrayLayer = 0
+            , layerCount = 1
+            }
+
+      cmdPipelineBarrier cb PIPELINE_STAGE_TRANSFER_BIT PIPELINE_STAGE_TRANSFER_BIT zero [] [] [SomeStruct barrier]
+
+      cmdBlitImage
+        cb
+        image IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+        image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+        [blit]
+        FILTER_LINEAR
+
+      cmdPipelineBarrier cb PIPELINE_STAGE_TRANSFER_BIT PIPELINE_STAGE_FRAGMENT_SHADER_BIT zero [] []
+        [SomeStruct $ barrier { oldLayout = IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
+                              , newLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                              , srcAccessMask = ACCESS_TRANSFER_READ_BIT
+                              , dstAccessMask = ACCESS_SHADER_READ_BIT
+                              } ]
+
+    let barrier :: ImageMemoryBarrier '[]
+        barrier = zero
+          { oldLayout = IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+          , newLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+          , srcQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+          , dstQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+          , image = image
+          , srcAccessMask = ACCESS_TRANSFER_WRITE_BIT
+          , dstAccessMask = ACCESS_SHADER_READ_BIT
+          , subresourceRange = subResourceRange
+          }
+
+        subResourceRange :: ImageSubresourceRange
+        subResourceRange = ImageSubresourceRange
+          { aspectMask     = IMAGE_ASPECT_COLOR_BIT
+          , baseMipLevel   = mipLevels - 1
+          , levelCount     = 1
+          , baseArrayLayer = 0
+          , layerCount     = 1
+          }
+    cmdPipelineBarrier cb PIPELINE_STAGE_TRANSFER_BIT PIPELINE_STAGE_FRAGMENT_SHADER_BIT zero [] [] [SomeStruct barrier]

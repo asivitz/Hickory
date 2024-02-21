@@ -217,7 +217,7 @@ mkObjectChangeEvent vulkanResources componentDefs rs editorState = do
 
     traverse_ (writeEditorState eca) ePopulateEditorState
     traverse_ (loadMeshResource vulkanResources rs) =<< ev modelChange
-    traverse_ (\t -> loadTextureResource vulkanResources rs t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) =<< ev textureChange
+    traverse_ (\t -> loadTextureResource vulkanResources rs t (FILTER_NEAREST, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, Nothing)) =<< ev textureChange
 
     compEvs :: [Maybe (HashMap Int Object)] <- sequence $ Map.toList componentChanges <&> \((compName, attrName), SomeAttribute attr ch) ->
           fmap (\v -> selectedObjects & traversed . #components . at compName . _Just . at attrName ?~ SomeAttribute attr (Identity v))

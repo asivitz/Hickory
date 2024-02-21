@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Types where
 
-import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CullModeFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format)
+import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CullModeFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format, PhysicalDeviceProperties)
 import qualified Data.Vector as V
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
@@ -39,6 +39,7 @@ data DeviceContext = DeviceContext
   , physicalDevice    :: PhysicalDevice
   , presentMode       :: PresentModeKHR
   , maxSampleCount    :: SampleCountFlagBits
+  , properties        :: PhysicalDeviceProperties
   }
 
 -- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.

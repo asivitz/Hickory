@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D, SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -62,7 +62,7 @@ withDepthViewableImage vulkanResources extent = do
 
 withGBufferFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
 withGBufferFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} depthImage = do
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   -- Target textures for the gbuffer pass
 

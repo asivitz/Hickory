@@ -92,9 +92,15 @@ omniscientCamera = do
           let V2 _vx vy = v - start
           in zoom - vy / 10
 
-        eRotateCamera :: Maybe (Scalar,Scalar) = mfilter (const $ mode == Rotate) $ ((,) <$> st.captured <*> clickMove ) <&> \((start, _, ((zang,ele),_)), v) ->
-          let V2 vx vy = v - start
-          in (zang - vx / 100, ele - vy / 100)
+        eRotateCamera :: Maybe (Scalar,Scalar) = case (,) <$> st.captured <*> clickMove of
+          Just ((start, _, ((zang,ele),_)), v) ->
+            let V2 vx vy = v - start
+            in if mode == Rotate
+                  && ( abs vx > 0.5
+                      && abs vy > 0.5)
+                then Just (zang - vx / 100, ele - vy / 100)
+                else Nothing
+          Nothing -> Nothing
 
     let angles =
           if | eOrthoTop -> (0, pi)

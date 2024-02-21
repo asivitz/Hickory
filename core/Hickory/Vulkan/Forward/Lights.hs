@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D, CullModeFlagBits (..)
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -54,7 +54,7 @@ withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceC
 
 withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
 withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} colorImage = do
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
 
@@ -227,7 +227,7 @@ void main()
   vec4 albedo      = texture(albedoSampler, inTexCoords);
   float specularity = 8; //TODO
 
-  float shadow = calcShadow(viewPos, worldPos);
+  float shadow = calcShadow(viewPos, worldPos) * mix(0.3,1,albedo.a);
 
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;

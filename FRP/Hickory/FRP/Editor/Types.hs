@@ -9,7 +9,6 @@
 
 module Hickory.FRP.Editor.Types where
 
-import qualified Reactive.Banana as B
 import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..))
 import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)

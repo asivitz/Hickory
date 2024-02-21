@@ -22,7 +22,7 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..), Framebuffer
+  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..), Framebuffer, SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -46,7 +46,7 @@ import Hickory.Vulkan.Forward.ShaderDefinitions
 
 withObjectIDFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, [DescriptorSpec])
 withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
-  sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits 1
   depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
