@@ -13,7 +13,7 @@ import Hickory.Input (Key(..), PointUp(..), InputFrame(..))
 import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
-import Hickory.Vulkan.Forward.Renderer (renderToRenderer, pickObjectID)
+import Hickory.Vulkan.Renderer.Renderer (renderToRenderer, pickObjectID)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
 import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just)
 import Data.HashMap.Strict (HashMap, traverseWithKey)
@@ -21,7 +21,7 @@ import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
 import Hickory.FRP.Editor.General (matEuler, matScale, refChangeEvent)
-import Hickory.Vulkan.Forward.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command)
+import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command)
 import Data.Text (unpack, pack)
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H

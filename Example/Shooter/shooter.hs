@@ -24,8 +24,8 @@ import Foreign (poke)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
-import qualified Hickory.Vulkan.Forward.Types as H
-import qualified Hickory.Vulkan.Forward.Renderer as H
+import qualified Hickory.Vulkan.Renderer.Types as H
+import qualified Hickory.Vulkan.Renderer.Renderer as H
 
 import Vulkan
   ( pattern FILTER_LINEAR
@@ -38,7 +38,7 @@ import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Color (white, red)
-import Hickory.Vulkan.Forward.Types (OverlayGlobals(..), DrawCommand (..))
+import Hickory.Vulkan.Renderer.Types (OverlayGlobals(..), DrawCommand (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource, runResources)
 import Data.Functor ((<&>))

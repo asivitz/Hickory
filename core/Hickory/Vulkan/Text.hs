@@ -26,7 +26,7 @@ import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet)
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.String.QM (qm)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
-import Hickory.Vulkan.Forward.ShaderDefinitions
+import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Data.Word (Word32)
 
 type TextRenderer = (Font, PointedDescriptorSet, Float)

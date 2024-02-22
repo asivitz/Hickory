@@ -1,9 +1,9 @@
 {-# LANGUAGE DataKinds, OverloadedLists, OverloadedLabels #-}
 {-# LANGUAGE FlexibleContexts, OverloadedRecordDot, TemplateHaskell #-}
 
-module Hickory.Vulkan.Forward.Renderer where
+module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Forward.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), OverlayGlobals (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..), GBufferMaterialStack(..), DirectMaterial(..), DirectStage (..), MaterialConfig (..), GBufferPushConsts (..))
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), OverlayGlobals (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..), GBufferMaterialStack(..), DirectMaterial(..), DirectStage (..), MaterialConfig (..), GBufferPushConsts (..))
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -13,8 +13,8 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Forward.GBuffer (withGBufferRenderConfig, withLineMaterial, withPointMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
-import Hickory.Vulkan.Forward.ShadowPass (withShadowRenderConfig, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
+import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, withLineMaterial, withPointMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
+import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), CullModeFlagBits)
@@ -28,8 +28,8 @@ import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Forward.ObjectPicking (withObjectIDRenderConfig, ObjectIDConstants (..), withObjectHighlightMaterial, withObjectIDFrameBuffer)
-import qualified Hickory.Vulkan.Forward.ObjectPicking as OP
+import Hickory.Vulkan.Renderer.ObjectPicking (withObjectIDRenderConfig, ObjectIDConstants (..), withObjectHighlightMaterial, withObjectIDFrameBuffer)
+import qualified Hickory.Vulkan.Renderer.ObjectPicking as OP
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, unless, void)
@@ -58,13 +58,13 @@ import Data.UUID.V4 (nextRandom)
 import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
-import Hickory.Vulkan.Forward.ShaderDefinitions (maxShadowCascades, buildWorldVertShader, cascadeOverlapThreshold)
-import Hickory.Vulkan.Forward.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
-import Hickory.Vulkan.Forward.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
+import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, buildWorldVertShader, cascadeOverlapThreshold)
+import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
+import Hickory.Vulkan.Renderer.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
 import Hickory.Vulkan.Textures (transitionImageLayout)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
-import Hickory.Vulkan.Forward.ShaderDefinitions (buildDirectVertShader)
-import Hickory.Vulkan.Forward.ShaderDefinitions (buildOverlayVertShader)
+import Hickory.Vulkan.Renderer.ShaderDefinitions (buildDirectVertShader)
+import Hickory.Vulkan.Renderer.ShaderDefinitions (buildOverlayVertShader)
 
 withRendererMaterial
   :: forall a. Storable a

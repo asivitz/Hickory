@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, DerivingStrategies #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
-module Hickory.Vulkan.Forward.Lights where
+module Hickory.Vulkan.Renderer.Lights where
 
 import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
@@ -37,11 +37,11 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), defaultBlend, withMaterial)
-import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
-import Hickory.Vulkan.Forward.ShaderDefinitions
+import Hickory.Vulkan.Renderer.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
+import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Word (Word32)
-import Hickory.Vulkan.Forward.GBuffer (depthFormat)
+import Hickory.Vulkan.Renderer.GBuffer (depthFormat)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT

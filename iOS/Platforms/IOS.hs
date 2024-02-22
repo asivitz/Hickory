@@ -21,7 +21,7 @@ import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources(..), Swapchain (..))
 import Control.Monad.IO.Class (liftIO)
 import Data.Bool (bool)
-import Hickory.Vulkan.Forward.Types (Scene, RenderFunction)
+import Hickory.Vulkan.Renderer.Types (Scene, RenderFunction)
 import Control.Monad
 import Control.Concurrent (forkIO, threadDelay)
 

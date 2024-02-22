@@ -9,12 +9,12 @@ import Hickory.Types (Size (..))
 import Linear (V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit, zero, _m33, inv33, transpose)
 import Data.Fixed (div')
 import qualified Data.HashMap.Strict as Map
-import qualified Hickory.Vulkan.Forward.Types as H
+import qualified Hickory.Vulkan.Renderer.Types as H
 import Data.HashMap.Strict (HashMap)
 import Hickory.Graphics (askMatrix, MatrixMonad)
 import Hickory.FRP.Editor.Types
 import Hickory.Resources (getTexture, getMesh, ResourcesMonad)
-import Hickory.Vulkan.Forward.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
+import Hickory.Vulkan.Renderer.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
 import Control.Lens ((.~), (&), (^.))
 import Control.Monad (when)
 import Data.Foldable (for_)

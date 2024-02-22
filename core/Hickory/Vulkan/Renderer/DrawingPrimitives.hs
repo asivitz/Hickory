@@ -1,13 +1,13 @@
-module Hickory.Vulkan.Forward.DrawingPrimitives where
+module Hickory.Vulkan.Renderer.DrawingPrimitives where
 
 import Linear (M44, V3 (..), V4, _w, _xyz, _m33, (!*), inv44, (^/), V2 (..), (^*), norm, zero, inv33, transpose)
-import Hickory.Vulkan.Forward.Types
+import Hickory.Vulkan.Renderer.Types
 import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
 import Hickory.Resources (getMesh, Resources (..), getTexture, ResourcesMonad)
 import Hickory.Math (Scalar, v2tov3, v2rotate, mkRotation)
 import Hickory.Graphics (askMatrix, MatrixMonad, xform)
-import Hickory.Vulkan.Forward.Renderer (ndcBoundaryPoints)
+import Hickory.Vulkan.Renderer.Renderer (ndcBoundaryPoints)
 import Control.Lens ((^.))
 import Foreign (Storable, poke)
 import Data.Foldable (toList)

@@ -18,10 +18,10 @@ import Linear ( M44, V2 (..), V3(..), V4(..), identity, _m33, inv33, transpose)
 import Hickory.Math (mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 import Hickory.Camera (Camera(..), Projection(..))
-import qualified Hickory.Vulkan.Forward.Types as H
-import Hickory.Vulkan.Forward.Types (DrawCommand(..), RenderSettings(..), WorldSettings(..), OverlayGlobals(..))
+import qualified Hickory.Vulkan.Renderer.Types as H
+import Hickory.Vulkan.Renderer.Types (DrawCommand(..), RenderSettings(..), WorldSettings(..), OverlayGlobals(..))
 import Hickory.Vulkan.Types (VulkanResources(..))
-import qualified Hickory.Vulkan.Forward.Renderer as H
+import qualified Hickory.Vulkan.Renderer.Renderer as H
 import qualified Hickory.Vulkan.StockMesh as H
 import Hickory.Color (white)
 import Control.Monad.IO.Class (liftIO)

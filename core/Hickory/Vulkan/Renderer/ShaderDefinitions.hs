@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DataKinds #-}
 
-module Hickory.Vulkan.Forward.ShaderDefinitions where
+module Hickory.Vulkan.Renderer.ShaderDefinitions where
 
 import Data.String.QM (qm, qt)
 import GHC.TypeLits (Nat, natVal)

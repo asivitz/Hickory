@@ -2,7 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields, OverloadedRecordDot #-}
 {-# LANGUAGE DeriveGeneric, DerivingStrategies, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
-module Hickory.Vulkan.Forward.ObjectPicking where
+module Hickory.Vulkan.Renderer.ObjectPicking where
 
 import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
@@ -42,7 +42,7 @@ import Hickory.Vulkan.Framing (FramedResource)
 import Data.Proxy (Proxy)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
-import Hickory.Vulkan.Forward.ShaderDefinitions
+import Hickory.Vulkan.Renderer.ShaderDefinitions
 
 withObjectIDFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, [DescriptorSpec])
 withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do

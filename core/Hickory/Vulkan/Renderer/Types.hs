@@ -7,7 +7,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE CPP #-}
 
-module Hickory.Vulkan.Forward.Types where
+module Hickory.Vulkan.Renderer.Types where
 
 import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
@@ -15,7 +15,7 @@ import qualified Data.Vector.Storable.Sized as VSS
 import qualified Data.Vector.Sized as VS
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial)
-import Hickory.Vulkan.Forward.ObjectPicking (ObjectIDConstants)
+import Hickory.Vulkan.Renderer.ObjectPicking (ObjectIDConstants)
 import Foreign.Storable.Generic (GStorable)
 import Hickory.Vulkan.Text (MSDFMatConstants)
 import Hickory.Vulkan.Framing (FramedResource)
@@ -33,7 +33,7 @@ import Data.UUID (UUID)
 import Vulkan (DescriptorSetLayout, Framebuffer)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
-import Hickory.Vulkan.Forward.ShaderDefinitions (MaxShadowCascadesNat)
+import Hickory.Vulkan.Renderer.ShaderDefinitions (MaxShadowCascadesNat)
 
 data RenderTargets = RenderTargets
   -- Stage 1 Shadows

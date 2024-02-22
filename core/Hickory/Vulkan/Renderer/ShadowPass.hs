@@ -2,7 +2,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE DeriveGeneric, DerivingStrategies, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
-module Hickory.Vulkan.Forward.ShadowPass where
+module Hickory.Vulkan.Renderer.ShadowPass where
 
 import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
@@ -34,11 +34,11 @@ import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Data.ByteString (ByteString)
-import Hickory.Vulkan.Forward.Types (AnimatedConstants, StaticConstants, ShadowPushConsts)
+import Hickory.Vulkan.Renderer.Types (AnimatedConstants, StaticConstants, ShadowPushConsts)
 import Hickory.Types (Size(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
-import Hickory.Vulkan.Forward.ShaderDefinitions
+import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource, frameResource)
 import qualified Data.Vector.Sized as VS
 import Data.Finite (getFinite)

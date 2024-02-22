@@ -9,7 +9,7 @@ import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef, atomicM
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Hickory.Vulkan.Types as H
 import Hickory.Types (Size)
-import qualified Hickory.Vulkan.Forward.Types as H
+import qualified Hickory.Vulkan.Renderer.Types as H
 import qualified Data.Sequence as S
 import GHC.Compact (getCompact, compact)
 import Data.Functor ((<&>))
@@ -19,12 +19,12 @@ import qualified Ki
 import Control.Monad (forever)
 import Data.Time (NominalDiffTime)
 import Control.Monad.IO.Class (MonadIO)
-import Hickory.Vulkan.Forward.Types (RenderSettings(..), OverlayGlobals (..), RenderFunction)
+import Hickory.Vulkan.Renderer.Types (RenderSettings(..), OverlayGlobals (..), RenderFunction)
 import Linear (identity, V4 (..))
-import qualified Hickory.Vulkan.Forward.Renderer as H
+import qualified Hickory.Vulkan.Renderer.Renderer as H
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import Control.Concurrent (threadDelay)
-import Hickory.Vulkan.Forward.Types (Scene)
+import Hickory.Vulkan.Renderer.Types (Scene)
 import Acquire.Acquire (Acquire)
 
 gameLoop

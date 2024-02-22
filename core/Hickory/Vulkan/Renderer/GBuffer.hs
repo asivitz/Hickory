@@ -2,7 +2,7 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, DerivingStrategies #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, DeriveAnyClass, OverloadedLists, OverloadedLabels #-}
 
-module Hickory.Vulkan.Forward.GBuffer where
+module Hickory.Vulkan.Renderer.GBuffer where
 
 import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
 import Vulkan
@@ -37,8 +37,8 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), defaultBlend)
-import Hickory.Vulkan.Forward.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
-import Hickory.Vulkan.Forward.ShaderDefinitions
+import Hickory.Vulkan.Renderer.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
+import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Word (Word32)
 

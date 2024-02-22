@@ -141,15 +141,15 @@ library:
     - Hickory.Vulkan.StockTexture
     - Hickory.Vulkan.PostProcessing
     - Hickory.Vulkan.RenderTarget
-    - Hickory.Vulkan.Forward.ObjectPicking
-    - Hickory.Vulkan.Forward.Renderer
-    - Hickory.Vulkan.Forward.Types
-    - Hickory.Vulkan.Forward.GBuffer
-    - Hickory.Vulkan.Forward.Lights
-    - Hickory.Vulkan.Forward.Direct
-    - Hickory.Vulkan.Forward.ShadowPass
-    - Hickory.Vulkan.Forward.DrawingPrimitives
-    - Hickory.Vulkan.Forward.ShaderDefinitions
+    - Hickory.Vulkan.Renderer.ObjectPicking
+    - Hickory.Vulkan.Renderer.Renderer
+    - Hickory.Vulkan.Renderer.Types
+    - Hickory.Vulkan.Renderer.GBuffer
+    - Hickory.Vulkan.Renderer.Lights
+    - Hickory.Vulkan.Renderer.Direct
+    - Hickory.Vulkan.Renderer.ShadowPass
+    - Hickory.Vulkan.Renderer.DrawingPrimitives
+    - Hickory.Vulkan.Renderer.ShaderDefinitions
     - Hickory.Vulkan.Types
 
 executables:
