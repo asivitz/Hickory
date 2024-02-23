@@ -3,6 +3,7 @@
 
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
@@ -22,13 +23,14 @@ import Data.Maybe (mapMaybe, fromMaybe, isJust)
 import Hickory.FRP.Combinators (unionFirst)
 import Hickory.Input (Key(..), InputFrame(..))
 import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross, zero)
-import Control.Lens ((<&>))
+import Control.Lens ((<&>), set)
 import Safe (headMay)
 import Hickory.Camera (Projection(..), Camera (..), perspectiveFocusPlaneSize)
-import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.IORef (newIORef, readIORef, writeIORef, modifyIORef')
 import qualified Data.Enum.Set as ES
 import Control.Monad (mfilter)
 import Control.Applicative (asum, Alternative (..))
+import GHC.Generics (Generic)
 
 data CameraMoveMode = Pan | Rotate | Zoom
   deriving Eq
@@ -42,13 +44,13 @@ data Omniscient = Omniscient
   , focusPos :: V3 Scalar
   , angles   :: (Scalar, Scalar)
   , viewMode :: CameraViewMode
-  }
+  } deriving (Generic)
 
-omniscientCamera :: IO (Size Int -> InputFrame -> IO Camera)
+omniscientCamera :: IO (V3 Scalar -> IO (), Size Int -> InputFrame -> IO Camera)
 omniscientCamera = do
   stateRef <- newIORef $ Omniscient Nothing 20 zero (-pi/4, -3*pi/4) PerspView
 
-  pure $ \size inFr -> do
+  pure . (modifyIORef' stateRef . set #focusPos,) $ \size inFr -> do
     st <- readIORef stateRef
     let keyPressed k = ES.member k inFr.pressedKeys
         keyHeld k    = ES.member k inFr.heldKeys

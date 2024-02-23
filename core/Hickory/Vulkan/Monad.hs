@@ -173,6 +173,7 @@ textMesh :: Font -> TextCommand -> Mesh
 textMesh font tc = Mesh { indices = Just (SV.fromList indices)
                         , vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)]
                         , minPosition, maxPosition, morphTargets = []
+                        , name = Just "Text"
                         }
   where
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
@@ -180,10 +181,10 @@ textMesh font tc = Mesh { indices = Just (SV.fromList indices)
   minPosition = foldl1' (liftI2 min) posVecs
   maxPosition = foldl1' (liftI2 max) posVecs
 
-cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material a -> Word32 -> [(Attribute, Word32)] -> Buffer -> Word32 -> Maybe Word32 -> Word32 -> Word64 -> Maybe Buffer -> m ()
-cmdDrawBufferedMesh commandBuffer Material {..} (fromIntegral -> vertexOffset) meshOffsets vertexBuffer instanceCount mNumIndices numVertices indexOffset mIndexBuffer = do
+cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material a -> Word32 -> [(Attribute, Word32)] -> Buffer -> Word32 -> Maybe Word32 -> Word32 -> Word64 -> Maybe Buffer -> Maybe String -> m ()
+cmdDrawBufferedMesh commandBuffer Material {..} (fromIntegral -> vertexOffset) meshOffsets vertexBuffer instanceCount mNumIndices numVertices indexOffset mIndexBuffer mName = do
   let
-      bindOffsets = V.fromList $ attributes <&> \a -> (+vertexOffset) . fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in mesh")
+      bindOffsets = V.fromList $ attributes <&> \a -> (+vertexOffset) . fromIntegral . fromMaybe (error $ "Can't find attribute '" ++ show a ++ "' in mesh " ++ fromMaybe "" mName)
                                                     $ Prelude.lookup a meshOffsets
       vertexBuffers = V.fromList $ vertexBuffer <$ attributes
 

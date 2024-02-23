@@ -35,7 +35,7 @@ drawLine materialConfig color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
     , materialConfig = materialConfig
     }
   where
-  mesh = Mesh { vertices = [ (Position, SV.fromList [p1x, p1y, p1z, p2x, p2y, p2z]) ], indices = Just $ SV.fromList [0, 1], minPosition = zero, maxPosition = zero, morphTargets = [] }
+  mesh = Mesh { vertices = [ (Position, SV.fromList [p1x, p1y, p1z, p2x, p2y, p2z]) ], indices = Just $ SV.fromList [0, 1], minPosition = zero, maxPosition = zero, morphTargets = [], name = Just "Line" }
 
 drawPoint :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> V3 Float -> m ()
 drawPoint materialConfig color (V3 px py pz)  = do
@@ -59,7 +59,7 @@ drawPoint materialConfig color (V3 px py pz)  = do
     , materialConfig = materialConfig
     }
   where
-  mesh = Mesh { vertices = [ (Position, SV.fromList [px, py, pz]) ], indices = Just $ SV.fromList [0], minPosition = V3 px py pz, maxPosition = V3 px py pz, morphTargets = [] }
+  mesh = Mesh { vertices = [ (Position, SV.fromList [px, py, pz]) ], indices = Just $ SV.fromList [0], minPosition = V3 px py pz, maxPosition = V3 px py pz, morphTargets = [], name = Just "Point" }
 
 drawSolidCube :: (CommandMonad m, ResourcesMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> m ()
 drawSolidCube materialConfig color = do
@@ -155,6 +155,7 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
                   , minPosition = zero
                   , maxPosition = zero
                   , morphTargets = []
+                  , name = Just "Wide Arc"
                   }
   addCommand $ DrawCommand
     { modelMat = mat
@@ -203,6 +204,7 @@ drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (
                   , minPosition = zero
                   , maxPosition = zero
                   , morphTargets = []
+                  , name = Just "Line Arc"
                   }
   addCommand $ DrawCommand
     { modelMat = mat

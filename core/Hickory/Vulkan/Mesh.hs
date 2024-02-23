@@ -27,11 +27,14 @@ import Data.List (sortOn, find, foldl1', mapAccumL)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (Mesh (..), Attribute (..), VulkanResources (..), DeviceContext (..), BufferedMesh (..))
 import Data.Text (Text)
+import Data.Foldable (for_)
+import Control.Monad (when)
+import GHC.Stack (HasCallStack)
 
-writeMeshToFile :: FilePath -> Mesh -> IO ()
+writeMeshToFile :: HasCallStack => FilePath -> Mesh -> IO ()
 writeMeshToFile = encodeFile
 
-loadMeshFromFile :: FilePath -> IO Mesh
+loadMeshFromFile :: HasCallStack => FilePath -> IO Mesh
 loadMeshFromFile = decodeFile
 
 instance Binary Attribute
@@ -107,13 +110,16 @@ withBufferedMesh bag mesh@Mesh {..} = do
   let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) 0 (sortOn (attrLocation . fst) mesh.vertices)
       numIndices = fromIntegral . SV.length <$> mesh.indices
       numVertices = fromIntegral $ numVerts mesh
+  for_ mesh.vertices \(attr,vs) -> do
+    when (SV.null vs) $ error $ "Can't buffer mesh. Missing attribute: " ++ show attr
+
   pure BufferedMesh {..}
 
 morphMesh :: Mesh -> [(Text, Float)] -> Mesh
-morphMesh Mesh {..} morphs = Mesh { indices, minPosition, maxPosition, morphTargets = mempty, vertices = vertices' }
+morphMesh Mesh {..} morphs = Mesh { indices, minPosition, maxPosition, morphTargets = mempty, vertices = vertices', name }
   where
-  additionals = morphs & mapMaybe \(name, amt) ->
-    case find ((==name) . fst) morphTargets of
+  additionals = morphs & mapMaybe \(attrname, amt) ->
+    case find ((==attrname) . fst) morphTargets of
       Just (_name, vals) -> Just $ vals <&> \(attr, floats) -> (attr,) $
         case attr of
           -- For Tangents only, the morph is a 3 component offset, while

@@ -10,12 +10,12 @@ import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..), Camera (..), project, cameraFocusPlaneSize)
 import Data.Maybe (fromMaybe, isJust)
 import Hickory.Input (Key(..), PointUp(..), InputFrame(..))
-import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero)
+import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero, (^/), _xyz)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Renderer.Renderer (renderToRenderer, pickObjectID)
 import Hickory.FRP.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
-import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just)
+import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just, sumOf)
 import Data.HashMap.Strict (HashMap, traverseWithKey)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI, mkEditorState)
@@ -43,6 +43,7 @@ import Data.List.Extra (notNull)
 import qualified Data.Enum.Set as ES
 import Control.Monad.Writer.Strict (Writer)
 import Vulkan (Filter(..), SamplerAddressMode (..))
+import qualified Data.HashMap.Strict as HashMap
 
 data ObjectManip = ObjectManip
   { mode       :: Maybe ObjectManipMode
@@ -266,6 +267,7 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
     , minPosition = zero -- TODO
     , maxPosition = zero -- TODO
     , morphTargets = mempty
+    , name = Just "Line"
     }
   join $ loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources $ H.Mesh
     { vertices =
@@ -277,10 +279,11 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
     , minPosition = zero -- TODO
     , maxPosition = zero -- TODO
     , morphTargets = mempty
+    , name = Just "Lines"
     }
 
   state <- newIORef $ Editor []
-  stepCamera <- omniscientCamera
+  (setFocusPos, stepCamera) <- omniscientCamera
   stepObjManip <- objectManip
   stepObjChange <- mkObjectChangeEvent vulkanResources componentDefs ress editorState
   guiPickObjIDMailbox <- newIORef Nothing
@@ -311,7 +314,6 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
       let keyPressed k = ES.member k renderInputFrame.pressedKeys
           keyHeld k    = ES.member k renderInputFrame.heldKeys
           whenE f = mfilter (const f)
-
 
       res <- getResourcesStoreResources ress
       graphicsParams <- readGraphicsParams postEditorState
@@ -371,6 +373,9 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
               ) <$> ePickedObjectID
             -- , const [] <$ eReplaceObjects
             ])
+
+      when (keyPressed Key'Period) do
+        setFocusPos $ (\os -> sumOf (traversed . #transform . translation . _xyz) os ^/ realToFrac (HashMap.size os)) selectedObjects
 
       writeIORef state $ Editor {..}
       writeIORef objectsRef newObjects

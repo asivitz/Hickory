@@ -115,11 +115,11 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
 
 withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
 withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader whiteFragShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader whiteFragShader
 
 withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants)
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
 
 withDirectMaterialStack
   :: forall uniform
@@ -169,40 +169,6 @@ withMSDFMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
 standardMaxNumDraws :: Num a => a
 standardMaxNumDraws = 2048
 
-{-
-withStandardStaticMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial StaticConstants)
-withStandardStaticMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
-  pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord] (Just imageSetLayout)
-  staticLitVertShader staticLitFragShader
-  staticVertShader whiteFragShader
-  OP.staticObjectIDVertShader OP.staticObjectIDFragShader
-  Nothing Nothing
-
-withStandardStaticUnlitMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial StaticConstants)
-withStandardStaticUnlitMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
-  pipelineDefaults [HVT.Position, HVT.TextureCoord] (Just imageSetLayout)
-  staticUnlitVertShader unlitFragShader
-  staticVertShader whiteFragShader
-  OP.staticObjectIDVertShader OP.staticObjectIDFragShader
-  (Just overlayVertShader) (Just unlitFragShader)
-
-withStandardAnimatedMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial AnimatedConstants)
-withStandardAnimatedMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
-  pipelineDefaults [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.JointIndices, HVT.JointWeights] (Just imageSetLayout)
-  animatedLitVertShader animatedLitFragShader
-  animatedVertShader whiteFragShader
-  OP.animatedObjectIDVertShader OP.animatedObjectIDFragShader
-  Nothing Nothing
-
-withStandardMSDFMaterial :: VulkanResources -> Renderer -> Acquire (AllStageMaterial MSDFMatConstants)
-withStandardMSDFMaterial vulkanResources Renderer {..} = withAllStageMaterial vulkanResources renderTargets globalDescriptorSet standardMaxNumDraws
-  pipelineDefaults [HVT.Position, HVT.TextureCoord] (Just imageSetLayout)
-  msdfVertShader msdfFragShader
-  staticVertShader whiteFragShader
-  OP.staticObjectIDVertShader OP.objectIDFragShader
-  Nothing Nothing
-  -}
-
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
   shadowRenderConfig <- withShadowRenderConfig vulkanResources
@@ -240,29 +206,18 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   -- For debugging
   shadowMapDescriptorSet <- for (concatMap snd . VS.toList . fst <$> cascadedShadowMap) $ withDescriptorSet vulkanResources
 
-  imageSetLayout <- withDescriptorSetLayout device zero
+  singleImageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
+    } Nothing mkAcquire
+
+  uberImageSetLayout <- withDescriptorSetLayout device zero
+    { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"], ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
 
 
   -- currentSelectionMaterial <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
   -- staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
   -- animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
-
-  {-
-  pickingMaterial          <- withObjectIDMaterial vulkanResources objectIDRenderConfig globalDescriptorSet
-
-
-  staticUnlitWorldMaterial <- withStaticUnlitMaterial vulkanResources litRenderConfig globalDescriptorSet imageSetLayout
-
-  msdfWorldMaterial        <- withMSDFMaterial vulkanResources litRenderConfig globalDescriptorSet imageSetLayout
-  linesWorldMaterial       <- withLineMaterial vulkanResources litRenderConfig globalDescriptorSet
-  pointsWorldMaterial      <- withPointMaterial vulkanResources litRenderConfig globalDescriptorSet
-
-  staticOverlayMaterial    <- withOverlayMaterial vulkanResources swapchainRenderConfig globalDescriptorSet imageSetLayout
-  msdfOverlayMaterial      <- withOverlayMSDFMaterial vulkanResources swapchainRenderConfig globalDescriptorSet imageSetLayout
-
-  -}
 
   objHighlightDescriptorSet <- for (snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources directRenderConfig globalDescriptorSet objHighlightDescriptorSet
@@ -279,10 +234,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   let renderTargets = RenderTargets {..}
 
-  staticGBufferMaterialConfig   <- withStaticGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just imageSetLayout)
-  animatedGBufferMaterialConfig <- withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just imageSetLayout)
-  staticDirectMaterialConfig    <- withStaticDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just imageSetLayout)
-  msdfMaterialConfig            <- withMSDFMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just imageSetLayout)
+  staticGBufferMaterialConfig   <- withStaticGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just uberImageSetLayout)
+  animatedGBufferMaterialConfig <- withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just uberImageSetLayout)
+  staticDirectMaterialConfig    <- withStaticDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
+  msdfMaterialConfig            <- withMSDFMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
 
   pure Renderer {..}
 
@@ -637,7 +592,7 @@ renderCommand FrameContext {..} material mesh instanceCount drawDS pushConsts = 
   when (hasPerDrawDescriptorSet material) do
     for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
   case mesh of
-    Buffered BufferedMesh {..} -> cmdDrawBufferedMesh commandBuffer material 0 meshOffsets vertexBuffer instanceCount numIndices numVertices 0 indexBuffer
+    Buffered BufferedMesh {..} -> cmdDrawBufferedMesh commandBuffer material 0 meshOffsets vertexBuffer instanceCount numIndices numVertices 0 indexBuffer name
     Dynamic dyn -> do
       meshes <- getMeshes
       addMesh dyn
@@ -650,7 +605,7 @@ renderCommand FrameContext {..} material mesh instanceCount drawDS pushConsts = 
           meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) 0 (sortOn (attrLocation . fst) dyn.vertices)
 
       DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
-      cmdDrawBufferedMesh commandBuffer material vertexSizeThusFar meshOffsets vertexBuffer instanceCount numIndices numVertices (fromIntegral indexSizeThusFar) (Just indexBuffer)
+      cmdDrawBufferedMesh commandBuffer material vertexSizeThusFar meshOffsets vertexBuffer instanceCount numIndices numVertices (fromIntegral indexSizeThusFar) (Just indexBuffer) (Just "Dynamic")
 
 uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial pushConst a -> [a] -> m ()
 uploadUniformsBuffer FrameContext {..} BufferedUniformMaterial {..} uniforms = do

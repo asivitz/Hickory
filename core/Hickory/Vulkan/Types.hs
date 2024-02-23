@@ -93,6 +93,7 @@ data Mesh = Mesh
   , minPosition  :: V3 Float
   , maxPosition  :: V3 Float
   , morphTargets :: [(Text, [(Attribute, SV.Vector Float)])]
+  , name :: Maybe String -- For tracking / debugging. Not required
   } deriving (Generic, Show)
 
 data BufferedMesh = BufferedMesh
@@ -103,6 +104,7 @@ data BufferedMesh = BufferedMesh
   , numVertices  :: Word32
   , minPosition  :: V3 Float
   , maxPosition  :: V3 Float
+  , name :: Maybe String -- For tracking / debugging. Not required
   } deriving Generic
 
 data FrameInOut = FrameInOut

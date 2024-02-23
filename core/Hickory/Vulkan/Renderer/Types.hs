@@ -92,7 +92,8 @@ data Renderer = Renderer
 
   , globalDescriptorSet      :: FramedResource PointedDescriptorSet
   , shadowMapDescriptorSet   :: FramedResource PointedDescriptorSet
-  , imageSetLayout           :: DescriptorSetLayout
+  , singleImageSetLayout     :: DescriptorSetLayout
+  , uberImageSetLayout       :: DescriptorSetLayout
   } deriving Generic
 
 -- params: targ, shaders

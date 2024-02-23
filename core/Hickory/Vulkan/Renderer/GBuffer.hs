@@ -195,19 +195,25 @@ $staticUniformsDef
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
+layout(location = 8) in vec4 inTangent;
 
 layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
+layout(location = 8) out mat3 TBN;
 
 void main() {
   vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
   vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
+	vec3 worldTangent = normalize(uniforms.normalMat * inTangent.xyz);
+  vec3 bitangent = -cross(inNormal.xyz, inTangent.xyz) * inTangent.w; // Why negative? No idea... But it works w/ blender exports.
+  vec3 worldBitangent = normalize(uniforms.normalMat * bitangent);
 
   gl_Position = globals.viewProjMat
               * worldPosition;
 
   texCoord = inTexCoord * uniforms.tiling;
   normal   = worldNormal;
+  TBN = mat3(worldTangent, worldBitangent, worldNormal);
 }
 
 |])
@@ -225,17 +231,14 @@ layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
 
 layout(location = 0) out vec2 texCoord;
-layout(location = 1) out vec3 normal;
 
 void main() {
   vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
-  vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
   gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
               * worldPosition;
 
   texCoord = inTexCoord * uniforms.tiling;
-  normal   = worldNormal;
 }
 |])
 
@@ -248,18 +251,23 @@ $staticUniformsDef
 
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
-layout (set = 2, binding = 0) uniform sampler2D texSampler;
+layout(location = 8) in mat3 TBN;
+layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
+layout (set = 2, binding = 1) uniform sampler2D normalSampler;
 
 layout(location = 0) out vec4 outAlbedo;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out uint outObjectID;
 
 void main() {
-  vec4 texColor = texture(texSampler, inTexCoord);
+  vec4 albedoColor  = texture(albedoSampler, inTexCoord);
+  vec4 normalTex    = texture(normalSampler, inTexCoord);
   vec4 surfaceColor = uniforms.color;
 
-  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, 1);
-  outNormal   = vec4(inNormal,1);
+  vec3 normal = vec3(mix(-1,1,normalTex.r), mix(-1,1,normalTex.g), normalTex.b);
+
+  outAlbedo   = vec4(albedoColor.rgb * uniforms.color.rgb, 1);
+  outNormal   = vec4(TBN * normal.xyz,1);
   outObjectID = PushConstants.objectID;
 }
 |])
@@ -276,9 +284,11 @@ layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
 layout(location = 6) in vec4 inJointIndices;
 layout(location = 7) in vec4 inJointWeights;
+layout(location = 8) in vec4 inTangent;
 
 layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
+layout(location = 8) out mat3 TBN;
 
 void main() {
   mat4 skinMat
@@ -289,13 +299,17 @@ void main() {
 
   vec4 modelPos = skinMat * vec4(inPosition,1.0);
   vec4 worldPosition = uniforms.modelMat * modelPos;
-  vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
+  vec3 worldNormal = normalize(uniforms.normalMat * mat3(skinMat) * inNormal);
+	vec3 worldTangent = normalize(uniforms.normalMat * mat3(skinMat) * inTangent.xyz);
+  vec3 bitangent = -cross(inNormal.xyz, inTangent.xyz) * inTangent.w; // Why negative? No idea... But it works w/ blender exports.
+	vec3 worldBitangent = normalize(uniforms.normalMat * bitangent);
 
   gl_Position = globals.viewProjMat
               * worldPosition;
 
   texCoord = inTexCoord;
   normal   = worldNormal;
+  TBN = mat3(worldTangent, worldBitangent, worldNormal);
 }
 |])
 
@@ -343,18 +357,23 @@ $animatedUniformsDef
 
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
-layout (set = 2, binding = 0) uniform sampler2D texSampler;
+layout(location = 8) in mat3 TBN;
+layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
+layout (set = 2, binding = 1) uniform sampler2D normalSampler;
 
 layout(location = 0) out vec4 outAlbedo;
 layout(location = 1) out vec4 outNormal;
 layout(location = 2) out uint outObjectID;
 
 void main() {
-  vec4 texColor = texture(texSampler, inTexCoord);
+  vec4 albedoColor = texture(albedoSampler, inTexCoord);
+  vec4 normalTex    = texture(normalSampler, inTexCoord);
   vec4 surfaceColor = uniforms.color;
 
-  outAlbedo   = vec4(texColor.rgb * uniforms.color.rgb, 1);
-  outNormal   = vec4(inNormal,1);
+  vec3 normal = vec3(mix(-1,1,normalTex.r), mix(-1,1,normalTex.g), normalTex.b);
+
+  outAlbedo   = vec4(albedoColor.rgb * uniforms.color.rgb, 1);
+  outNormal   = vec4(TBN * normal.xyz,1);
   outObjectID = PushConstants.objectID;
 }
 |])
@@ -476,7 +495,3 @@ void main() {
 }
 
 |])
-
--- withOverlayMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
--- withOverlayMaterial vulkanResources renderConfig globalPDS perDrawLayout
---   = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults overlayVertShader unlitFragShader globalPDS (Just perDrawLayout)
