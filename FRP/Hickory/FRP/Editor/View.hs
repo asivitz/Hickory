@@ -94,7 +94,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
 drawObject :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Maybe a -> Int -> Object -> m ()
 drawObject componentDefs state objId Object {..} = do
   H.xform transform $ do
-    for_ (Map.toList components) \(compName, vals) -> case Map.lookup compName componentDefs of
+    for_ components \(compName, vals) -> case Map.lookup compName componentDefs of
       Just Component {..} -> draw vals state objId
       Nothing -> error $ "Can't find component definition: " ++ compName
 

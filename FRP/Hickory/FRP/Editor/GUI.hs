@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ExplicitNamespaces #-}
@@ -11,21 +12,30 @@ import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderO
 import Control.Monad.Extra (whenM)
 import Data.Bits (zeroBits)
 import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Hickory.FRP.Editor.Types
-import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef)
-import Hickory.FRP.DearImGUIHelpers (myWithWindow)
+import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef, IORef)
+import Hickory.FRP.DearImGUIHelpers (myWithWindow, v3ToTriple, tripleToV3, v2ToTuple, tupleToV2, imVec4ToV4, v4ToImVec4)
 import Data.Functor (void)
 import Control.Monad (when)
-import Data.Text (pack)
-import Data.Foldable (for_, traverse_)
+import Data.Text (pack, unpack)
+import Data.Foldable (for_, traverse_, foldl')
 import Data.List (nub, delete)
 import Data.Functor.Const (Const(..))
 import Data.Maybe (fromMaybe)
 import Data.Traversable (for)
 import Type.Reflection (type (:~~:) (..))
+import Control.Lens (ifor_, itraverse_, set, traversed, preview, to, Lens', Traversal', (&), (.~), (^.), over, ix, _2, Identity (..))
+import Safe (headMay)
+import Data.StateVar (makeStateVar, StateVar)
+import Linear (translation, M44, Epsilon, V3 (..), V4, (!*!), fromQuaternion, m33_to_m44, zero)
+import Hickory.Math (mkScale)
+import Hickory.FRP.Editor.General (setScale, setRotation, matScale, matEuler)
+import Text.Printf (printf)
+import Hickory.Utils.Utils (deleteAt)
 
-drawMainEditorUI :: EditorState -> FilePath -> HashMap Int Object -> HashMap Int Object -> B.Handler Int -> IO ()
-drawMainEditorUI EditorState {..} sceneFile selected objects guiPickObjectID =
+drawMainEditorUI :: FilePath -> HashMap Int Object -> HashMap Int Object -> B.Handler Int -> IO ()
+drawMainEditorUI sceneFile selected objects guiPickObjectID =
   myWithWindow "Editor" do
     withMenuBarOpen do
       withMenuOpen "File" do
@@ -48,58 +58,54 @@ drawMainEditorUI EditorState {..} sceneFile selected objects guiPickObjectID =
       when open do
         treePop
 
-drawObjectEditorUI :: HashMap String (Component m a) -> EditorState -> HashMap Int Object -> IO ()
-drawObjectEditorUI componentDefs EditorState {..} objects = do
-  myWithWindow "Object" do
-    withCollapsingHeaderOpen "Transform" zeroBits do
-      void $ dragFloat3 "Position" posRef 1 1 1
-      void $ dragFloat3 "Scale" scaRef 1 1 1
-      void $ dragFloat3 "Rotation" rotRef 1 1 1
+drawObjectEditorUI :: HashMap String (Component m a) -> IORef (HashMap Int Object) -> [Int] -> IO ()
+drawObjectEditorUI componentDefs objectsRef selectedIds = do
+  objs <- readIORef objectsRef
+  for_ (headMay selectedIds) \representativeId -> do
+    let
+      oneSelected = fromMaybe (error "No such object") $ HashMap.lookup representativeId objs
+      mkVar :: Traversal' Object a -> (a -> b) -> (b -> a -> a) -> b -> StateVar b
+      mkVar l tg ts def = makeStateVar
+                        (fromMaybe def . preview (ix representativeId . l . to tg) <$> readIORef objectsRef)
+                        (modifyIORef' objectsRef . (\v m -> foldl' (\b a -> over (ix a . l) v b) m selectedIds) . ts)
+      mkComponentVar :: forall a b. Attr a => Int -> String -> (a -> b) -> (b -> a) -> StateVar b
+      mkComponentVar i attrName g s = mkVar (#components . ix i . _2 . ix attrName) (g . pullAttrVal) (setAttrVal . s) (g $ defaultAttrVal (mkAttr :: Attribute a))
 
-    readIORef componentsRef >>= traverse_ \comp ->
-      withCollapsingHeaderOpen (pack comp) zeroBits do
-        let Component {..} = fromMaybe (error "Can't find component def") $ Map.lookup comp componentDefs
-        whenM (button "Delete") do
-          modifyIORef' componentsRef (delete comp)
-          for_ attributes \(SomeAttribute _attr (Const attrName)) ->
-            case Map.lookup (comp, attrName) componentData of
-              Nothing -> error "Can't find attribute ref" :: IO ()
-              Just (SomeAttributeRef attr' ref) -> writeIORef ref (toAttrRefType $ defaultAttrVal attr')
-        for_ attributes \(SomeAttribute attr (Const attrName)) ->
-          case Map.lookup (comp, attrName) componentData of
-            Nothing -> error "Can't find attribute ref" :: IO ()
-            Just (SomeAttributeRef attr' ref) -> case eqAttr attr attr' of
-              Just HRefl -> case attr of
-                FloatAttribute  -> void $ dragFloat (pack attrName) ref 1 0 200000
-                IntAttribute    -> void $ dragInt   (pack attrName) ref 1 0 200000
-                StringAttribute -> void $ inputText (pack attrName) ref 30
-                BoolAttribute   -> void $ checkbox (pack attrName) ref
-                V3Attribute     -> void $ dragFloat3 (pack attrName) ref 1 1 1
-                V2Attribute     -> void $ dragFloat2 (pack attrName) ref 1 1 1
-                ColorAttribute  -> void $ colorEdit4 (pack attrName) ref
-              Nothing -> error "Attribute types don't match"
+    myWithWindow "Object" do
+      withCollapsingHeaderOpen "Transform" zeroBits do
+        void $ dragFloat3 "Position" (mkVar (#transform . translation) v3ToTriple (const . tripleToV3) (0,0,0))  1 1 1
+        void $ dragFloat3 "Scale" (mkVar #transform (v3ToTriple . matScale) (setScale . tripleToV3) (0,0,0)) 1 1 1
+        void $ dragFloat3 "Rotation" (mkVar #transform (v3ToTriple . matEuler) (setRotation . tripleToV3) (0,0,0)) 1 1 1
 
-    withComboOpen "AddComponent" "Select" do
-      for_ (Map.keys componentDefs) \name ->
-        selectable (pack name) >>= \case
-          True -> modifyIORef' componentsRef (nub . (++ [name]))
-          False -> pure ()
+      ifor_ oneSelected.components \i (compName, attrVals) -> do
+        withCollapsingHeaderOpen (pack $ printf "[%d] %s" i compName) zeroBits do
+          whenM (button "Delete") do
+            modifyIORef' objectsRef $ \m -> foldl' (\b a -> over (ix a . #components) (`deleteAt` i) b) m selectedIds
+          for_ (HashMap.toList attrVals) \(attrName, sa) -> do
+            () <- case sa of
+              SomeAttribute attr val ->
+                case attr of
+                  FloatAttribute  -> void $ dragFloat (pack attrName) (mkComponentVar i attrName id id) 1 0 200000
+                  IntAttribute    -> void $ dragInt   (pack attrName) (mkComponentVar i attrName id id ) 1 0 200000
+                  StringAttribute -> void $ inputText (pack attrName) (mkComponentVar i attrName pack unpack) 30
+                  BoolAttribute   -> void $ checkbox (pack attrName) (mkComponentVar i attrName id id)
+                  V3Attribute     -> void $ dragFloat3 (pack attrName) (mkComponentVar i attrName v3ToTriple tripleToV3) 1 1 1
+                  V2Attribute     -> void $ dragFloat2 (pack attrName) (mkComponentVar i attrName v2ToTuple tupleToV2) 1 1 1
+                  ColorAttribute  -> void $ colorEdit4 (pack attrName) (mkComponentVar i attrName v4ToImVec4 imVec4ToV4)
+            pure ()
 
-mkEditorState :: HashMap String (Component m a) -> IO EditorState
-mkEditorState componentDefs = do
-  posRef <- newIORef (0,0,0)
-  rotRef <- newIORef (0,0,0)
-  scaRef <- newIORef (0,0,0)
-  colorRef <- newIORef (ImVec4 1 1 1 1)
-  modelRef <- newIORef ""
-  textureRef <- newIORef ""
-  litRef <- newIORef False
-  castsShadowRef <- newIORef False
-  blendRef <- newIORef False
-  specularityRef <- newIORef 8
-  componentsRef <- newIORef []
-  componentData <- Map.fromList . concat <$> for (Map.toList componentDefs) \(name, Component{..}) ->
-    for attributes \(SomeAttribute attr (Const attrName)) ->
-      (\x -> ((name, attrName), SomeAttributeRef attr x)) <$> newIORef (toAttrRefType $ defaultAttrVal attr)
+      withComboOpen "AddComponent" "Select" do
+        for_ (Map.toList componentDefs) \(name, def) ->
+          selectable (pack name) >>= \case
+            True -> modifyIORef' objectsRef $ \m -> foldl' (\b a -> over (ix a . #components) (++ [(name, mkDefaultComponent def.attributes)]) b) m selectedIds
+            False -> pure ()
+  where
+  -- Look up the value for an attribute
+  pullAttrVal :: forall a. Attr a => SomeAttribute Identity -> a
+  pullAttrVal = \case
+    SomeAttribute attr (Identity v) -> case eqAttr attr (mkAttr :: Attribute a) of
+      Just HRefl -> v
+      Nothing -> error "Wrong type for attribute"
 
-  pure EditorState {..}
+  setAttrVal :: forall a. Attr a => a -> SomeAttribute Identity -> SomeAttribute Identity
+  setAttrVal = setSomeAttribute . Identity

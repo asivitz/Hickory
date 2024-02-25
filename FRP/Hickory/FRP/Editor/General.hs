@@ -2,29 +2,14 @@ module Hickory.FRP.Editor.General where
 
 import qualified Reactive.Banana as B
 import Hickory.FRP.CoreEvents (CoreEvents (..))
-import Hickory.Math (Scalar)
-import Linear (M44, column, V3 (..), V2 (..), V4 (..), norm, _x, _y, _z)
+import Hickory.Math (Scalar, mkScale)
+import Linear (M44, column, V3 (..), V2 (..), V4 (..), norm, _x, _y, _z, Epsilon (..))
 import Data.IORef (IORef, readIORef, writeIORef, newIORef)
-import Hickory.FRP.Editor.Types (EditorChange(..))
-import Control.Lens ((^.))
+import Control.Lens ((^.), (&))
+import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero, (^/), _xyz)
+import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just, sumOf, _2)
 
 -- Move this into better general use modules
-
-refChangeEvent :: (Eq a) => IORef a -> IO (EditorChange a)
-refChangeEvent ref = do
-  lastRef <- readIORef ref >>= newIORef
-  let check = do
-        cur <- readIORef ref
-        lst <- readIORef lastRef
-        pure $
-          if cur /= lst
-          then Just cur
-          else Nothing
-      set x = do
-        writeIORef ref x
-        writeIORef lastRef x
-
-  pure $ EditorChange check set
 
 matScale :: Floating a => M44 a -> V3 a
 matScale m = V3 (norm $ m ^. column _x) (norm $ m ^. column _y) (norm $ m ^. column _z)
@@ -52,3 +37,15 @@ matEuler m =
 mkCursorLoc :: B.MonadMoment m => CoreEvents a -> m (B.Behavior (V2 Scalar))
 mkCursorLoc coreEvents =
   B.accumB (V2 0 0) (const . fst . head <$> B.filterE (not . null) (eTouchesLoc coreEvents))
+
+setScale :: (Floating a, Epsilon a) => V3 a -> M44 a -> M44 a
+setScale v m = m & column _x %~ (^* (v ^. _x)) . normalize . (\x -> if nearZero x then unit _x else x)
+                 & column _y %~ (^* (v ^. _y)) . normalize . (\x -> if nearZero x then unit _y else x)
+                 & column _z %~ (^* (v ^. _z)) . normalize . (\x -> if nearZero x then unit _z else x)
+
+setRotation :: (RealFloat a, Epsilon a) => V3 a -> M44 a -> V4 (V4 a)
+setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (matScale m)) & translation .~ (m ^. translation)
+  where
+  quat = axisAngle (V3 0 0 1) rz
+       * axisAngle (V3 0 1 0) ry
+       * axisAngle (V3 1 0 0) rx

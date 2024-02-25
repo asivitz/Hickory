@@ -43,6 +43,7 @@ dependencies:
     - vector
     - safe
     - bitwise-enum
+    - StateVar
 
 library:
   verbatim:

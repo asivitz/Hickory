@@ -6,6 +6,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Hickory.FRP.Editor.Types where
 
@@ -13,7 +14,7 @@ import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..))
 import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)
 import GHC.Generics (Generic)
-import Control.Lens (traversed, toListOf)
+import Control.Lens (traversed, toListOf, (<&>))
 import Hickory.Math (Scalar)
 import Data.Text (Text, pack, unpack)
 import Data.Generics.Labels ()
@@ -39,8 +40,8 @@ data ObjectManipMode = OTranslate | OScale | ORotate
 
 data Object = Object
   { transform   :: M44 Scalar
-  -- Indexed by component name and then attribute name
-  , components  :: HashMap String (HashMap String (SomeAttribute Identity))
+  -- List of component names and attribute maps
+  , components  :: [(String, HashMap String (SomeAttribute Identity))]
   } deriving (Generic, Show, Read)
 
 data Component m a = Component
@@ -146,6 +147,12 @@ withAttrVal attrs name f = case Map.lookup name attrs of
     Just HRefl -> f v
     Nothing -> error "Wrong type for attribute"
   Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
+
+pullAttrValMay :: forall a. Attr a => SomeAttribute Identity -> Maybe a
+pullAttrValMay = \case
+  SomeAttribute attr (Identity v) -> case eqAttr attr (mkAttr :: Attribute a) of
+    Just HRefl -> Just v
+    Nothing -> Nothing
 
 setSomeAttribute :: forall f a. Attr a => f a -> SomeAttribute f -> SomeAttribute f
 setSomeAttribute newV (SomeAttribute attr _) = case eqAttr attr (mkAttr :: Attribute a) of
@@ -293,51 +300,12 @@ fromAttrRefType a = case mkAttr :: Attribute a of
   BoolAttribute   -> a
   ColorAttribute  -> imVec4ToV4 a
 
-data EditorState = EditorState
-  { posRef         :: IORef (Float, Float, Float)
-  , rotRef         :: IORef (Float, Float, Float)
-  , scaRef         :: IORef (Float, Float, Float)
-  , colorRef       :: IORef ImVec4
-  , modelRef       :: IORef Text
-  , textureRef     :: IORef Text
-  , litRef         :: IORef Bool
-  , castsShadowRef :: IORef Bool
-  , blendRef       :: IORef Bool
-  , specularityRef :: IORef Scalar
-  , componentsRef  :: IORef [String]
-  , componentData  :: HashMap (String,String) SomeAttributeRef
-  }
-
--- Event when the attribute val changes, and a way to push val changes
--- without firing an event
-data EditorChange a = EditorChange
-  { ev     :: IO (Maybe a)
-  , setVal :: a -> IO ()
-  }
-
-bimapEditorChange :: (a -> b) -> ((a -> IO ()) -> b -> IO ())
-  -> EditorChange a
-  -> EditorChange b
-bimapEditorChange f g EditorChange {..} =
-  EditorChange { ev = fmap f <$> ev, setVal = g setVal }
-
-data EditorChangeEvents = EditorChangeEvents
-  { posChange         :: EditorChange (V3 Scalar)
-  , scaChange         :: EditorChange (V3 Scalar)
-  , rotChange         :: EditorChange (V3 Scalar)
-  , colorChange       :: EditorChange (V4 Scalar)
-  , modelChange       :: EditorChange String
-  , textureChange     :: EditorChange String
-  , litChange         :: EditorChange Bool
-  , castsShadowChange :: EditorChange Bool
-  , blendChange       :: EditorChange Bool
-  , specularityChange :: EditorChange Scalar
-  , componentsChange  :: EditorChange [String]
-  , componentChanges  :: HashMap (String, String) (SomeAttribute EditorChange)
-  }
-
 avg :: [V3 Scalar] -> V3 Scalar
 avg vs = sum vs ^/ (fromIntegral $ length vs)
 
 avgObjTranslation :: Traversable t => t Object -> V3 Scalar
 avgObjTranslation objs = avg $ toListOf (traversed . #transform . translation) objs
+
+mkDefaultComponent :: [SomeAttribute (Const String)] -> HashMap String (SomeAttribute Identity)
+mkDefaultComponent xs = Map.fromList $ xs <&> \case
+  SomeAttribute attr (Const name) -> (name, SomeAttribute attr (Identity $ defaultAttrVal attr))
