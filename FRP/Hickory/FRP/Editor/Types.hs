@@ -42,6 +42,7 @@ data Object = Object
   { transform   :: M44 Scalar
   -- List of component names and attribute maps
   , components  :: [(String, HashMap String (SomeAttribute Identity))]
+  , baseObj :: Maybe Int
   } deriving (Generic, Show, Read)
 
 data Component m a = Component

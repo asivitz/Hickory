@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, OverloadedRecordDot #-}
 
 module Hickory.FRP.Editor.View where
 
@@ -73,7 +73,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
 
   do
     for_ (Map.toList objects) \(k, o) -> do
-      drawObject componentDefs Nothing k o
+      drawObject componentDefs objects Nothing k o
 
   where
   snapVec by = fmap (snap by)
@@ -91,11 +91,17 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
     --   , specularity = 0
     --   }
 
-drawObject :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Maybe a -> Int -> Object -> m ()
-drawObject componentDefs state objId Object {..} = do
-  H.xform transform $ do
-    for_ components \(compName, vals) -> case Map.lookup compName componentDefs of
-      Just Component {..} -> draw vals state objId
+drawObject :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> HashMap Int Object -> Maybe a -> Int -> Object -> m ()
+drawObject componentDefs objects state objectId object = do
+  H.xform object.transform do
+    doDraw object
+  where
+  doDraw obj = do
+    for_ obj.baseObj \baseId -> do
+      for_ (Map.lookup baseId objects) \base -> do
+        doDraw base
+    for_ obj.components \(compName, vals) -> case Map.lookup compName componentDefs of
+      Just Component {..} -> draw vals state objectId
       Nothing -> error $ "Can't find component definition: " ++ compName
 
 editorOverlayView :: (ResourcesMonad m, CommandMonad m) => H.MaterialConfig H.StaticConstants -> Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()

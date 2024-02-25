@@ -230,11 +230,14 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
 
       let selectedObjects :: HashMap Int Object = Map.filterWithKey (\k _ -> k `elem` st.selectedObjectIDs) objects
 
-      let defaultObject = Object (mkTransformationMat identity focusPos) mempty
+      let defaultObject = Object (mkTransformationMat identity focusPos) mempty Nothing
           eAddObj = whenE (keyPressed Key'A) $ Just (nextObjId objects, defaultObject)
           eDupeObjs = whenE (keyHeld Key'LeftShift && keyPressed Key'D) $ Just $ recalcIds objects selectedObjects
           nextObjId m = fromMaybe 0 (maximumMay (Map.keys m)) + 1
-          recalcIds objs forObjs = Map.fromList $ zip [nextObjId objs..] (Map.elems forObjs)
+          recalcIds objs forObjs = Map.fromList $ zip [nextObjId objs..] (Map.toList forObjs <&> \(i,o) -> o { baseObj = Just $ topParent i, components = mempty})
+          topParent k = case HashMap.lookup k objects of
+            Just Object {..} -> maybe k topParent baseObj
+            Nothing -> k
           eDeleteObjs = whenE (keyPressed Key'X) $ Just ()
 
       (manipMode, eManipObjects) <- stepObjManip size renderInputFrame camera selectedObjects eDupeObjs

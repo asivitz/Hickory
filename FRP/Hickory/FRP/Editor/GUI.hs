@@ -8,9 +8,9 @@ module Hickory.FRP.Editor.GUI where
 
 import qualified Reactive.Banana.Frameworks as B
 import qualified Data.HashMap.Strict as Map
-import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, ImVec4 (..), checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2)
+import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, ImVec4 (..), checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2, pattern ImGuiTreeNodeFlags_Leaf)
 import Control.Monad.Extra (whenM)
-import Data.Bits (zeroBits)
+import Data.Bits (zeroBits, (.|.))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Hickory.FRP.Editor.Types
@@ -22,7 +22,7 @@ import Data.Text (pack, unpack)
 import Data.Foldable (for_, traverse_, foldl')
 import Data.List (nub, delete)
 import Data.Functor.Const (Const(..))
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes, mapMaybe, isNothing)
 import Data.Traversable (for)
 import Type.Reflection (type (:~~:) (..))
 import Control.Lens (ifor_, itraverse_, set, traversed, preview, to, Lens', Traversal', (&), (.~), (^.), over, ix, _2, Identity (..))
@@ -42,8 +42,13 @@ drawMainEditorUI sceneFile selected objects guiPickObjectID =
         whenM (menuItem "Save Scene") do
           writeFile sceneFile (show objects)
 
-    for_ (Map.toList objects) \(k, Object {}) -> do
-      open <- treeNodeWith (pack $ show k) (if Map.member k selected then ImGuiTreeNodeFlags_Selected else zeroBits)
+    let parented = HashMap.fromListWith (++) . mapMaybe (\(k,v) -> (,[k]) <$> v.baseObj) . HashMap.toList $ objects
+
+    for_ (Map.toList objects) \(k, Object {baseObj}) -> when (isNothing baseObj || not (HashMap.member (fromMaybe (-1) baseObj) objects) ) do
+      let children = fromMaybe [] $ HashMap.lookup k parented
+      open <- treeNodeWith (pack $ show k)
+        $   (if Map.member k selected then ImGuiTreeNodeFlags_Selected else zeroBits)
+        .|. (if null children then ImGuiTreeNodeFlags_Leaf else zeroBits)
 
       whenM isItemClicked do
         guiPickObjectID k
@@ -56,6 +61,15 @@ drawMainEditorUI sceneFile selected objects guiPickObjectID =
         _ <- setDragDropPayload "obj" k
         pure ()
       when open do
+        for_ children \childId -> do
+          childOpen <- treeNodeWith (pack $ show childId) (ImGuiTreeNodeFlags_Leaf .|. if Map.member childId selected then ImGuiTreeNodeFlags_Selected else zeroBits)
+
+          whenM isItemClicked do
+            guiPickObjectID childId
+
+          when childOpen do
+            treePop
+
         treePop
 
 drawObjectEditorUI :: HashMap String (Component m a) -> IORef (HashMap Int Object) -> [Int] -> IO ()
@@ -63,7 +77,7 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
   objs <- readIORef objectsRef
   for_ (headMay selectedIds) \representativeId -> do
     let
-      oneSelected = fromMaybe (error "No such object") $ HashMap.lookup representativeId objs
+      oneSelected = HashMap.lookup representativeId objs
       mkVar :: Traversal' Object a -> (a -> b) -> (b -> a -> a) -> b -> StateVar b
       mkVar l tg ts def = makeStateVar
                         (fromMaybe def . preview (ix representativeId . l . to tg) <$> readIORef objectsRef)
@@ -77,7 +91,7 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
         void $ dragFloat3 "Scale" (mkVar #transform (v3ToTriple . matScale) (setScale . tripleToV3) (0,0,0)) 1 1 1
         void $ dragFloat3 "Rotation" (mkVar #transform (v3ToTriple . matEuler) (setRotation . tripleToV3) (0,0,0)) 1 1 1
 
-      ifor_ oneSelected.components \i (compName, attrVals) -> do
+      ifor_ (maybe [] (.components) oneSelected) \i (compName, attrVals) -> do
         withCollapsingHeaderOpen (pack $ printf "[%d] %s" i compName) zeroBits do
           whenM (button "Delete") do
             modifyIORef' objectsRef $ \m -> foldl' (\b a -> over (ix a . #components) (`deleteAt` i) b) m selectedIds
