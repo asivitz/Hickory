@@ -596,7 +596,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       , numOverlayDraws = length overlayDrawCommands
       , numGBuffer = length gbufDrawCommands
       , numGBufferPostCull = sum $ length <$> culledGBufGCsGroupedByMaterial
-      , numCastingShadows = length dcsCastingShadows
+      , numCastingShadows = sum $ length <$> dcsCastingShadows
       , numPerCascade = dcsPerCascade <&> sum . fmap length
       , numDirect = length directWorldDrawCommands
       }
