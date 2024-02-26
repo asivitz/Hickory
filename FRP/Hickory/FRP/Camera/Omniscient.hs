@@ -98,8 +98,8 @@ omniscientCamera = do
           Just ((start, _, ((zang,ele),_)), v) ->
             let V2 vx vy = v - start
             in if mode == Rotate
-                  && ( abs vx > 0.5
-                      && abs vy > 0.5)
+                  && ( abs vx > 0.25
+                      && abs vy > 0.25)
                 then Just (zang - vx / 100, ele - vy / 100)
                 else Nothing
           Nothing -> Nothing

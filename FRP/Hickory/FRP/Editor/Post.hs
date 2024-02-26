@@ -13,7 +13,7 @@ import DearImGui
       colorEdit3, ImVec2 (..), ImVec4 (..), image )
 import Data.IORef ( IORef, readIORef, newIORef )
 import GHC.Generics (Generic)
-import Hickory.FRP.DearImGUIHelpers (imVec3ToV3, tripleToV3, v3ToImVec3, v3ToTriple, myWithWindow)
+import Hickory.DearImGUIHelpers (imVec3ToV3, tripleToV3, v3ToImVec3, v3ToTriple, myWithWindow)
 import Control.Monad.Extra (whenM)
 import Hickory.Math (Scalar)
 import Linear (V3 (..))

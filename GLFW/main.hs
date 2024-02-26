@@ -8,6 +8,7 @@ import Vulkan
   , SamplerAddressMode(..)
   )
 
+import Control.Monad (void)
 import Platforms.GLFW.Vulkan
 import Hickory.Vulkan.Vulkan
 import qualified Hickory.Vulkan.DescriptorSet as H
@@ -109,4 +110,4 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           , clearColor = V4 0 0 0 1
           , highlightObjs = []
           }
-    H.renderToRenderer fc renderer settings litF overlayF
+    void $ H.renderToRenderer fc renderer settings litF overlayF

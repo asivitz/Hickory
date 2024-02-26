@@ -71,6 +71,7 @@ dependencies:
     - safe
     - ghc-compact
     - wide-word
+    - dear-imgui
 
 when:
     - condition: os(osx)
@@ -150,7 +151,9 @@ library:
     - Hickory.Vulkan.Renderer.ShadowPass
     - Hickory.Vulkan.Renderer.DrawingPrimitives
     - Hickory.Vulkan.Renderer.ShaderDefinitions
+    - Hickory.Vulkan.Renderer.Stats
     - Hickory.Vulkan.Types
+    - Hickory.DearImGUIHelpers
 
 executables:
   pack-model:

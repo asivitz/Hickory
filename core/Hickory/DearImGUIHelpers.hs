@@ -1,4 +1,4 @@
-module Hickory.FRP.DearImGUIHelpers where
+module Hickory.DearImGUIHelpers where
 
 import DearImGui
 import qualified DearImGui.Raw as Raw

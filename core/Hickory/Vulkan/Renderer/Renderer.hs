@@ -20,7 +20,7 @@ import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), CullModeFlagBits)
 import Foreign (Storable, plusPtr, sizeOf, poke)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
-import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?), over)
+import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?), over, ifor_)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend)
 import Data.List (partition, sortOn, mapAccumL)
@@ -65,6 +65,8 @@ import Hickory.Vulkan.Textures (transitionImageLayout)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (buildDirectVertShader)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (buildOverlayVertShader)
+import Hickory.Vulkan.Renderer.Stats (Stats (..))
+import Data.Functor ((<&>))
 
 withRendererMaterial
   :: forall a. Storable a
@@ -269,6 +271,20 @@ isPointWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} 
   h = zInCamSpace * 2 * tan (fov / 2)
   w = ratio * h
 
+frustumSphereIntersection :: M44 Scalar -> V3 Scalar -> Scalar -> Bool
+frustumSphereIntersection viewProjMat center radius =
+  not $ any (\plane -> center `dot` plane.xyz + plane.w < -radius) planes
+  where
+  planes = normalizePlane <$> [left, right, bottom, top, near, far] :: [V4 Scalar]
+  V4 r1 r2 r3 r4 = viewProjMat
+  left   = r4 + r1
+  right  = r4 - r1
+  bottom = r4 + r2
+  top    = r4 - r2
+  near   = r4 + r3
+  far    = r4 - r3
+  normalizePlane (V4 x y z w) = let len = norm (V3 x y z) in V4 (x/len) (y/len) (z/len) (w/len)
+
 isSphereWithinCameraFrustum :: Scalar -> Camera -> V3 Scalar -> Scalar -> Bool
 isSphereWithinCameraFrustum _ Camera {projection = Ortho {}} = \_ _ -> True -- Ortho culling not yet implemented
 isSphereWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} = \p radius ->
@@ -400,7 +416,7 @@ boundingSphere DrawCommand {..} = (center, norm (max' - center))
     Buffered m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
   center = glerp 0.5 min' max'
 
-renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m ()
+renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m Stats
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame swapchainImageIndex dynamicMesh) do
     let WorldSettings {..} = worldSettings
@@ -417,7 +433,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
-        testSphereInCameraFrustum = isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
+        testSphereInCameraFrustum = frustumSphereIntersection viewProjMat -- isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
         testSphereInShadowFrustum = sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView shadowRenderConfig.extent lightOrigin lightDirection lightUp
         inWorldCull cdc      = not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc)
         worldCullTest        = inWorldCull
@@ -517,9 +533,12 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         directOverlayDrawCommandsWithUniformIdx = map (over _1 (fromMaybe (error "Can't find uniform index") . (`HashMap.lookup` directDCIdsToUniformIdx))) directOverlayDrawCommandsTagged
 
     -- Stage 1 Shadows
-    for_ ([0..maxShadowCascades-1] :: [Word32]) \i ->
+    let dcsCastingShadows = filter ((.doCastShadow) . snd) <$> gbufDCsGroupedByMaterial
+        dcsPerCascade = VS.toList lightViewProjs <&> \lightViewProj ->
+          dcsCastingShadows <&> filter (\(_,dc) -> not dc.cull || uncurry (frustumSphereIntersection lightViewProj) (boundingSphere dc))
+    ifor_ dcsPerCascade \(fromIntegral -> i) dcs ->
       useRenderConfig shadowRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex (fst . (`VS.unsafeIndex` fromIntegral i) . fst <$> cascadedShadowMap) do
-        processDrawCommandShadows frameContext (filter (shadowCullTest . snd) <$> gbufDCsGroupedByMaterial) i
+        processDrawCommandShadows frameContext dcs i
 
     -- Stage 2 Current Selection
     useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
@@ -527,13 +546,14 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
 
     -- Stage 3 GBuffer
     let V4 r g b a = clearColor
+        culledGBufGCsGroupedByMaterial = filter (worldCullTest . snd) <$> gbufDCsGroupedByMaterial
     useRenderConfig gbufferRenderConfig commandBuffer
       [ Color (Float32 r g b a)
       , Color (Float32 1 1 1 1)
       , Color (Uint32 0 0 0 0)
       , DepthStencil (ClearDepthStencilValue 1 0)
       ] swapchainImageIndex (fst <$> gbufferRenderFrame) do
-      processDrawCommandGBuffer frameContext (filter (worldCullTest . snd) <$> gbufDCsGroupedByMaterial)
+      processDrawCommandGBuffer frameContext culledGBufGCsGroupedByMaterial
 
     -- Stage 4 Decals (TODO)
     -- Stage 5 Lighting
@@ -570,6 +590,16 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
 
     -- Make object picking texture available for reading
     liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame swapchainImageIndex objectPickingImageBuffer)
+
+    pure Stats
+      { numLitDraws     = length worldDrawCommands
+      , numOverlayDraws = length overlayDrawCommands
+      , numGBuffer = length gbufDrawCommands
+      , numGBufferPostCull = sum $ length <$> culledGBufGCsGroupedByMaterial
+      , numCastingShadows = length dcsCastingShadows
+      , numPerCascade = dcsPerCascade <&> sum . fmap length
+      , numDirect = length directWorldDrawCommands
+      }
 
 bindMaterialIfNeeded :: (MonadState UUID m, MonadIO m) => FrameContext -> Material Word32 -> m ()
 bindMaterialIfNeeded fc material = do

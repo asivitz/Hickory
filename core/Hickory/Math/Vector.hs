@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
 
 module Hickory.Math.Vector
   ( v2tov3
@@ -38,6 +39,10 @@ import Linear.Vector
 import Linear.Epsilon
 import Linear.Metric
 import Data.Foldable (toList)
+import GHC.Records (HasField(..))
+import Data.Generics.Product (field, getField, position, setField)
+import Data.Generics.Sum (_Ctor)
+import Data.Generics.Labels
 
 type Vector v a = (Metric v, Epsilon (v a), Additive v, Floating a, Real a, RealFloat a)
 
@@ -170,3 +175,16 @@ angleMinus a b = (if a < b then a + 2 * pi else a) - b
 
 v2ortho :: Num a => V2 a -> V2 a
 v2ortho (V2 x y) = V2 y (-x)
+
+instance HasField "x" (V2 a) a where getField (V2 x y) = x
+instance HasField "y" (V2 a) a where getField (V2 x y) = y
+instance HasField "x" (V3 a) a where getField (V3 x y z) = x
+instance HasField "y" (V3 a) a where getField (V3 x y z) = y
+instance HasField "z" (V3 a) a where getField (V3 x y z) = z
+instance HasField "xy" (V3 a) (V2 a) where getField (V3 x y z) = V2 x y
+instance HasField "x" (V4 a) a where getField (V4 x y z w) = x
+instance HasField "y" (V4 a) a where getField (V4 x y z w) = y
+instance HasField "z" (V4 a) a where getField (V4 x y z w) = z
+instance HasField "w" (V4 a) a where getField (V4 x y z w) = w
+instance HasField "xy" (V4 a) (V2 a) where getField (V4 x y z w) = V2 x y
+instance HasField "xyz" (V4 a) (V3 a) where getField (V4 x y z w) = V3 x y z

@@ -9,13 +9,13 @@ module Hickory.FRP.Editor.GUI where
 import qualified Reactive.Banana.Frameworks as B
 import qualified Data.HashMap.Strict as Map
 import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, ImVec4 (..), checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2, pattern ImGuiTreeNodeFlags_Leaf)
+import Hickory.DearImGUIHelpers (myWithWindow, v3ToTriple, tripleToV3, v2ToTuple, tupleToV2, imVec4ToV4, v4ToImVec4)
 import Control.Monad.Extra (whenM)
 import Data.Bits (zeroBits, (.|.))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Hickory.FRP.Editor.Types
 import Data.IORef (newIORef, modifyIORef', readIORef, writeIORef, IORef)
-import Hickory.FRP.DearImGUIHelpers (myWithWindow, v3ToTriple, tripleToV3, v2ToTuple, tupleToV2, imVec4ToV4, v4ToImVec4)
 import Data.Functor (void)
 import Control.Monad (when)
 import Data.Text (pack, unpack)

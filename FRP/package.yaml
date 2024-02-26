@@ -58,4 +58,3 @@ library:
     - Hickory.FRP
     - Hickory.FRP.Editor
     - Hickory.FRP.Camera
-    - Hickory.FRP.DearImGUIHelpers

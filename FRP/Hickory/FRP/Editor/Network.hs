@@ -14,7 +14,7 @@ import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransfo
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Renderer.Renderer (renderToRenderer, pickObjectID)
-import Hickory.FRP.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
+import Hickory.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
 import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just, sumOf, _2)
 import Data.HashMap.Strict (HashMap, traverseWithKey)
 import Hickory.FRP.Editor.Types
@@ -279,7 +279,7 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
           overlayRender :: Writer [DrawCommand] ()
           overlayRender = runResources res $ editorOverlayView renderer.staticDirectMaterialConfig size camera cursorLoc selectedObjects (fst <$> manipMode)
 
-      renderToRenderer frameContext renderer (renderSettings size graphicsParams (V4 0.07 0.07 0.07 1) camera st.selectedObjectIDs)
+      void $ renderToRenderer frameContext renderer (renderSettings size graphicsParams (V4 0.07 0.07 0.07 1) camera st.selectedObjectIDs)
         worldRender
         overlayRender
 

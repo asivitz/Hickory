@@ -131,7 +131,7 @@ loadResources path vulkanResources = do
 -- Our render function
 renderGame :: (MonadIO m) => Resources -> Model -> Size Int -> (H.Renderer, H.FrameContext) -> m ()
 renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, frameContext)
-  = H.renderToRenderer frameContext renderer renderSettings litF overlayF
+  = void $ H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
   vm = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
   pm = shotMatrix (Ortho (realToFrac w) 1 100 False) (aspectRatio scrSize)
