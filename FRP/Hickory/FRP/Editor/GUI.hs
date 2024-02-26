@@ -25,7 +25,7 @@ import Data.Functor.Const (Const(..))
 import Data.Maybe (fromMaybe, catMaybes, mapMaybe, isNothing)
 import Data.Traversable (for)
 import Type.Reflection (type (:~~:) (..))
-import Control.Lens (ifor_, itraverse_, set, traversed, preview, to, Lens', Traversal', (&), (.~), (^.), over, ix, _2, Identity (..))
+import Control.Lens (ifor_, itraverse_, set, traversed, preview, to, Lens', Traversal', (&), (.~), (^.), over, ix, _2, Identity (..), at)
 import Safe (headMay)
 import Data.StateVar (makeStateVar, StateVar)
 import Linear (translation, M44, Epsilon, V3 (..), V4, (!*!), fromQuaternion, m33_to_m44, zero)
@@ -83,7 +83,10 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
                         (fromMaybe def . preview (ix representativeId . l . to tg) <$> readIORef objectsRef)
                         (modifyIORef' objectsRef . (\v m -> foldl' (\b a -> over (ix a . l) v b) m selectedIds) . ts)
       mkComponentVar :: forall a b. Attr a => Int -> String -> (a -> b) -> (b -> a) -> StateVar b
-      mkComponentVar i attrName g s = mkVar (#components . ix i . _2 . ix attrName) (g . pullAttrVal) (setAttrVal . s) (g $ defaultAttrVal (mkAttr :: Attribute a))
+      mkComponentVar i attrName g s = mkVar (#components . ix i . _2 . at attrName)
+                                            (g . maybe (defaultAttrVal (mkAttr :: Attribute a)) pullAttrVal)
+                                            (const . Just . SomeAttribute (mkAttr :: Attribute a) . Identity . s)
+                                            (g $ defaultAttrVal (mkAttr :: Attribute a))
 
     myWithWindow "Object" do
       withCollapsingHeaderOpen "Transform" zeroBits do
@@ -91,14 +94,15 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
         void $ dragFloat3 "Scale" (mkVar #transform (v3ToTriple . matScale) (setScale . tripleToV3) (0,0,0)) 1 1 1
         void $ dragFloat3 "Rotation" (mkVar #transform (v3ToTriple . matEuler) (setRotation . tripleToV3) (0,0,0)) 1 1 1
 
-      ifor_ (maybe [] (.components) oneSelected) \i (compName, attrVals) -> do
+      ifor_ (maybe [] (.components) oneSelected) \i (compName, _attrVals) -> do
         withCollapsingHeaderOpen (pack $ printf "[%d] %s" i compName) zeroBits do
           whenM (button "Delete") do
             modifyIORef' objectsRef $ \m -> foldl' (\b a -> over (ix a . #components) (`deleteAt` i) b) m selectedIds
-          for_ (HashMap.toList attrVals) \(attrName, sa) -> do
-            () <- case sa of
-              SomeAttribute attr val ->
-                case attr of
+          let compDef = HashMap.lookup compName componentDefs
+          for_ (maybe [] (.attributes) compDef) \defSa -> do
+            case defSa of
+              SomeAttribute attr (Const attrName) -> do
+                () <- case attr of
                   FloatAttribute  -> void $ dragFloat (pack attrName) (mkComponentVar i attrName id id) 1 0 200000
                   IntAttribute    -> void $ dragInt   (pack attrName) (mkComponentVar i attrName id id ) 1 0 200000
                   StringAttribute -> void $ inputText (pack attrName) (mkComponentVar i attrName pack unpack) 30
@@ -106,7 +110,7 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
                   V3Attribute     -> void $ dragFloat3 (pack attrName) (mkComponentVar i attrName v3ToTriple tripleToV3) 1 1 1
                   V2Attribute     -> void $ dragFloat2 (pack attrName) (mkComponentVar i attrName v2ToTuple tupleToV2) 1 1 1
                   ColorAttribute  -> void $ colorEdit4 (pack attrName) (mkComponentVar i attrName v4ToImVec4 imVec4ToV4)
-            pure ()
+                pure ()
 
       withComboOpen "AddComponent" "Select" do
         for_ (Map.toList componentDefs) \(name, def) ->

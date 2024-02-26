@@ -327,7 +327,6 @@ layout(location = 6) in vec4 inJointIndices;
 layout(location = 7) in vec4 inJointWeights;
 
 layout(location = 0) out vec2 texCoord;
-layout(location = 1) out vec3 normal;
 
 void main() {
   mat4 skinMat
@@ -338,13 +337,11 @@ void main() {
 
   vec4 modelPos = skinMat * vec4(inPosition,1.0);
   vec4 worldPosition = uniforms.modelMat * modelPos;
-  vec3 worldNormal = normalize(uniforms.normalMat * inNormal);
 
   gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
               * worldPosition;
 
   texCoord = inTexCoord;
-  normal   = worldNormal;
 }
 |])
 
