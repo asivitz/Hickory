@@ -21,6 +21,7 @@ import Linear.Metric
 import Acquire.Acquire (Acquire)
 import Control.Lens ((^.))
 import Foreign (poke)
+import Control.Monad (void)
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
@@ -154,7 +155,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
     for_ missiles \(pos, _) -> do
       let mat = mkTranslation pos !*! mkScale (V2 5 5)
       H.addCommand $ DrawCommand
-        { modelMat = mat
+        { transforms = [mat]
         , mesh = H.Buffered square
         , pokeData = flip poke $ H.StaticConstants
             { modelMat    = mat
@@ -168,13 +169,12 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
         , doCastShadow = False
         , doBlend = True
         , descriptorSet = Just circleTex
-        , instanceCount = 1
         , materialConfig = renderer.staticDirectMaterialConfig
         }
 
     let mat = mkTranslation playerPos !*! mkScale (V2 10 10)
     H.addCommand $ DrawCommand
-      { modelMat = mat
+      { transforms = [mat]
       , mesh = H.Buffered square
       , pokeData = flip poke $ H.StaticConstants
           { modelMat    = mat
@@ -188,7 +188,6 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
       , doCastShadow = False
       , doBlend = False
       , descriptorSet = Just circleTex
-      , instanceCount = 1
       , materialConfig = renderer.staticDirectMaterialConfig
       }
 

@@ -5,7 +5,7 @@ module Hickory.FRP.Editor
   , drawPostUI
   , GraphicsParams(..)
   , Object(..)
-  , drawObject
+  , drawObjects
   , defaultGraphicsParams
   , Component(..)
   , Attribute(..)

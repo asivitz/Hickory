@@ -118,12 +118,13 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
 staticDirectVertShader :: String
 staticDirectVertShader = [qm|
 $pushConstantsDef
-$staticUniformsDef
+$nonInstancedStaticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;
 
 layout(location = 0) out vec2 texCoord;
+layout(location = 2) out vec4 color;
 
 void main() {
   vec4 worldPosition = uniforms.modelMat * vec4(inPosition, 1.0);
@@ -132,6 +133,7 @@ void main() {
               * worldPosition;
 
   texCoord = inTexCoord;
+  color = uniforms.color;
 }
 
 |]
@@ -141,15 +143,15 @@ staticDirectFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 $worldGlobalsDef
 $pushConstantsDef
-$staticUniformsDef
 
 layout(location = 0) in vec2 inTexCoord;
+layout(location = 2) in vec4 inColor;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
 layout(location = 0) out vec4 outColor;
 
 void main() {
   vec4 texColor = texture(texSampler, inTexCoord);
-  outColor   = vec4(texColor * uniforms.color);
+  outColor   = vec4(texColor * inColor);
 }
 |])

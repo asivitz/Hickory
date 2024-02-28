@@ -3,27 +3,27 @@
 
 module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), OverlayGlobals (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..), GBufferMaterialStack(..), DirectMaterial(..), DirectStage (..), MaterialConfig (..), GBufferPushConsts (..))
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedMesh (..), AnimatedConstants (..), Command, MSDFMesh (..), RenderSettings (..), StaticMesh (..), DrawType (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), OverlayGlobals (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), ShadowPushConsts (..), GBufferMaterialStack(..), DirectMaterial(..), DirectStage (..), MaterialConfig (..), GBufferPushConsts (..), MaterialDescriptorSet (..))
 import Hickory.Vulkan.Vulkan ( mkAcquire)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
-import Linear (V4 (..), transpose, inv33, _m33, V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon)
+import Linear (V4 (..), inv33, _m33, V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon)
 import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, withOverlayMSDFMaterial, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, withLineMaterial, withPointMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, unlitFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
+import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, withLineMaterial, withPointMaterial, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, staticUnlitVertShader, overlayVertShader, withGBufferFrameBuffer, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, staticVertShader, whiteFragShader, animatedVertShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), CullModeFlagBits)
-import Foreign (Storable, plusPtr, sizeOf, poke)
+import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?), over, ifor_)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend)
-import Data.List (partition, sortOn, mapAccumL)
+import Data.List (partition, sortOn, mapAccumL, transpose)
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
@@ -40,9 +40,9 @@ import Data.Word (Word32)
 import Data.IORef (modifyIORef, newIORef, readIORef, IORef)
 import Data.UUID (UUID)
 import Control.Monad.State.Class ( MonadState, put, get )
-import Control.Monad.State.Strict (evalStateT)
+import Control.Monad.State.Strict (evalStateT, StateT)
 import qualified Data.UUID as UUID
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust, fromMaybe, mapMaybe)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
 import Hickory.Math (Scalar, orthographicProjection, transformV3, glerp)
 import Data.Fixed (div')
@@ -67,6 +67,7 @@ import Hickory.Vulkan.Renderer.ShaderDefinitions (buildDirectVertShader)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (buildOverlayVertShader)
 import Hickory.Vulkan.Renderer.Stats (Stats (..))
 import Data.Functor ((<&>))
+import Data.Traversable.Compat (mapAccumM)
 
 withRendererMaterial
   :: forall a. Storable a
@@ -80,7 +81,7 @@ withRendererMaterial
   -> [FramedResource PointedDescriptorSet]
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> Acquire (Material a)
-withRendererMaterial vulkanResources renderConfig = withMaterial vulkanResources renderConfig
+withRendererMaterial = withMaterial
 
 withGBufferMaterialStack
   :: forall uniform
@@ -102,7 +103,12 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
   shadowVertShader shadowFragShader
   = GBufferConfig <$> do
   uuid <- liftIO nextRandom
-  descriptor <- frameResource $ withBufferDescriptorSet vulkanResources maxNumDraws
+  descriptor <- frameResource do
+    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    descriptorSet <- withDescriptorSet vulkanResources [BufferDescriptor (buf uniformBuffer), BufferDescriptor (buf instancesBuffer)]
+    pure MaterialDescriptorSet {..}
+
   let uniformSize = sizeOf (undefined :: uniform)
       materialSet = view #descriptorSet <$> descriptor
       materialSets =
@@ -408,14 +414,6 @@ lightProjection viewProjMat lightView shadowMapExtent = orthographicProjection l
   where
   (l', r', b', t', n', f') = viewFrustumBoundaryInLightSpace viewProjMat lightView shadowMapExtent
 
-boundingSphere :: DrawCommand -> (V3 Float, Float)
-boundingSphere DrawCommand {..} = (center, norm (max' - center))
-  where
-  (min', max') = case mesh of
-    Dynamic  m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
-    Buffered m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
-  center = glerp 0.5 min' max'
-
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m Stats
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame swapchainImageIndex dynamicMesh) do
@@ -433,14 +431,9 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
-        testSphereInCameraFrustum = frustumSphereIntersection viewProjMat -- isSphereWithinCameraFrustum (realToFrac w / realToFrac h) camera
-        testSphereInShadowFrustum = sphereWithinCameraFrustumFromLightPerspective viewProjMat lightView shadowRenderConfig.extent lightOrigin lightDirection lightUp
-        inWorldCull cdc      = not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc)
-        worldCullTest        = inWorldCull
-        pickingCullTest cdc  = isJust cdc.hasIdent && (not cdc.cull || uncurry testSphereInCameraFrustum (boundingSphere cdc))
-        shadowCullTest cdc   = cdc.doCastShadow && (not cdc.cull || uncurry testSphereInShadowFrustum (boundingSphere cdc))
+        testSphereInCameraFrustum = frustumSphereIntersection viewProjMat
         overlayCullTest _    = True
-        showSelectionCullTest cdc = isJust cdc.hasIdent && (cdc.hasIdent `elem` fmap Just highlightObjs) && inWorldCull cdc
+        showSelectionCullTest cdc = isJust cdc.hasIdent
 
 
         near = fromMaybe 0 $ camera ^? #projection . #_Perspective . _2
@@ -505,16 +498,63 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         groupHead = fromMaybe (error "empty group") . headMay
 
     -- upload uniforms
+    -- For each DC we have the starting uniform index
     gbufDCsGroupedByMaterial :: [[(Word32, DrawCommand)]] <- for (bucketOn dcMaterialUUID gbufDrawCommands) \group ->
       case groupHead group of
         DrawCommand {materialConfig} -> case materialConfig of
           GBufferConfig material -> do
-            let BufferDescriptorSet { dataBuffer } = resourceForFrame swapchainImageIndex material.descriptor
-                DataBuffer {..} = dataBuffer
+            let MaterialDescriptorSet { uniformBuffer } = resourceForFrame swapchainImageIndex material.descriptor
+                DataBuffer {..} = uniformBuffer
             liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
-              for (zip group [0..]) \(dc@DrawCommand {pokeData}, uniIdx) -> do
-                liftIO $ pokeData (plusPtr bufptr (material.uniformSize * uniIdx))
-                pure (fromIntegral uniIdx, dc)
+              snd <$> (\f -> mapAccumM f 0 group) \startIdx dc@DrawCommand {pokeData, transforms} -> do
+                liftIO $ pokeData (plusPtr bufptr (material.uniformSize * fromIntegral startIdx))
+                pure (startIdx + fromIntegral (length transforms), (startIdx, dc))
+          _ -> error "Non gbuffer draw commands not supported here"
+
+    -- We expand the starting index for each DC into a list of non-culled indices
+    -- Ex. A DC has 10 instances, starting at uniform index 17, but only 4 are left after culling. So we give indices 18, 19, 22, 24
+    -- Of course we repeat this process for the view frustum as well as each cascade
+    -- The front of the list will be the view frustum, followed by the cascades. We keep them together for the next processing step
+    let cascadeTests = VS.toList lightViewProjs <&> uncurry . frustumSphereIntersection
+        culledGbufDCsGroupedByMaterial :: [[([[Word32]], DrawCommand)]]
+        culledGbufDCsGroupedByMaterial =
+          gbufDCsGroupedByMaterial <&> fmap \(startUniformIndex, dc) ->
+            let boundingSpheres = dc.transforms <&> (\t -> meshBoundingSphere t dc.mesh)
+                viewFrustumInstances = flip mapMaybe (zip boundingSpheres [0..]) \(bs, i) ->
+                  if uncurry testSphereInCameraFrustum bs then Just (startUniformIndex + i) else Nothing
+                cascadeInstances = cascadeTests <&> \test ->
+                  flip mapMaybe (zip boundingSpheres [0..]) \(bs, i) ->
+                    if test bs then Just (startUniformIndex + i) else Nothing
+            in (viewFrustumInstances:cascadeInstances, dc)
+        -- For each material, we concat all these instance indices.
+        -- And for each DC, we give the list (one for the frustum + one for each cascade)
+        -- of starting index (which will be a push constant) as well as the length, which will be
+        -- the instance count when we issue the draw command to vulkan
+        instancedGbufDCsGroupedByMaterial =
+          culledGbufDCsGroupedByMaterial <&> \group ->
+            let allIndices = concatMap (concat . fst) group
+            in (allIndices
+               , snd $ (\f -> mapAccumL f 0 group) \startIdx (indices, dc) ->
+                 ( startIdx + sum (map length indices)
+                 , (snd $ mapAccumL (\start is -> (start + length is, (start, length is))) startIdx indices, dc)
+                 )
+               )
+        -- for each stage, we have a material group
+        -- for each material group, we have draw commands paired with instanceStartIdx and numberInstances
+        splitGbufDCsByStage :: [[[((Int, Int), DrawCommand)]]]
+        splitGbufDCsByStage = transpose $ transpose . map (\(instanceInfo, dc) -> zip instanceInfo (repeat dc)) . snd <$> instancedGbufDCsGroupedByMaterial
+        (gbufStageDCs : cascadeDCs) = splitGbufDCsByStage
+
+
+    -- Off y' go to the GPU
+    for_ instancedGbufDCsGroupedByMaterial \(indices, commands) -> do
+      case snd $ groupHead commands of
+        DrawCommand {materialConfig} -> case materialConfig of
+          GBufferConfig material -> do
+            let MaterialDescriptorSet { instancesBuffer } = resourceForFrame swapchainImageIndex material.descriptor
+                DataBuffer {..} = instancesBuffer
+            liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
+              pokeArray (castPtr bufptr) indices
           _ -> error "Non gbuffer draw commands not supported here"
 
     directDCIdsToUniformIdx :: HashMap.HashMap Int Word32 <- HashMap.fromList . concat <$> for allDirectCommandsGrouped \group -> do
@@ -533,27 +573,24 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         directOverlayDrawCommandsWithUniformIdx = map (over _1 (fromMaybe (error "Can't find uniform index") . (`HashMap.lookup` directDCIdsToUniformIdx))) directOverlayDrawCommandsTagged
 
     -- Stage 1 Shadows
-    let dcsCastingShadows = filter ((.doCastShadow) . snd) <$> gbufDCsGroupedByMaterial
-        dcsPerCascade = VS.toList lightViewProjs <&> \lightViewProj ->
-          dcsCastingShadows <&> filter (\(_,dc) -> not dc.cull || uncurry (frustumSphereIntersection lightViewProj) (boundingSphere dc))
-    ifor_ dcsPerCascade \(fromIntegral -> i) dcs ->
+    ifor_ cascadeDCs \(fromIntegral -> i) dcs ->
       useRenderConfig shadowRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex (fst . (`VS.unsafeIndex` fromIntegral i) . fst <$> cascadedShadowMap) do
         processDrawCommandShadows frameContext dcs i
 
     -- Stage 2 Current Selection
     useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
-      processDrawCommandShowSelection frameContext (filter (showSelectionCullTest . snd) <$> gbufDCsGroupedByMaterial)
+      pure ()
+      -- processDrawCommandShowSelection frameContext (filter (showSelectionCullTest . snd) <$> gbufDCsGroupedByMaterial)
 
     -- Stage 3 GBuffer
     let V4 r g b a = clearColor
-        culledGBufGCsGroupedByMaterial = filter (worldCullTest . snd) <$> gbufDCsGroupedByMaterial
     useRenderConfig gbufferRenderConfig commandBuffer
       [ Color (Float32 r g b a)
       , Color (Float32 1 1 1 1)
       , Color (Uint32 0 0 0 0)
       , DepthStencil (ClearDepthStencilValue 1 0)
       ] swapchainImageIndex (fst <$> gbufferRenderFrame) do
-      processDrawCommandGBuffer frameContext culledGBufGCsGroupedByMaterial
+      processDrawCommandGBuffer frameContext gbufStageDCs
 
     -- Stage 4 Decals (TODO)
     -- Stage 5 Lighting
@@ -570,7 +607,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     -- Stage 6 Forward
     useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
       -- Layer in extra direct color commands
-      processDirectUngrouped frameContext (filter (worldCullTest . snd) directWorldDrawCommandsWithUniformIdx) WorldDirect
+      processDirectUngrouped frameContext directWorldDrawCommandsWithUniformIdx WorldDirect
 
       case highlightObjs of
         (_:_) -> do
@@ -595,11 +632,20 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       { numLitDraws     = length worldDrawCommands
       , numOverlayDraws = length overlayDrawCommands
       , numGBuffer = length gbufDrawCommands
-      , numGBufferPostCull = sum $ length <$> culledGBufGCsGroupedByMaterial
-      , numCastingShadows = sum $ length <$> dcsCastingShadows
-      , numPerCascade = dcsPerCascade <&> sum . fmap length
+      , numGBufferInstances = sum $ length . transforms <$> gbufDrawCommands
+      , numGBufferPostCullInstances = sum $ sum . fmap (snd . fst) <$> gbufStageDCs
+      , numCastingShadows = 0 -- TODO sum $ length <$> dcsCastingShadows
+      , numInstancesPerCascade = (\m -> sum $ sum . fmap (snd . fst) <$> m) <$> cascadeDCs
       , numDirect = length directWorldDrawCommands
       }
+
+meshBoundingSphere :: M44 Scalar -> MeshType -> (V3 Float, Float)
+meshBoundingSphere modelMat mesh = (center, norm (max' - center))
+  where
+  (min', max') = case mesh of
+    Dynamic  m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
+    Buffered m -> (transformV3 modelMat m.minPosition, transformV3 modelMat m.maxPosition)
+  center = glerp 0.5 min' max'
 
 bindMaterialIfNeeded :: (MonadState UUID m, MonadIO m) => FrameContext -> Material Word32 -> m ()
 bindMaterialIfNeeded fc material = do
@@ -655,9 +701,8 @@ drawText
   -> m ()
 drawText materialConfig (font, fontTex, sdfPixelRange) mat color outlineColor outlineSize tc =
   addCommand $ DrawCommand
-    { modelMat        = mat
+    { transforms      = [mat]
     , mesh            = Dynamic (textMesh font tc)
-    , instanceCount   = 1
     , materialConfig  = materialConfig
     , doCastShadow    = False
     , doBlend         = True
@@ -680,7 +725,7 @@ pickObjectID FrameContext {..} Renderer{..} = fmap fromIntegral . readPixel (res
 processDrawCommandShadows
   :: (MonadIO m, DynamicMeshMonad m)
   => FrameContext
-  -> [[(Word32, DrawCommand)]]
+  -> [[((Int,Int), DrawCommand)]]
   -> Word32
   -> m ()
 processDrawCommandShadows fc grouped shadowCascadeIndex = do
@@ -689,8 +734,8 @@ processDrawCommandShadows fc grouped shadowCascadeIndex = do
       Just (_, DrawCommand { materialConfig }) -> case materialConfig of
         GBufferConfig GBufferMaterialStack {..} -> do
           cmdBindMaterial fc shadowMaterial
-          for_ group \(i, DrawCommand {mesh, descriptorSet, instanceCount}) -> do
-            renderCommand fc shadowMaterial mesh instanceCount descriptorSet (ShadowPushConsts i shadowCascadeIndex)
+          for_ group \((fromIntegral -> firstInstanceIndex, fromIntegral -> numInstances), DrawCommand {mesh, descriptorSet }) -> do
+            renderCommand fc shadowMaterial mesh numInstances descriptorSet (ShadowPushConsts firstInstanceIndex shadowCascadeIndex)
         _ -> error "Only gbuffer rendering supported here"
       _ -> pure ()
 
@@ -705,15 +750,15 @@ processDrawCommandShowSelection fc grouped = do
       Just (_, DrawCommand { materialConfig }) -> case materialConfig of
         GBufferConfig GBufferMaterialStack {..} -> do
           cmdBindMaterial fc showSelectionMaterial
-          for_ group \(i, DrawCommand {mesh, descriptorSet, instanceCount, hasIdent}) -> do
-            renderCommand fc gbufferMaterial mesh instanceCount descriptorSet (GBufferPushConsts i (fromIntegral $ fromMaybe 0 hasIdent))
+          for_ group \(i, DrawCommand {mesh, descriptorSet, hasIdent}) -> do
+            renderCommand fc gbufferMaterial mesh (error "SHOW SEL NOT IMPLEMENTED") descriptorSet (GBufferPushConsts i (fromIntegral $ fromMaybe 0 hasIdent))
         _ -> error "Only gbuffer rendering supported here"
       _ -> pure ()
 
 processDrawCommandGBuffer
   :: (MonadIO m, DynamicMeshMonad m)
   => FrameContext
-  -> [[(Word32, DrawCommand)]]
+  -> [[((Int,Int), DrawCommand)]]
   -> m ()
 processDrawCommandGBuffer fc grouped = do
   for_ grouped \group ->
@@ -721,8 +766,8 @@ processDrawCommandGBuffer fc grouped = do
       Just (_, DrawCommand { materialConfig }) -> case materialConfig of
         GBufferConfig GBufferMaterialStack {..} -> do
           cmdBindMaterial fc gbufferMaterial
-          for_ group \(i, DrawCommand {mesh, descriptorSet, instanceCount, hasIdent}) -> do
-            renderCommand fc gbufferMaterial mesh instanceCount descriptorSet (GBufferPushConsts i (fromIntegral $ fromMaybe 0 hasIdent))
+          for_ group \((fromIntegral -> firstInstanceIndex, fromIntegral -> numInstances), DrawCommand {mesh, descriptorSet, hasIdent}) -> do
+            renderCommand fc gbufferMaterial mesh numInstances descriptorSet (GBufferPushConsts firstInstanceIndex (fromIntegral $ fromMaybe 0 hasIdent))
         _ -> error "Only gbuffer rendering supported here"
       _ -> pure ()
 
@@ -734,9 +779,9 @@ processDirectUngrouped
   -> m ()
 processDirectUngrouped fc commands stage = do
   flip evalStateT UUID.nil do
-    for_ commands \(i, DrawCommand {mesh, descriptorSet, materialConfig, instanceCount}) -> case materialConfig of
+    for_ commands \(i, DrawCommand {mesh, descriptorSet, materialConfig }) -> case materialConfig of
       DirectConfig material -> do
         let mat = if stage == WorldDirect then material.directMaterial else material.overlayMaterial
         bindMaterialIfNeeded fc mat
-        renderCommand fc mat mesh instanceCount descriptorSet (fromIntegral i)
+        renderCommand fc mat mesh 1 descriptorSet (fromIntegral i) -- TODO: Instances
       _ -> error "Only direct rendering supported here"

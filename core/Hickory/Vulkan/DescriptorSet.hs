@@ -166,11 +166,13 @@ withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
 
   pure TextureDescriptorSet {..}
 
+-- Deprecated
 data BufferDescriptorSet a = BufferDescriptorSet
   { descriptorSet :: PointedDescriptorSet
   , dataBuffer    :: DataBuffer a
-  , size          :: Int
+  , num          :: Int
   } deriving (Generic)
+
 
 descriptorSetBinding :: FramedResource PointedDescriptorSet -> DescriptorSetBinding
 descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Word32) bds)
@@ -186,24 +188,12 @@ withDataBuffer VulkanResources {..} num usageBits = do
   pure DataBuffer {..}
 
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Int -> Acquire (BufferDescriptorSet a)
-withBufferDescriptorSet vulkanResources size = do
-  dataBuffer <- withDataBuffer vulkanResources size BUFFER_USAGE_UNIFORM_BUFFER_BIT
+withBufferDescriptorSet vulkanResources num = do
+  dataBuffer <- withDataBuffer vulkanResources num BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   ds <-  withDescriptorSet vulkanResources [BufferDescriptor (buf dataBuffer)]
 
   pure BufferDescriptorSet {descriptorSet = ds, ..}
-
-{-
-uploadBufferDescriptor' :: (MonadIO m, Storable a) => BufferDescriptorSet a -> m ()
-uploadBufferDescriptor' BufferDescriptorSet {..} = liftIO do
-  atomicModifyIORef' queuedData ([],) >>= \case
-    [] -> pure () -- noop if there's no data to push
-    as -> do
-      let (_, alloc) = bufferPair
-
-      withMappedMemory allocator alloc bracket \bptr ->
-        withArrayLen (reverse as) \len dptr -> copyArray (castPtr bptr) dptr len
-        -}
 
 uploadBufferDescriptorArray :: (MonadIO m, Storable a) => DataBuffer a -> [a] -> m ()
 uploadBufferDescriptorArray DataBuffer {..} as = liftIO do

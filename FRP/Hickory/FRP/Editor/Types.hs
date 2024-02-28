@@ -48,7 +48,11 @@ data Object = Object
 data Component m a = Component
   { attributes :: [SomeAttribute (Const String)]
   , acquire    :: HashMap String (SomeAttribute Identity) -> Int -> VulkanResources -> ResourcesStore -> IO ()
-  , draw       :: HashMap String (SomeAttribute Identity) -> Maybe a -> Int -> m ()
+  , draw       :: HashMap String (SomeAttribute Identity)
+               -> Maybe a
+               -> Int
+               -> [M44 Scalar] -- Transform per instance
+               -> m ()
   }
 
 -- Types which have an 'attribute' representation in the editor
@@ -160,13 +164,13 @@ setSomeAttribute newV (SomeAttribute attr _) = case eqAttr attr (mkAttr :: Attri
     Just HRefl -> SomeAttribute attr newV
     Nothing -> error "Wrong type for attribute"
 
-mkComponent :: forall a m state. Attr a => String -> (a -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent :: forall a m state. Attr a => String -> (a -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
 mkComponent arg acquire f =
   Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)]
     (\attrs objId -> withAttrVal attrs arg \v -> acquire v objId)
     (\attrs state objId -> withAttrVal attrs arg \v -> f v state objId)
 
-mkComponent2 :: forall a b m state. (Attr a, Attr b) => String -> String -> (a -> b -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent2 :: forall a b m state. (Attr a, Attr b) => String -> String -> (a -> b -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
 mkComponent2 arg1 arg2 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -176,7 +180,7 @@ mkComponent2 arg1 arg2 acquire f = Component
   (\attrs state objId -> withAttrVal attrs arg1 \v1 ->
                          withAttrVal attrs arg2 \v2 -> f v1 v2 state objId)
 
-mkComponent3 :: forall a b c m state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent3 :: forall a b c m state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
 mkComponent3 arg1 arg2 arg3 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -188,7 +192,7 @@ mkComponent3 arg1 arg2 arg3 acquire f = Component
                             withAttrVal attrs arg2 \v2 ->
                             withAttrVal attrs arg3 \v3 -> f v1 v2 v3 state objId
 
-mkComponent4 :: forall a b c d m state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent4 :: forall a b c d m state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
 mkComponent4 arg1 arg2 arg3 arg4 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -203,7 +207,7 @@ mkComponent4 arg1 arg2 arg3 arg4 acquire f = Component
                             withAttrVal attrs arg3 \v3 ->
                             withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4 state objId
 
-mkComponent5 :: forall a b c d e m state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent5 :: forall a b c d e m state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
 mkComponent5 arg1 arg2 arg3 arg4 arg5 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -221,7 +225,7 @@ mkComponent5 arg1 arg2 arg3 arg4 arg5 acquire f = Component
                             withAttrVal attrs arg4 \v4 ->
                             withAttrVal attrs arg5 \v5 -> f v1 v2 v3 v4 v5 state objId
 
-mkComponent6 :: forall a b c d e f m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent6 :: forall a b c d e f m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
 mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -242,7 +246,7 @@ mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
                             withAttrVal attrs arg5 \v5 ->
                             withAttrVal attrs arg6 \v6 -> f v1 v2 v3 v4 v5 v6 state objId
 
-mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> Int -> m ()) -> Component m state
+mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
 mkComponent7 arg1 arg2 arg3 arg4 arg5 arg6 arg7 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)

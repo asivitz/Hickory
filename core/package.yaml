@@ -72,6 +72,7 @@ dependencies:
     - ghc-compact
     - wide-word
     - dear-imgui
+    - base-compat
 
 when:
     - condition: os(osx)

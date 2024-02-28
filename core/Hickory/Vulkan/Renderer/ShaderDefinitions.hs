@@ -88,6 +88,20 @@ struct Uniforms
   vec2 tiling;
 };
 
+$instancedUniformDef
+  |]
+
+nonInstancedStaticUniformsDef :: String
+nonInstancedStaticUniformsDef = [qm|
+struct Uniforms
+{
+  mat4 modelMat;
+  mat3 normalMat;
+  vec4 color;
+  float specularity;
+  vec2 tiling;
+};
+
 $uniformDef
   |]
 
@@ -102,7 +116,7 @@ struct Uniforms {
   vec4 colors[6];
 };
 
-$uniformDef
+$instancedUniformDef
   |]
 
 msdfUniformsDef :: String
@@ -123,23 +137,31 @@ $uniformDef
 
 pushConstantsDef :: String
 pushConstantsDef = [qm|
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
+layout (push_constant) uniform constants { uint instanceIdx; } PushConstants;
   |]
 
 gbufferPushConstantsDef :: String
 gbufferPushConstantsDef = [qm|
-layout (push_constant) uniform constants { uint uniformIdx; uint objectID; } PushConstants;
+layout (push_constant) uniform constants { uint instanceIdx; uint objectID; } PushConstants;
   |]
 
 shadowPushConstantsDef :: String
 shadowPushConstantsDef = [qm|
-layout (push_constant) uniform constants { uint uniformIdx; uint cascadeIndex; } PushConstants;
+layout (push_constant) uniform constants { uint instanceIdx; uint cascadeIndex; } PushConstants;
   |]
 
 uniformDef :: String
 uniformDef = [qm|
 layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
+Uniforms uniforms = uniformBlock.uniforms[PushConstants.instanceIdx];
+  |]
+
+instancedUniformDef :: String
+instancedUniformDef = [qm|
+layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
+layout (scalar, set = 1, binding = 1) uniform InstanceIndices { uint instanceIndices[128]; };
+uint uniformIdx = instanceIndices[PushConstants.instanceIdx + gl_InstanceIndex];
+Uniforms uniforms = uniformBlock.uniforms[uniformIdx];
   |]
 
 litVertexCalc :: String

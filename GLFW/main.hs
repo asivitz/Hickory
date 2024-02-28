@@ -64,7 +64,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
         do
           let mat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
           H.addCommand $ DrawCommand
-            { modelMat = mat
+            { transforms = [mat]
             , mesh = H.Buffered square
             , pokeData = flip poke $ H.StaticConstants
                 { modelMat    = mat
@@ -78,14 +78,13 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
             , doCastShadow = False
             , doBlend = False
             , descriptorSet = Just starTex
-            , instanceCount = 1
             , materialConfig = renderer.staticGBufferMaterialConfig
             }
 
         do
           let mat = mkTranslation (V2 75 25) !*! mkScale (V2 20 20)
           H.addCommand $ DrawCommand
-            { modelMat = mat
+            { transforms = [mat]
             , mesh = H.Buffered square
             , pokeData = flip poke $ H.StaticConstants
                 { modelMat    = mat
@@ -99,7 +98,6 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
             , doCastShadow = False
             , doBlend = False
             , descriptorSet = Just xTex
-            , instanceCount = 1
             , materialConfig = renderer.staticGBufferMaterialConfig
             }
 

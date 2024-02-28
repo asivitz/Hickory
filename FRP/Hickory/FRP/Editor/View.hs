@@ -20,6 +20,8 @@ import Control.Monad (when)
 import Data.Foldable (for_)
 import Hickory.Camera (Camera(..), project, isOrthographic)
 import Foreign (poke)
+import Data.Maybe (mapMaybe)
+import Data.Functor ((<&>))
 
 editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
@@ -71,9 +73,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
       when (axes ^. _z > 0) do
         drawLines (mkTranslation objp !*! mkRotation (V3 0 1 0) (pi/2)) lineMesh (rgba 0.2 0.2 1.0 1)
 
-  do
-    for_ (Map.toList objects) \(k, o) -> do
-      drawObject componentDefs objects Nothing k o
+  drawObjects componentDefs objects Nothing
 
   where
   snapVec by = fmap (snap by)
@@ -91,6 +91,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
     --   , specularity = 0
     --   }
 
+{-
 drawObject :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> HashMap Int Object -> Maybe a -> Int -> Object -> m ()
 drawObject componentDefs objects state objectId object = do
   H.xform object.transform do
@@ -101,8 +102,23 @@ drawObject componentDefs objects state objectId object = do
       for_ (Map.lookup baseId objects) \base -> do
         doDraw base
     for_ obj.components \(compName, vals) -> case Map.lookup compName componentDefs of
-      Just Component {..} -> draw vals state objectId
+      Just Component {..} -> draw vals state objectId []
       Nothing -> error $ "Can't find component definition: " ++ compName
+      -}
+
+drawObjects :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> HashMap Int Object -> Maybe a -> m ()
+drawObjects componentDefs objects state = do
+  for_ objectsWithDupeTransforms \(objId, obj, dupes) -> do
+    for_ obj.components \(compName, vals) -> case Map.lookup compName componentDefs of
+      Just Component {..} -> draw vals state objId (obj.transform : dupes)
+      Nothing -> error $ "Can't find component definition: " ++ compName
+  where
+  parentChildrenMap = Map.fromListWith (++) . mapMaybe (\(k,v) -> (,[k]) <$> v.baseObj) . Map.toList $ objects
+  objectsWithDupeTransforms = flip mapMaybe (Map.toList objects) \(k,v) ->
+    case v.baseObj of
+      Nothing -> let children = maybe [] (mapMaybe (`Map.lookup` objects)) $ Map.lookup k parentChildrenMap
+                 in Just (k, v, (.transform) <$> children)
+      Just _ -> Nothing
 
 editorOverlayView :: (ResourcesMonad m, CommandMonad m) => H.MaterialConfig H.StaticConstants -> Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
@@ -119,14 +135,13 @@ editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
     for_ [0..num] \i -> do
       let mat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
       H.addCommand $ H.DrawCommand
-        { modelMat = mat
+        { transforms = [mat]
         , mesh = Buffered squareMesh
         , hasIdent = Nothing
         , doCastShadow = False
         , doBlend = False
         , cull = False
         , materialConfig = materialConfig
-        , instanceCount = 1
         , descriptorSet = Just tex
         , pokeData = flip poke $ H.StaticConstants
             { modelMat    = mat

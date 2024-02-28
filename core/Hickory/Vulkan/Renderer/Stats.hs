@@ -11,9 +11,10 @@ import Data.Text (pack)
 data Stats = Stats
   { numLitDraws :: Int
   , numGBuffer :: Int
-  , numGBufferPostCull :: Int
+  , numGBufferInstances :: Int
+  , numGBufferPostCullInstances :: Int
   , numCastingShadows :: Int
-  , numPerCascade :: [Int]
+  , numInstancesPerCascade :: [Int]
   , numDirect :: Int
   , numOverlayDraws :: Int
   }
@@ -23,9 +24,10 @@ drawStats Stats {..} =
   myWithWindow "Renderer" do
     text . pack $ printf "Total lit draw commands: %d" numLitDraws
     text . pack $ printf "Number commands targeted to gbuffer: %d" numGBuffer
-    text . pack $ printf "Number commands hitting gbuffer: %d" numGBufferPostCull
+    text . pack $ printf "Number instances targeted to gbuffer: %d" numGBufferInstances
+    text . pack $ printf "Number instances hitting gbuffer: %d" numGBufferPostCullInstances
     text . pack $ printf "Number commands casting shadows: %d" numCastingShadows
-    ifor_ numPerCascade \i n ->
-      text . pack $ printf "Number commands hitting cascade %d: %d" i n
+    ifor_ numInstancesPerCascade \i n ->
+      text . pack $ printf "Number instances hitting cascade %d: %d" i n
     text . pack $ printf "Number commands direct: %d" numDirect
     text . pack $ printf "Total overlay draw commands: %d" numOverlayDraws

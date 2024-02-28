@@ -199,6 +199,7 @@ layout(location = 8) in vec4 inTangent;
 
 layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
+layout(location = 2) out vec4 color;
 layout(location = 8) out mat3 TBN;
 
 void main() {
@@ -213,6 +214,7 @@ void main() {
 
   texCoord = inTexCoord * uniforms.tiling;
   normal   = worldNormal;
+  color = uniforms.color;
   TBN = mat3(worldTangent, worldBitangent, worldNormal);
 }
 
@@ -247,10 +249,10 @@ staticGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 $worldGlobalsDef
 $gbufferPushConstantsDef
-$staticUniformsDef
 
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec4 inColor;
 layout(location = 8) in mat3 TBN;
 layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
 layout (set = 2, binding = 1) uniform sampler2D normalSampler;
@@ -262,11 +264,10 @@ layout(location = 2) out uint outObjectID;
 void main() {
   vec4 albedoColor  = texture(albedoSampler, inTexCoord);
   vec4 normalTex    = texture(normalSampler, inTexCoord);
-  vec4 surfaceColor = uniforms.color;
 
   vec3 normal = vec3(mix(-1,1,normalTex.r), mix(-1,1,normalTex.g), normalTex.b);
 
-  outAlbedo   = vec4(albedoColor.rgb * uniforms.color.rgb, 1);
+  outAlbedo   = vec4(albedoColor.rgb * inColor.rgb, 1);
   outNormal   = vec4(TBN * normal.xyz,1);
   outObjectID = PushConstants.objectID;
 }
@@ -288,6 +289,7 @@ layout(location = 8) in vec4 inTangent;
 
 layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
+layout(location = 2) out vec4 color;
 layout(location = 8) out mat3 TBN;
 
 void main() {
@@ -309,6 +311,7 @@ void main() {
 
   texCoord = inTexCoord;
   normal   = worldNormal;
+  color = uniforms.color;
   TBN = mat3(worldTangent, worldBitangent, worldNormal);
 }
 |])
@@ -327,6 +330,7 @@ layout(location = 6) in vec4 inJointIndices;
 layout(location = 7) in vec4 inJointWeights;
 
 layout(location = 0) out vec2 texCoord;
+layout(location = 2) out vec4 color;
 
 void main() {
   mat4 skinMat
@@ -350,10 +354,10 @@ animatedGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 $worldGlobalsDef
 $gbufferPushConstantsDef
-$animatedUniformsDef
 
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
+layout(location = 2) in vec4 inColor;
 layout(location = 8) in mat3 TBN;
 layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
 layout (set = 2, binding = 1) uniform sampler2D normalSampler;
@@ -365,11 +369,10 @@ layout(location = 2) out uint outObjectID;
 void main() {
   vec4 albedoColor = texture(albedoSampler, inTexCoord);
   vec4 normalTex    = texture(normalSampler, inTexCoord);
-  vec4 surfaceColor = uniforms.color;
 
   vec3 normal = vec3(mix(-1,1,normalTex.r), mix(-1,1,normalTex.g), normalTex.b);
 
-  outAlbedo   = vec4(albedoColor.rgb * uniforms.color.rgb, 1);
+  outAlbedo   = vec4(albedoColor.rgb * inColor.rgb, 1);
   outNormal   = vec4(TBN * normal.xyz,1);
   outObjectID = PushConstants.objectID;
 }
@@ -383,10 +386,10 @@ simpleFragShader :: ByteString
 simpleFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
 $pushConstantsDef
-$staticUniformsDef
+layout(location = 2) in vec4 inColor;
 
 void main() {
-  outColor = uniforms.color;
+  outColor = inColor;
 }
 
 |])
@@ -400,11 +403,14 @@ withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMat
   $header
   $worldGlobalsDef
   $pushConstantsDef
-  $staticUniformsDef
+  $nonInstancedStaticUniformsDef
+
 
   layout(location = 0) in vec3 inPosition;
+  layout(location = 2) out vec4 color;
 
   void main() {
+      color = uniforms.color;
       gl_Position = globals.viewProjMat
                   * uniforms.modelMat
                   * vec4(inPosition, 1.0);
@@ -421,7 +427,7 @@ withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMa
   $header
   $worldGlobalsDef
   $pushConstantsDef
-  $staticUniformsDef
+  $nonInstancedStaticUniformsDef
 
   layout(location = 0) in vec3 inPosition;
 
@@ -439,7 +445,7 @@ staticUnlitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
 $pushConstantsDef
-$staticUniformsDef
+$nonInstancedStaticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;
@@ -460,7 +466,7 @@ overlayVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $overlayGlobalsDef
 $pushConstantsDef
-$staticUniformsDef
+$nonInstancedStaticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;
@@ -472,23 +478,6 @@ void main() {
   gl_Position = globals.viewProjMat
               * uniforms.modelMat
               * vec4(inPosition, 1.0);
-}
-
-|])
-
-unlitFragShader :: ByteString
-unlitFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$fragHeader
-$pushConstantsDef
-$staticUniformsDef
-
-layout(location = 1) in vec2 texCoord;
-
-layout (set = 2, binding = 0) uniform sampler2D texSampler;
-
-void main() {
-  vec4 texColor = texture(texSampler, texCoord);
-  outColor = uniforms.color * texColor;
 }
 
 |])
