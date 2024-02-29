@@ -200,6 +200,7 @@ layout(location = 8) in vec4 inTangent;
 layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
 layout(location = 2) out vec4 color;
+layout(location = 3) flat out uint objectId;
 layout(location = 8) out mat3 TBN;
 
 void main() {
@@ -216,6 +217,7 @@ void main() {
   normal   = worldNormal;
   color = uniforms.color;
   TBN = mat3(worldTangent, worldBitangent, worldNormal);
+  objectId = objectIds[uniformIdx];
 }
 
 |])
@@ -253,6 +255,7 @@ $gbufferPushConstantsDef
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inColor;
+layout(location = 3) flat in uint objectId;
 layout(location = 8) in mat3 TBN;
 layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
 layout (set = 2, binding = 1) uniform sampler2D normalSampler;
@@ -269,7 +272,7 @@ void main() {
 
   outAlbedo   = vec4(albedoColor.rgb * inColor.rgb, 1);
   outNormal   = vec4(TBN * normal.xyz,1);
-  outObjectID = PushConstants.objectID;
+  outObjectID = objectId;
 }
 |])
 
@@ -290,6 +293,7 @@ layout(location = 8) in vec4 inTangent;
 layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
 layout(location = 2) out vec4 color;
+layout(location = 3) flat out uint objectId;
 layout(location = 8) out mat3 TBN;
 
 void main() {
@@ -313,6 +317,7 @@ void main() {
   normal   = worldNormal;
   color = uniforms.color;
   TBN = mat3(worldTangent, worldBitangent, worldNormal);
+  objectId = objectIds[uniformIdx];
 }
 |])
 
@@ -358,6 +363,7 @@ $gbufferPushConstantsDef
 layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inColor;
+layout(location = 3) flat in uint objectId;
 layout(location = 8) in mat3 TBN;
 layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
 layout (set = 2, binding = 1) uniform sampler2D normalSampler;
@@ -374,7 +380,7 @@ void main() {
 
   outAlbedo   = vec4(albedoColor.rgb * inColor.rgb, 1);
   outNormal   = vec4(TBN * normal.xyz,1);
-  outObjectID = PushConstants.objectID;
+  outObjectID = objectId;
 }
 |])
 

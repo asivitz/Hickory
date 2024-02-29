@@ -33,8 +33,9 @@ import Hickory.Math (mkScale)
 import Hickory.FRP.Editor.General (setScale, setRotation, matScale, matEuler)
 import Text.Printf (printf)
 import Hickory.Utils.Utils (deleteAt)
+import Data.Word (Word32)
 
-drawMainEditorUI :: FilePath -> HashMap Int Object -> HashMap Int Object -> B.Handler Int -> IO ()
+drawMainEditorUI :: FilePath -> HashMap Word32 Object -> HashMap Word32 Object -> B.Handler Word32 -> IO ()
 drawMainEditorUI sceneFile selected objects guiPickObjectID =
   myWithWindow "Editor" do
     withMenuBarOpen do
@@ -72,7 +73,7 @@ drawMainEditorUI sceneFile selected objects guiPickObjectID =
 
         treePop
 
-drawObjectEditorUI :: HashMap String (Component m a) -> IORef (HashMap Int Object) -> [Int] -> IO ()
+drawObjectEditorUI :: HashMap String (Component m a) -> IORef (HashMap Word32 Object) -> [Word32] -> IO ()
 drawObjectEditorUI componentDefs objectsRef selectedIds = do
   objs <- readIORef objectsRef
   for_ (headMay selectedIds) \representativeId -> do

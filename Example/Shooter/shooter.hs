@@ -155,7 +155,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
     for_ missiles \(pos, _) -> do
       let mat = mkTranslation pos !*! mkScale (V2 5 5)
       H.addCommand $ DrawCommand
-        { transforms = [mat]
+        { instances = [(0,mat)]
         , mesh = H.Buffered square
         , pokeData = flip poke $ H.StaticConstants
             { modelMat    = mat
@@ -165,7 +165,6 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
             , tiling      = V2 1 1
             }
         , cull = False
-        , hasIdent = Nothing
         , doCastShadow = False
         , doBlend = True
         , descriptorSet = Just circleTex
@@ -174,7 +173,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
 
     let mat = mkTranslation playerPos !*! mkScale (V2 10 10)
     H.addCommand $ DrawCommand
-      { transforms = [mat]
+      { instances = [(0,mat)]
       , mesh = H.Buffered square
       , pokeData = flip poke $ H.StaticConstants
           { modelMat    = mat
@@ -184,7 +183,6 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
           , tiling      = V2 1 1
           }
       , cull = False
-      , hasIdent = Nothing
       , doCastShadow = False
       , doBlend = False
       , descriptorSet = Just circleTex

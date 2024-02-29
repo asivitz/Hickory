@@ -17,7 +17,7 @@ drawLine :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants ->
 drawLine materialConfig color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
   mat <- askMatrix
   addCommand $ DrawCommand
-    { transforms = [mat]
+    { instances = [(0,mat)]
     , mesh = Dynamic mesh
     , pokeData = flip poke $ StaticConstants
         { modelMat    = mat
@@ -27,7 +27,6 @@ drawLine materialConfig color (V3 p1x p1y p1z) (V3 p2x p2y p2z) = do
         , tiling      = zero
         }
     , cull = False
-    , hasIdent = Nothing
     , doCastShadow = False
     , doBlend = False
     , descriptorSet = Nothing
@@ -40,7 +39,7 @@ drawPoint :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -
 drawPoint materialConfig color (V3 px py pz)  = do
   mat <- askMatrix
   addCommand $ DrawCommand
-    { transforms = [mat]
+    { instances = [(0,mat)]
     , mesh = Dynamic mesh
     , pokeData = flip poke $ StaticConstants
         { modelMat    = mat
@@ -50,7 +49,6 @@ drawPoint materialConfig color (V3 px py pz)  = do
         , tiling      = zero
         }
     , cull = False
-    , hasIdent = Nothing
     , doCastShadow = False
     , doBlend = False
     , descriptorSet = Nothing
@@ -65,7 +63,7 @@ drawSolidCube materialConfig color = do
   whiteTex <- getTexture "white"
   mat <- askMatrix
   addCommand $ DrawCommand
-    { transforms = [mat]
+    { instances = [(0,mat)]
     , mesh = Buffered cube
     , pokeData = flip poke $ StaticConstants
         { modelMat    = mat
@@ -75,7 +73,6 @@ drawSolidCube materialConfig color = do
         , tiling      = V2 1 1
         }
     , cull = False
-    , hasIdent = Nothing
     , doCastShadow = False
     , doBlend = False
     , descriptorSet = Just whiteTex
@@ -155,7 +152,7 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
                   , name = Just "Wide Arc"
                   }
   addCommand $ DrawCommand
-    { transforms = [mat]
+    { instances = [(0,mat)]
     , mesh = Dynamic mesh
     , pokeData = flip poke $ StaticConstants
         { modelMat    = mat
@@ -165,7 +162,6 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
         , tiling      = V2 1 1
         }
     , cull = False
-    , hasIdent = Nothing
     , doCastShadow = False
     , doBlend = True
     , descriptorSet = Just whiteTex
@@ -203,7 +199,7 @@ drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (
                   , name = Just "Line Arc"
                   }
   addCommand $ DrawCommand
-    { transforms = [mat]
+    { instances = [(0,mat)]
     , mesh = Dynamic mesh
     , pokeData = flip poke $ StaticConstants
         { modelMat    = mat
@@ -213,7 +209,6 @@ drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (
         , tiling      = V2 1 1
         }
     , cull = False
-    , hasIdent = Nothing
     , doCastShadow = False
     , doBlend = True
     , descriptorSet = Nothing

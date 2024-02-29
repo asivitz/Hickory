@@ -23,7 +23,7 @@ import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, _5, has, (^?), over, ifor_)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdPushMaterialConstants, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend)
-import Data.List (partition, sortOn, mapAccumL, transpose)
+import Data.List (partition, sortOn, mapAccumL, transpose, intersect)
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
@@ -105,8 +105,9 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
   uuid <- liftIO nextRandom
   descriptor <- frameResource do
     uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
     instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    descriptorSet <- withDescriptorSet vulkanResources [BufferDescriptor (buf uniformBuffer), BufferDescriptor (buf instancesBuffer)]
+    descriptorSet <- withDescriptorSet vulkanResources [BufferDescriptor (buf uniformBuffer), BufferDescriptor (buf idBuffer), BufferDescriptor (buf instancesBuffer)]
     pure MaterialDescriptorSet {..}
 
   let uniformSize = sizeOf (undefined :: uniform)
@@ -433,8 +434,6 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
         testSphereInCameraFrustum = frustumSphereIntersection viewProjMat
         overlayCullTest _    = True
-        showSelectionCullTest cdc = isJust cdc.hasIdent
-
 
         near = fromMaybe 0 $ camera ^? #projection . #_Perspective . _2
         far = fromMaybe 0 $ camera ^? #projection . #_Perspective . _3
@@ -503,12 +502,14 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       case groupHead group of
         DrawCommand {materialConfig} -> case materialConfig of
           GBufferConfig material -> do
-            let MaterialDescriptorSet { uniformBuffer } = resourceForFrame swapchainImageIndex material.descriptor
-                DataBuffer {..} = uniformBuffer
-            liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
-              snd <$> (\f -> mapAccumM f 0 group) \startIdx dc@DrawCommand {pokeData, transforms} -> do
-                liftIO $ pokeData (plusPtr bufptr (material.uniformSize * fromIntegral startIdx))
-                pure (startIdx + fromIntegral (length transforms), (startIdx, dc))
+            let MaterialDescriptorSet { uniformBuffer, idBuffer } = resourceForFrame swapchainImageIndex material.descriptor
+                -- DataBuffer {..} = uniformBuffer
+            liftIO $ withMappedMemory uniformBuffer.allocator uniformBuffer.allocation bracket \uniformbufptr ->
+                     withMappedMemory idBuffer.allocator idBuffer.allocation bracket \idbufptr -> do
+                snd <$> (\f -> mapAccumM f 0 group) \startIdx dc@DrawCommand {pokeData, instances} -> do
+                  liftIO $ pokeData (plusPtr uniformbufptr (material.uniformSize * fromIntegral startIdx))
+                  liftIO $ pokeArray (plusPtr idbufptr (sizeOf (undefined :: Word32) * fromIntegral startIdx)) (fst <$> instances)
+                  pure (startIdx + fromIntegral (length instances), (startIdx, dc))
           _ -> error "Non gbuffer draw commands not supported here"
 
     -- We expand the starting index for each DC into a list of non-culled indices
@@ -519,15 +520,16 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         culledGbufDCsGroupedByMaterial :: [[([[Word32]], DrawCommand)]]
         culledGbufDCsGroupedByMaterial =
           gbufDCsGroupedByMaterial <&> fmap \(startUniformIndex, dc) ->
-            let boundingSpheres = dc.transforms <&> (\t -> meshBoundingSphere t dc.mesh)
+            let boundingSpheres = dc.instances <&> (\(_,t) -> meshBoundingSphere t dc.mesh)
                 viewFrustumInstances = flip mapMaybe (zip boundingSpheres [0..]) \(bs, i) ->
                   if uncurry testSphereInCameraFrustum bs then Just (startUniformIndex + i) else Nothing
+                showSelInstances = flip mapMaybe (zip [0..] (fst <$> dc.instances)) \(i, objId) -> if objId `elem` highlightObjs then Just (startUniformIndex + i) else Nothing
                 cascadeInstances = cascadeTests <&> \test ->
                   flip mapMaybe (zip boundingSpheres [0..]) \(bs, i) ->
                     if test bs then Just (startUniformIndex + i) else Nothing
-            in (viewFrustumInstances:cascadeInstances, dc)
+            in (viewFrustumInstances:showSelInstances:cascadeInstances, dc)
         -- For each material, we concat all these instance indices.
-        -- And for each DC, we give the list (one for the frustum + one for each cascade)
+        -- And for each DC, we give the list (one for the frustum + one for showing selection + one for each cascade)
         -- of starting index (which will be a push constant) as well as the length, which will be
         -- the instance count when we issue the draw command to vulkan
         instancedGbufDCsGroupedByMaterial =
@@ -543,8 +545,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         -- for each material group, we have draw commands paired with instanceStartIdx and numberInstances
         splitGbufDCsByStage :: [[[((Int, Int), DrawCommand)]]]
         splitGbufDCsByStage = transpose $ transpose . map (\(instanceInfo, dc) -> zip instanceInfo (repeat dc)) . snd <$> instancedGbufDCsGroupedByMaterial
-        (gbufStageDCs : cascadeDCs) = splitGbufDCsByStage
-
+        (gbufStageDCs : showSelDCs : cascadeDCs) = splitGbufDCsByStage <&> fmap (filter $ \((_,num),_) -> num > 0)
 
     -- Off y' go to the GPU
     for_ instancedGbufDCsGroupedByMaterial \(indices, commands) -> do
@@ -579,8 +580,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
 
     -- Stage 2 Current Selection
     useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
-      pure ()
-      -- processDrawCommandShowSelection frameContext (filter (showSelectionCullTest . snd) <$> gbufDCsGroupedByMaterial)
+      processDrawCommandShowSelection frameContext showSelDCs
 
     -- Stage 3 GBuffer
     let V4 r g b a = clearColor
@@ -632,7 +632,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       { numLitDraws     = length worldDrawCommands
       , numOverlayDraws = length overlayDrawCommands
       , numGBuffer = length gbufDrawCommands
-      , numGBufferInstances = sum $ length . transforms <$> gbufDrawCommands
+      , numGBufferInstances = sum $ length . instances <$> gbufDrawCommands
       , numGBufferPostCullInstances = sum $ sum . fmap (snd . fst) <$> gbufStageDCs
       , numCastingShadows = 0 -- TODO sum $ length <$> dcsCastingShadows
       , numInstancesPerCascade = (\m -> sum $ sum . fmap (snd . fst) <$> m) <$> cascadeDCs
@@ -701,12 +701,11 @@ drawText
   -> m ()
 drawText materialConfig (font, fontTex, sdfPixelRange) mat color outlineColor outlineSize tc =
   addCommand $ DrawCommand
-    { transforms      = [mat]
+    { instances       = [(0, mat)]
     , mesh            = Dynamic (textMesh font tc)
     , materialConfig  = materialConfig
     , doCastShadow    = False
     , doBlend         = True
-    , hasIdent        = Nothing
     , descriptorSet   = Just fontTex
     , cull = False
     , pokeData = flip poke $ MSDFMatConstants
@@ -719,7 +718,7 @@ drawText materialConfig (font, fontTex, sdfPixelRange) mat color outlineColor ou
         }
     }
 
-pickObjectID :: FrameContext -> Renderer -> (Scalar,Scalar) -> IO Int
+pickObjectID :: FrameContext -> Renderer -> (Scalar,Scalar) -> IO Word32
 pickObjectID FrameContext {..} Renderer{..} = fmap fromIntegral . readPixel (resourceForFrame (swapchainImageIndex - 1) objectPickingImageBuffer)
 
 processDrawCommandShadows
@@ -742,7 +741,7 @@ processDrawCommandShadows fc grouped shadowCascadeIndex = do
 processDrawCommandShowSelection
   :: (MonadIO m, DynamicMeshMonad m)
   => FrameContext
-  -> [[(Word32, DrawCommand)]]
+  -> [[((Int,Int), DrawCommand)]]
   -> m ()
 processDrawCommandShowSelection fc grouped = do
   for_ grouped \group ->
@@ -750,8 +749,8 @@ processDrawCommandShowSelection fc grouped = do
       Just (_, DrawCommand { materialConfig }) -> case materialConfig of
         GBufferConfig GBufferMaterialStack {..} -> do
           cmdBindMaterial fc showSelectionMaterial
-          for_ group \(i, DrawCommand {mesh, descriptorSet, hasIdent}) -> do
-            renderCommand fc gbufferMaterial mesh (error "SHOW SEL NOT IMPLEMENTED") descriptorSet (GBufferPushConsts i (fromIntegral $ fromMaybe 0 hasIdent))
+          for_ group \((fromIntegral -> firstInstanceIndex, fromIntegral -> numInstances), DrawCommand {mesh, descriptorSet}) -> do
+            renderCommand fc gbufferMaterial mesh numInstances descriptorSet (GBufferPushConsts firstInstanceIndex)
         _ -> error "Only gbuffer rendering supported here"
       _ -> pure ()
 
@@ -766,8 +765,8 @@ processDrawCommandGBuffer fc grouped = do
       Just (_, DrawCommand { materialConfig }) -> case materialConfig of
         GBufferConfig GBufferMaterialStack {..} -> do
           cmdBindMaterial fc gbufferMaterial
-          for_ group \((fromIntegral -> firstInstanceIndex, fromIntegral -> numInstances), DrawCommand {mesh, descriptorSet, hasIdent}) -> do
-            renderCommand fc gbufferMaterial mesh numInstances descriptorSet (GBufferPushConsts firstInstanceIndex (fromIntegral $ fromMaybe 0 hasIdent))
+          for_ group \((fromIntegral -> firstInstanceIndex, fromIntegral -> numInstances), DrawCommand {mesh, descriptorSet}) -> do
+            renderCommand fc gbufferMaterial mesh numInstances descriptorSet (GBufferPushConsts firstInstanceIndex)
         _ -> error "Only gbuffer rendering supported here"
       _ -> pure ()
 

@@ -22,8 +22,9 @@ import Hickory.Camera (Camera(..), project, isOrthographic)
 import Foreign (poke)
 import Data.Maybe (mapMaybe)
 import Data.Functor ((<&>))
+import GHC.Word (Word32)
 
-editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Camera -> HashMap Int Object -> HashMap Int Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
+editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Camera -> HashMap Word32 Object -> HashMap Word32 Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
 editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
   let zBias =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
@@ -106,21 +107,21 @@ drawObject componentDefs objects state objectId object = do
       Nothing -> error $ "Can't find component definition: " ++ compName
       -}
 
-drawObjects :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> HashMap Int Object -> Maybe a -> m ()
+drawObjects :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> HashMap Word32 Object -> Maybe a -> m ()
 drawObjects componentDefs objects state = do
   for_ objectsWithDupeTransforms \(objId, obj, dupes) -> do
     for_ obj.components \(compName, vals) -> case Map.lookup compName componentDefs of
-      Just Component {..} -> draw vals state objId (obj.transform : dupes)
+      Just Component {..} -> draw vals state ((objId, obj.transform) : dupes)
       Nothing -> error $ "Can't find component definition: " ++ compName
   where
   parentChildrenMap = Map.fromListWith (++) . mapMaybe (\(k,v) -> (,[k]) <$> v.baseObj) . Map.toList $ objects
   objectsWithDupeTransforms = flip mapMaybe (Map.toList objects) \(k,v) ->
     case v.baseObj of
-      Nothing -> let children = maybe [] (mapMaybe (`Map.lookup` objects)) $ Map.lookup k parentChildrenMap
-                 in Just (k, v, (.transform) <$> children)
+      Nothing -> let children = maybe [] (mapMaybe (\ck -> (ck,) <$> Map.lookup ck objects)) $ Map.lookup k parentChildrenMap
+                 in Just (k, v, fmap (.transform) <$> children)
       Just _ -> Nothing
 
-editorOverlayView :: (ResourcesMonad m, CommandMonad m) => H.MaterialConfig H.StaticConstants -> Size Int -> Camera -> V2 Scalar -> HashMap Int Object -> Maybe ObjectManipMode -> m ()
+editorOverlayView :: (ResourcesMonad m, CommandMonad m) => H.MaterialConfig H.StaticConstants -> Size Int -> Camera -> V2 Scalar -> HashMap Word32 Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
   case mode of
     Nothing -> pure ()
@@ -135,9 +136,8 @@ editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
     for_ [0..num] \i -> do
       let mat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
       H.addCommand $ H.DrawCommand
-        { transforms = [mat]
+        { instances = [(0,mat)]
         , mesh = Buffered squareMesh
-        , hasIdent = Nothing
         , doCastShadow = False
         , doBlend = False
         , cull = False

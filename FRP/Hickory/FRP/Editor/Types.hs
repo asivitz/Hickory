@@ -34,6 +34,7 @@ import Hickory.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, i
 import Data.Hashable (Hashable)
 import Hickory.Vulkan.Types (VulkanResources)
 import Data.Proxy (Proxy)
+import GHC.Word (Word32)
 
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
@@ -42,16 +43,15 @@ data Object = Object
   { transform   :: M44 Scalar
   -- List of component names and attribute maps
   , components  :: [(String, HashMap String (SomeAttribute Identity))]
-  , baseObj :: Maybe Int
+  , baseObj :: Maybe Word32
   } deriving (Generic, Show, Read)
 
 data Component m a = Component
   { attributes :: [SomeAttribute (Const String)]
-  , acquire    :: HashMap String (SomeAttribute Identity) -> Int -> VulkanResources -> ResourcesStore -> IO ()
+  , acquire    :: HashMap String (SomeAttribute Identity) -> VulkanResources -> ResourcesStore -> IO ()
   , draw       :: HashMap String (SomeAttribute Identity)
                -> Maybe a
-               -> Int
-               -> [M44 Scalar] -- Transform per instance
+               -> [(Word32, M44 Scalar)] -- ObjectId and Transform per instance
                -> m ()
   }
 
@@ -164,68 +164,68 @@ setSomeAttribute newV (SomeAttribute attr _) = case eqAttr attr (mkAttr :: Attri
     Just HRefl -> SomeAttribute attr newV
     Nothing -> error "Wrong type for attribute"
 
-mkComponent :: forall a m state. Attr a => String -> (a -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
+mkComponent :: forall a m state. Attr a => String -> (a -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> Maybe state -> [(Word32,M44 Scalar)] -> m ()) -> Component m state
 mkComponent arg acquire f =
   Component [SomeAttribute (mkAttr :: Attribute a) (Const arg)]
-    (\attrs objId -> withAttrVal attrs arg \v -> acquire v objId)
-    (\attrs state objId -> withAttrVal attrs arg \v -> f v state objId)
+    (\attrs -> withAttrVal attrs arg \v -> acquire v)
+    (\attrs state -> withAttrVal attrs arg \v -> f v state)
 
-mkComponent2 :: forall a b m state. (Attr a, Attr b) => String -> String -> (a -> b -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
+mkComponent2 :: forall a b m state. (Attr a, Attr b) => String -> String -> (a -> b -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> Maybe state -> [(Word32,M44 Scalar)] -> m ()) -> Component m state
 mkComponent2 arg1 arg2 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   ]
-  (\attrs objId -> withAttrVal attrs arg1 \v1 ->
-                   withAttrVal attrs arg2 \v2 -> acquire v1 v2 objId)
-  (\attrs state objId -> withAttrVal attrs arg1 \v1 ->
-                         withAttrVal attrs arg2 \v2 -> f v1 v2 state objId)
+  (\attrs -> withAttrVal attrs arg1 \v1 ->
+             withAttrVal attrs arg2 \v2 -> acquire v1 v2)
+  (\attrs state -> withAttrVal attrs arg1 \v1 ->
+                   withAttrVal attrs arg2 \v2 -> f v1 v2 state)
 
-mkComponent3 :: forall a b c m state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
+mkComponent3 :: forall a b c m state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
 mkComponent3 arg1 arg2 arg3 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  ] (\attrs objId -> withAttrVal attrs arg1 \v1 ->
-                     withAttrVal attrs arg2 \v2 ->
-                     withAttrVal attrs arg3 \v3 -> acquire v1 v2 v3 objId)
-    $ \attrs state objId -> withAttrVal attrs arg1 \v1 ->
-                            withAttrVal attrs arg2 \v2 ->
-                            withAttrVal attrs arg3 \v3 -> f v1 v2 v3 state objId
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 -> acquire v1 v2 v3)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 -> f v1 v2 v3 state
 
-mkComponent4 :: forall a b c d m state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
+mkComponent4 :: forall a b c d m state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
 mkComponent4 arg1 arg2 arg3 arg4 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
   , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
-  ] (\attrs objId -> withAttrVal attrs arg1 \v1 ->
-                     withAttrVal attrs arg2 \v2 ->
-                     withAttrVal attrs arg3 \v3 ->
-                     withAttrVal attrs arg4 \v4 -> acquire v1 v2 v3 v4 objId)
-    $ \attrs state objId -> withAttrVal attrs arg1 \v1 ->
-                            withAttrVal attrs arg2 \v2 ->
-                            withAttrVal attrs arg3 \v3 ->
-                            withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4 state objId
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 ->
+               withAttrVal attrs arg4 \v4 -> acquire v1 v2 v3 v4)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 ->
+                      withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4 state
 
-mkComponent5 :: forall a b c d e m state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
+mkComponent5 :: forall a b c d e m state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
 mkComponent5 arg1 arg2 arg3 arg4 arg5 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
   , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
   , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
   , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
-  ] (\attrs objId -> withAttrVal attrs arg1 \v1 ->
-                     withAttrVal attrs arg2 \v2 ->
-                     withAttrVal attrs arg3 \v3 ->
-                     withAttrVal attrs arg4 \v4 ->
-                     withAttrVal attrs arg5 \v5 -> acquire v1 v2 v3 v4 v5 objId)
-    $ \attrs state objId -> withAttrVal attrs arg1 \v1 ->
-                            withAttrVal attrs arg2 \v2 ->
-                            withAttrVal attrs arg3 \v3 ->
-                            withAttrVal attrs arg4 \v4 ->
-                            withAttrVal attrs arg5 \v5 -> f v1 v2 v3 v4 v5 state objId
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 ->
+               withAttrVal attrs arg4 \v4 ->
+               withAttrVal attrs arg5 \v5 -> acquire v1 v2 v3 v4 v5)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 ->
+                      withAttrVal attrs arg4 \v4 ->
+                      withAttrVal attrs arg5 \v5 -> f v1 v2 v3 v4 v5 state
 
-mkComponent6 :: forall a b c d e f m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
+mkComponent6 :: forall a b c d e f m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
 mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -233,20 +233,20 @@ mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
   , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
   , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
   , SomeAttribute (mkAttr :: Attribute f) (Const arg6)
-  ] (\attrs objId -> withAttrVal attrs arg1 \v1 ->
-                     withAttrVal attrs arg2 \v2 ->
-                     withAttrVal attrs arg3 \v3 ->
-                     withAttrVal attrs arg4 \v4 ->
-                     withAttrVal attrs arg5 \v5 ->
-                     withAttrVal attrs arg6 \v6 -> acquire v1 v2 v3 v4 v5 v6 objId)
-    $ \attrs state objId -> withAttrVal attrs arg1 \v1 ->
-                            withAttrVal attrs arg2 \v2 ->
-                            withAttrVal attrs arg3 \v3 ->
-                            withAttrVal attrs arg4 \v4 ->
-                            withAttrVal attrs arg5 \v5 ->
-                            withAttrVal attrs arg6 \v6 -> f v1 v2 v3 v4 v5 v6 state objId
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 ->
+               withAttrVal attrs arg4 \v4 ->
+               withAttrVal attrs arg5 \v5 ->
+               withAttrVal attrs arg6 \v6 -> acquire v1 v2 v3 v4 v5 v6)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 ->
+                      withAttrVal attrs arg4 \v4 ->
+                      withAttrVal attrs arg5 \v5 ->
+                      withAttrVal attrs arg6 \v6 -> f v1 v2 v3 v4 v5 v6 state
 
-mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> Int -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> Int -> [M44 Scalar] -> m ()) -> Component m state
+mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
 mkComponent7 arg1 arg2 arg3 arg4 arg5 arg6 arg7 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -255,20 +255,20 @@ mkComponent7 arg1 arg2 arg3 arg4 arg5 arg6 arg7 acquire f = Component
   , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
   , SomeAttribute (mkAttr :: Attribute f) (Const arg6)
   , SomeAttribute (mkAttr :: Attribute g) (Const arg7)
-  ] (\attrs objId -> withAttrVal attrs arg1 \v1 ->
-                     withAttrVal attrs arg2 \v2 ->
-                     withAttrVal attrs arg3 \v3 ->
-                     withAttrVal attrs arg4 \v4 ->
-                     withAttrVal attrs arg5 \v5 ->
-                     withAttrVal attrs arg6 \v6 ->
-                     withAttrVal attrs arg7 \v7 -> acquire v1 v2 v3 v4 v5 v6 v7 objId)
-    $ \attrs state objId -> withAttrVal attrs arg1 \v1 ->
-                            withAttrVal attrs arg2 \v2 ->
-                            withAttrVal attrs arg3 \v3 ->
-                            withAttrVal attrs arg4 \v4 ->
-                            withAttrVal attrs arg5 \v5 ->
-                            withAttrVal attrs arg6 \v6 ->
-                            withAttrVal attrs arg7 \v7 -> f v1 v2 v3 v4 v5 v6 v7 state objId
+  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
+               withAttrVal attrs arg2 \v2 ->
+               withAttrVal attrs arg3 \v3 ->
+               withAttrVal attrs arg4 \v4 ->
+               withAttrVal attrs arg5 \v5 ->
+               withAttrVal attrs arg6 \v6 ->
+               withAttrVal attrs arg7 \v7 -> acquire v1 v2 v3 v4 v5 v6 v7)
+    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
+                      withAttrVal attrs arg2 \v2 ->
+                      withAttrVal attrs arg3 \v3 ->
+                      withAttrVal attrs arg4 \v4 ->
+                      withAttrVal attrs arg5 \v5 ->
+                      withAttrVal attrs arg6 \v6 ->
+                      withAttrVal attrs arg7 \v7 -> f v1 v2 v3 v4 v5 v6 v7 state
 
 mkSomeAttr :: forall a. Attr a => Proxy a -> String -> SomeAttribute (Const String)
 mkSomeAttr _ name = SomeAttribute (mkAttr :: Attribute a) (Const name)

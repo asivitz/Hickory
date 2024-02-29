@@ -154,18 +154,6 @@ gameNetwork logicTimeStep pauseKey coreEvents initialState eLoadState eInput ste
 
   pure (gd, gameEvs, paused)
 
-accumSelectedObjIds :: CoreEvents (Renderer, FrameContext) -> B.MomentIO (B.Behavior [Int])
-accumSelectedObjIds coreEvents = do
-  let eClick = (\(Size w h) PointUp { location = V2 x y } -> (x/ realToFrac w, y/ realToFrac h))
-           <$> scrSizeB coreEvents
-           <@> fmap head (B.filterE ((<0.3) . (.duration) . head) $ eTouchesUp coreEvents)
-  renInfo <- B.stepper undefined (eRender coreEvents)
-  eScreenPickedObjectID <- fmap (\x -> if x > 0 then Just x else Nothing) <$> B.execute (((\(r,fc) -> liftIO . pickObjectID fc r) <$> renInfo) <@> eClick)
-  B.accumB [] $ unionFirst
-    [ maybe id (\x -> nub . (x:)) <$> B.whenE (keyHeldB coreEvents Key'LeftShift) eScreenPickedObjectID
-    , const . maybeToList <$> eScreenPickedObjectID
-    ]
-
 data Scene m = Scene
   { render3DView   :: m ()
   , renderOverlay  :: m ()

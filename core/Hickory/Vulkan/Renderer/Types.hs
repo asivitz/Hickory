@@ -119,11 +119,10 @@ data DrawCommand = forall uniform. DrawCommand
   { materialConfig  :: MaterialConfig uniform
   , pokeData        :: Ptr uniform -> IO ()
   , mesh            :: MeshType
-  , transforms      :: [M44 Float]
+  , instances       :: [(Word32, M44 Float)] -- Id, Transform
   , descriptorSet   :: Maybe PointedDescriptorSet
   , doBlend         :: Bool
   , doCastShadow    :: Bool
-  , hasIdent        :: Maybe Int
   , cull            :: Bool
   }
 
@@ -189,7 +188,6 @@ data ShadowPushConsts = ShadowPushConsts
 
 data GBufferPushConsts = GBufferPushConsts
   { uniformIndex :: Word32
-  , objectID     :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
@@ -197,6 +195,8 @@ data MaterialDescriptorSet a = MaterialDescriptorSet
   { descriptorSet   :: PointedDescriptorSet
   -- Each unique instance has a uniform struct
   , uniformBuffer   :: DataBuffer a
+  -- Each unique instance has an id
+  , idBuffer        :: DataBuffer Word32
   -- Each draw call has a list of indices (that index into the uniformBuffer)
   , instancesBuffer :: DataBuffer Word32
   } deriving Generic
@@ -227,7 +227,7 @@ data RenderSettings = RenderSettings
   , worldSettings  :: WorldSettings
   , overlayGlobals :: OverlayGlobals
   , postSettings   :: PostConstants
-  , highlightObjs  :: [Int]
+  , highlightObjs  :: [Word32]
   } deriving Generic
 
 data WorldGlobals = WorldGlobals

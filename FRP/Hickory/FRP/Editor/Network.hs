@@ -44,15 +44,16 @@ import qualified Data.Enum.Set as ES
 import Control.Monad.Writer.Strict (Writer)
 import Vulkan (Filter(..), SamplerAddressMode (..))
 import qualified Data.HashMap.Strict as HashMap
+import Data.Word (Word32)
 
 data ObjectManip = ObjectManip
   { mode       :: Maybe ObjectManipMode
-  , captured   :: Maybe (HashMap Int Object, V2 Scalar)
+  , captured   :: Maybe (HashMap Word32 Object, V2 Scalar)
   , activeAxes :: V3 Scalar
   }
 
 objectManip
-  :: IO (Size Int -> InputFrame -> Camera -> HashMap Int Object -> Maybe (HashMap Int Object) -> IO (Maybe (ObjectManipMode, V3 Scalar), Maybe (HashMap Int Object)))
+  :: IO (Size Int -> InputFrame -> Camera -> HashMap Word32 Object -> Maybe (HashMap Word32 Object) -> IO (Maybe (ObjectManipMode, V3 Scalar), Maybe (HashMap Word32 Object)))
 objectManip = do
   state <- newIORef $
     ObjectManip
@@ -72,7 +73,7 @@ objectManip = do
           , whenE ((== Just 2) . fmap (.ident) . headMay $ inFr.touchesUp) (Just ())
           ]
 
-    let eSelectMode :: Maybe (Maybe (ObjectManipMode, HashMap Int Object))
+    let eSelectMode :: Maybe (Maybe (ObjectManipMode, HashMap Word32 Object))
         eSelectMode = asum
           [ whenE (notNull $ filter ((==1) . (.ident)) inFr.touchesUp) (pure Nothing)
           , Nothing <$ eCancelManip
@@ -99,14 +100,14 @@ objectManip = do
 
     let cursorLoc = fromMaybe zero . fmap fst . headMay $ inFr.touchesLoc
 
-    let captured :: Maybe (HashMap Int Object, V2 Scalar) = asum
+    let captured :: Maybe (HashMap Word32 Object, V2 Scalar) = asum
           [ (,cursorLoc) <$> eInitialObjects
           , st.captured
           ]
         Size scrW scrH = size
         Camera {..} = camera
 
-    let eMoveObject :: Maybe (HashMap Int Object) = whenE (mode == Just OTranslate) $
+    let eMoveObject :: Maybe (HashMap Word32 Object) = whenE (mode == Just OTranslate) $
           let
             f (objects, start) v =
                 let yaxis = up
@@ -117,7 +118,7 @@ objectManip = do
                   (mkTranslation (liftA2 (*) activeAxes (xaxis ^* (vx / realToFrac scrW * focusW) - yaxis ^* (vy / realToFrac scrH * focusH))) !*!)
           in f <$> captured <*> (fmap fst . headMay $ inFr.touchesLoc)
 
-        eScaleObject :: Maybe (HashMap Int Object) = whenE (mode == Just OScale) $
+        eScaleObject :: Maybe (HashMap Word32 Object) = whenE (mode == Just OScale) $
           let
             f (objects, start) v =
                 let objv = project size camera (avgObjTranslation objects)
@@ -125,7 +126,7 @@ objectManip = do
                 in objects & traversed . #transform %~ (!*! mkScale ((\fr -> glerp fr 1 ratio) <$> activeAxes))
           in f <$> captured <*> (fmap fst . headMay $ inFr.touchesLoc)
 
-        eRotateObject :: Maybe (HashMap Int Object) = whenE (mode == Just ORotate) $
+        eRotateObject :: Maybe (HashMap Word32 Object) = whenE (mode == Just ORotate) $
           let
             f (objects, start) v =
                 let objv = project size camera (avgObjTranslation objects)
@@ -151,7 +152,7 @@ objectManip = do
     pure ((,) <$> mode <*> Just activeAxes, eModifyObject)
 
 data Editor = Editor
-  { selectedObjectIDs :: [Int]
+  { selectedObjectIDs :: [Word32]
   }
 
 editorScene
@@ -162,7 +163,7 @@ editorScene
   -> PostEditorState
   -> FilePath
   -- -> CoreEvents (Renderer, FrameContext)
-  -> IORef (HashMap Int Object)
+  -> IORef (HashMap Word32 Object)
   -> HashMap String (Component m a)
   -> (swapchainResources -> Resources -> Camera -> m () -> Command ())
   -> IO ()
@@ -221,14 +222,14 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
                    <$> headMay (filter (\t -> t.duration < 0.3 && t.ident == 1) renderInputFrame.touchesUp)
       eScreenPickedObjectID <- for eLeftClick $ \cl ->
         mfilter (>0) . Just <$> pickObjectID frameContext renderer cl
-      eGUIPickedObjectID :: Maybe Int <- atomicModifyIORef' guiPickObjIDMailbox (Nothing,)
-      let ePickedObjectID :: Maybe (Maybe Int) = asum
+      eGUIPickedObjectID :: Maybe Word32 <- atomicModifyIORef' guiPickObjIDMailbox (Nothing,)
+      let ePickedObjectID :: Maybe (Maybe Word32) = asum
             [ eScreenPickedObjectID
             , Just <$> eGUIPickedObjectID
             ]
       let eSelectObject :: Maybe Object = join $ ePickedObjectID <&> \oid -> oid >>= (`Map.lookup` objects)
 
-      let selectedObjects :: HashMap Int Object = Map.filterWithKey (\k _ -> k `elem` st.selectedObjectIDs) objects
+      let selectedObjects :: HashMap Word32 Object = Map.filterWithKey (\k _ -> k `elem` st.selectedObjectIDs) objects
 
       let defaultObject = Object (mkTransformationMat identity focusPos) mempty Nothing
           eAddObj = whenE (keyPressed Key'A) $ Just (nextObjId objects, defaultObject)
@@ -242,11 +243,11 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
 
       (manipMode, eManipObjects) <- stepObjManip size renderInputFrame camera selectedObjects eDupeObjs
 
-      let eModifyObjects :: Maybe (HashMap Int Object) = asum
+      let eModifyObjects :: Maybe (HashMap Word32 Object) = asum
             [ eManipObjects
             ]
 
-      let newObjects :: HashMap Int Object = objects & fromMaybe id (asum
+      let newObjects :: HashMap Word32 Object = objects & fromMaybe id (asum
             [ uncurry Map.insert <$> eAddObj
             , Map.union <$> eModifyObjects
             , Map.union <$> eDupeObjs
@@ -254,7 +255,7 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
             -- , const <$> eReplaceObjects
             ])
 
-      let selectedObjectIDs :: [Int] = st.selectedObjectIDs & fromMaybe id (asum
+      let selectedObjectIDs :: [Word32] = st.selectedObjectIDs & fromMaybe id (asum
             [ const . pure . fst <$> eAddObj
             , const . Map.keys <$> eDupeObjs
             , const [] <$ eDeleteObjs
@@ -306,7 +307,7 @@ quaternionToEuler (Quaternion w (V3 x y z)) = V3 roll pitch yaw
   cosy_cosp = 1 - 2 * (y * y + z * z)
   yaw = atan2 siny_cosp cosy_cosp
 
-renderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Camera -> [Int] -> RenderSettings
+renderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Camera -> [Word32] -> RenderSettings
 renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedObjIds = RenderSettings
   { worldSettings = worldSettingsDefaults
     { camera

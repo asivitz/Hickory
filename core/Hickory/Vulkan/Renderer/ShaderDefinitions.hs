@@ -142,7 +142,7 @@ layout (push_constant) uniform constants { uint instanceIdx; } PushConstants;
 
 gbufferPushConstantsDef :: String
 gbufferPushConstantsDef = [qm|
-layout (push_constant) uniform constants { uint instanceIdx; uint objectID; } PushConstants;
+layout (push_constant) uniform constants { uint instanceIdx; } PushConstants;
   |]
 
 shadowPushConstantsDef :: String
@@ -159,7 +159,8 @@ Uniforms uniforms = uniformBlock.uniforms[PushConstants.instanceIdx];
 instancedUniformDef :: String
 instancedUniformDef = [qm|
 layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
-layout (scalar, set = 1, binding = 1) uniform InstanceIndices { uint instanceIndices[128]; };
+layout (scalar, set = 1, binding = 1) uniform ObjectIds { uint objectIds [128]; };
+layout (scalar, set = 1, binding = 2) uniform InstanceIndices { uint instanceIndices[128]; };
 uint uniformIdx = instanceIndices[PushConstants.instanceIdx + gl_InstanceIndex];
 Uniforms uniforms = uniformBlock.uniforms[uniformIdx];
   |]
@@ -181,29 +182,6 @@ float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), uniforms.sp
 
 light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
-  |]
-
-litVertexDef :: String
-litVertexDef = [qt|
-layout(location = 0) out vec3 light;
-layout(location = 2) out vec3 pos;
-layout(location = 3) out vec3 viewPos;
-
-  |]
-
-litFragDef :: String
-litFragDef = [qm|
-$shadowPassGlobalsDef
-layout(location = 0) in vec3 light;
-layout(location = 2) in vec3 inPos;
-layout(location = 3) in vec3 inViewPos;
-layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
-
-const mat4 biasMat = mat4(
-  0.5, 0.0, 0.0, 0.0,
-  0.0, 0.5, 0.0, 0.0,
-  0.0, 0.0, 1.0, 0.0,
-  0.5, 0.5, 0.0, 1.0 );
   |]
 
 litFragCalc :: String

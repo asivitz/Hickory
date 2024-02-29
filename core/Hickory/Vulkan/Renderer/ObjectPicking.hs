@@ -140,50 +140,11 @@ objectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 $gbufferPushConstantsDef
 
+layout(location = 3) flat in uint objectId;
 layout(location = 0) out uint outColor;
 
 void main() {
-  outColor = PushConstants.objectID;
-}
-|])
-
-animatedObjectIDVertShader :: ByteString
-animatedObjectIDVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-$vertHeader
-$worldGlobalsDef
-$pushConstantsDef
-$animatedUniformsDef
-
-layout(location = 2) in vec3 inNormal;
-layout(location = 3) in vec2 inTexCoord;
-layout(location = 6) in vec4 inJointIndices;
-layout(location = 7) in vec4 inJointWeights;
-
-void main()
-{
-    mat4 skinMat
-      = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
-      + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
-      + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
-      + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
-
-    vec4 modelPos = skinMat * vec4(inPosition,1.0);
-    vec4 worldPosition = uniforms.modelMat * modelPos;
-
-    gl_Position = globals.viewProjMat
-                * worldPosition;
-}
-|])
-
-animatedObjectIDFragShader :: ByteString
-animatedObjectIDFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
-$header
-$gbufferPushConstantsDef
-
-layout(location = 0) out uint outColor;
-
-void main() {
-  outColor = PushConstants.objectID;
+  outColor = objectId;
 }
 |])
 
