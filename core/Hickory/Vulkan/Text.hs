@@ -82,6 +82,7 @@ msdfVertShader = [qm|
   layout(location = 3) in vec2 inTexCoord;
 
   layout(location = 1) out vec2 texCoord;
+  layout(location = 2) out flat uint outUniformIdx;
 
   $msdfUniformsDef
 
@@ -90,6 +91,7 @@ msdfVertShader = [qm|
                   * uniforms.modelMat
                   * vec4(inPosition, 1.0);
       texCoord = uniforms.tiling * inTexCoord;
+      outUniformIdx = uniformIdx;
   }
 |]
 
@@ -99,6 +101,7 @@ msdfFragShader = [frag|
 #extension GL_EXT_scalar_block_layout : require
 
 layout(location = 1) in vec2 texCoord;
+layout(location = 2) in flat uint uniformIdx;
 
 layout(location = 0) out vec4 outColor;
 
@@ -112,7 +115,6 @@ struct Uniforms
   vec2 tiling;
 };
 
-layout (push_constant) uniform constants { uint uniformIdx; } PushConstants;
 layout (row_major, scalar, set = 1, binding = 0) uniform UniformBlock { Uniforms uniforms [128]; } uniformBlock;
 layout (set = 2, binding = 0) uniform sampler2D texSampler;
 
@@ -129,7 +131,7 @@ float screenPixelRange(float sdfPixelRange) {
 }
 
 void main() {
-  Uniforms uniforms = uniformBlock.uniforms[PushConstants.uniformIdx];
+  Uniforms uniforms = uniformBlock.uniforms[uniformIdx];
 
   float distance = median(texture(texSampler, texCoord).rgb);
 

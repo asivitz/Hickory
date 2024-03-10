@@ -34,6 +34,7 @@ import Vulkan (DescriptorSetLayout, Framebuffer)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (MaxShadowCascadesNat)
+import Data.Text (Text)
 
 data RenderTargets = RenderTargets
   -- Stage 1 Shadows
@@ -115,11 +116,27 @@ data Globals = Globals
   } deriving Generic
     deriving anyclass GStorable
 
+data DrawConfig = forall uniform pushConsts. DrawConfig
+  { mesh                 :: MeshType
+  , perDrawDescriptorSet :: Maybe PointedDescriptorSet
+  , material             :: Material pushConsts
+  , materialDescriptor   :: FramedResource (MaterialDescriptorSet uniform)
+  }
+
+data DrawBatch = DrawBatch
+  { firstInstanceIndex :: Word32
+  , numInstances       :: Word32
+  , meshSelector       :: Text -- MeshMember Name
+  , pushConst          :: Word32
+  , ordering           :: Int -- Indicates original draw order
+  } deriving Generic
+
 data DrawCommand = forall uniform. DrawCommand
   { materialConfig  :: MaterialConfig uniform
   , pokeData        :: Ptr uniform -> IO ()
   , mesh            :: MeshType
-  , instances       :: [(Word32, M44 Float)] -- Id, Transform
+  -- This describes the actual draw commands we send to vulkan
+  , instances       :: [(Text, [(Word32, M44 Float)])] -- MeshMember Name, [(Id, Transform)]
   , descriptorSet   :: Maybe PointedDescriptorSet
   , doBlend         :: Bool
   , doCastShadow    :: Bool
@@ -129,14 +146,6 @@ data DrawCommand = forall uniform. DrawCommand
 data MaterialConfig uniform
   = GBufferConfig (GBufferMaterialStack uniform)
   | DirectConfig (DirectMaterial uniform)
-
-data DrawType
-  = Animated AnimatedMesh
-  | Static StaticMesh
-  | MSDF MSDFMesh
-  | Lines
-  | Points
-  deriving Generic
 
 data MeshType
   = Buffered !BufferedMesh
@@ -181,15 +190,14 @@ data AnimatedConstants = AnimatedConstants
     deriving anyclass GStorable
 
 data ShadowPushConsts = ShadowPushConsts
-  { uniformIndex :: Word32
-  , cascadeIndex :: Word32
+  { cascadeIndex :: Word32
   } deriving Generic
     deriving anyclass GStorable
 
-data GBufferPushConsts = GBufferPushConsts
-  { uniformIndex :: Word32
-  } deriving Generic
-    deriving anyclass GStorable
+-- data GBufferPushConsts = GBufferPushConsts
+--   { uniformIndex :: Word32
+--   } deriving Generic
+--     deriving anyclass GStorable
 
 data MaterialDescriptorSet a = MaterialDescriptorSet
   { descriptorSet   :: PointedDescriptorSet
@@ -202,9 +210,9 @@ data MaterialDescriptorSet a = MaterialDescriptorSet
   } deriving Generic
 
 data GBufferMaterialStack uniform = GBufferMaterialStack
-  { gbufferMaterial          :: Material GBufferPushConsts
+  { gbufferMaterial          :: Material Word32 -- Unused push consts
   , shadowMaterial           :: Material ShadowPushConsts
-  , showSelectionMaterial    :: Material GBufferPushConsts
+  , showSelectionMaterial    :: Material Word32 -- Unused push consts
   , descriptor               :: FramedResource (MaterialDescriptorSet uniform)
   , uniformSize              :: Int -- Bytes
   , uuid                     :: UUID
@@ -216,7 +224,7 @@ data DirectStage = WorldDirect | OverlayDirect
 data DirectMaterial uniform = DirectMaterial
   { directMaterial  :: Material Word32
   , overlayMaterial :: Material Word32
-  , descriptor      :: FramedResource (BufferDescriptorSet uniform)
+  , descriptor      :: FramedResource (MaterialDescriptorSet uniform)
   , uniformSize     :: Int -- Bytes
   , uuid            :: UUID
   -- , directStage    :: DirectStage

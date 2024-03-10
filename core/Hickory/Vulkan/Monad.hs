@@ -19,10 +19,9 @@ import Control.Monad.State.Class (modify)
 import Control.Monad.State.Strict (StateT (..), evalStateT, get)
 import Control.Monad.Writer.Strict (WriterT (..), runWriterT, tell, mapWriterT)
 import Control.Monad.Trans (MonadTrans, lift)
-import Data.Foldable (toList, for_)
+import Data.Foldable (toList)
 import Data.Functor ((<&>))
 import Data.Generics.Labels ()
-import Data.List (sortOn, mapAccumL)
 import Data.Maybe (fromMaybe)
 import Data.Word (Word32, Word64)
 import Foreign (Storable, sizeOf)
@@ -31,7 +30,6 @@ import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (BufferDescriptorSet(..), withBufferDescriptorSet)
 import Hickory.Vulkan.Framing (FramedResource, frameResource)
 import Hickory.Vulkan.Material (withMaterial, PipelineOptions(..))
-import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), uploadDynamicMesh)
 import Vulkan
   ( CommandBuffer, cmdBindVertexBuffers, cmdDraw, cmdBindIndexBuffer, cmdDrawIndexed, IndexType(..), Buffer
@@ -41,7 +39,6 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import qualified Data.ByteString as B
 import Acquire.Acquire (Acquire)
-import Data.Proxy (Proxy)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
 import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderConfig (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))
@@ -173,7 +170,6 @@ textMesh :: Font -> TextCommand -> Mesh
 textMesh font tc = Mesh { indices = Just (SV.fromList indices)
                         , vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)]
                         , minPosition, maxPosition, morphTargets = []
-                        , name = Just "Text"
                         }
   where
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font

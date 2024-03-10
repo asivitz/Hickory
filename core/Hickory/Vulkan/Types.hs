@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Types where
 
-import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CullModeFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format, PhysicalDeviceProperties)
+import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format, PhysicalDeviceProperties)
 import qualified Data.Vector as V
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
@@ -18,6 +18,8 @@ import qualified Data.Vector.Storable as SV
 import Data.Text (Text)
 import Data.IORef (IORef, atomicModifyIORef')
 import Control.Monad (join)
+import Data.HashMap.Strict (HashMap)
+import Data.Hashable (Hashable)
 
 data VulkanResources = VulkanResources
   { deviceContext         :: DeviceContext
@@ -86,6 +88,7 @@ data Attribute
   | JointWeights
   | FloatAttribute Word32
   deriving (Generic, Show, Eq)
+  deriving anyclass Hashable
 
 data Mesh = Mesh
   { vertices :: [(Attribute, SV.Vector Float)]
@@ -93,8 +96,14 @@ data Mesh = Mesh
   , minPosition  :: V3 Float
   , maxPosition  :: V3 Float
   , morphTargets :: [(Text, [(Attribute, SV.Vector Float)])]
-  , name :: Maybe String -- For tracking / debugging. Not required
   } deriving (Generic, Show)
+
+data BufferedMeshMember = BufferedMeshMember
+  { firstIndex   :: Maybe Word32
+  , vertexOffset :: Word32
+  , minPosition  :: V3 Float
+  , maxPosition  :: V3 Float
+  }
 
 data BufferedMesh = BufferedMesh
   { vertexBuffer :: Buffer
@@ -102,9 +111,9 @@ data BufferedMesh = BufferedMesh
   , meshOffsets  :: [(Attribute, Word32)]
   , numIndices   :: Maybe Word32
   , numVertices  :: Word32
-  , minPosition  :: V3 Float
-  , maxPosition  :: V3 Float
-  , name :: Maybe String -- For tracking / debugging. Not required
+  , name         :: Maybe String -- For tracking / debugging. Not required
+  , members      :: HashMap Text BufferedMeshMember
+  , uuid         :: UUID
   } deriving Generic
 
 data FrameInOut = FrameInOut

@@ -108,8 +108,8 @@ loadMeshResource vulkanResources ResourcesStore { meshes } path = do
     liftIO (doesFileExist path) >>= \case
       True ->
         case path ^. extension of
-          ".hmdl" -> fmap Just $ liftIO (loadMeshFromFile path) >>= withBufferedMesh vulkanResources
-          ".x"    -> fmap Just $ liftIO (loadModelFromX   path) >>= withBufferedMesh vulkanResources . packedMesh
+          ".hmdl" -> fmap Just $ liftIO (loadMeshFromFile path) >>= withBufferedMesh vulkanResources (Just $ path ^. filename)
+          ".x"    -> fmap Just $ liftIO (loadModelFromX   path) >>= withBufferedMesh vulkanResources (Just $ path ^. filename) . packedMesh
           _       -> pure Nothing
       False -> pure Nothing
 

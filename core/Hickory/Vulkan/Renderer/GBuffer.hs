@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.GBuffer where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView, with2DImageViewMips)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -23,12 +23,12 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D, SamplerMipmapMode (..)
+  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), Framebuffer, Extent2D, SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
+import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler, withTextureImage, withImageSamplerMips)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
@@ -37,10 +37,13 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), defaultBlend)
-import Hickory.Vulkan.Renderer.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
+import Hickory.Vulkan.Renderer.Types (StaticConstants)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Word (Word32)
+import Hickory.Resources (loadResource', ResourcesStore(..))
+import Control.Monad (join)
+import Hickory.Vulkan.DescriptorSet (withDescriptorSet)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -174,6 +177,22 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+
+loadGBufTextures :: VulkanResources -> FilePath -> FilePath -> Acquire PointedDescriptorSet
+loadGBufTextures vulkanResources albedo normal = do
+  let form = FORMAT_R8G8B8A8_UNORM
+  alb <- do
+    (im, mipLevels) <- withTextureImage vulkanResources True albedo
+    iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels 0 1
+    samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
+    pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
+
+  nor <- do
+    (im, mipLevels) <- withTextureImage vulkanResources True normal
+    iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels 0 1
+    samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
+    pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
+  withDescriptorSet vulkanResources [alb,nor]
 
 {-
 withStaticGBufferMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial GBufferPushConsts StaticConstants)
@@ -409,7 +428,7 @@ withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMat
   $header
   $worldGlobalsDef
   $pushConstantsDef
-  $nonInstancedStaticUniformsDef
+  $staticUniformsDef
 
 
   layout(location = 0) in vec3 inPosition;
@@ -433,7 +452,7 @@ withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMa
   $header
   $worldGlobalsDef
   $pushConstantsDef
-  $nonInstancedStaticUniformsDef
+  $staticUniformsDef
 
   layout(location = 0) in vec3 inPosition;
 
@@ -451,7 +470,7 @@ staticUnlitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
 $pushConstantsDef
-$nonInstancedStaticUniformsDef
+$staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;
@@ -472,7 +491,7 @@ overlayVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $overlayGlobalsDef
 $pushConstantsDef
-$nonInstancedStaticUniformsDef
+$staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;

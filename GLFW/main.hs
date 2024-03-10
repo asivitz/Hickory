@@ -23,6 +23,7 @@ import qualified Hickory.Vulkan.Renderer.Types as H
 import Hickory.Vulkan.Renderer.Types (DrawCommand(..), RenderSettings(..), WorldSettings(..), OverlayGlobals(..))
 import Hickory.Vulkan.Types (VulkanResources(..))
 import qualified Hickory.Vulkan.Renderer.Renderer as H
+import qualified Hickory.Vulkan.Renderer.GBuffer as H
 import qualified Hickory.Vulkan.StockMesh as H
 import Hickory.Color (white)
 import Control.Monad.IO.Class (liftIO)
@@ -47,8 +48,8 @@ data Uniform = Uniform
 acquireResources :: VulkanResources -> Acquire Resources
 acquireResources vulkanResources = do
   square  <- H.withSquareMesh vulkanResources
-  starTex <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("star.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, Nothing)]
-  xTex    <- view #descriptorSet <$> H.withTextureDescriptorSet vulkanResources [("x.png", FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, Nothing)]
+  starTex <- H.loadGBufTextures vulkanResources "star.png" "star.png"
+  xTex    <- H.loadGBufTextures vulkanResources "x.png" "x.png"
 
   pure Resources {..}
 
@@ -64,7 +65,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
         do
           let mat = mkTranslation (V2 25 25) !*! mkScale (V2 20 20)
           H.addCommand $ DrawCommand
-            { instances = [(0,mat)]
+            { instances = [("",[(0,mat)])]
             , mesh = H.Buffered square
             , pokeData = flip poke $ H.StaticConstants
                 { modelMat    = mat
@@ -83,7 +84,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
         do
           let mat = mkTranslation (V2 75 25) !*! mkScale (V2 20 20)
           H.addCommand $ DrawCommand
-            { instances = [(0,mat)]
+            { instances = [("", [(0,mat)])]
             , mesh = H.Buffered square
             , pokeData = flip poke $ H.StaticConstants
                 { modelMat    = mat

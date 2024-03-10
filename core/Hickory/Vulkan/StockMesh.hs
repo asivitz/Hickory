@@ -11,7 +11,7 @@ import Data.Foldable (toList)
 import Hickory.Vulkan.Types (VulkanResources, BufferedMesh, Mesh (..), Attribute (..))
 
 withSquareMesh :: VulkanResources -> Acquire BufferedMesh
-withSquareMesh vulkanResources = withBufferedMesh vulkanResources $ Mesh
+withSquareMesh vulkanResources = withBufferedMesh vulkanResources (Just "Square") $ Mesh
   { vertices =
     [ (Position, [ -0.5, -0.5, 0.0
                  ,  0.5, -0.5, 0.0
@@ -38,11 +38,10 @@ withSquareMesh vulkanResources = withBufferedMesh vulkanResources $ Mesh
   , morphTargets = []
   , minPosition = V3 (-0.5) (-0.5) 0
   , maxPosition = V3 0.5 0.5 0
-  , name = Just "Square"
   }
 
 withCubeMesh :: VulkanResources -> Acquire BufferedMesh
-withCubeMesh vulkanResources = withBufferedMesh vulkanResources $ Mesh
+withCubeMesh vulkanResources = withBufferedMesh vulkanResources (Just "Cube") $ Mesh
   { vertices =
     [ (Position, floats)
     , (TextureCoord, tcs)
@@ -53,7 +52,6 @@ withCubeMesh vulkanResources = withBufferedMesh vulkanResources $ Mesh
   , morphTargets = []
   , minPosition = V3 (-0.5) (-0.5) (-0.5)
   , maxPosition = V3 0.5 0.5 0.5
-  , name = Just "Cube"
   }
   where
   --   7

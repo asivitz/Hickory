@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.Lights where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, with2DImageView)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..)
+  , Filter (..), SamplerAddressMode (..), Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -32,16 +32,12 @@ import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
-import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
-import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), defaultBlend, withMaterial)
-import Hickory.Vulkan.Renderer.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
+import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Word (Word32)
-import Hickory.Vulkan.Renderer.GBuffer (depthFormat)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
@@ -53,7 +49,7 @@ withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceC
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
-withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} colorImage = do
+withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } RenderConfig {..} colorImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
@@ -70,8 +66,7 @@ withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } S
     , dependencies = [dependency]
     } Nothing mkAcquire
 
-  let cullModeOverride = Nothing
-      samples = SAMPLE_COUNT_1_BIT
+  let samples = SAMPLE_COUNT_1_BIT
   pure RenderConfig {..}
   where
   hdrAttachmentDescription :: AttachmentDescription

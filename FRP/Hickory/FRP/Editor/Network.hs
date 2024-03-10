@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLabels, OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedLabels, OverloadedRecordDot, OverloadedStrings #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
@@ -10,39 +10,31 @@ import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..), Camera (..), project, cameraFocusPlaneSize)
 import Data.Maybe (fromMaybe, isJust)
 import Hickory.Input (Key(..), PointUp(..), InputFrame(..))
-import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero, (^/), _xyz)
+import Linear (axisAngle, identity, Quaternion (..), translation, mkTransformationMat, fromQuaternion, m33_to_m44, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), cross, norm, zero, (^/), _xyz)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Renderer.Renderer (renderToRenderer, pickObjectID)
-import Hickory.DearImGUIHelpers (tripleToV3, imVec4ToV4, v4ToImVec4, v3ToTriple)
-import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just, sumOf, _2)
-import Data.HashMap.Strict (HashMap, traverseWithKey)
+import Control.Lens (traversed, (^.), (&), (%~), (<&>), sumOf)
+import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
-import Hickory.FRP.Editor.General (matEuler, matScale)
 import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command)
-import Data.Text (unpack, pack)
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
-import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, runResources, getResourcesStoreResources, loadMeshResource, loadTextureResource, Resources)
+import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, runResources, getResourcesStoreResources, Resources)
 import Safe (maximumMay, headMay)
-import Data.Foldable (for_, traverse_)
 import Hickory.FRP.Editor.Post (GraphicsParams (..), PostEditorState, readGraphicsParams)
-import Data.Functor.Const (Const(..))
 import Data.Traversable (for)
-import Data.Functor.Identity (Identity(..))
-import Type.Reflection ((:~~:)(..))
 import Hickory.FRP.Camera (omniscientCamera)
 import Hickory.Graphics (MatrixMonad)
 import Control.Monad (join, mfilter, void, when)
 import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef', IORef)
-import Control.Applicative ((<|>), asum, liftA2)
+import Control.Applicative ((<|>), asum)
 import Data.List.Extra (notNull)
 import qualified Data.Enum.Set as ES
 import Control.Monad.Writer.Strict (Writer)
-import Vulkan (Filter(..), SamplerAddressMode (..))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Word (Word32)
 
@@ -175,15 +167,14 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
   -- let eReplaceObjects = fst <$> eLoadScene
 
   let ress@ResourcesStore {..} = resourcesStore
-  join $ loadResource' meshes "line" $ H.withBufferedMesh vulkanResources $ H.Mesh
+  join $ loadResource' meshes "line" $ H.withBufferedMesh vulkanResources (Just "Line") $ H.Mesh
     { vertices = [(H.Position, SV.fromList [-1000, 0, 0, 1000, 0, 0])]
     , indices = Nothing
     , minPosition = zero -- TODO
     , maxPosition = zero -- TODO
     , morphTargets = mempty
-    , name = Just "Line"
     }
-  join $ loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources $ H.Mesh
+  join $ loadResource' meshes "lines" $ H.withBufferedMesh vulkanResources (Just "Lines") $ H.Mesh
     { vertices =
         [ ( H.Position
           , SV.fromList $ concatMap (\i -> [-1000, realToFrac i, 0, 1000, realToFrac i, 0]) ([-1000..1000] :: [Int])
@@ -193,7 +184,6 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
     , minPosition = zero -- TODO
     , maxPosition = zero -- TODO
     , morphTargets = mempty
-    , name = Just "Lines"
     }
 
   state <- newIORef $ Editor []

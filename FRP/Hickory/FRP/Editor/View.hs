@@ -14,14 +14,13 @@ import Data.HashMap.Strict (HashMap)
 import Hickory.Graphics (askMatrix, MatrixMonad)
 import Hickory.FRP.Editor.Types
 import Hickory.Resources (getTexture, getMesh, ResourcesMonad)
-import Hickory.Vulkan.Renderer.Types (CommandMonad, StaticMesh (..), MeshType (..), DrawType (..))
+import Hickory.Vulkan.Renderer.Types (CommandMonad, MeshType (..))
 import Control.Lens ((.~), (&), (^.))
 import Control.Monad (when)
 import Data.Foldable (for_)
 import Hickory.Camera (Camera(..), project, isOrthographic)
 import Foreign (poke)
 import Data.Maybe (mapMaybe)
-import Data.Functor ((<&>))
 import GHC.Word (Word32)
 
 editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Camera -> HashMap Word32 Object -> HashMap Word32 Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
@@ -136,7 +135,7 @@ editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
     for_ [0..num] \i -> do
       let mat = mkTranslation (p1 + normalize diff ^* (realToFrac i * stride)) !*! mkRotation (V3 0 0 1) (negate $ v2angle diff (unit _x)) !*! mkScale (V2 (-on) width)
       H.addCommand $ H.DrawCommand
-        { instances = [(0,mat)]
+        { instances = [("",[(0,mat)])]
         , mesh = Buffered squareMesh
         , doCastShadow = False
         , doBlend = False

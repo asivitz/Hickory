@@ -17,6 +17,7 @@ data Stats = Stats
   , numInstancesPerCascade :: [Int]
   , numDirect :: Int
   , numOverlayDraws :: Int
+  , logMessages :: String
   }
 
 drawStats :: Stats -> IO ()
@@ -31,3 +32,4 @@ drawStats Stats {..} =
       text . pack $ printf "Number instances hitting cascade %d: %d" i n
     text . pack $ printf "Number commands direct: %d" numDirect
     text . pack $ printf "Total overlay draw commands: %d" numOverlayDraws
+    text . pack $ logMessages

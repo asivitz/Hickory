@@ -27,6 +27,7 @@ import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Renderer.Types as H
 import qualified Hickory.Vulkan.Renderer.Renderer as H
+import qualified Hickory.Vulkan.Renderer.GBuffer as H
 
 import Vulkan
   ( pattern FILTER_LINEAR
@@ -155,7 +156,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
     for_ missiles \(pos, _) -> do
       let mat = mkTranslation pos !*! mkScale (V2 5 5)
       H.addCommand $ DrawCommand
-        { instances = [(0,mat)]
+        { instances = [("", [(0,mat)])]
         , mesh = H.Buffered square
         , pokeData = flip poke $ H.StaticConstants
             { modelMat    = mat
@@ -173,7 +174,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
 
     let mat = mkTranslation playerPos !*! mkScale (V2 10 10)
     H.addCommand $ DrawCommand
-      { instances = [(0,mat)]
+      { instances = [("", [(0,mat)])]
       , mesh = H.Buffered square
       , pokeData = flip poke $ H.StaticConstants
           { modelMat    = mat

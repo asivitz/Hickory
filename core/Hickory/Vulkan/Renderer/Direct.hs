@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.Direct where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -21,33 +21,28 @@ import Vulkan
   , pattern SUBPASS_EXTERNAL
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
-  , ImageAspectFlagBits (..)
-  , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), DescriptorSetLayout, Framebuffer, SamplerMipmapMode (..)
+
+
+  , Filter (..), SamplerAddressMode (..), Framebuffer, SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
+import Hickory.Vulkan.Textures (withImageSampler)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
-import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..))
-import Hickory.Vulkan.Renderer.Types (StaticConstants, AnimatedConstants, GBufferPushConsts)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Hickory.Vulkan.Framing (FramedResource)
-import Data.Word (Word32)
 import Hickory.Vulkan.Renderer.GBuffer (depthFormat)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
 withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
-withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} colorImage depthImage = do
+withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } RenderConfig {..} colorImage depthImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
@@ -65,8 +60,7 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
     , dependencies = [dependency]
     } Nothing mkAcquire
 
-  let cullModeOverride = Nothing
-      samples = SAMPLE_COUNT_1_BIT
+  let samples = SAMPLE_COUNT_1_BIT
   pure RenderConfig {..}
   where
   hdrAttachmentDescription :: AttachmentDescription
@@ -118,7 +112,7 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
 staticDirectVertShader :: String
 staticDirectVertShader = [qm|
 $pushConstantsDef
-$nonInstancedStaticUniformsDef
+$staticUniformsDef
 
 layout(location = 0) in vec3 inPosition;
 layout(location = 3) in vec2 inTexCoord;

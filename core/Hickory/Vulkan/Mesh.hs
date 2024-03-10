@@ -6,7 +6,7 @@
 module Hickory.Vulkan.Mesh where
 
 import Control.Lens ((&))
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, catMaybes)
 import Data.Binary
 import Data.Vector.Binary ()
 import qualified Data.Vector.Storable as SV
@@ -23,13 +23,15 @@ import Control.Exception (bracket)
 import Foreign.Marshal.Array (copyArray)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Data.List (sortOn, find, foldl1', mapAccumL)
+import Data.List (sortOn, find, foldl1', mapAccumL, foldl')
 import Acquire.Acquire (Acquire)
-import Hickory.Vulkan.Types (Mesh (..), Attribute (..), VulkanResources (..), DeviceContext (..), BufferedMesh (..))
+import Hickory.Vulkan.Types (Mesh (..), Attribute (..), VulkanResources (..), DeviceContext (..), BufferedMesh (..), BufferedMeshMember (..))
 import Data.Text (Text)
 import Data.Foldable (for_)
 import Control.Monad (when)
 import GHC.Stack (HasCallStack)
+import qualified Data.HashMap.Strict as HashMap
+import Data.UUID.V4 (nextRandom)
 
 writeMeshToFile :: HasCallStack => FilePath -> Mesh -> IO ()
 writeMeshToFile = encodeFile
@@ -77,13 +79,19 @@ attrFormat JointWeights  = FORMAT_R32G32B32A32_SFLOAT
 attrFormat (FloatAttribute _) = FORMAT_R32_SFLOAT
 
 pack :: Mesh -> SV.Vector Float
-pack Mesh {..} = SV.concat $ fmap snd . sortOn (attrLocation . fst) $ vertices
+pack = packAttrs . vertices
+
+packAttrs :: [(Attribute, SV.Vector Float)] -> SV.Vector Float
+packAttrs = SV.concat . fmap snd . sortOn (attrLocation . fst)
 
 numVerts :: Mesh -> Int
-numVerts Mesh { vertices = ((attr, vec):_) } =
+numVerts = numVertsInAttrs . vertices
+
+numVertsInAttrs :: [(Attribute, SV.Vector Float)] -> Int
+numVertsInAttrs ((attr, vec):_) =
   let (num, remainder) = SV.length vec `quotRem` attrStride attr
   in if remainder == 0 then num else error "Invalid mesh. Attribute not evenly divisible by stride."
-numVerts _ = 0
+numVertsInAttrs _ = 0
 
 meshAttributes :: Mesh -> [Attribute]
 meshAttributes = fmap fst . vertices
@@ -103,20 +111,35 @@ attributeDescriptions attrs = V.fromList $ Prelude.zip [0..] attrs <&> \(i,a) ->
   , offset = 0
   }
 
-withBufferedMesh :: VulkanResources -> Mesh -> Acquire BufferedMesh
-withBufferedMesh bag mesh@Mesh {..} = do
-  vertexBuffer <- withVertexBuffer bag (pack mesh)
-  indexBuffer  <- traverse (withIndexBuffer bag) indices
-  let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) 0 (sortOn (attrLocation . fst) mesh.vertices)
-      numIndices = fromIntegral . SV.length <$> mesh.indices
-      numVertices = fromIntegral $ numVerts mesh
-  for_ mesh.vertices \(attr,vs) -> do
+withBufferedMesh :: VulkanResources -> Maybe String -> Mesh -> Acquire BufferedMesh
+withBufferedMesh bag name mesh = withBufferedMeshes bag name [("", mesh)]
+
+withBufferedMeshes :: VulkanResources -> Maybe String -> [(Text, Mesh)] -> Acquire BufferedMesh
+withBufferedMeshes bag name meshes = do
+  let ((reverse -> netAttrs, reverse -> netIs, _, _), HashMap.fromList -> members)
+        = (\f -> mapAccumL f ([],[],0,0) meshes) \(verts, is, vertOffset, firstIdx) (meshName, Mesh {..}) ->
+            ( (vertices : verts, indices : is, vertOffset + numVertsInAttrs vertices, firstIdx + maybe 0 SV.length indices)
+            , (meshName, BufferedMeshMember { firstIndex = Nothing, vertexOffset = 0, minPosition, maxPosition }))
+      attrs = concatAttrs netAttrs
+      ixs = concatIs netIs
+  vertexBuffer <- withVertexBuffer bag (packAttrs attrs)
+  indexBuffer  <- traverse (withIndexBuffer bag) ixs
+  let meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) 0 (sortOn (attrLocation . fst) attrs)
+      numIndices = fromIntegral . SV.length <$> ixs
+      numVertices = fromIntegral $ numVertsInAttrs attrs
+  for_ attrs \(attr,vs) -> do
     when (SV.null vs) $ error $ "Can't buffer mesh. Missing attribute: " ++ show attr
+  uuid <- liftIO nextRandom
 
   pure BufferedMesh {..}
+  where
+  concatAttrs = HashMap.toList . foldl' (HashMap.unionWith (SV.++)) HashMap.empty . map HashMap.fromList
+  concatIs is = case catMaybes is of
+    [] -> Nothing
+    x -> Just $ SV.concat x
 
 morphMesh :: Mesh -> [(Text, Float)] -> Mesh
-morphMesh Mesh {..} morphs = Mesh { indices, minPosition, maxPosition, morphTargets = mempty, vertices = vertices', name }
+morphMesh Mesh {..} morphs = Mesh { indices, minPosition, maxPosition, morphTargets = mempty, vertices = vertices' }
   where
   additionals = morphs & mapMaybe \(attrname, amt) ->
     case find ((==attrname) . fst) morphTargets of

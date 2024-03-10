@@ -106,7 +106,7 @@ packXMesh DX.Mesh { DX.vertices, DX.faces, DX.meshMaterialList, DX.meshNormals, 
   -}
 
 xToMesh :: DX.Mesh -> V.Mesh
-xToMesh DX.Mesh {..} = V.Mesh meshVerts (Just meshIndices) minPosition maxPosition mempty Nothing
+xToMesh DX.Mesh {..} = V.Mesh meshVerts (Just meshIndices) minPosition maxPosition mempty
   where
   positions     = (V.Position, SV.fromList $ packVertices vertices)
   normals       = (V.Normal,   SV.fromList $ packNormals faces (DX.normals meshNormals))
