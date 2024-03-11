@@ -99,7 +99,9 @@ data Mesh = Mesh
   } deriving (Generic, Show)
 
 data BufferedMeshMember = BufferedMeshMember
-  { firstIndex   :: Maybe Word32
+  { indexCount   :: Maybe Word32
+  , vertexCount  :: Word32
+  , firstIndex   :: Maybe Word32
   , vertexOffset :: Word32
   , minPosition  :: V3 Float
   , maxPosition  :: V3 Float

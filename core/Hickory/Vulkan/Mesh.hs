@@ -118,8 +118,13 @@ withBufferedMeshes :: VulkanResources -> Maybe String -> [(Text, Mesh)] -> Acqui
 withBufferedMeshes bag name meshes = do
   let ((reverse -> netAttrs, reverse -> netIs, _, _), HashMap.fromList -> members)
         = (\f -> mapAccumL f ([],[],0,0) meshes) \(verts, is, vertOffset, firstIdx) (meshName, Mesh {..}) ->
-            ( (vertices : verts, indices : is, vertOffset + numVertsInAttrs vertices, firstIdx + maybe 0 SV.length indices)
-            , (meshName, BufferedMeshMember { firstIndex = Nothing, vertexOffset = 0, minPosition, maxPosition }))
+            let lenVerts = numVertsInAttrs vertices in
+            ( (vertices : verts, indices : is, vertOffset + lenVerts, firstIdx + maybe 0 SV.length indices)
+            , (meshName, BufferedMeshMember { firstIndex = fromIntegral firstIdx <$ indices
+                                            , vertexOffset = fromIntegral vertOffset
+                                            , indexCount = fromIntegral . SV.length <$> indices
+                                            , vertexCount = fromIntegral lenVerts
+                                            , minPosition, maxPosition }))
       attrs = concatAttrs netAttrs
       ixs = concatIs netIs
   vertexBuffer <- withVertexBuffer bag (packAttrs attrs)

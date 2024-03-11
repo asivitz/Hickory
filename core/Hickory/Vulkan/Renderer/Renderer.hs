@@ -758,7 +758,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         --   let firstInstanceIndex = uniformIdx
         --   in (DrawConfig {..}, DrawBatch {..})
 
-    let sortOpaque = sortOn descId . sortOn meshId
+    let sortOpaque = concat . concatMap (bucketOn descId) . bucketOn meshId
         sortBlended = sortOn ((.ordering) . snd) . reverse -- The above pipeline tends to return in reverse order, so we reverse first
         meshId (DrawConfig {mesh}, _) = case mesh of
           Buffered bm -> bm.uuid
@@ -772,12 +772,12 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     flip VS.imapM_ stages.cascades \(fromIntegral . getFinite -> i) bs ->
       useRenderConfig shadowRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0) ] swapchainImageIndex (fst . (`VS.unsafeIndex` fromIntegral i) . fst <$> cascadedShadowMap) do
         logger $ printf "\n\nProcessing shadow cascade %d" (i :: Word32)
-        processDrawCommands frameContext logger (sortOpaque $ concat bs)
+        processDrawCommands frameContext logger (concatMap sortOpaque bs)
 
     -- Stage 2 Current Selection
     useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
       logger "\n\nProcessing current selection"
-      processDrawCommands frameContext logger (sortOpaque $ concat stages.showSel)
+      processDrawCommands frameContext logger (concatMap sortOpaque stages.showSel)
 
     -- Stage 3 GBuffer
     let V4 r g b a = clearColor
@@ -788,7 +788,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       , DepthStencil (ClearDepthStencilValue 1 0)
       ] swapchainImageIndex (fst <$> gbufferRenderFrame) do
       logger "\n\nProcessing gbuffer"
-      processDrawCommands frameContext logger (sortOpaque $ concat stages.gbuf)
+      processDrawCommands frameContext logger (concatMap sortOpaque stages.gbuf)
 
     -- Stage 4 Decals (TODO)
     -- Stage 5 Lighting
@@ -973,13 +973,13 @@ processDrawCommands fc@FrameContext {..} logger batches = do
             cmdBindIndexBuffer commandBuffer ibuf 0 INDEX_TYPE_UINT32
 
         let BufferedMeshMember {..} = HashMap.lookupDefault (head $ HashMap.elems members)  meshSelector members
-        case numIndices of
+        case indexCount of
           Just n -> do
             liftIO . logger $ printf "Drawing indexed %d instances" numInstances
             cmdDrawIndexed commandBuffer n numInstances (fromMaybe 0 firstIndex) (fromIntegral vertexOffset) firstInstanceIndex
           Nothing -> do
             liftIO . logger $ printf "Drawing %d instances" numInstances
-            cmdDraw commandBuffer numVertices numInstances vertexOffset firstInstanceIndex
+            cmdDraw commandBuffer vertexCount numInstances vertexOffset firstInstanceIndex
       Dynamic dyn -> do
         meshes <- getMeshes
         addMesh dyn
