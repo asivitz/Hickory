@@ -37,6 +37,7 @@ import qualified Data.Enum.Set as ES
 import Control.Monad.Writer.Strict (Writer)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Word (Word32)
+import Control.Applicative (liftA2)
 
 data ObjectManip = ObjectManip
   { mode       :: Maybe ObjectManipMode
