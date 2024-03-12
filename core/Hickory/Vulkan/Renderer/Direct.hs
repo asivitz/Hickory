@@ -41,16 +41,17 @@ import Hickory.Vulkan.Renderer.GBuffer (depthFormat)
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
-withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
+withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
 withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } RenderConfig {..} colorImage depthImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
       ViewableImage _ depthImageView _ = depthImage
-  let descriptorSpecs = [ ImageDescriptor [(colorImage,sampler)]
-                        , ImageDescriptor [(depthImage,sampler)]
-                        ]
-  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [colorImageView, depthImageView]
+  let descriptorSpec = ImageDescriptor
+        [ (colorImage,sampler)
+        , (depthImage,sampler)
+        ]
+  (,descriptorSpec) <$> createFramebuffer device renderPass extent [colorImageView, depthImageView]
 
 withDirectRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do

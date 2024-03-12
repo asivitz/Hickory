@@ -48,15 +48,14 @@ withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceC
   hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw 0 1
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
-withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
+withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
 withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } RenderConfig {..} colorImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
 
-  let descriptorSpecs = [ ImageDescriptor [(colorImage,sampler)]
-                        ]
-  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [colorImageView]
+  let descriptorSpec = ImageDescriptor [(colorImage,sampler)]
+  (,descriptorSpec) <$> createFramebuffer device renderPass extent [colorImageView]
 
 withLightingRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
@@ -147,9 +146,8 @@ layout( push_constant, scalar ) uniform constants
 } PushConstants;
 
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
-layout (set = 1, binding = 0) uniform sampler2D albedoSampler;
-layout (set = 1, binding = 1) uniform sampler2D normalSampler;
-layout (set = 1, binding = 3) uniform sampler2D depthSampler;
+layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
+layout (set = 1, binding = 1) uniform sampler2D ssao;
 
 const mat4 biasMat = mat4(
   0.5, 0.0, 0.0, 0.0,
@@ -211,15 +209,15 @@ float calcShadow(vec3 viewPos, vec3 worldPos)
 
 void main()
 {
-  float depth = texture(depthSampler, inTexCoords).r;
+  float depth = texture(gbuffer[3], inTexCoords).r;
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
   vec3 viewDir  = normalize(inViewRay);
   vec3 worldDir = normalize(inWorldRay);
   vec3 viewPos  = inViewRay * (depth / globals.farPlane);
   vec3 worldPos = inWorldRay * (depth / globals.farPlane) + globals.cameraPos;
 
-  vec3 worldNormal = texture(normalSampler, inTexCoords).xyz;
-  vec4 albedo      = texture(albedoSampler, inTexCoords);
+  vec3 worldNormal = texture(gbuffer[1], inTexCoords).xyz;
+  vec4 albedo      = texture(gbuffer[0], inTexCoords);
   float specularity = 8; //TODO
 
   float shadow = calcShadow(viewPos, worldPos) * mix(0.3,1,albedo.a);
@@ -234,6 +232,7 @@ void main()
 
   vec3 light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
-  outColor = vec4((shadow * light + globals.ambientColor * albedo.a) * albedo.rgb, 1);
+  float ao = texture(ssao, inTexCoords).r;
+  outColor = vec4((shadow * light + globals.ambientColor * albedo.a * ao) * albedo.rgb, 1);
 }
 |])

@@ -13,6 +13,17 @@ type MaxShadowCascadesNat = 3
 
 maxShadowCascades :: Word32
 maxShadowCascades = fromIntegral $ natVal (Proxy @MaxShadowCascadesNat)
+maxShadowCascadesString :: String
+maxShadowCascadesString = show maxShadowCascades
+
+
+type MaxSSAOKernelSizeNat :: Nat
+type MaxSSAOKernelSizeNat = 64
+
+maxSSAOKernelSize :: Word32
+maxSSAOKernelSize = fromIntegral $ natVal (Proxy @MaxSSAOKernelSizeNat)
+maxSSAOKernelSizeString :: String
+maxSSAOKernelSizeString = show maxSSAOKernelSize
 
 cascadeOverlapThreshold :: Float
 cascadeOverlapThreshold = 10.0
@@ -43,9 +54,6 @@ layout (row_major, scalar, set = 0, binding = 2) uniform GlobalUniform
     mat4 viewProjMat;
   } globals;
   |]
-
-maxShadowCascadesString :: String
-maxShadowCascadesString = show maxShadowCascades
 
 cascadeOverlapThresholdString :: String
 cascadeOverlapThresholdString = show cascadeOverlapThreshold

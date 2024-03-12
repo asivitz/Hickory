@@ -52,7 +52,7 @@ shadowDim = Extent2D 2048 2048
 shadowMapSize :: Size Int
 shadowMapSize = Size 2048 2048
 
-withShadowMap :: VulkanResources -> RenderConfig -> Acquire (VS.Vector MaxShadowCascadesNat(Framebuffer, [DescriptorSpec]), DescriptorSpec)
+withShadowMap :: VulkanResources -> RenderConfig -> Acquire (VS.Vector MaxShadowCascadesNat(Framebuffer, DescriptorSpec), DescriptorSpec)
 withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
   sampler <- withShadowSampler vulkanResources
   -- Shadowmap depth texture
@@ -64,9 +64,9 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
   cascades <- VS.generateM \(fromIntegral . getFinite -> i) -> do
     cascadeImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw i 1
     let cascadeImage = ViewableImage shadowmapImageRaw cascadeImageView depthFormat
-    let descriptorSpecs = [DepthImageDescriptor cascadeImage sampler]
+    let descriptorSpec = DepthImageDescriptor cascadeImage sampler
 
-    (,descriptorSpecs) <$> createFramebuffer device renderPass shadowDim [cascadeImageView]
+    (,descriptorSpec) <$> createFramebuffer device renderPass shadowDim [cascadeImageView]
   pure (cascades, shadowmapDescriptorSpec)
 
 withShadowRenderConfig :: VulkanResources -> Acquire RenderConfig

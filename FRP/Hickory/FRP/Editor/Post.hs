@@ -10,7 +10,7 @@ import DearImGui
       menuItem,
       dragFloat3,
       dragFloat,
-      colorEdit3, ImVec2 (..), ImVec4 (..), image )
+      colorEdit3, ImVec2 (..), ImVec4 (..), image, withCollapsingHeaderOpen, dragInt )
 import Data.IORef ( IORef, readIORef, newIORef )
 import GHC.Generics (Generic)
 import Hickory.DearImGUIHelpers (imVec3ToV3, tripleToV3, v3ToImVec3, v3ToTriple, myWithWindow)
@@ -24,6 +24,7 @@ import Foreign (with, castPtr, wordPtrToPtr, WordPtr(..))
 import Control.Lens (view)
 import Hickory.Vulkan.Types (FrameContext(..), RenderConfig(..))
 import Hickory.Vulkan.Framing (resourceForFrame)
+import Data.Bits
 
 data PostEditorState = PostEditorState
   { exposureRef        :: IORef Float
@@ -35,6 +36,8 @@ data PostEditorState = PostEditorState
   , sunLightRef        :: IORef ImVec3
   , sunStrengthRef     :: IORef Scalar
   , sunDirectionRef    :: IORef (Float, Float, Float)
+  , ssaoKernelSizeRef  :: IORef Int
+  , ssaoKernelRadiusRef :: IORef Scalar
   }
 
 data GraphicsParams = GraphicsParams
@@ -47,6 +50,8 @@ data GraphicsParams = GraphicsParams
   , sunLight        :: V3 Scalar
   , sunStrength     :: Scalar
   , sunDirection    :: V3 Scalar
+  , ssaoKernelSize  :: Int
+  , ssaoKernelRadius :: Scalar
   } deriving (Show, Read, Generic)
 
 defaultGraphicsParams :: GraphicsParams
@@ -60,6 +65,8 @@ defaultGraphicsParams = GraphicsParams
     , sunLight        = V3 1 1 1
     , sunStrength     = 1
     , sunDirection    = V3 (-1) (-1) (-6)
+    , ssaoKernelSize  = 16
+    , ssaoKernelRadius = 0.5
     }
 
 readGraphicsParams :: PostEditorState -> IO GraphicsParams
@@ -74,6 +81,8 @@ readGraphicsParams PostEditorState{..} =
     <*> (imVec3ToV3 <$> readIORef sunLightRef)
     <*> readIORef sunStrengthRef
     <*> (tripleToV3 <$> readIORef sunDirectionRef)
+    <*> readIORef ssaoKernelSizeRef
+    <*> readIORef ssaoKernelRadiusRef
 
 mkPostEditorState :: GraphicsParams -> IO PostEditorState
 mkPostEditorState GraphicsParams {..} = do
@@ -86,6 +95,9 @@ mkPostEditorState GraphicsParams {..} = do
   sunLightRef        <- newIORef (v3ToImVec3 sunLight)
   sunStrengthRef     <- newIORef sunStrength
   sunDirectionRef    <- newIORef (v3ToTriple sunDirection)
+
+  ssaoKernelSizeRef    <- newIORef ssaoKernelSize
+  ssaoKernelRadiusRef    <- newIORef ssaoKernelRadius
 
   pure PostEditorState {..}
 
@@ -106,6 +118,10 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
     void $ colorEdit3 "Sun Light" sunLightRef
     void $ dragFloat "Sun Strength" sunStrengthRef 0.1 0 10
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100
+
+    withCollapsingHeaderOpen "SSAO" zeroBits do
+      void $ dragInt "Kernel Size" ssaoKernelSizeRef 1 0 64
+      void $ dragFloat "Kernel Radius" ssaoKernelRadiusRef 0.01 0 5
 
     let RenderTargets {..} = renderTargets
         Extent2D w h = shadowRenderConfig.extent

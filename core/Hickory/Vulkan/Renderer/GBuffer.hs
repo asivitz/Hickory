@@ -63,7 +63,7 @@ withDepthViewableImage vulkanResources extent = do
   depthImageView <- with2DImageView vulkanResources.deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
   pure $ ViewableImage depthImageRaw depthImageView depthFormat
 
-withGBufferFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, [DescriptorSpec])
+withGBufferFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
 withGBufferFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} depthImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
@@ -83,12 +83,13 @@ withGBufferFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceC
 
   let ViewableImage _ depthImageView _ = depthImage
 
-  let descriptorSpecs = [ ImageDescriptor [(albedoImage,sampler)]
-                        , ImageDescriptor [(normalImage,sampler)]
-                        , ImageDescriptor [(objIDImage,sampler)]
-                        , ImageDescriptor [(depthImage,sampler)]
-                        ]
-  (,descriptorSpecs) <$> createFramebuffer device renderPass extent [albedoImageView, normalImageView, objIDImageView, depthImageView]
+  let descriptorSpec = ImageDescriptor
+        [ (albedoImage,sampler)
+        , (normalImage,sampler)
+        , (objIDImage,sampler)
+        , (depthImage,sampler)
+        ]
+  (,descriptorSpec) <$> createFramebuffer device renderPass extent [albedoImageView, normalImageView, objIDImageView, depthImageView]
 
 withGBufferRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do

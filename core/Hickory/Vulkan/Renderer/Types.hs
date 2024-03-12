@@ -39,23 +39,26 @@ import Data.Text (Text)
 data RenderTargets = RenderTargets
   -- Stage 1 Shadows
   { shadowRenderConfig           :: !RenderConfig
-  , cascadedShadowMap            :: FramedResource (VS.Vector MaxShadowCascadesNat (Framebuffer, [DescriptorSpec]), DescriptorSpec)
+  , cascadedShadowMap            :: FramedResource (VS.Vector MaxShadowCascadesNat (Framebuffer, DescriptorSpec), DescriptorSpec)
   -- Stage 2 Current Selection
   , objectIDRenderConfig         :: !RenderConfig
-  , currentSelectionRenderFrame  :: FramedResource (Framebuffer, [DescriptorSpec])
+  , currentSelectionRenderFrame  :: FramedResource (Framebuffer, DescriptorSpec)
   -- Stage 3 GBuffer
   , gbufferRenderConfig          :: !RenderConfig
-  , gbufferRenderFrame           :: FramedResource (Framebuffer, [DescriptorSpec])
-  -- Stage 4 Decals (TODO)
-  -- Stage 5 Lighting
+  , gbufferRenderFrame           :: FramedResource (Framebuffer, DescriptorSpec)
+  -- Stage 4 SSAO
+  , ssaoRenderConfig             :: !RenderConfig
+  , ssaoRenderFrame              :: FramedResource (Framebuffer, DescriptorSpec)
+  -- Stage 5 Decals (TODO)
+  -- Stage 6 Lighting
   , lightingRenderConfig         :: !RenderConfig
-  , lightingRenderFrame          :: FramedResource (Framebuffer, [DescriptorSpec])
-  -- Stage 6 Forward
+  , lightingRenderFrame          :: FramedResource (Framebuffer, DescriptorSpec)
+  -- Stage 7 Forward
   , directRenderConfig           :: !RenderConfig
-  , directRenderFrame            :: FramedResource (Framebuffer, [DescriptorSpec])
-  -- Stage 7 Post + Overlay
+  , directRenderFrame            :: FramedResource (Framebuffer, DescriptorSpec)
+  -- Stage 8 Post + Overlay
   , swapchainRenderConfig        :: !RenderConfig
-  , swapchainRenderFrame         :: FramedResource (Framebuffer, [DescriptorSpec])
+  , swapchainRenderFrame         :: FramedResource Framebuffer
   }
 
 data Renderer = Renderer
@@ -84,6 +87,7 @@ data Renderer = Renderer
   , objHighlightMaterial     :: !(Material Word32)
   , postProcessMaterial      :: !(Material PostConstants)
   , sunMaterial              :: !(Material Word32) -- Word32 isn't actually used. But can't be ()
+  , ssaoMaterial             :: !(Material SSAOSettings)
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
   , globalShadowPassBuffer   :: !(FramedResource (DataBuffer ShadowGlobals))
   , globalWorldBuffer        :: !(FramedResource (DataBuffer WorldGlobals))
@@ -230,12 +234,19 @@ data DirectMaterial uniform = DirectMaterial
   -- , directStage    :: DirectStage
   }
 
+data SSAOSettings = SSAOSettings
+  { kernelSize :: Word32
+  , kernelRadius :: Scalar
+  } deriving Generic
+    deriving anyclass GStorable
+
 data RenderSettings = RenderSettings
   { clearColor     :: V4 Scalar
   , worldSettings  :: WorldSettings
   , overlayGlobals :: OverlayGlobals
   , postSettings   :: PostConstants
   , highlightObjs  :: [Word32]
+  , ssaoSettings :: SSAOSettings
   } deriving Generic
 
 data WorldGlobals = WorldGlobals

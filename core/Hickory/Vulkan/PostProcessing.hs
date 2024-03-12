@@ -52,8 +52,7 @@ layout( push_constant, scalar ) uniform constants
   float filmGrain;
 } PushConstants;
 
-layout (set = 1, binding = 0) uniform sampler2D textureSampler;
-layout (set = 1, binding = 1) uniform sampler2DMS depthSampler;
+layout (set = 1, binding = 0) uniform sampler2D textures[2];
 
 
 // Bring hdr color into ldr range with an artistic curve
@@ -68,6 +67,7 @@ vec3 aces_tonemapping(vec3 x) {
   return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
+/*
 float linearizeDepth(float depth, float nearPlane, float farPlane)
 {
     return nearPlane * farPlane / (farPlane - depth * (farPlane - nearPlane));
@@ -75,10 +75,10 @@ float linearizeDepth(float depth, float nearPlane, float farPlane)
 
 float depthVariance(ivec2 tsize)
 {
-    int multiSampleCount = int(globals.multiSampleCount);
+    int multiSampleCount = 1; // int(globals.multiSampleCount); Disabling multi sample for now...
     int totalSamples = 9 * multiSampleCount;
 
-    float targetDepth = linearizeDepth(texelFetch(depthSampler, ivec2(texCoordsVarying * tsize), 0).r, globals.nearPlane, globals.farPlane);
+    float targetDepth = linearizeDepth(texelFetch(textures[1], ivec2(texCoordsVarying * tsize), 0).r, globals.nearPlane, globals.farPlane);
     int numDisagree = 0;
     float threshold = (globals.farPlane - globals.nearPlane) / 250;
 
@@ -87,7 +87,7 @@ float depthVariance(ivec2 tsize)
       ivec2 offset = ivec2(j % 3 - 1, j / 3 - 1);
       for (int i = 0; i < multiSampleCount; i++)
       {
-          float depth = texelFetch(depthSampler, ivec2(texCoordsVarying * tsize) + offset, i).r;
+          float depth = texelFetch(textures[1], ivec2(texCoordsVarying * tsize) + offset, i).r;
           depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
           numDisagree += int(abs(depth - targetDepth) > threshold);
       }
@@ -96,10 +96,11 @@ float depthVariance(ivec2 tsize)
     float fr = float(numDisagree) / float(totalSamples);
     return 2 * (0.5 - abs(0.5 - fr));
 }
+*/
 
 void main()
 {
-  lowp vec4 origColor = texture(textureSampler, texCoordsVarying);
+  lowp vec4 origColor = texture(textures[0], texCoordsVarying);
 
   // Exposure
   vec3 exposureFilter = exp2(PushConstants.exposure) * PushConstants.colorShift;

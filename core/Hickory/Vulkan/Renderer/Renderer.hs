@@ -5,27 +5,27 @@
 
 module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), DirectStage (..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..))
-import Hickory.Vulkan.Vulkan ( mkAcquire)
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..))
+import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
-import Linear (V4 (..), V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon)
+import Linear (V4 (..), V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon, (^*))
 import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..), BufferedMeshMember (..))
+import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..), BufferedMeshMember (..), ViewableImage (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, msdfVertShader, msdfFragShader)
 import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, withGBufferFrameBuffer, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, whiteFragShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), CullModeFlagBits, cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType)
-import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, nullPtr, with, (.|.))
-import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray, withBufferDescriptorSet)
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), CullModeFlagBits, cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..))
+import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.))
+import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend, cmdPushMaterialConstants)
-import Data.List (partition, sortOn, mapAccumL, foldl')
+import Data.List (sortOn, mapAccumL, foldl')
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
@@ -40,8 +40,7 @@ import Hickory.Camera (cameraViewMat, cameraPos, cameraProjMat, cameraNear, came
 import Hickory.Math.Matrix ( viewDirection )
 import Data.Word (Word32)
 import Data.UUID (UUID)
-import Control.Monad.State.Class ( MonadState, put, get, modify )
-import Control.Monad.State.Strict (evalStateT)
+import Control.Monad.State.Class ( MonadState, put, get )
 import qualified Data.UUID as UUID
 import Data.Maybe (fromMaybe, mapMaybe)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
@@ -58,10 +57,11 @@ import Data.UUID.V4 (nextRandom)
 import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
-import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, cascadeOverlapThreshold, buildDirectVertShader, buildOverlayVertShader, MaxShadowCascadesNat)
+import qualified Data.Vector.Storable.Sized as VSS
+import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, cascadeOverlapThreshold, buildDirectVertShader, buildOverlayVertShader, MaxShadowCascadesNat, MaxSSAOKernelSizeNat, maxSSAOKernelSize)
 import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
 import Hickory.Vulkan.Renderer.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
-import Hickory.Vulkan.Textures (transitionImageLayout)
+import Hickory.Vulkan.Textures (transitionImageLayout, withImageFromArray, withImageSampler)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Hickory.Vulkan.Renderer.Stats (Stats (..))
 import Data.Functor ((<&>))
@@ -73,6 +73,8 @@ import GHC.Generics (Generic)
 import Control.Applicative ((<|>))
 import Text.Printf (printf)
 import Data.IORef (readIORef, newIORef, modifyIORef', writeIORef)
+import Hickory.Vulkan.Renderer.SSAO (withSSAOMaterial, withSSAORenderConfig, withSSAOViewableImage)
+import Control.Monad.Random (randomRIO)
 
 -- register transforms/ids/uniforms
 --    by material
@@ -138,14 +140,14 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
   shadowMaterial  <- withRendererMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } pipelineOptions.shadowCullMode shadowVertShader shadowFragShader materialSets perDrawLayout
   showSelectionMaterial <- withRendererMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} pipelineOptions.cullMode gbufferVertShader OP.objectIDFragShader materialSets perDrawLayout
 
-  debugName vulkanResources gbufferMaterial.pipeline "GBuffer"
-  debugName vulkanResources gbufferMaterial.pipelineLayout "GBuffer"
-
-  debugName vulkanResources shadowMaterial.pipeline "Shadow"
-  debugName vulkanResources shadowMaterial.pipelineLayout "Shadow"
-
-  debugName vulkanResources showSelectionMaterial.pipeline "Show Sel"
-  debugName vulkanResources showSelectionMaterial.pipelineLayout "Show Sel"
+  -- debugName vulkanResources gbufferMaterial.pipeline "GBuffer"
+  -- debugName vulkanResources gbufferMaterial.pipelineLayout "GBuffer"
+  --
+  -- debugName vulkanResources shadowMaterial.pipeline "Shadow"
+  -- debugName vulkanResources shadowMaterial.pipelineLayout "Shadow"
+  --
+  -- debugName vulkanResources showSelectionMaterial.pipeline "Show Sel"
+  -- debugName vulkanResources showSelectionMaterial.pipelineLayout "Show Sel"
   pure GBufferMaterialStack {..}
 
 debugName :: (MonadIO io, HasObjectType p) => VulkanResources -> p -> ByteString -> io ()
@@ -223,8 +225,12 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   colorViewableImage    <- frameResource $ withColorViewableImage vulkanResources swapchain.extent
   depthViewableImage    <- frameResource $ withDepthViewableImage vulkanResources swapchain.extent
 
+  ssaoViewableImage     <- frameResource $ withSSAOViewableImage vulkanResources swapchain.extent
+
   gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
   gbufferRenderFrame    <- depthViewableImage & V.mapM (withGBufferFrameBuffer vulkanResources gbufferRenderConfig)
+  ssaoRenderConfig      <- withSSAORenderConfig vulkanResources swapchain
+  ssaoRenderFrame       <- ssaoViewableImage & V.mapM (withLightingFrameBuffer vulkanResources ssaoRenderConfig)
   lightingRenderConfig  <- withLightingRenderConfig vulkanResources swapchain
   lightingRenderFrame   <- colorViewableImage & V.mapM (withLightingFrameBuffer vulkanResources lightingRenderConfig)
   directRenderConfig    <- withDirectRenderConfig vulkanResources swapchain
@@ -250,7 +256,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
         ] ++ targetDescriptorSpecs
 
   -- For debugging
-  shadowMapDescriptorSet <- for (concatMap snd . VS.toList . fst <$> cascadedShadowMap) $ withDescriptorSet vulkanResources
+  shadowMapDescriptorSet <- for (map snd . VS.toList . fst <$> cascadedShadowMap) $ withDescriptorSet vulkanResources
 
   singleImageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
@@ -265,13 +271,40 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   -- staticShadowMaterial     <- withStaticShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
   -- animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
 
-  objHighlightDescriptorSet <- for (snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
+  objHighlightDescriptorSet <- for (pure . snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources directRenderConfig globalDescriptorSet objHighlightDescriptorSet
 
-  sunMaterialDescriptorSet <- for (snd <$> gbufferRenderFrame) $ withDescriptorSet vulkanResources
+  -- SSAO
+  kernel :: VSS.Vector MaxSSAOKernelSizeNat (V3 Scalar) <- VSS.generateM \(getFinite -> i) -> do
+    v <- fmap normalize $
+         V3 <$> randomRIO (-1,1)
+            <*> randomRIO (-1,1)
+            <*> randomRIO (0,1)
+    let scaleFac = realToFrac i / realToFrac maxSSAOKernelSize
+        scale = glerp (scaleFac * scaleFac) 0.1 1
+    pure $ v ^* scale
+
+  kernelBuffer :: DataBuffer (VSS.Vector MaxSSAOKernelSizeNat (V3 Scalar)) <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+
+  liftIO $ withMappedMemory kernelBuffer.allocator kernelBuffer.allocation bracket \bufptr -> poke (castPtr bufptr) kernel
+
+  let noiseDim = 4
+      noiseFormat = FORMAT_R32G32B32A32_SFLOAT
+  noiseValues :: SV.Vector (V4 Scalar) <- SV.generateM (fromIntegral $ noiseDim * noiseDim) \_ ->
+    normalize <$> (V4 <$> randomRIO (-1,1) <*> randomRIO (-1,1) <*> pure 0 <*> pure 0)
+
+  (noiseImage,_) <- withImageFromArray vulkanResources noiseDim noiseDim noiseFormat False noiseValues
+  imageView <- with2DImageView vulkanResources.deviceContext noiseFormat IMAGE_ASPECT_COLOR_BIT noiseImage 0 1
+  sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
+
+  ssaoMaterialDescriptorSet <- for (snd <$> gbufferRenderFrame) $ \gbufDesc -> withDescriptorSet vulkanResources
+    [gbufDesc, BufferDescriptor kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,sampler)]]
+  ssaoMaterial              <- withSSAOMaterial vulkanResources ssaoRenderConfig globalDescriptorSet ssaoMaterialDescriptorSet
+
+  sunMaterialDescriptorSet <- for (V.zipWith (\a b -> [a,b]) (snd <$> gbufferRenderFrame) (snd <$> ssaoRenderFrame)) $ withDescriptorSet vulkanResources
   sunMaterial              <- withDirectionalLightMaterial vulkanResources lightingRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
-  postMaterialDescriptorSet <- for (snd <$> directRenderFrame) $ withDescriptorSet vulkanResources
+  postMaterialDescriptorSet <- for (pure . snd <$> directRenderFrame) $ withDescriptorSet vulkanResources
   postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderConfig globalDescriptorSet postMaterialDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
@@ -739,25 +772,6 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
         pokeArray (castPtr bufptr) ids
 
-    -- directDCIdsToUniformIdx :: HashMap.HashMap Int Word32 <- HashMap.fromList . concat <$> for allDirectCommandsGrouped \group -> do
-    --   case groupHead group of
-    --     (_,DrawCommand {materialConfig}) -> case materialConfig of
-    --       DirectConfig material -> do
-    --         let BufferDescriptorSet { dataBuffer } = resourceForFrame swapchainImageIndex material.descriptor
-    --             DataBuffer {..} = dataBuffer
-    --         liftIO $ withMappedMemory allocator allocation bracket \bufptr -> do
-    --           for (zip group [0..]) \((dcId, DrawCommand {pokeData}), uniIdx) -> do
-    --             liftIO $ pokeData (plusPtr bufptr (material.uniformSize * uniIdx))
-    --             pure (dcId, fromIntegral uniIdx)
-    --       _ -> error "Non direct draw commands not supported here"
-
-    -- let directWorldDrawCommandsWithUniformIdx   = map (over _1 (fromMaybe (error "Can't find uniform index") . (`HashMap.lookup` directDCIdsToUniformIdx))) directWorldDrawCommandsTagged
-        -- directOverlayDrawCommandsWithUniformIdx = map (over _1 (fromMaybe (error "Can't find uniform index") . (`HashMap.lookup` directDCIdsToUniformIdx))) directOverlayDrawCommandsTagged
-        -- directWorldBatches :: [(DrawConfig, DrawBatch)]
-        -- directWorldBatches = directWorldDrawCommandsWithUniformIdx <&> \(uniformIdx, DrawCommand {..}) ->
-        --   let firstInstanceIndex = uniformIdx
-        --   in (DrawConfig {..}, DrawBatch {..})
-
     let sortOpaque = concat . concatMap (bucketOn descId) . bucketOn meshId
         sortBlended = sortOn ((.ordering) . snd) . reverse -- The above pipeline tends to return in reverse order, so we reverse first
         meshId (DrawConfig {mesh}, _) = case mesh of
@@ -790,8 +804,15 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       logger "\n\nProcessing gbuffer"
       processDrawCommands frameContext logger (concatMap sortOpaque stages.gbuf)
 
-    -- Stage 4 Decals (TODO)
-    -- Stage 5 Lighting
+    -- Stage 4 SSAO
+    useRenderConfig ssaoRenderConfig commandBuffer [Color (Float32 0 0 0 0)] swapchainImageIndex (fst <$> ssaoRenderFrame) do
+      cmdBindMaterial frameContext ssaoMaterial
+      liftIO do
+        cmdPushMaterialConstants commandBuffer ssaoMaterial ssaoSettings
+        cmdDraw commandBuffer 3 1 0 0
+
+    -- Stage 5 Decals (TODO)
+    -- Stage 6 Lighting
     useRenderConfig lightingRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> lightingRenderFrame) do
       -- Sun is a full screen light
       cmdBindMaterial frameContext sunMaterial
@@ -802,7 +823,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     -- We use depth as a texture for lighting, but need it for z-testing in forward rendering
     transitionImageLayout (resourceForFrame swapchainImageIndex depthViewableImage).image IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL commandBuffer
 
-    -- Stage 6 Forward
+    -- Stage 7 Forward
     useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
       -- Layer in extra direct color commands
       logger "\n\nProcessing direct world"
@@ -814,8 +835,8 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
           liftIO $ cmdDraw commandBuffer 3 1 0 0
         _ -> pure ()
 
-    -- Stage 7 Post + Overlay
-    void $ useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex (fst <$> swapchainRenderFrame) do
+    -- Stage 8 Post + Overlay
+    void $ useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex swapchainRenderFrame do
       -- Post processing
       cmdBindMaterial frameContext postProcessMaterial
       liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postSettings

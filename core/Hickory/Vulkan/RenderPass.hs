@@ -50,10 +50,10 @@ import Hickory.Vulkan.Types
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource)
 import Data.Word (Word32)
 
-withSwapchainFramebuffers :: VulkanResources -> Swapchain -> RenderConfig -> Acquire (FramedResource (Framebuffer, [DescriptorSpec]))
+withSwapchainFramebuffers :: VulkanResources -> Swapchain -> RenderConfig -> Acquire (FramedResource Framebuffer)
 withSwapchainFramebuffers VulkanResources { deviceContext = DeviceContext{..} } sc RenderConfig {..} = do
   for sc.images \(ViewableImage _img imgView _format) ->
-    (,mempty) <$> createFramebuffer device renderPass extent [imgView]
+    createFramebuffer device renderPass extent [imgView]
 
 withSwapchainRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withSwapchainRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
