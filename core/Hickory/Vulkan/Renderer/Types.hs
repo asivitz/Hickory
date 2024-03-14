@@ -99,6 +99,7 @@ data Renderer = Renderer
   , shadowMapDescriptorSet   :: FramedResource PointedDescriptorSet
   , singleImageSetLayout     :: DescriptorSetLayout
   , uberImageSetLayout       :: DescriptorSetLayout
+  , skinBuffer               :: FramedResource (DataBuffer (M44 Scalar))
   } deriving Generic
 
 -- params: targ, shaders
@@ -188,7 +189,7 @@ data AnimatedConstants = AnimatedConstants
   , normalMat   :: M33 Float
   , color       :: V4 Float
   , specularity :: Float
-  , boneMat     :: VSS.Vector 66 (M44 Float) -- TODO: Parameterize
+  , skinIdx     :: Word32
   , colors      :: VSS.Vector 6 (V4 Float)
   } deriving Generic
     deriving anyclass GStorable

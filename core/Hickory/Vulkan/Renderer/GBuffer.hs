@@ -303,6 +303,8 @@ $worldGlobalsDef
 $gbufferPushConstantsDef
 $animatedUniformsDef
 
+layout (row_major, scalar, set = 1, binding = 3) uniform SkinBlock { mat4 boneMat [1000]; } skinBlock;
+
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
@@ -317,11 +319,12 @@ layout(location = 3) flat out uint objectId;
 layout(location = 8) out mat3 TBN;
 
 void main() {
+  int boneOffset = int(uniforms.skinIdx * 66);
   mat4 skinMat
-    = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
-    + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
-    + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
-    + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
+    = inJointWeights.x * skinBlock.boneMat[boneOffset + int(inJointIndices.x)]
+    + inJointWeights.y * skinBlock.boneMat[boneOffset + int(inJointIndices.y)]
+    + inJointWeights.z * skinBlock.boneMat[boneOffset + int(inJointIndices.z)]
+    + inJointWeights.w * skinBlock.boneMat[boneOffset + int(inJointIndices.w)];
 
   vec4 modelPos = skinMat * vec4(inPosition,1.0);
   vec4 worldPosition = uniforms.modelMat * modelPos;
@@ -348,6 +351,8 @@ $shadowPassGlobalsDef
 $shadowPushConstantsDef
 $animatedUniformsDef
 
+layout (row_major, scalar, set = 1, binding = 3) uniform SkinBlock { mat4 boneMat [1000]; } skinBlock;
+
 layout(location = 0) in vec3 inPosition;
 layout(location = 2) in vec3 inNormal;
 layout(location = 3) in vec2 inTexCoord;
@@ -358,11 +363,12 @@ layout(location = 0) out vec2 texCoord;
 layout(location = 2) out vec4 color;
 
 void main() {
+  int boneOffset = int(uniforms.skinIdx * 66);
   mat4 skinMat
-    = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
-    + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
-    + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
-    + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
+    = inJointWeights.x * skinBlock.boneMat[boneOffset + int(inJointIndices.x)]
+    + inJointWeights.y * skinBlock.boneMat[boneOffset + int(inJointIndices.y)]
+    + inJointWeights.z * skinBlock.boneMat[boneOffset + int(inJointIndices.z)]
+    + inJointWeights.w * skinBlock.boneMat[boneOffset + int(inJointIndices.w)];
 
   vec4 modelPos = skinMat * vec4(inPosition,1.0);
   vec4 worldPosition = uniforms.modelMat * modelPos;

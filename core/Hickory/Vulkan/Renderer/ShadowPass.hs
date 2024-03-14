@@ -111,14 +111,6 @@ withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceC
     , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
     }
 
--- withStaticShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts StaticConstants)
--- withStaticShadowMaterial vulkanResources renderConfig globalDS
---   = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineDefaults { depthClampEnable = True } staticVertShader whiteFragShader globalDS Nothing
---
--- withAnimatedShadowMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
--- withAnimatedShadowMaterial vulkanResources renderConfig globalDS
---   = withBufferedUniformMaterial vulkanResources renderConfig [Position, JointIndices, JointWeights] pipelineDefaults { depthClampEnable = True } animatedVertShader whiteFragShader globalDS Nothing
-
 staticVertShader :: ByteString
 staticVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
@@ -132,36 +124,6 @@ layout(location = 0) out vec4 shadowCoord;
 
 void main() {
   vec4 worldPosition = uniforms.modelMat
-                      * vec4(inPosition, 1.0);
-
-  gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
-              * worldPosition;
-}
-
-|])
-
-animatedVertShader :: ByteString
-animatedVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
-$header
-$shadowPassGlobalsDef
-$shadowPushConstantsDef
-$animatedUniformsDef
-
-layout(location = 0) in vec3 inPosition;
-layout(location = 6) in vec4 inJointIndices;
-layout(location = 7) in vec4 inJointWeights;
-
-layout(location = 0) out vec4 shadowCoord;
-
-void main() {
-  mat4 skinMat
-    = inJointWeights.x * uniforms.boneMat[int(inJointIndices.x)]
-    + inJointWeights.y * uniforms.boneMat[int(inJointIndices.y)]
-    + inJointWeights.z * uniforms.boneMat[int(inJointIndices.z)]
-    + inJointWeights.w * uniforms.boneMat[int(inJointIndices.w)];
-
-  vec4 worldPosition = uniforms.modelMat
-                      * skinMat
                       * vec4(inPosition, 1.0);
 
   gl_Position = shadowGlobals.viewProjMat[PushConstants.cascadeIndex]
