@@ -5,7 +5,7 @@
 
 module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..))
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), DecalConstants)
 import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -15,16 +15,16 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..), BufferedMeshMember (..), ViewableImage (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, withGBufferFrameBuffer, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
+import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader, withAlbedoViewableImage, withNormalViewableImage, withObjIDViewableImage)
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, whiteFragShader, withShadowMap)
-import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers)
+import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..))
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), CullModeFlagBits (..), PrimitiveTopology (..))
 import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.))
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
-import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource)
-import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend, cmdPushMaterialConstants)
+import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource, zipFramedResources)
+import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend, cmdPushMaterialConstants, colorBlendAddAlpha)
 import Data.List (sortOn, mapAccumL, foldl')
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
@@ -58,7 +58,7 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import qualified Data.Vector.Storable.Sized as VSS
 import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, cascadeOverlapThreshold, buildDirectVertShader, buildOverlayVertShader, MaxShadowCascadesNat, MaxSSAOKernelSizeNat, maxSSAOKernelSize)
-import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader)
+import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader, simpleFragShader)
 import Hickory.Vulkan.Renderer.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
 import Hickory.Vulkan.Textures (transitionImageLayout, withImageFromArray, withImageSampler)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
@@ -74,6 +74,8 @@ import Text.Printf (printf)
 import Data.IORef (readIORef, newIORef, modifyIORef', writeIORef)
 import Hickory.Vulkan.Renderer.SSAO (withSSAOMaterial, withSSAORenderConfig, withSSAOViewableImage)
 import Control.Monad.Random (randomRIO)
+import Hickory.Vulkan.Renderer.Decals (withDecalRenderConfig, decalVertShader, decalFragShader)
+import Hickory.Vulkan.Renderer.Direct (lineVertShader)
 
 withGBufferMaterialStack
   :: forall uniform
@@ -146,6 +148,9 @@ withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDra
   config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
   pure (config, skinBuffer)
 
+withDecalMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> FramedResource [DescriptorSpec] -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig DecalConstants)
+withDecalMaterialConfig vulkanResources renderTargets globalPDS gbufDesc perDrawLayout = withDecalMaterialStack vulkanResources renderTargets globalPDS (Just gbufDesc) 10 ((pipelineDefaults [colorBlendAddAlpha, colorBlendAddAlpha ]) { cullMode = CULL_MODE_FRONT_BIT }) [HVT.Position] perDrawLayout decalFragShader
+
 withDirectMaterialStack
   :: forall uniform
   .  Storable uniform
@@ -190,6 +195,15 @@ withStaticDirectMaterialConfig vulkanResources renderTargets globalPDS perDrawLa
     $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader staticDirectVertShader))
     staticDirectFragShader
 
+withLineDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Acquire (MaterialConfig StaticConstants)
+withLineDirectMaterialConfig vulkanResources renderTargets globalPDS =
+  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineOptions [HVT.Position] Nothing
+    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader lineVertShader))
+    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader lineVertShader))
+    simpleFragShader
+  where
+  pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
+
 withMSDFMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig MSDFMatConstants)
 withMSDFMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
   withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout
@@ -197,21 +211,78 @@ withMSDFMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
     $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader msdfVertShader))
     msdfFragShader
 
+withDecalMaterialStack
+  :: forall uniform
+  .  Storable uniform
+  => VulkanResources
+  -> RenderTargets
+  -> FramedResource PointedDescriptorSet
+  -> Maybe (FramedResource [DescriptorSpec])
+  -> Int
+  -> PipelineOptions
+  -> [HVT.Attribute]
+  -> Maybe DescriptorSetLayout -- Per draw descriptor set
+  -> ByteString
+  -> Acquire (MaterialConfig uniform)
+withDecalMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet extraMaterialDescriptors maxNumDraws pipelineOptions attributes perDrawLayout fragShader
+  = DecalConfig <$> do
+  uuid <- liftIO nextRandom
+  extras <- maybe (frameResource $ pure []) pure extraMaterialDescriptors
+  descriptor <- flip V.mapM extras \descs -> do
+    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    descriptorSet <- withDescriptorSet vulkanResources $
+      [ BufferDescriptor (buf uniformBuffer)
+      , BufferDescriptor (buf idBuffer)
+      , BufferDescriptor (buf instancesBuffer)
+      ] ++ descs
+    pure MaterialDescriptorSet {..}
+
+  let uniformSize = sizeOf (undefined :: uniform)
+      materialSet = view #descriptorSet <$> descriptor
+      materialSets =
+        [ globalDescriptorSet
+        , materialSet
+        ]
+
+  material <- withMaterial vulkanResources decalRenderConfig attributes pipelineOptions pipelineOptions.cullMode decalVertShader fragShader materialSets perDrawLayout
+  pure DecalMaterial {..}
+
 standardMaxNumDraws :: Num a => a
 standardMaxNumDraws = 2048
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
+  linearSampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
+  nearestSampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
   shadowRenderConfig <- withShadowRenderConfig vulkanResources
   cascadedShadowMap <- frameResource $ withShadowMap vulkanResources shadowRenderConfig
 
+  let packAttachments = fmap V.fromList . zipFramedResources . fmap (fmap (.imageView))
+
   colorViewableImage    <- frameResource $ withColorViewableImage vulkanResources swapchain.extent
   depthViewableImage    <- frameResource $ withDepthViewableImage vulkanResources swapchain.extent
+  albedoViewableImage   <- frameResource $ withAlbedoViewableImage vulkanResources swapchain.extent
+  normalViewableImage   <- frameResource $ withNormalViewableImage vulkanResources swapchain.extent
+  objIDViewableImage    <- frameResource $ withObjIDViewableImage vulkanResources swapchain.extent
 
   ssaoViewableImage     <- frameResource $ withSSAOViewableImage vulkanResources swapchain.extent
 
+
+  let gbufferDesc = zipFramedResources [albedoViewableImage, normalViewableImage, objIDViewableImage, depthViewableImage]
+                <&> ImageDescriptor . fmap (,linearSampler)
+      decalDesc = zipFramedResources [ objIDViewableImage <&> \i -> ImageDescriptor [(i, nearestSampler)]
+                                     , depthViewableImage <&> \i -> ImageDescriptor [(i, linearSampler)]
+                                     ]
+
   gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
-  gbufferRenderFrame    <- depthViewableImage & V.mapM (withGBufferFrameBuffer vulkanResources gbufferRenderConfig)
+  gbufferRenderFrame    <- for (packAttachments [albedoViewableImage, normalViewableImage, objIDViewableImage, depthViewableImage]) $
+    createFramebuffer vulkanResources.deviceContext.device gbufferRenderConfig.renderPass gbufferRenderConfig.extent
+  decalRenderConfig     <- withDecalRenderConfig vulkanResources swapchain
+  decalRenderFrame      <- for (packAttachments [albedoViewableImage, normalViewableImage]) $
+    createFramebuffer vulkanResources.deviceContext.device decalRenderConfig.renderPass decalRenderConfig.extent
+
   ssaoRenderConfig      <- withSSAORenderConfig vulkanResources swapchain
   ssaoRenderFrame       <- ssaoViewableImage & V.mapM (withLightingFrameBuffer vulkanResources ssaoRenderConfig)
   lightingRenderConfig  <- withLightingRenderConfig vulkanResources swapchain
@@ -221,7 +292,6 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   swapchainRenderConfig <- withSwapchainRenderConfig vulkanResources swapchain
   swapchainRenderFrame  <- withSwapchainFramebuffers vulkanResources swapchain swapchainRenderConfig
   objectIDRenderConfig  <- withObjectIDRenderConfig vulkanResources swapchain
-  -- pickingRenderFrame    <- frameResource $ withObjectIDFrameBuffer vulkanResources objectIDRenderConfig
   currentSelectionRenderFrame <- frameResource $ withObjectIDFrameBuffer vulkanResources objectIDRenderConfig
 
   globalBuffer             <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
@@ -278,13 +348,12 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   (noiseImage,_) <- withImageFromArray vulkanResources noiseDim noiseDim noiseFormat False noiseValues
   imageView <- with2DImageView vulkanResources.deviceContext noiseFormat IMAGE_ASPECT_COLOR_BIT noiseImage 0 1
-  sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
 
-  ssaoMaterialDescriptorSet <- for (snd <$> gbufferRenderFrame) $ \gbufDesc -> withDescriptorSet vulkanResources
-    [gbufDesc, BufferDescriptor kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,sampler)]]
+  ssaoMaterialDescriptorSet <- for gbufferDesc $ \gbufDesc -> withDescriptorSet vulkanResources
+    [gbufDesc, BufferDescriptor kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,nearestSampler)]]
   ssaoMaterial              <- withSSAOMaterial vulkanResources ssaoRenderConfig globalDescriptorSet ssaoMaterialDescriptorSet
 
-  sunMaterialDescriptorSet <- for (V.zipWith (\a b -> [a,b]) (snd <$> gbufferRenderFrame) (snd <$> ssaoRenderFrame)) $ withDescriptorSet vulkanResources
+  sunMaterialDescriptorSet <- for (V.zipWith (\a b -> [a,b]) gbufferDesc (snd <$> ssaoRenderFrame)) $ withDescriptorSet vulkanResources
   sunMaterial              <- withDirectionalLightMaterial vulkanResources lightingRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
   postMaterialDescriptorSet <- for (pure . snd <$> directRenderFrame) $ withDescriptorSet vulkanResources
@@ -292,7 +361,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
-  objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 2 (snd <$> gbufferRenderFrame)
+  objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 2 gbufferDesc
 
   let renderTargets = RenderTargets {..}
 
@@ -300,6 +369,9 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   (animatedGBufferMaterialConfig, skinBuffer) <- withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just uberImageSetLayout)
   staticDirectMaterialConfig    <- withStaticDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
   msdfMaterialConfig            <- withMSDFMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
+  decalMaterialConfig           <- withDecalMaterialConfig vulkanResources renderTargets globalDescriptorSet decalDesc (Just singleImageSetLayout)
+
+  lineDirectMaterialConfig <- withLineDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
 
   pure Renderer {..}
 
@@ -474,6 +546,7 @@ data Stages a = Stages
   , cascades :: VS.Vector MaxShadowCascadesNat [a]
   , direct   :: [a]
   , overlay  :: [a]
+  , decals   :: [a]
   } deriving Generic
 
 data SimpleCriteria = Equal | NonEqual
@@ -486,7 +559,7 @@ instance Eq SimpleCriteria where
   _ == NonEqual = False
 
 emptyStages :: Stages a
-emptyStages = Stages [] [] (VS.replicate @MaxShadowCascadesNat []) [] []
+emptyStages = Stages [] [] (VS.replicate @MaxShadowCascadesNat []) [] [] []
 
 mapStagesLists :: ([a] -> [b]) -> Stages a -> Stages b
 mapStagesLists f stages = Stages {..}
@@ -496,9 +569,10 @@ mapStagesLists f stages = Stages {..}
   cascades = VS.map f stages.cascades
   direct   = f stages.direct
   overlay  = f stages.overlay
+  decals   = f stages.decals
 
 concatStages :: Stages a -> [a]
-concatStages Stages {..} = concat (gbuf : showSel : direct : overlay : VS.toList cascades)
+concatStages Stages {..} = concat (gbuf : showSel : direct : overlay : decals : VS.toList cascades)
 
 -- f takes the current offset and the item, and returns the amount to advance and the new item
 mapAccumOffset :: (Traversable t, Num a1) => (a1 -> a2 -> (a1, b)) -> t a2 -> (a1, t b)
@@ -513,8 +587,9 @@ mapStagesAccumOffset f stages = Stages {..}
   (showSelLen, showSel) = stages.showSel & mapAccumOffset (\s a -> f (s + gbufLen) a)
   (directLen, direct) = stages.direct & mapAccumOffset (\s a -> f (s + gbufLen + showSelLen) a)
   (overlayLen, overlay) = stages.overlay & mapAccumOffset (\s a -> f (s + gbufLen + showSelLen + directLen) a)
+  (decalsLen, decals) = stages.decals & mapAccumOffset (\s a -> f (s + gbufLen + showSelLen + directLen + overlayLen) a)
   cascades = fromMaybe (error "Lengths don't match") . VS.fromListN @MaxShadowCascadesNat . reverse . snd $ (\g -> VS.foldl' g (0, []) stages.cascades)
-    \(offset,items) cascade -> let (off, newCascade) = mapAccumOffset (\s a -> f (s + offset + gbufLen + showSelLen + directLen + overlayLen) a) cascade
+    \(offset,items) cascade -> let (off, newCascade) = mapAccumOffset (\s a -> f (s + offset + gbufLen + showSelLen + directLen + overlayLen + decalsLen) a) cascade
                                in (offset + off, newCascade : items)
 
 transposeStages :: [Stages a] -> Stages [a]
@@ -527,11 +602,12 @@ transposeStages as = Stages {..}
     allCascades <&> (`VS.index` i)
   direct = (.direct) <$> as
   overlay = (.overlay) <$> as
+  decals = (.decals) <$> as
 
 unitTest :: [Int]
 unitTest = concatStages $ stgs & mapStagesAccumOffset \s i -> (1, s+i)
   where
-  stgs = Stages { gbuf = [1,2,3], showSel = [4,5,6], cascades = fromMaybe (error "") $ VS.fromListN @MaxShadowCascadesNat [[7],[8],[9]], direct = [10,11,12], overlay = [13,14,15] }
+  stgs = Stages { gbuf = [1,2,3], showSel = [4,5,6], cascades = fromMaybe (error "") $ VS.fromListN @MaxShadowCascadesNat [[7],[8],[9]], direct = [10,11,12], overlay = [13,14,15], decals = [16,17] }
 
 filterStages :: (a -> Bool) -> Stages a -> Stages a
 filterStages f stages = Stages {..}
@@ -541,6 +617,7 @@ filterStages f stages = Stages {..}
   cascades = VS.map (filter f) stages.cascades
   direct = filter f stages.direct
   overlay = filter f stages.overlay
+  decals = filter f stages.decals
 
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m Stats
 renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
@@ -558,9 +635,9 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         invProjMat = inv44 projMat
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
+        gbufferSize = realToFrac <$> V2 w h
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
         testSphereInCameraFrustum = frustumSphereIntersection viewProjMat
-        overlayCullTest _    = True
 
         near = fromMaybe 0 $ camera ^? #projection . #_Perspective . _2
         far = fromMaybe 0 $ camera ^? #projection . #_Perspective . _3
@@ -605,6 +682,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         dcMaterialUUID DrawCommand {..} = case materialConfig of
           GBufferConfig mat -> mat.uuid
           DirectConfig mat -> mat.uuid
+          DecalConfig mat -> mat.uuid
 
     let worldDrawCommands = runCommand litF
         overlayDrawCommands = runCommand overlayF
@@ -634,6 +712,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
           let (materialDS, uniformSize) = case materialConfig of
                 GBufferConfig material -> (material.descriptor, material.uniformSize)
                 DirectConfig material -> (material.descriptor, material.uniformSize)
+                DecalConfig material -> (material.descriptor, material.uniformSize)
           in do
             let MaterialDescriptorSet { uniformBuffer, idBuffer } = resourceForFrame swapchainImageIndex materialDS
             liftIO $ withMappedMemory uniformBuffer.allocator uniformBuffer.allocation bracket \uniformbufptr ->
@@ -656,10 +735,31 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
           let boundingSpheres = instances <&> \(meshMemberName, idsAndTransforms) ->
                 (meshMemberName, idsAndTransforms <&> \(_,t) -> meshBoundingSphere t meshMemberName mesh)
           in case materialConfig of
+            DecalConfig stack ->
+              let gbuf = stgs.gbuf
+                  showSel = stgs.showSel
+                  cascades = stgs.cascades
+                  overlay = stgs.overlay
+                  direct = stgs.direct
+                  new = snd $ instances & mapAccumOffset \offset (meshMemberName, idsAndTransforms) ->
+                    ( fromIntegral (length idsAndTransforms)
+                    , ( DrawConfig { mesh
+                                   , perDrawDescriptorSet = descriptorSet
+                                   , material = stack.material
+                                   , materialDescriptor = stack.descriptor
+                                   }
+                      , meshMemberName
+                      , ordering
+                      , flip mapMaybe (zip idsAndTransforms [0..]) \((_objId, _), i) ->
+                          Just (offset + startUniformIndex + i))
+                    )
+                  decals = new ++ stgs.decals
+              in Stages {..}
             DirectConfig stack ->
               let gbuf = stgs.gbuf
                   showSel = stgs.showSel
                   cascades = stgs.cascades
+                  decals = stgs.decals
                   material = if isOverlay then stack.overlayMaterial else stack.directMaterial
                   new = snd $ instances & mapAccumOffset \offset (meshMemberName, idsAndTransforms) ->
                     ( fromIntegral (length idsAndTransforms)
@@ -719,6 +819,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
                   cascades = VS.zipWith (++) newCascades stgs.cascades
                   direct = stgs.direct
                   overlay = stgs.overlay
+                  decals = stgs.decals
               in Stages {..}
 
         -- For any batches with the same DrawConfig and mesh member and ordering, we can combine the instances
@@ -783,18 +884,22 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       , Color (Float32 1 1 1 1)
       , Color (Uint32 0 0 0 0)
       , DepthStencil (ClearDepthStencilValue 1 0)
-      ] swapchainImageIndex (fst <$> gbufferRenderFrame) do
+      ] swapchainImageIndex gbufferRenderFrame do
       logger "\n\nProcessing gbuffer"
       processDrawCommands frameContext logger (concatMap sortOpaque stages.gbuf)
 
-    -- Stage 4 SSAO
+    -- Stage 4 Decals (TODO)
+    useRenderConfig decalRenderConfig commandBuffer [] swapchainImageIndex decalRenderFrame do
+      logger "\n\nProcessing decals"
+      processDrawCommands frameContext logger (concatMap sortBlended stages.decals)
+
+    -- Stage 5 SSAO
     useRenderConfig ssaoRenderConfig commandBuffer [Color (Float32 0 0 0 0)] swapchainImageIndex (fst <$> ssaoRenderFrame) do
       cmdBindMaterial frameContext ssaoMaterial
       liftIO do
         cmdPushMaterialConstants commandBuffer ssaoMaterial ssaoSettings
         cmdDraw commandBuffer 3 1 0 0
 
-    -- Stage 5 Decals (TODO)
     -- Stage 6 Lighting
     useRenderConfig lightingRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> lightingRenderFrame) do
       -- Sun is a full screen light
@@ -860,37 +965,6 @@ bindMaterialIfNeeded fc material = do
   when (curUUID /= material.uuid) do
     cmdBindMaterial fc material
     put curUUID
-
-renderCommand
-  :: (MonadIO m, DynamicMeshMonad m)
-  => FrameContext
-  -> Material a
-  -> MeshType
-  -> Maybe Text
-  -> Word32
-  -> Maybe PointedDescriptorSet
-  -> m ()
-renderCommand FrameContext {..} material mesh meshSelector instanceCount drawDS = do
-  -- TODO push constants
-  when (hasPerDrawDescriptorSet material) do
-    for_ drawDS $ cmdBindDrawDescriptorSet commandBuffer material
-  case mesh of
-    Buffered BufferedMesh {..} -> do
-      let BufferedMeshMember {..} = HashMap.lookupDefault (head $ HashMap.elems members) (fromMaybe "" meshSelector) members
-      cmdDrawBufferedMesh commandBuffer material 0 meshOffsets vertexBuffer instanceCount numIndices numVertices 0 indexBuffer ((unpack <$> meshSelector) <|> name)
-    Dynamic dyn -> do
-      meshes <- getMeshes
-      addMesh dyn
-
-      -- This is O(n)... Might want to cache this
-      let vertexSizeThusFar = sum $ map (sum . map (vsizeOf . snd) . vertices) meshes
-          indexSizeThusFar  = sum $ map (maybe 0 vsizeOf . indices) meshes
-          numVertices = fromIntegral $ numVerts dyn
-          numIndices = fromIntegral . SV.length <$> dyn.indices
-          meshOffsets = snd $ mapAccumL (\s (a,vec) -> (s + vsizeOf vec, (a, s))) 0 (sortOn (attrLocation . fst) dyn.vertices)
-
-      DynamicBufferedMesh { vertexBufferPair = (vertexBuffer,_), indexBufferPair = (indexBuffer,_) } <- askDynamicMesh
-      cmdDrawBufferedMesh commandBuffer material vertexSizeThusFar meshOffsets vertexBuffer instanceCount numIndices numVertices (fromIntegral indexSizeThusFar) (Just indexBuffer) (Just "Dynamic")
 
 uploadUniformsBuffer :: (MonadIO m, Storable a) => FrameContext -> BufferedUniformMaterial pushConst a -> [a] -> m ()
 uploadUniformsBuffer FrameContext {..} BufferedUniformMaterial {..} uniforms = do

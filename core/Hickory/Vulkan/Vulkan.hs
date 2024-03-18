@@ -66,7 +66,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy
+  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -194,7 +194,7 @@ withLogicalDevice inst surface = do
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
           SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
       , enabledExtensionNames = V.fromList extensionsToEnable
-      , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True }
+      , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True, independentBlend = True }
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
                , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
                , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow

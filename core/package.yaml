@@ -148,6 +148,7 @@ library:
     - Hickory.Vulkan.Renderer.Types
     - Hickory.Vulkan.Renderer.GBuffer
     - Hickory.Vulkan.Renderer.Lights
+    - Hickory.Vulkan.Renderer.Decals
     - Hickory.Vulkan.Renderer.Direct
     - Hickory.Vulkan.Renderer.SSAO
     - Hickory.Vulkan.Renderer.ShadowPass

@@ -40,6 +40,7 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     vec3 lightDirection;
     vec3 sunColor;
     vec3 ambientColor;
+    vec2 gbufferSize;
     float multiSampleCount;
     float nearPlane;
     float farPlane;
@@ -141,6 +142,18 @@ struct Uniforms
 
 $pushConstantsDef
 $instancedUniformDef
+  |]
+
+decalUniformsDef :: String
+decalUniformsDef = [qm|
+struct Uniforms
+{
+  mat4 modelMat;
+  mat3 normalMat;
+  mat4 invModelViewProjMat;
+  vec4 color;
+  uint receiverId;
+};
   |]
 
 pushConstantsDef :: String

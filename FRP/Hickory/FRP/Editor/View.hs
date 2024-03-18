@@ -14,7 +14,7 @@ import Data.HashMap.Strict (HashMap)
 import Hickory.Graphics (askMatrix, MatrixMonad)
 import Hickory.FRP.Editor.Types
 import Hickory.Resources (getTexture, getMesh, ResourcesMonad)
-import Hickory.Vulkan.Renderer.Types (CommandMonad, MeshType (..))
+import Hickory.Vulkan.Renderer.Types (CommandMonad, MeshType (..), MaterialConfig)
 import Control.Lens ((.~), (&), (^.))
 import Control.Monad (when)
 import Data.Foldable (for_)
@@ -22,9 +22,10 @@ import Hickory.Camera (Camera(..), project, isOrthographic)
 import Foreign (poke)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word32)
+import Hickory.Vulkan.Renderer.DrawingPrimitives (drawWireCube)
 
-editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => HashMap String (Component m a) -> Camera -> HashMap Word32 Object -> HashMap Word32 Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
-editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
+editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => MaterialConfig H.StaticConstants -> HashMap String (Component m a) -> Camera -> HashMap Word32 Object -> HashMap Word32 Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
+editorWorldView lineMatConfig componentDefs cs@Camera {..} selected objects manipMode = do
   let zBias =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
   linesMesh <- getMesh "lines"
@@ -74,6 +75,7 @@ editorWorldView componentDefs cs@Camera {..} selected objects manipMode = do
         drawLines (mkTranslation objp !*! mkRotation (V3 0 1 0) (pi/2)) lineMesh (rgba 0.2 0.2 1.0 1)
 
   drawObjects componentDefs objects Nothing
+  for_ (Map.elems selected) \Object {..} -> H.xform transform $ drawWireCube lineMatConfig (V4 1 0.8 0.8 1)
 
   where
   snapVec by = fmap (snap by)

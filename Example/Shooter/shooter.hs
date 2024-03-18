@@ -149,6 +149,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
     , postSettings = H.postDefaults
     , clearColor = V4 0 0 0 1
     , highlightObjs = []
+    , ssaoSettings = H.SSAOSettings 0 0
     }
   litF = runResources res do
     square <- getMesh "square"

@@ -233,6 +233,6 @@ void main()
   vec3 light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
 
   float ao = texture(ssao, inTexCoords).r;
-  outColor = vec4((shadow * light + globals.ambientColor * albedo.a * ao) * albedo.rgb, 1);
+  outColor = vec4((shadow * light + globals.ambientColor * min(albedo.a, 1) * ao) * albedo.rgb, 1);
 }
 |])

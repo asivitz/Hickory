@@ -1,6 +1,7 @@
 module Hickory.Vulkan.Framing where
 import qualified Data.Vector as V
 import GHC.Word (Word32)
+import Data.List (transpose)
 
 -- |A mutable resource used to create a frame. Consecutive frames need separate copies of
 -- the resource. (For example, if a buffer is modified while rendering
@@ -20,3 +21,7 @@ unframedResource = V.replicate 3
 
 withResourceForFrame :: Word32 -> FramedResource a -> (a -> b) -> b
 withResourceForFrame i r f = f (resourceForFrame i r)
+
+zipFramedResources :: [V.Vector a] -> V.Vector [a]
+zipFramedResources = V.fromList . transpose . fmap V.toList
+

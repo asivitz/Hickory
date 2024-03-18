@@ -19,7 +19,7 @@ import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
-import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..))
+import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..), MaterialConfig, StaticConstants)
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
@@ -158,7 +158,7 @@ editorScene
   -- -> CoreEvents (Renderer, FrameContext)
   -> IORef (HashMap Word32 Object)
   -> HashMap String (Component m a)
-  -> (swapchainResources -> Resources -> Camera -> m () -> Command ())
+  -> (swapchainResources -> Resources -> Camera -> Size Int -> m () -> Command ())
   -> IO ()
   -- -> B.Event (HashMap Int Object, FilePath)
   -- -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
@@ -267,7 +267,7 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
       drawObjectEditorUI componentDefs objectsRef st.selectedObjectIDs
 
       let worldRender :: Writer [DrawCommand] ()
-          worldRender = renderComponent sr res camera $ editorWorldView componentDefs camera selectedObjects objects manipMode
+          worldRender = renderComponent sr res camera size $ editorWorldView renderer.lineDirectMaterialConfig componentDefs camera selectedObjects objects manipMode
           overlayRender :: Writer [DrawCommand] ()
           overlayRender = runResources res $ editorOverlayView renderer.staticDirectMaterialConfig size camera cursorLoc selectedObjects (fst <$> manipMode)
 

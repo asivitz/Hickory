@@ -45,11 +45,13 @@ data RenderTargets = RenderTargets
   , currentSelectionRenderFrame  :: FramedResource (Framebuffer, DescriptorSpec)
   -- Stage 3 GBuffer
   , gbufferRenderConfig          :: !RenderConfig
-  , gbufferRenderFrame           :: FramedResource (Framebuffer, DescriptorSpec)
-  -- Stage 4 SSAO
+  , gbufferRenderFrame           :: FramedResource Framebuffer
+  -- Stage 4 Decals
+  , decalRenderConfig            :: !RenderConfig
+  , decalRenderFrame             :: FramedResource Framebuffer
+  -- Stage 5 SSAO
   , ssaoRenderConfig             :: !RenderConfig
   , ssaoRenderFrame              :: FramedResource (Framebuffer, DescriptorSpec)
-  -- Stage 5 Decals (TODO)
   -- Stage 6 Lighting
   , lightingRenderConfig         :: !RenderConfig
   , lightingRenderFrame          :: FramedResource (Framebuffer, DescriptorSpec)
@@ -73,7 +75,9 @@ data Renderer = Renderer
   , staticGBufferMaterialConfig   :: MaterialConfig StaticConstants
   , animatedGBufferMaterialConfig :: MaterialConfig AnimatedConstants
   , staticDirectMaterialConfig    :: MaterialConfig StaticConstants
+  , lineDirectMaterialConfig      :: MaterialConfig StaticConstants
   , msdfMaterialConfig            :: MaterialConfig MSDFMatConstants
+  , decalMaterialConfig           :: MaterialConfig DecalConstants
 
   {-
   , staticUnlitWorldMaterial   :: !(BufferedUniformMaterial Word32 StaticConstants)
@@ -151,6 +155,7 @@ data DrawCommand = forall uniform. DrawCommand
 data MaterialConfig uniform
   = GBufferConfig (GBufferMaterialStack uniform)
   | DirectConfig (DirectMaterial uniform)
+  | DecalConfig (DecalMaterial uniform)
 
 data MeshType
   = Buffered !BufferedMesh
@@ -194,6 +199,15 @@ data AnimatedConstants = AnimatedConstants
   } deriving Generic
     deriving anyclass GStorable
 
+data DecalConstants = DecalConstants
+  { modelMat            :: M44 Float
+  , normalMat           :: M33 Float
+  , invModelViewProjMat :: M44 Float
+  , color               :: V4 Float
+  , receiverId          :: Word32
+  } deriving Generic
+    deriving anyclass GStorable
+
 data ShadowPushConsts = ShadowPushConsts
   { cascadeIndex :: Word32
   } deriving Generic
@@ -232,7 +246,13 @@ data DirectMaterial uniform = DirectMaterial
   , descriptor      :: FramedResource (MaterialDescriptorSet uniform)
   , uniformSize     :: Int -- Bytes
   , uuid            :: UUID
-  -- , directStage    :: DirectStage
+  }
+
+data DecalMaterial uniform = DecalMaterial
+  { material  :: Material Word32
+  , descriptor      :: FramedResource (MaterialDescriptorSet uniform)
+  , uniformSize     :: Int -- Bytes
+  , uuid            :: UUID
   }
 
 data SSAOSettings = SSAOSettings
@@ -260,6 +280,7 @@ data WorldGlobals = WorldGlobals
   , lightDirection :: V3 Scalar
   , sunColor       :: V3 Scalar -- HDR
   , ambientColor   :: V3 Scalar -- HDR
+  , gbufferSize    :: V2 Scalar
   , multiSampleCount :: Scalar
   , nearPlane      :: Scalar
   , farPlane       :: Scalar

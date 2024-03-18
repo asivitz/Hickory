@@ -106,5 +106,6 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           , postSettings = H.postDefaults
           , clearColor = V4 0 0 0 1
           , highlightObjs = []
+          , ssaoSettings = H.SSAOSettings 0 0
           }
     void $ H.renderToRenderer fc renderer settings litF overlayF

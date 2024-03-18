@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
 
 
-  , Filter (..), SamplerAddressMode (..), Framebuffer, SamplerMipmapMode (..)
+  , Filter (..), SamplerAddressMode (..), Framebuffer, SamplerMipmapMode (..), depthTestEnable, PrimitiveTopology (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -31,12 +31,17 @@ import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withImageSampler)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
+import Hickory.Vulkan.Material (PipelineOptions (..), defaultBlend, pipelineDefaults)
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Renderer.GBuffer (depthFormat)
+import Hickory.Vulkan.Framing (FramedResource)
+import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
+import Data.Word (Word32)
+import Hickory.Vulkan.Renderer.Types (StaticConstants)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
@@ -150,3 +155,54 @@ void main() {
   outColor   = vec4(texColor * inColor);
 }
 |])
+
+lineVertShader :: String
+lineVertShader = [qm|
+$pushConstantsDef
+$staticUniformsDef
+
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 2) out vec4 color;
+
+void main() {
+    color = uniforms.color;
+    gl_Position = globals.viewProjMat
+                * uniforms.modelMat
+                * vec4(inPosition, 1.0);
+}
+|]
+
+simpleFragShader :: ByteString
+simpleFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+$fragHeader
+$pushConstantsDef
+layout(location = 2) in vec4 inColor;
+
+void main() {
+  outColor = inColor;
+}
+
+|])
+
+withPointMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
+withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
+  where
+  pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
+  vertShader :: ByteString
+  vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+  $header
+  $worldGlobalsDef
+  $pushConstantsDef
+  $staticUniformsDef
+
+  layout(location = 0) in vec3 inPosition;
+
+  void main() {
+      gl_PointSize = 20;
+      gl_Position = globals.viewProjMat
+                  * uniforms.modelMat
+                  * vec4(inPosition, 1.0);
+  }
+
+  |])
