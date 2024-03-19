@@ -6,6 +6,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE GADTs #-}
 
 module Hickory.Vulkan.Renderer.Types where
 
@@ -61,6 +62,8 @@ data RenderTargets = RenderTargets
   -- Stage 8 Post + Overlay
   , swapchainRenderConfig        :: !RenderConfig
   , swapchainRenderFrame         :: FramedResource Framebuffer
+  , gbufferDesc                  :: FramedResource DescriptorSpec -- A set of 4 images (albedo, normal, objId, depth)
+  , decalDesc                    :: FramedResource [DescriptorSpec] -- ObjID and Depth
   }
 
 data Renderer = Renderer

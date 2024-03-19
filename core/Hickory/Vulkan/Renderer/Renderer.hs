@@ -24,7 +24,7 @@ import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource, zipFramedResources)
-import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend, cmdPushMaterialConstants, colorBlendAddAlpha)
+import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend, cmdPushMaterialConstants, colorBlendLeaveAlpha)
 import Data.List (sortOn, mapAccumL, foldl')
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
@@ -148,8 +148,10 @@ withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDra
   config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
   pure (config, skinBuffer)
 
-withDecalMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> FramedResource [DescriptorSpec] -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig DecalConstants)
-withDecalMaterialConfig vulkanResources renderTargets globalPDS gbufDesc perDrawLayout = withDecalMaterialStack vulkanResources renderTargets globalPDS (Just gbufDesc) 10 ((pipelineDefaults [colorBlendAddAlpha, colorBlendAddAlpha ]) { cullMode = CULL_MODE_FRONT_BIT }) [HVT.Position] perDrawLayout decalFragShader
+withDecalMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig DecalConstants)
+withDecalMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
+  withDecalMaterialStack vulkanResources renderTargets globalPDS (Just renderTargets.decalDesc) standardMaxNumDraws
+    ((pipelineDefaults [colorBlendLeaveAlpha, defaultBlend ]) { cullMode = CULL_MODE_FRONT_BIT }) [HVT.Position] perDrawLayout decalFragShader
 
 withDirectMaterialStack
   :: forall uniform
@@ -369,7 +371,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   (animatedGBufferMaterialConfig, skinBuffer) <- withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just uberImageSetLayout)
   staticDirectMaterialConfig    <- withStaticDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
   msdfMaterialConfig            <- withMSDFMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
-  decalMaterialConfig           <- withDecalMaterialConfig vulkanResources renderTargets globalDescriptorSet decalDesc (Just singleImageSetLayout)
+  decalMaterialConfig           <- withDecalMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
 
   lineDirectMaterialConfig <- withLineDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
 
@@ -888,7 +890,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       logger "\n\nProcessing gbuffer"
       processDrawCommands frameContext logger (concatMap sortOpaque stages.gbuf)
 
-    -- Stage 4 Decals (TODO)
+    -- Stage 4 Decals
     useRenderConfig decalRenderConfig commandBuffer [] swapchainImageIndex decalRenderFrame do
       logger "\n\nProcessing decals"
       processDrawCommands frameContext logger (concatMap sortBlended stages.decals)

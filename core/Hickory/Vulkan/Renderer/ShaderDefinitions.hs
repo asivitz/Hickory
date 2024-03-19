@@ -1,5 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Hickory.Vulkan.Renderer.ShaderDefinitions where
 

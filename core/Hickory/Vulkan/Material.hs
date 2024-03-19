@@ -249,3 +249,19 @@ colorBlendAddAlpha = zero
   , dstAlphaBlendFactor = BLEND_FACTOR_ONE
   , alphaBlendOp = BLEND_OP_ADD
   }
+
+colorBlendLeaveAlpha :: PipelineColorBlendAttachmentState
+colorBlendLeaveAlpha = zero
+  { colorWriteMask
+    =   COLOR_COMPONENT_R_BIT
+    .|. COLOR_COMPONENT_G_BIT
+    .|. COLOR_COMPONENT_B_BIT
+    .|. COLOR_COMPONENT_A_BIT
+  , blendEnable = True
+  , srcColorBlendFactor = BLEND_FACTOR_SRC_ALPHA
+  , dstColorBlendFactor = BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+  , colorBlendOp = BLEND_OP_ADD
+  , srcAlphaBlendFactor = BLEND_FACTOR_ZERO
+  , dstAlphaBlendFactor = BLEND_FACTOR_ONE
+  , alphaBlendOp = BLEND_OP_ADD
+  }
