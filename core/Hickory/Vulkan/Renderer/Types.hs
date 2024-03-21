@@ -79,6 +79,7 @@ data Renderer = Renderer
   , animatedGBufferMaterialConfig :: MaterialConfig AnimatedConstants
   , staticDirectMaterialConfig    :: MaterialConfig StaticConstants
   , lineDirectMaterialConfig      :: MaterialConfig StaticConstants
+  , pointDirectMaterialConfig     :: MaterialConfig StaticConstants
   , msdfMaterialConfig            :: MaterialConfig MSDFMatConstants
   , decalMaterialConfig           :: MaterialConfig DecalConstants
 

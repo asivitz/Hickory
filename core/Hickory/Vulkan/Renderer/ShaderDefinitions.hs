@@ -11,7 +11,7 @@ import Data.Word (Word32)
 import Data.Proxy (Proxy(..))
 
 type MaxShadowCascadesNat :: Nat
-type MaxShadowCascadesNat = 3
+type MaxShadowCascadesNat = 4
 
 maxShadowCascades :: Word32
 maxShadowCascades = fromIntegral $ natVal (Proxy @MaxShadowCascadesNat)

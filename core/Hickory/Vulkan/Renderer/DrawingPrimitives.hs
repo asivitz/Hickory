@@ -4,7 +4,7 @@ import Linear (M44, V3 (..), V4, _w, _xyz, _m33, (!*), inv44, (^/), V2 (..), (^*
 import Hickory.Vulkan.Renderer.Types
 import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
-import Hickory.Resources (getMesh, Resources (..), getTexture, ResourcesMonad)
+import Hickory.Resources (getMesh, getTexture, ResourcesMonad)
 import Hickory.Math (Scalar, v2tov3, v2rotate, mkRotation)
 import Hickory.Graphics (askMatrix, MatrixMonad, xform)
 import Hickory.Vulkan.Renderer.Renderer (ndcBoundaryPoints)
@@ -13,10 +13,9 @@ import Foreign (Storable, poke)
 import Data.Foldable (toList)
 import Data.Functor ((<&>))
 
-drawLine :: (CommandMonad m, ResourcesMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> V3 Float -> V3 Float -> m ()
+drawLine :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> V3 Float -> V3 Float -> m ()
 drawLine materialConfig color a@(V3 p1x p1y p1z) b@(V3 p2x p2y p2z) = do
   mat <- askMatrix
-  tex <- getTexture "white"
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
@@ -30,7 +29,7 @@ drawLine materialConfig color a@(V3 p1x p1y p1z) b@(V3 p2x p2y p2z) = do
     , cull = False
     , doCastShadow = False
     , doBlend = False
-    , descriptorSet = Just tex
+    , descriptorSet = Nothing
     , materialConfig = materialConfig
     }
   where
@@ -82,7 +81,7 @@ drawSolidCube materialConfig color = do
     , materialConfig = materialConfig
     }
 
-drawWireCube :: (CommandMonad m, ResourcesMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> m ()
+drawWireCube :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> m ()
 drawWireCube materialConfig color = do
   drawFace
   xform (mkRotation (V3 1 0 0) (pi/2)) drawFace
@@ -97,7 +96,7 @@ drawWireCube materialConfig color = do
     drawLine materialConfig color (V3 0.5 0.5 (-0.5)) (V3 (-0.5) 0.5 (-0.5))
     drawLine materialConfig color (V3 (-0.5) 0.5 (-0.5)) (V3 (-0.5) (-0.5) (-0.5))
 
-drawFrustum :: (CommandMonad m, ResourcesMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> M44 Float -> m ()
+drawFrustum :: (CommandMonad m, MatrixMonad m) => MaterialConfig StaticConstants -> V4 Float -> M44 Float -> m ()
 drawFrustum materialConfig color mat = do
   let [p1, p2, p3, p4, p5, p6, p7, p8] = (^. _xyz) . (\v -> v ^/ (v ^. _w)) . (inv44 mat !*) <$> ndcBoundaryPoints
   drawLine materialConfig color p1 p2

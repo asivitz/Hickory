@@ -76,6 +76,7 @@ import Hickory.Vulkan.Renderer.SSAO (withSSAOMaterial, withSSAORenderConfig, wit
 import Control.Monad.Random (randomRIO)
 import Hickory.Vulkan.Renderer.Decals (withDecalRenderConfig, decalVertShader, decalFragShader)
 import Hickory.Vulkan.Renderer.Direct (lineVertShader)
+import Hickory.Vulkan.Renderer.Direct (pointVertShader)
 
 withGBufferMaterialStack
   :: forall uniform
@@ -205,6 +206,15 @@ withLineDirectMaterialConfig vulkanResources renderTargets globalPDS =
     simpleFragShader
   where
   pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
+
+withPointDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Acquire (MaterialConfig StaticConstants)
+withPointDirectMaterialConfig vulkanResources renderTargets globalPDS =
+  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineOptions [HVT.Position] Nothing
+    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader pointVertShader))
+    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader pointVertShader))
+    simpleFragShader
+  where
+  pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
 
 withMSDFMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig MSDFMatConstants)
 withMSDFMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
@@ -374,6 +384,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   decalMaterialConfig           <- withDecalMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
 
   lineDirectMaterialConfig <- withLineDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
+  pointDirectMaterialConfig <- withPointDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
 
   pure Renderer {..}
 

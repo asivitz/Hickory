@@ -173,6 +173,25 @@ void main() {
 }
 |]
 
+pointVertShader :: String
+pointVertShader = [qm|
+$pushConstantsDef
+$staticUniformsDef
+
+
+layout(location = 0) in vec3 inPosition;
+layout(location = 2) out vec4 color;
+
+void main() {
+    color = uniforms.color;
+    gl_Position = globals.viewProjMat
+                * uniforms.modelMat
+                * vec4(inPosition, 1.0);
+    gl_PointSize = 20;
+}
+|]
+
+
 simpleFragShader :: ByteString
 simpleFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $fragHeader
