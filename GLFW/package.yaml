@@ -46,7 +46,6 @@ library:
   exposed-modules:
     - Platforms.GLFW.Utils
     - Platforms.GLFW.Bridge
-    - Platforms.GLFW.FRP
     - Platforms.GLFW.Vulkan
     - Platforms.GLFW.DearImGui
     - Platforms.GLFW.GameLoop
