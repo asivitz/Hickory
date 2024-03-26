@@ -1031,13 +1031,15 @@ processDrawCommands fc@FrameContext {..} logger batches = do
   for_ batches \(DrawConfig {..}, DrawBatch {..}) -> do
     curMat <- liftIO $ readIORef curMatRef
     curMesh <- liftIO $ readIORef curMeshRef
-    curPerDrawDescriptor <- liftIO $ readIORef curPerDrawDescriptorRef
 
     when (curMat /= material.uuid) do
       liftIO do
         logger $ "Binding material: " ++ show material.uuid
         writeIORef curMatRef material.uuid
+        writeIORef curPerDrawDescriptorRef UUID.nil
         cmdBindMaterial fc material
+
+    curPerDrawDescriptor <- liftIO $ readIORef curPerDrawDescriptorRef
 
     case perDrawDescriptorSet of
       Just pds | hasPerDrawDescriptorSet material && pds.uuid /= curPerDrawDescriptor -> do
