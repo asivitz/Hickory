@@ -89,7 +89,7 @@ useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage
 
 -- |Draw a frame
 -- Handles concerns around synchronizing double buffers
--- Returns false if swapchain is stale and needs to be refreshed
+-- Returns False if swapchain is stale and needs to be refreshed
 drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> IO ()) -> m Bool
 drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
   let Swapchain {..} = swapchain

@@ -31,7 +31,7 @@ import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
-import Hickory.DearImGUIHelpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, imVec4ToV4, v4ToImVec4)
+import Hickory.ImGUI.Helpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, imVec4ToV4, v4ToImVec4)
 import Data.Hashable (Hashable)
 import Hickory.Vulkan.Types (VulkanResources)
 import Data.Proxy (Proxy)

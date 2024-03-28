@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Hickory.GameLoop where
 
 import Hickory.Math (Interpolatable (..), Scalar)
@@ -5,6 +7,17 @@ import qualified Data.Sequence as S
 import Data.Maybe (fromMaybe)
 import Data.Fixed (mod')
 import Linear (nearZero)
+
+import Hickory.Input (InputFrame(..))
+import Data.IORef (IORef, newIORef, readIORef, modifyIORef', writeIORef, atomicModifyIORef')
+import qualified Hickory.Vulkan.Types as H
+import Hickory.Types (Size)
+import qualified Ki
+import Control.Monad (forever)
+import Data.Time (NominalDiffTime)
+import Hickory.Vulkan.Renderer.Types ( RenderFunction, Scene )
+import Control.Concurrent (threadDelay)
+import Acquire.Acquire (Acquire)
 
 newGameStateStack :: a -> S.Seq a
 newGameStateStack = S.singleton
@@ -44,3 +57,40 @@ pureGameScene initialModel stepFunction = do
   --       Just (to, from) -> glerp (realToFrac $ curInputFrame.delta / physicsTimeStep) from to
   --       Nothing -> fromMaybe (error "No game states available") $ S.lookup 0 gameSeq
 
+gameLoop
+  :: IO (Size Int)
+  -> H.VulkanResources
+  -> (H.Swapchain -> Acquire swapchainResources)
+  -> NominalDiffTime
+  -> IO InputFrame
+  -> (H.VulkanResources -> (H.Swapchain -> Acquire swapchainResources) -> (swapchainResources -> H.FrameContext -> IO ()) -> IO ())
+  -> ((Scene swapchainResources -> IO ()) -> IO (Scene swapchainResources))
+  -> IO ()
+gameLoop readScrSize vulkanResources acquireSwapchainResources physicsTimeStep frameBuilder runFrames initialScene = do
+  inputRef   :: IORef InputFrame <- newIORef mempty
+  sceneRef   :: IORef (Scene swapchainResources) <- newIORef undefined
+  is <- initialScene (writeIORef sceneRef)
+  writeIORef sceneRef is
+  renderFRef :: IORef (Scalar -> InputFrame -> RenderFunction swapchainResources) <- newIORef =<< is mempty
+
+  Ki.scoped \scope -> do
+    _thr <- Ki.fork scope do
+      forever do
+        batched <- atomicModifyIORef' inputRef \cur ->
+          let timeRemaining = physicsTimeStep - cur.delta
+          in if timeRemaining > 0
+              then (cur, Left timeRemaining)
+              else (mempty { heldKeys = cur.heldKeys, delta = cur.delta - physicsTimeStep, frameNum = cur.frameNum + 1 }, Right cur { delta = physicsTimeStep })
+        case batched of
+          Left timeRemaining -> threadDelay (ceiling @Double $ realToFrac timeRemaining * 1000000)
+          Right inputFrame -> do
+            scene <- readIORef sceneRef
+            scene inputFrame >>= writeIORef renderFRef
+
+    runFrames vulkanResources acquireSwapchainResources \swapchainResources frameContext -> do
+      inputFrame <- frameBuilder
+      modifyIORef' inputRef (inputFrame<>)
+      curInputFrame <- readIORef inputRef
+
+      scrSize <- readScrSize
+      readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame { frameNum = curInputFrame.frameNum } scrSize (swapchainResources, frameContext)

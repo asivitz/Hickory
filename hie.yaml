@@ -18,6 +18,9 @@ cradle:
     - path: "GLFW/./Paths_Hickory_GLFW.hs"
       component: "Hickory-GLFW:exe:vulkan"
 
+    - path: "SDL/./"
+      component: "Hickory-SDL:lib"
+
     - path: "core/./"
       component: "Hickory:lib"
 

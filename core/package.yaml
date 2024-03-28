@@ -73,6 +73,8 @@ dependencies:
     - wide-word
     - dear-imgui
     - base-compat
+    - ki
+    - StateVar
 
 when:
     - condition: os(osx)
@@ -156,7 +158,8 @@ library:
     - Hickory.Vulkan.Renderer.ShaderDefinitions
     - Hickory.Vulkan.Renderer.Stats
     - Hickory.Vulkan.Types
-    - Hickory.DearImGUIHelpers
+    - Hickory.ImGUI.Helpers
+    - Hickory.ImGUI.ImGUI
 
 executables:
   pack-model:

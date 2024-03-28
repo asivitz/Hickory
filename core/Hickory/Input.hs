@@ -20,6 +20,7 @@ import Data.Functor ((<&>))
 import Data.Maybe (fromMaybe)
 import Data.WideWord.Word128 (Word128)
 import Data.HashMap.Strict (HashMap)
+import qualified Data.Enum.Set as ES
 
 type Point = (V2 Scalar, Int) -- Location, Ident
 
@@ -38,6 +39,7 @@ data RawInput = InputTouchesDown [Point]
               | InputKeyUp Key Scalar
               | InputKeysHeld (HashMap.HashMap Key Scalar)
               | InputGamePad Int GamePad -- GamePad Index, GamePad
+              | InputGamePadButtons ButtonState Int [E.EnumSet GamePadButton]
               | InputGamePadConnection Int Bool -- GamePad Index, True == connected
               deriving (Show)
 
@@ -391,7 +393,9 @@ inputFrameBuilder = do
 
     let gamePadConnections = [(i,b) | InputGamePadConnection i b <- newInputs]
         newGamepadStates = HashMap.fromList [(i, gp) | InputGamePad i gp <- newInputs]
-    (gamePad, gamePadPressed, gamePadReleased) <- atomicModifyIORef' gamepadsRef \curGamePads ->
+        gamePadPressed' = HashMap.fromList [(i, [es]) | InputGamePadButtons state i ess <- newInputs, state == Pressed, es <- ess]
+        gamePadReleased' = HashMap.fromList [(i, [es]) | InputGamePadButtons state i ess <- newInputs, state == Released, es <- ess]
+    (gamePad, gamePadPressed'', gamePadReleased'') <- atomicModifyIORef' gamepadsRef \curGamePads ->
       let newGamePad = HashMap.union newGamepadStates curGamePads
           states oldGp newGp = [minBound..maxBound] <&> \but -> (but, gamePadButtonState oldGp but, gamePadButtonState newGp but)
           newPressed = flip HashMap.mapWithKey newGamepadStates \i newGP ->
@@ -401,6 +405,9 @@ inputFrameBuilder = do
             let oldGP = fromMaybe emptyGamePad $ HashMap.lookup i curGamePads
             in pure $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Pressed && new == Released
       in (newGamePad, (newGamePad, newPressed, newReleased))
+
+    let gamePadPressed  = HashMap.unionWith (++) gamePadPressed' gamePadPressed''
+        gamePadReleased = HashMap.unionWith (++) gamePadReleased' gamePadReleased''
 
     let touchesDown = [p | InputTouchesDown ps <- newInputs, p <- ps]
         touchesUp   = [p | InputTouchesUp ps <- newInputs, p <- ps]

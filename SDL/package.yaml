@@ -1,0 +1,49 @@
+name:                Hickory-SDL
+version:             0.1.0.0
+homepage:            https://github.com/asivitz/Hickory
+license:             MIT
+license-file:        LICENSE
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2024 Axis Sivitz
+
+ghc-options:
+    - -Wall
+
+default-extensions:
+  - NamedFieldPuns
+  - TemplateHaskell
+  - Rank2Types
+  - BangPatterns
+  - OverloadedStrings
+  - BlockArguments
+
+dependencies:
+  - base
+  - OpenGLRaw
+  - sdl2
+  - time
+  - unordered-containers
+  - Hickory
+  - Hickory-FRP
+  - linear
+  - vector
+  - bytestring
+  - managed
+  - vulkan
+  - lens
+  - derive-storable
+  - extra
+  - acquire
+  - dear-imgui
+  - ki
+  - containers
+  - ghc-compact
+  - text
+  - bitwise-enum
+
+library:
+  verbatim:
+    default-language: GHC2021
+  exposed-modules:
+    - Platforms.SDL

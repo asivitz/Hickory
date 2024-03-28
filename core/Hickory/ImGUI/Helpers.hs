@@ -1,4 +1,4 @@
-module Hickory.DearImGUIHelpers where
+module Hickory.ImGUI.Helpers where
 
 import DearImGui
 import qualified DearImGui.Raw as Raw

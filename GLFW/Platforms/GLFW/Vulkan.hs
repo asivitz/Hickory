@@ -22,8 +22,10 @@ import Hickory.Vulkan.Utils (buildFrameFunction, initVulkan)
 import Control.Monad.Fix (fix)
 import Acquire.Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
-import Platforms.GLFW.DearImGui (initDearImGui, renderDearImGui)
+import Platforms.GLFW.DearImGui (initDearImGuiForGLFW)
 import Hickory.Vulkan.Types (VulkanResources, FrameContext, Swapchain, runCleanup)
+import Hickory.ImGUI.ImGUI (renderDearImGui)
+import DearImGui.GLFW (glfwNewFrame)
 
 {- GLFW -}
 
@@ -71,10 +73,10 @@ runFrames
   -> IO ()
 runFrames win vulkanResources acquireRenderer f = do
   let imguiAcquire swap =
-        (,) <$> initDearImGui win vulkanResources swap
+        (,) <$> initDearImGuiForGLFW win vulkanResources swap
             <*> acquireRenderer swap
       imguiRender (imguiRes, userRes) frameContext = do
-        renderDearImGui imguiRes frameContext do
+        renderDearImGui imguiRes frameContext glfwNewFrame do
           f userRes frameContext
 
   -- TODO: Option to turn off dear-imgui?

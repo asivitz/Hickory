@@ -46,9 +46,10 @@ import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTe
 import Data.Functor ((<&>))
 import qualified Data.Enum.Set as E
 import qualified Data.Map.Strict as HashMap
-import Platforms.GLFW.GameLoop (gameLoop)
+import Platforms.GLFW.GameLoop (glfwGameLoop)
 import Hickory.GameLoop (newGameStateStack, stepGameState, queryGameState)
 import Data.IORef (newIORef, atomicModifyIORef', readIORef)
+import Platforms.GLFW.Bridge (glfwFrameBuilder)
 
 -- ** GAMEPLAY **
 
@@ -228,4 +229,4 @@ main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
               model <- queryGameState <$> readIORef stack
               renderGame res (model (2 - frac)) size (sr, fc)
 
-    gameLoop win vulkanResources (H.withRenderer vulkanResources) physicsTimeStep $ const mkScene
+    glfwGameLoop win vulkanResources (H.withRenderer vulkanResources) physicsTimeStep $ const mkScene
