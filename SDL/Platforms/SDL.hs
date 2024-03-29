@@ -13,6 +13,7 @@ import Hickory.Input
 import Data.Time
 import Data.Maybe
 import Linear (V2(..))
+import Linear.Affine (Point(..))
 import Data.HashMap.Strict (HashMap)
 import Data.Traversable (for)
 import qualified SDL
@@ -38,13 +39,14 @@ import Vulkan.Extensions (destroySurfaceKHR)
 import Data.Function (fix, (&))
 import Hickory.ImGUI.ImGUI (renderDearImGui, initDearImGui)
 import DearImGui.SDL.Vulkan (sdl2InitForVulkan)
-import DearImGui.SDL (sdl2Shutdown, sdl2NewFrame)
+import DearImGui.SDL (sdl2Shutdown, sdl2NewFrame, pollEventsWithImGui)
 import Control.Monad (void)
 import Hickory.Vulkan.Renderer.Types (Scene)
 import Hickory.GameLoop (gameLoop)
 import Data.Functor ((<&>))
 import Foreign.C (CInt)
 import qualified Data.Enum.Set as E
+import SDL.Input.Keyboard.Codes
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -156,9 +158,6 @@ sdlFrameBuilder = do
   inputsRef <- newIORef initialConnectionEvents
 
   let addInput i = atomicModifyIORef' inputsRef \is -> (i:is, ())
-  -- GLFW.setMouseButtonCallback win $ Just (mouseButtonCallback indat addInput)
-  -- GLFW.setKeyCallback win $ Just (keyCallback indat addInput)
-  -- GLFW.setJoystickCallback $ Just (joystickCallback indat addInput)
   quitSignal <- newIORef False
 
   buildInp <- pure do
@@ -168,12 +167,13 @@ sdlFrameBuilder = do
         -- ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
     -- addInput $ InputTouchesLoc [(curloc,ident)]
     --
-    events <- SDL.pollEvents
-    inputEvs <- catMaybes <$> for events \case
-          SDL.Event _ (SDL.ControllerButtonEvent SDL.ControllerButtonEventData {..}) -> pure . Just $
+    time <- getCurrentTime
+    events <- pollEventsWithImGui
+    inputEvs <- catMaybes <$> for events \(SDL.Event _ payload) -> case payload of
+          SDL.ControllerButtonEvent SDL.ControllerButtonEventData {..} -> pure . Just $
             InputGamePadButtons (sdlButtonStateToButtonState controllerButtonEventState) (fromIntegral controllerButtonEventWhich)
               [sdlButtonToGamePadButton controllerButtonEventButton]
-          SDL.Event _ (SDL.ControllerDeviceEvent SDL.ControllerDeviceEventData {..}) -> do
+          SDL.ControllerDeviceEvent SDL.ControllerDeviceEventData {..} -> do
             case controllerDeviceEventConnection of
               SDL.ControllerDeviceAdded   -> do
                 gc <- SDLRaw.gameControllerOpen (fromIntegral controllerDeviceEventWhich) -- this is a device, not a joystick id
@@ -185,6 +185,36 @@ sdlFrameBuilder = do
                 modifyIORef' indat.gamepads $ HashMap.delete (fromIntegral controllerDeviceEventWhich)
                 pure $ Just $ InputGamePadConnection (fromIntegral controllerDeviceEventWhich) False
               SDL.ControllerDeviceRemapped -> pure Nothing
+          SDL.KeyboardEvent SDL.KeyboardEventData {..} -> let key = sdlKeyToKey keyboardEventKeysym in
+            case keyboardEventKeyMotion of
+              SDL.Pressed  -> do
+                modifyIORef' indat.keys $ HashMap.insert key time
+                pure $ Just $ InputKeyDown key
+              SDL.Released -> do
+                keys <- readIORef indat.keys
+                let delta = case HashMap.lookup key keys of
+                      Nothing -> 0
+                      Just prev -> realToFrac $ diffUTCTime time prev
+                modifyIORef' indat.keys $ HashMap.delete key
+                pure $ Just $ InputKeyUp key delta
+          SDL.MouseButtonEvent SDL.MouseButtonEventData {mouseButtonEventPos = (P v), ..} -> do
+            let location = fmap realToFrac v
+                ident = case mouseButtonEventButton of
+                  SDL.ButtonLeft -> 1
+                  SDL.ButtonRight -> 2
+                  SDL.ButtonMiddle -> 3
+                  _ -> 4
+            case mouseButtonEventMotion of
+              SDL.Released -> do
+                touches <- readIORef indat.touches
+                let (origLocation, duration) = case HashMap.lookup ident touches of
+                      Just (origTime, origLoc) -> (origLoc, realToFrac (diffUTCTime time origTime))
+                      Nothing -> (location, 0)
+                modifyIORef' indat.touches $ HashMap.delete ident
+                pure $ Just $ InputTouchesUp [PointUp {..}]
+              SDL.Pressed -> do
+                modifyIORef' indat.touches $ HashMap.insert ident (time, location)
+                pure $ Just $ InputTouchesDown [(location, ident)]
           _ -> pure Nothing
 
     modifyIORef' inputsRef (inputEvs++)
@@ -233,7 +263,6 @@ sdlFrameBuilder = do
 
       addInput $ InputGamePad (fromIntegral gcid) gp
 
-    -- writeIORef indat.gamepads (HashMap.fromList $ catMaybes newGamePads)
     atomicModifyIORef' inputsRef (\is -> ([], reverse is)) >>= builder
   pure (buildInp, readIORef quitSignal)
   where
@@ -241,6 +270,107 @@ sdlFrameBuilder = do
     SDL.ControllerButtonPressed  -> Pressed
     SDL.ControllerButtonReleased -> Released
     SDL.ControllerButtonInvalidState -> Released -- error "Invalid button state"
+
+sdlKeyToKey :: SDL.Keysym -> Key
+sdlKeyToKey SDL.Keysym {..} = case keysymScancode of
+  ScancodeUnknown -> Key'Unknown
+  ScancodeA -> Key'A
+  ScancodeB -> Key'B
+  ScancodeC -> Key'C
+  ScancodeD -> Key'D
+  ScancodeE -> Key'E
+  ScancodeF -> Key'F
+  ScancodeG -> Key'G
+  ScancodeH -> Key'H
+  ScancodeI -> Key'I
+  ScancodeJ -> Key'J
+  ScancodeK -> Key'K
+  ScancodeL -> Key'L
+  ScancodeM -> Key'M
+  ScancodeN -> Key'N
+  ScancodeO -> Key'O
+  ScancodeP -> Key'P
+  ScancodeQ -> Key'Q
+  ScancodeR -> Key'R
+  ScancodeS -> Key'S
+  ScancodeT -> Key'T
+  ScancodeU -> Key'U
+  ScancodeV -> Key'V
+  ScancodeW -> Key'W
+  ScancodeX -> Key'X
+  ScancodeY -> Key'Y
+  ScancodeZ -> Key'Z
+  Scancode1 -> Key'1
+  Scancode2 -> Key'2
+  Scancode3 -> Key'3
+  Scancode4 -> Key'4
+  Scancode5 -> Key'5
+  Scancode6 -> Key'6
+  Scancode7 -> Key'7
+  Scancode8 -> Key'8
+  Scancode9 -> Key'9
+  Scancode0 -> Key'0
+  ScancodeReturn -> Key'Enter
+  ScancodeEscape -> Key'Escape
+  ScancodeBackspace -> Key'Backspace
+  ScancodeTab -> Key'Tab
+  ScancodeSpace -> Key'Space
+  ScancodeMinus -> Key'Minus
+  ScancodeEquals -> Key'Equal
+  ScancodeLeftBracket -> Key'LeftBracket
+  ScancodeRightBracket -> Key'RightBracket
+  ScancodeBackslash -> Key'Backslash
+  -- ScancodeNonUSHash -> Key'NonUSHash
+  ScancodeSemicolon -> Key'Semicolon
+  ScancodeApostrophe -> Key'Apostrophe
+  ScancodeGrave -> Key'GraveAccent
+  ScancodeComma -> Key'Comma
+  ScancodePeriod -> Key'Period
+  ScancodeSlash -> Key'Slash
+  ScancodeCapsLock -> Key'CapsLock
+  ScancodeF1 -> Key'F1
+  ScancodeF2 -> Key'F2
+  ScancodeF3 -> Key'F3
+  ScancodeF4 -> Key'F4
+  ScancodeF5 -> Key'F5
+  ScancodeF6 -> Key'F6
+  ScancodeF7 -> Key'F7
+  ScancodeF8 -> Key'F8
+  ScancodeF9 -> Key'F9
+  ScancodeF10 -> Key'F10
+  ScancodeF11 -> Key'F11
+  ScancodeF12 -> Key'F12
+  ScancodePrintScreen -> Key'PrintScreen
+  ScancodeScrollLock -> Key'ScrollLock
+  ScancodePause -> Key'Pause
+  ScancodeInsert -> Key'Insert
+  ScancodeHome -> Key'Home
+  ScancodePageUp -> Key'PageUp
+  ScancodeDelete -> Key'Delete
+  ScancodeEnd -> Key'End
+  ScancodePageDown -> Key'PageDown
+  ScancodeRight -> Key'Right
+  ScancodeLeft -> Key'Left
+  ScancodeDown -> Key'Down
+  ScancodeUp -> Key'Up
+  -- ScancodeNumLockClear -> Key'NumLockClear
+  -- ScancodeKPDivide -> Key'KPDivide
+  -- ScancodeKPMultiply -> Key'KPMultiply
+  -- ScancodeKPMinus -> Key'KPMinus
+  -- ScancodeKPPlus -> Key'KPPlus
+  -- ScancodeKPEnter -> Key'KPEnter
+  -- ScancodeKP1 -> Key'KP1
+  -- ScancodeKP2 -> Key'KP2
+  -- ScancodeKP3 -> Key'KP3
+  -- ScancodeKP4 -> Key'KP4
+  -- ScancodeKP5 -> Key'KP5
+  -- ScancodeKP6 -> Key'KP6
+  -- ScancodeKP7 -> Key'KP7
+  -- ScancodeKP8 -> Key'KP8
+  -- ScancodeKP9 -> Key'KP9
+  -- ScancodeKP0 -> Key'KP0
+  -- ScancodeKPPeriod -> Key'KPPeriod
+  _ -> Key'Unknown
 
 sdlButtonToGamePadButton :: SDL.ControllerButton -> E.EnumSet GamePadButton
 sdlButtonToGamePadButton = \case
@@ -298,8 +428,8 @@ withWindowSurface inst window = mkAcquire create release
 
 initSDLVulkan :: SDL.Window -> Acquire VulkanResources
 initSDLVulkan win = do
-  glfwReqExts <- liftIO $ SDL.vkGetInstanceExtensions win >>= mapM B.packCString
-  initVulkan glfwReqExts (`withWindowSurface` win)
+  reqExts <- liftIO $ SDL.vkGetInstanceExtensions win >>= mapM B.packCString
+  initVulkan reqExts (`withWindowSurface` win)
 
 runFrames
   :: SDL.Window
