@@ -197,6 +197,11 @@ sdlFrameBuilder = do
                       Just prev -> realToFrac $ diffUTCTime time prev
                 modifyIORef' indat.keys $ HashMap.delete key
                 pure $ Just $ InputKeyUp key delta
+          SDL.MouseMotionEvent SDL.MouseMotionEventData {mouseMotionEventPos = (P v)} -> do
+            touches <- readIORef indat.touches
+            let location = fmap realToFrac v
+                ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
+            pure $ Just $ InputTouchesLoc [(location,ident)]
           SDL.MouseButtonEvent SDL.MouseButtonEventData {mouseButtonEventPos = (P v), ..} -> do
             let location = fmap realToFrac v
                 ident = case mouseButtonEventButton of
@@ -370,6 +375,150 @@ sdlKeyToKey SDL.Keysym {..} = case keysymScancode of
   -- ScancodeKP9 -> Key'KP9
   -- ScancodeKP0 -> Key'KP0
   -- ScancodeKPPeriod -> Key'KPPeriod
+  -- ScancodeNonUSBackslash -> Key'NonUSBackslash
+  -- ScancodeApplication -> Key'Application
+  -- ScancodePower -> Key'Power
+  -- ScancodeKPEquals -> Key'KPEquals
+  ScancodeF13 -> Key'F13
+  ScancodeF14 -> Key'F14
+  ScancodeF15 -> Key'F15
+  ScancodeF16 -> Key'F16
+  ScancodeF17 -> Key'F17
+  ScancodeF18 -> Key'F18
+  ScancodeF19 -> Key'F19
+  ScancodeF20 -> Key'F20
+  ScancodeF21 -> Key'F21
+  ScancodeF22 -> Key'F22
+  ScancodeF23 -> Key'F23
+  ScancodeF24 -> Key'F24
+  -- ScancodeExecute -> Key'Execute
+  -- ScancodeHelp -> Key'Help
+  -- ScancodeMenu -> Key'Menu
+  -- ScancodeSelect -> Key'Select
+  -- ScancodeStop -> Key'Stop
+  -- ScancodeAgain -> Key'Again
+  -- ScancodeUndo -> Key'Undo
+  -- ScancodeCut -> Key'Cut
+  -- ScancodeCopy -> Key'Copy
+  -- ScancodePaste -> Key'Paste
+  -- ScancodeFind -> Key'Find
+  -- ScancodeMute -> Key'Mute
+  -- ScancodeVolumeUp -> Key'VolumeUp
+  -- ScancodeVolumeDown -> Key'VolumeDown
+  -- ScancodeKPComma -> Key'KPComma
+  -- ScancodeKPEqualsAS400 -> Key'KPEqualsAS400
+  -- ScancodeInternational1 -> Key'International1
+  -- ScancodeInternational2 -> Key'International2
+  -- ScancodeInternational3 -> Key'International3
+  -- ScancodeInternational4 -> Key'International4
+  -- ScancodeInternational5 -> Key'International5
+  -- ScancodeInternational6 -> Key'International6
+  -- ScancodeInternational7 -> Key'International7
+  -- ScancodeInternational8 -> Key'International8
+  -- ScancodeInternational9 -> Key'International9
+  -- ScancodeLang1 -> Key'Lang1
+  -- ScancodeLang2 -> Key'Lang2
+  -- ScancodeLang3 -> Key'Lang3
+  -- ScancodeLang4 -> Key'Lang4
+  -- ScancodeLang5 -> Key'Lang5
+  -- ScancodeLang6 -> Key'Lang6
+  -- ScancodeLang7 -> Key'Lang7
+  -- ScancodeLang8 -> Key'Lang8
+  -- ScancodeLang9 -> Key'Lang9
+  -- ScancodeAltErase -> Key'AltErase
+  -- ScancodeSysReq -> Key'SysReq
+  -- ScancodeCancel -> Key'Cancel
+  -- ScancodeClear -> Key'Clear
+  -- ScancodePrior -> Key'Prior
+  -- ScancodeReturn2 -> Key'Return2
+  -- ScancodeSeparator -> Key'Separator
+  -- ScancodeOut -> Key'Out
+  -- ScancodeOper -> Key'Oper
+  -- ScancodeClearAgain -> Key'ClearAgain
+  -- ScancodeCrSel -> Key'CrSel
+  -- ScancodeExSel -> Key'ExSel
+  -- ScancodeKP00 -> Key'KP00
+  -- ScancodeKP000 -> Key'KP000
+  -- ScancodeThousandsSeparator -> Key'ThousandsSeparator
+  -- ScancodeDecimalSeparator -> Key'DecimalSeparator
+  -- ScancodeCurrencyUnit -> Key'CurrencyUnit
+  -- ScancodeCurrencySubunit -> Key'CurrencySubunit
+  -- ScancodeLeftParen -> Key'LeftParen
+  -- ScancodeRightParen -> Key'RightParen
+  -- ScancodeLeftBrace -> Key'LeftBrace
+  -- ScancodeRightBrace -> Key'RightBrace
+  -- ScancodeKPTab -> Key'KPTab
+  -- ScancodeKPBackspace -> Key'KPBackspace
+  -- ScancodeKPA -> Key'KPA
+  -- ScancodeKPB -> Key'KPB
+  -- ScancodeKPC -> Key'KPC
+  -- ScancodeKPD -> Key'KPD
+  -- ScancodeKPE -> Key'KPE
+  -- ScancodeKPF -> Key'KPF
+  -- ScancodeKPXOR -> Key'KPXOR
+  -- ScancodeKPPower -> Key'KPPower
+  -- ScancodeKPPercent -> Key'KPPercent
+  -- ScancodeKPLess -> Key'KPLess
+  -- ScancodeKPGreater -> Key'KPGreater
+  -- ScancodeKPAmpersand -> Key'KPAmpersand
+  -- ScancodeKPDblAmpersand -> Key'KPDblAmpersand
+  -- ScancodeKPVerticalBar -> Key'KPVerticalBar
+  -- ScancodeKPDblVerticalBar -> Key'KPDblVerticalBar
+  -- ScancodeKPColon -> Key'KPColon
+  -- ScancodeKPHash -> Key'KPHash
+  -- ScancodeKPSpace -> Key'KPSpace
+  -- ScancodeKPAt -> Key'KPAt
+  -- ScancodeKPExclam -> Key'KPExclam
+  -- ScancodeKPMemStore -> Key'KPMemStore
+  -- ScancodeKPMemRecall -> Key'KPMemRecall
+  -- ScancodeKPMemClear -> Key'KPMemClear
+  -- ScancodeKPMemAdd -> Key'KPMemAdd
+  -- ScancodeKPMemSubtract -> Key'KPMemSubtract
+  -- ScancodeKPMemMultiply -> Key'KPMemMultiply
+  -- ScancodeKPMemDivide -> Key'KPMemDivide
+  -- ScancodeKPPlusMinus -> Key'KPPlusMinus
+  -- ScancodeKPClear -> Key'KPClear
+  -- ScancodeKPClearEntry -> Key'KPClearEntry
+  -- ScancodeKPBinary -> Key'KPBinary
+  -- ScancodeKPOctal -> Key'KPOctal
+  -- ScancodeKPDecimal -> Key'KPDecimal
+  -- ScancodeKPHexadecimal -> Key'KPHexadecimal
+  ScancodeLCtrl -> Key'LeftControl
+  ScancodeLShift -> Key'LeftShift
+  ScancodeLAlt -> Key'LeftAlt
+  ScancodeLGUI -> Key'LeftSuper
+  ScancodeRCtrl -> Key'RightControl
+  ScancodeRShift -> Key'RightShift
+  ScancodeRAlt -> Key'RightAlt
+  ScancodeRGUI -> Key'RightSuper
+  -- ScancodeMode -> Key'Mode
+  -- ScancodeAudioNext -> Key'AudioNext
+  -- ScancodeAudioPrev -> Key'AudioPrev
+  -- ScancodeAudioStop -> Key'AudioStop
+  -- ScancodeAudioPlay -> Key'AudioPlay
+  -- ScancodeAudioMute -> Key'AudioMute
+  -- ScancodeMediaSelect -> Key'MediaSelect
+  -- ScancodeWWW -> Key'WWW
+  -- ScancodeMail -> Key'Mail
+  -- ScancodeCalculator -> Key'Calculator
+  -- ScancodeComputer -> Key'Computer
+  -- ScancodeACSearch -> Key'ACSearch
+  -- ScancodeACHome -> Key'ACHome
+  -- ScancodeACBack -> Key'ACBack
+  -- ScancodeACForward -> Key'ACForward
+  -- ScancodeACStop -> Key'ACStop
+  -- ScancodeACRefresh -> Key'ACRefresh
+  -- ScancodeACBookmarks -> Key'ACBookmarks
+  -- ScancodeBrightnessDown -> Key'BrightnessDown
+  -- ScancodeBrightnessUp -> Key'BrightnessUp
+  -- ScancodeDisplaySwitch -> Key'DisplaySwitch
+  -- ScancodeKBDIllumToggle -> Key'KBDIllumToggle
+  -- ScancodeKBDIllumDown -> Key'KBDIllumDown
+  -- ScancodeKBDIllumUp -> Key'KBDIllumUp
+  -- ScancodeEject -> Key'Eject
+  -- ScancodeSleep -> Key'Sleep
+  -- ScancodeApp1 -> Key'App1
+  -- ScancodeApp2 -> Key'App2
   _ -> Key'Unknown
 
 sdlButtonToGamePadButton :: SDL.ControllerButton -> E.EnumSet GamePadButton
