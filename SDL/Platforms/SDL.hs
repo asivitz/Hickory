@@ -20,10 +20,8 @@ import qualified SDL
 import qualified SDL.Input.GameController as SDL
 import qualified SDL.Internal.Types as SDL
 import qualified SDL.Raw as SDLRaw
-import Data.Int (Int32)
 import qualified Data.Vector as V
-import Data.Foldable (traverse_, find, for_)
-import Foreign.C.String (peekCString)
+import Data.Foldable (traverse_, for_)
 import SDL (WindowConfig(..), ControllerButtonEventData(..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
@@ -36,17 +34,16 @@ import Hickory.Vulkan.Utils (initVulkan, buildFrameFunction)
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString as B
 import Vulkan.Extensions (destroySurfaceKHR)
-import Data.Function (fix, (&))
+import Data.Function (fix)
 import Hickory.ImGUI.ImGUI (renderDearImGui, initDearImGui)
 import DearImGui.SDL.Vulkan (sdl2InitForVulkan)
 import DearImGui.SDL (sdl2Shutdown, sdl2NewFrame, pollEventsWithImGui)
 import Control.Monad (void)
-import Hickory.Vulkan.Renderer.Types (Scene)
-import Hickory.GameLoop (gameLoop)
 import Data.Functor ((<&>))
-import Foreign.C (CInt)
+import Foreign.C (CUShort, CUInt)
 import qualified Data.Enum.Set as E
 import SDL.Input.Keyboard.Codes
+import Data.Text.Foreign (withCString)
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -57,86 +54,23 @@ data InputData = InputData
   , gamepads :: IORef (HashMap SDLRaw.JoystickID SDL.GameController)
   }
 
+data SDLHandles = SDLHandles
+  { buildInputFrame  :: IO InputFrame
+  , shouldQuit       :: IO Bool
+  -- The controller
+  -- Intensity of the low frequency (left) rumble motor
+  -- Intensity of the high frequency (right) rumble motor
+  -- Duration in ms
+  , rumbleController :: Int -> CUShort -> CUShort -> CUInt -> IO ()
+  }
+
 getCurrentGamePadIds :: IO [Int]
 getCurrentGamePadIds = undefined
-
-{-
-mouseButtonCallback :: InputData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.MouseButton -> GLFW.MouseButtonState -> t -> IO ()
-mouseButtonCallback indat addInput win button buttonState _modkeys = unlessM wantCaptureMouse do
-  touches <- readIORef indat.touches
-
-  curPos <- GLFW.getCursorPos win
-
-  let pos = touchPosToScreenPos curPos
-      touchid = glfwTouchIdent button
-
-  (ev, touches') <- case buttonState of
-    GLFW.MouseButtonState'Pressed -> do
-      time <- getCurrentTime
-      return (InputTouchesDown [(pos,touchid)], HashMap.insert touchid (time, pos) touches)
-    GLFW.MouseButtonState'Released -> case HashMap.lookup touchid touches of
-      Nothing -> return (InputTouchesUp [PointUp { duration = 0, location = pos, origLocation = pos, ident = touchid }], touches)
-      Just (prevTime, prevPos) -> do
-        time <- getCurrentTime
-        let delta = realToFrac (diffUTCTime time prevTime)
-        return (InputTouchesUp [PointUp { duration = delta, location = pos, origLocation = prevPos, ident = touchid }], HashMap.delete touchid touches)
-
-  writeIORef indat.touches touches'
-  addInput ev
-
-keyCallback :: InputData -> (RawInput -> IO ()) -> GLFW.Window -> GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> IO ()
-keyCallback indat addInput _win glfwkey _scancode keyState _modkeys = unlessM wantCaptureKeyboard do
-  keys <- readIORef indat.keys
-
-  time <- getCurrentTime
-  let key = toEnum (fromEnum glfwkey) -- only possible since our Key type is defined exactly the same as GLFW's
-      -- other platforms will need a more intelligent conversion
-      -- between key values
-  case keyState of
-    GLFW.KeyState'Pressed -> do
-      addInput (InputKeyDown key)
-      modifyIORef' indat.keys $ HashMap.insert key time
-    GLFW.KeyState'Released ->
-      case HashMap.lookup key keys of
-        Nothing -> addInput (InputKeyUp key 0)
-        Just prev -> do
-          addInput (InputKeyUp key (realToFrac (diffUTCTime time prev)))
-          modifyIORef' indat.keys $ HashMap.delete key
-    _ -> return ()
-
-joystickCallback :: InputData -> (RawInput -> IO ()) -> GLFW.Joystick ->  GLFW.JoystickState -> IO ()
-joystickCallback indat addInput js jsst = do
-  GLFW.getGamepadState js >>= \case
-    Just gs -> do
-      case jsst of
-        GLFW.JoystickState'Connected    -> addInput $ InputGamePadConnection (fromEnum js) True
-        _ -> pure ()
-
-      modifyIORef' indat.gamepads $ case jsst of
-        GLFW.JoystickState'Connected    -> HashMap.insert (fromEnum js) gs
-        GLFW.JoystickState'Disconnected -> HashMap.delete (fromEnum js)
-    Nothing -> pure ()
-
-  case jsst of
-    GLFW.JoystickState'Disconnected -> addInput $ InputGamePadConnection (fromEnum js) False
-    _ -> pure ()
-
-glfwTouchIdent :: GLFW.MouseButton -> Int
-glfwTouchIdent button = case button of
-  GLFW.MouseButton'1 -> 1
-  GLFW.MouseButton'2 -> 2
-  GLFW.MouseButton'3 -> 3
-  GLFW.MouseButton'4 -> 4
-  GLFW.MouseButton'5 -> 5
-  GLFW.MouseButton'6 -> 6
-  GLFW.MouseButton'7 -> 7
-  GLFW.MouseButton'8 -> 8
-  -}
 
 touchPosToScreenPos :: (Double, Double) -> V2 Scalar
 touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
 
-sdlFrameBuilder :: IO (IO InputFrame, IO Bool)
+sdlFrameBuilder :: IO SDLHandles
 sdlFrameBuilder = do
   builder <- inputFrameBuilder
 
@@ -160,7 +94,11 @@ sdlFrameBuilder = do
   let addInput i = atomicModifyIORef' inputsRef \is -> (i:is, ())
   quitSignal <- newIORef False
 
-  buildInp <- pure do
+  let rumbleController i left right dur = do
+        HashMap.lookup (fromIntegral i) <$> readIORef indat.gamepads >>= traverse_ \(SDL.GameController ptr) -> do
+          void $ SDLRaw.gameControllerRumble ptr left right dur
+
+  buildInputFrame <- pure do
     -- touches <- readIORef indat.touches
     -- curPos <- GLFW.getCursorPos win
     -- let curloc = touchPosToScreenPos curPos
@@ -269,7 +207,8 @@ sdlFrameBuilder = do
       addInput $ InputGamePad (fromIntegral gcid) gp
 
     atomicModifyIORef' inputsRef (\is -> ([], reverse is)) >>= builder
-  pure (buildInp, readIORef quitSignal)
+  let shouldQuit = readIORef quitSignal
+  pure SDLHandles {..}
   where
   toButton = \case
     SDL.ControllerButtonPressed  -> Pressed
@@ -548,7 +487,11 @@ sdlButtonStateToButtonState = \case
 
 withWindow :: Int -> Int -> String -> (SDL.Window -> IO ()) -> IO ()
 withWindow width height title f = do
-  SDL.initialize [SDL.InitVideo, SDL.InitEvents, SDL.InitGameController]
+  SDL.initialize [SDL.InitVideo, SDL.InitEvents, SDL.InitGameController, SDL.InitHaptic]
+
+  -- These controllers need special hints to enable rumble
+  withCString "SDL_JOYSTICK_HIDAPI_PS4_RUMBLE" \cs -> withCString "1" \arg -> SDLRaw.setHint cs arg
+  withCString "SDL_JOYSTICK_HIDAPI_PS5_RUMBLE" \cs -> withCString "1" \arg -> SDLRaw.setHint cs arg
 
   window <- SDL.createWindow (pack title) $ WindowConfig
     { windowBorder          = True
@@ -611,15 +554,5 @@ runFrames win shouldQuit vulkanResources acquireRenderer f = do
     True -> pure ()
   liftIO cleanup
 
-sdlGameLoop
-  :: SDL.Window
-  -> VulkanResources
-  -> (Swapchain -> Acquire swapchainResources)
-  -> NominalDiffTime
-  -> ((Scene swapchainResources -> IO ()) -> IO (Scene swapchainResources))
-  -> IO ()
-sdlGameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialScene = do
-  let scrSizeVar = SDL.windowSize win
-
-  (frameBuilder, shouldQuit) <- sdlFrameBuilder
-  gameLoop ((\(V2 x y) -> fmap fromIntegral (Size x y)) <$> SDL.get scrSizeVar) vulkanResources acquireSwapchainResources physicsTimeStep frameBuilder (runFrames win shouldQuit) initialScene
+sdlScreenSize :: MonadIO f => SDL.Window -> f (Size Int)
+sdlScreenSize win = ((\(V2 x y) -> fmap fromIntegral (Size x y)) <$> SDL.get (SDL.windowSize win))

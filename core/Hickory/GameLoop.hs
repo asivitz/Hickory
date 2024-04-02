@@ -59,14 +59,13 @@ pureGameScene initialModel stepFunction = do
 
 gameLoop
   :: IO (Size Int)
-  -> H.VulkanResources
   -> (H.Swapchain -> Acquire swapchainResources)
   -> NominalDiffTime
   -> IO InputFrame
-  -> (H.VulkanResources -> (H.Swapchain -> Acquire swapchainResources) -> (swapchainResources -> H.FrameContext -> IO ()) -> IO ())
+  -> ((H.Swapchain -> Acquire swapchainResources) -> (swapchainResources -> H.FrameContext -> IO ()) -> IO ())
   -> ((Scene swapchainResources -> IO ()) -> IO (Scene swapchainResources))
   -> IO ()
-gameLoop readScrSize vulkanResources acquireSwapchainResources physicsTimeStep frameBuilder runFrames initialScene = do
+gameLoop readScrSize acquireSwapchainResources physicsTimeStep frameBuilder runFrames initialScene = do
   inputRef   :: IORef InputFrame <- newIORef mempty
   sceneRef   :: IORef (Scene swapchainResources) <- newIORef undefined
   is <- initialScene (writeIORef sceneRef)
@@ -87,7 +86,7 @@ gameLoop readScrSize vulkanResources acquireSwapchainResources physicsTimeStep f
             scene <- readIORef sceneRef
             scene inputFrame >>= writeIORef renderFRef
 
-    runFrames vulkanResources acquireSwapchainResources \swapchainResources frameContext -> do
+    runFrames acquireSwapchainResources \swapchainResources frameContext -> do
       inputFrame <- frameBuilder
       modifyIORef' inputRef (inputFrame<>)
       curInputFrame <- readIORef inputRef

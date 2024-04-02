@@ -22,7 +22,7 @@ glfwGameLoop
 glfwGameLoop win vulkanResources acquireSwapchainResources physicsTimeStep initialScene = do
   scrSizeRef <- getWindowSizeRef win
   frameBuilder <- glfwFrameBuilder win
-  gameLoop (readIORef scrSizeRef) vulkanResources acquireSwapchainResources physicsTimeStep frameBuilder (GLFWV.runFrames win) initialScene
+  gameLoop (readIORef scrSizeRef) acquireSwapchainResources physicsTimeStep frameBuilder (GLFWV.runFrames win vulkanResources) initialScene
 
 
       -- focused <- GLFW.getWindowFocused win
