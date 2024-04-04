@@ -19,6 +19,7 @@ import Control.Monad.Extra (unlessM)
 import DearImGui (wantCaptureMouse, wantCaptureKeyboard)
 import Data.HashMap.Strict (HashMap)
 import Data.Traversable (for)
+import qualified Data.Enum.Set.Base as E
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -158,6 +159,7 @@ glfwFrameBuilder win = do
                               (getAxisState GLFW.GamepadAxis'RightY)
               leftTrigger  = getAxisState GLFW.GamepadAxis'LeftTrigger
               rightTrigger = getAxisState GLFW.GamepadAxis'RightTrigger
+              buttons = E.empty -- TODO BROKEN
 
               toButton = \case
                 GLFW.GamepadButtonState'Pressed  -> Pressed

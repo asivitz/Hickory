@@ -2,9 +2,11 @@
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 module Platforms.SDL where
 
+import Control.Lens (_2, over)
 import Data.IORef
 import qualified Data.HashMap.Strict as HashMap
 import Hickory.Types
@@ -21,7 +23,7 @@ import qualified SDL.Input.GameController as SDL
 import qualified SDL.Internal.Types as SDL
 import qualified SDL.Raw as SDLRaw
 import qualified Data.Vector as V
-import Data.Foldable (traverse_, for_)
+import Data.Foldable (traverse_, for_, foldl')
 import SDL (WindowConfig(..), ControllerButtonEventData(..))
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
@@ -51,7 +53,7 @@ import Data.Text.Foreign (withCString)
 data InputData = InputData
   { touches  :: IORef (HashMap Int (UTCTime, V2 Scalar))
   , keys     :: IORef (HashMap Key UTCTime)
-  , gamepads :: IORef (HashMap SDLRaw.JoystickID SDL.GameController)
+  , gamepads :: IORef (HashMap SDLRaw.JoystickID (SDL.GameController, GamePad))
   }
 
 data SDLHandles = SDLHandles
@@ -80,7 +82,7 @@ sdlFrameBuilder = do
     js <- SDLRaw.gameControllerGetJoystick ptr
     SDLRaw.joystickInstanceID js
   -- let gcids = cds <&> fromIntegral . SDL.gameControllerDeviceId
-  let initialGamepads = HashMap.fromList (zip (V.toList gcids) (V.toList gcs))
+  let initialGamepads = HashMap.fromList (zip (V.toList gcids) ((,emptyGamePad) <$> V.toList gcs))
 
 
   indat <- InputData
@@ -95,7 +97,7 @@ sdlFrameBuilder = do
   quitSignal <- newIORef False
 
   let rumbleController i left right dur = do
-        HashMap.lookup (fromIntegral i) <$> readIORef indat.gamepads >>= traverse_ \(SDL.GameController ptr) -> do
+        HashMap.lookup (fromIntegral i) <$> readIORef indat.gamepads >>= traverse_ \(SDL.GameController ptr,_) -> do
           void $ SDLRaw.gameControllerRumble ptr left right dur
 
   buildInputFrame <- pure do
@@ -108,16 +110,22 @@ sdlFrameBuilder = do
     time <- getCurrentTime
     events <- pollEventsWithImGui
     inputEvs <- catMaybes <$> for events \(SDL.Event _ payload) -> case payload of
-          SDL.ControllerButtonEvent SDL.ControllerButtonEventData {..} -> pure . Just $
-            InputGamePadButtons (sdlButtonStateToButtonState controllerButtonEventState) (fromIntegral controllerButtonEventWhich)
-              [sdlButtonToGamePadButton controllerButtonEventButton]
+          SDL.ControllerButtonEvent SDL.ControllerButtonEventData {..} -> do
+            let bs = sdlButtonStateToButtonState controllerButtonEventState
+                cntrlr = fromIntegral controllerButtonEventWhich
+                button = sdlButtonToGamePadButton controllerButtonEventButton
+
+            modifyIORef' indat.gamepads \mp -> case bs of
+              Pressed  -> HashMap.adjust (over (_2 . #buttons) $ E.union button) (fromIntegral cntrlr) mp
+              Released -> HashMap.adjust (over (_2 . #buttons) $ (E.\\ button)) (fromIntegral cntrlr) mp
+            pure . Just $ InputGamePadButtons bs cntrlr [button]
           SDL.ControllerDeviceEvent SDL.ControllerDeviceEventData {..} -> do
             case controllerDeviceEventConnection of
               SDL.ControllerDeviceAdded   -> do
                 gc <- SDLRaw.gameControllerOpen (fromIntegral controllerDeviceEventWhich) -- this is a device, not a joystick id
                 js <- SDLRaw.gameControllerGetJoystick gc
                 gcid <- SDLRaw.joystickInstanceID js
-                modifyIORef' indat.gamepads $ HashMap.insert gcid (SDL.GameController gc)
+                modifyIORef' indat.gamepads $ HashMap.insert gcid (SDL.GameController gc, emptyGamePad)
                 pure $ Just $ InputGamePadConnection (fromIntegral gcid) True
               SDL.ControllerDeviceRemoved -> do
                 modifyIORef' indat.gamepads $ HashMap.delete (fromIntegral controllerDeviceEventWhich)
@@ -167,29 +175,7 @@ sdlFrameBuilder = do
       SDL.Event _ SDL.QuitEvent             -> writeIORef quitSignal True
       _ -> pure ()
 
-    (HashMap.toList <$> readIORef indat.gamepads) >>= traverse_ \(gcid, gc) -> do
-      let getButtonState = fmap toButton . SDL.controllerButton gc
-
-      a <- getButtonState SDL.ControllerButtonA
-      b <- getButtonState SDL.ControllerButtonB
-      x <- getButtonState SDL.ControllerButtonX
-      y <- getButtonState SDL.ControllerButtonY
-      leftBumper <- getButtonState SDL.ControllerButtonLeftShoulder
-      rightBumper <- getButtonState SDL.ControllerButtonRightShoulder
-      back <- getButtonState SDL.ControllerButtonBack
-      start <- getButtonState SDL.ControllerButtonStart
-      guide <- getButtonState SDL.ControllerButtonGuide
-      leftThumb <- getButtonState SDL.ControllerButtonLeftStick
-      rightThumb <- getButtonState SDL.ControllerButtonRightStick
-      dpadUp <- getButtonState SDL.ControllerButtonDpadUp
-      dpadRight <- getButtonState SDL.ControllerButtonDpadRight
-      dpadDown <- getButtonState SDL.ControllerButtonDpadDown
-      dpadLeft <- getButtonState SDL.ControllerButtonDpadLeft
-      let square = x
-          triangle = y
-          cross = a
-          circle = b
-
+    (HashMap.toList <$> readIORef indat.gamepads) >>= traverse_ \(gcid, (gc,gp)) -> do
       leftStick <- fmap (fmap $ \i -> rlerp (realToFrac i) (-32768) 32767 * 2 - 1) $
         V2 <$> SDL.controllerAxis gc SDL.ControllerAxisLeftX
            <*> SDL.controllerAxis gc SDL.ControllerAxisLeftY
@@ -201,10 +187,42 @@ sdlFrameBuilder = do
       rightTrigger <- (\i -> realToFrac i / 32767 * 2 - 1) <$>
         SDL.controllerAxis gc SDL.ControllerAxisTriggerRight
 
-      let gp = GamePad {..}
+      let
+        leftStickUp    = let V2 _x y = leftStick in y < -0.8
+        leftStickRight = let V2 x _y = leftStick in x > 0.8
+        leftStickDown  = let V2 _x y = leftStick in y > 0.8
+        leftStickLeft  = let V2 x _y = leftStick in x < -0.8
+        rightStickUp    = let V2 _x y = rightStick in y < -0.8
+        rightStickRight = let V2 x _y = rightStick in x > 0.8
+        rightStickDown  = let V2 _x y = rightStick in y > 0.8
+        rightStickLeft  = let V2 x _y = rightStick in x < -0.8
+        stickButtonPresses = E.fromFoldable $ catMaybes
+          [ if leftStickUp && gp.leftStickUp == Released then Just LeftStickUp else Nothing
+          , if leftStickRight && gp.leftStickRight == Released then Just LeftStickRight else Nothing
+          , if leftStickDown && gp.leftStickDown == Released then Just LeftStickDown else Nothing
+          , if leftStickLeft && gp.leftStickLeft == Released then Just LeftStickLeft else Nothing
+          , if rightStickUp && gp.rightStickUp == Released then Just RightStickUp else Nothing
+          , if rightStickRight && gp.rightStickRight == Released then Just RightStickRight else Nothing
+          , if rightStickDown && gp.rightStickDown == Released then Just RightStickDown else Nothing
+          , if rightStickLeft && gp.rightStickLeft == Released then Just RightStickLeft else Nothing
+          ]
+        stickButtonReleases = E.fromFoldable $ catMaybes
+          [ if not leftStickUp && gp.leftStickUp == Pressed then Just LeftStickUp else Nothing
+          , if not leftStickRight && gp.leftStickRight == Pressed then Just LeftStickRight else Nothing
+          , if not leftStickDown && gp.leftStickDown == Pressed then Just LeftStickDown else Nothing
+          , if not leftStickLeft && gp.leftStickLeft == Pressed then Just LeftStickLeft else Nothing
+          , if not rightStickUp && gp.rightStickUp == Pressed then Just RightStickUp else Nothing
+          , if not rightStickRight && gp.rightStickRight == Pressed then Just RightStickRight else Nothing
+          , if not rightStickDown && gp.rightStickDown == Pressed then Just RightStickDown else Nothing
+          , if not rightStickLeft && gp.rightStickLeft == Pressed then Just RightStickLeft else Nothing
+          ]
+        newGP = gp { leftStick, rightStick, leftTrigger, rightTrigger, buttons = E.union gp.buttons stickButtonPresses E.\\ stickButtonReleases  }
 
+      modifyIORef' indat.gamepads $ HashMap.insert gcid (gc, newGP)
 
-      addInput $ InputGamePad (fromIntegral gcid) gp
+      addInput $ InputGamePad (fromIntegral gcid) newGP
+      addInput $ InputGamePadButtons Pressed (fromIntegral gcid) [stickButtonPresses]
+      addInput $ InputGamePadButtons Released (fromIntegral gcid) [stickButtonReleases]
 
     atomicModifyIORef' inputsRef (\is -> ([], reverse is)) >>= builder
   let shouldQuit = readIORef quitSignal

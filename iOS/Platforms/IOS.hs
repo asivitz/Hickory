@@ -24,6 +24,8 @@ import Data.Bool (bool)
 import Hickory.Vulkan.Renderer.Types (Scene, RenderFunction)
 import Control.Monad
 import Control.Concurrent (forkIO, threadDelay)
+import Data.Maybe (catMaybes)
+import qualified Data.Enum.Set as E
 
 foreign import ccall "getResourcePath" c'getResourcePath :: CString -> CInt -> IO ()
 
@@ -208,30 +210,32 @@ gamepadState touchData ident a' b' x' y' rightShoulder' leftShoulder' (realToFra
     menu options = do
   let leftStick = realToFrac <$> V2 leftThumbXAxis (negate leftThumbYAxis)
       rightStick = realToFrac <$> V2 rightThumbXAxis (negate rightThumbYAxis)
-      back = mkPress options
-      start = mkPress menu
-      guide = Released
-      a = mkPress a'
-      b = mkPress b'
-      x = mkPress x'
-      y = mkPress y'
-      cross = a
-      circle = b
-      square = x
-      triangle = y
-      rightBumper = mkPress rightShoulder'
-      leftBumper = mkPress leftShoulder'
-      rightThumb = mkPress rightThumb'
-      leftThumb = mkPress leftThumb'
-      dpadUp = Released
-      dpadRight = Released
-      dpadLeft = Released
-      dpadDown = Released
+      buttons = E.fromFoldable $ catMaybes
+        [ Back <$ mkPress options
+        , Start <$ mkPress menu
+        , Guide <$ Nothing
+        , A <$ mkPress a'
+        , B <$ mkPress b'
+        , X <$ mkPress x'
+        , Y <$ mkPress y'
+        , Cross <$ mkPress a'
+        , Circle <$ mkPress b'
+        , Square <$ mkPress x'
+        , Triangle <$ mkPress y'
+        , RightBumper <$ mkPress rightShoulder'
+        , LeftBumper <$ mkPress leftShoulder'
+        , RightThumb <$ mkPress rightThumb'
+        , LeftThumb <$ mkPress leftThumb'
+      -- DpadUp = Released
+      -- DpadRight = Released
+      -- DpadLeft = Released
+      -- DpadDown = Released
+        ]
 
   (_, InputData {..}) <- deRefStablePtr touchData
   modifyIORef newRawMessages (InputGamePad (fromIntegral ident) GamePad {..}:)
   where
-  mkPress = bool Released Pressed . (/=0)
+  mkPress = bool Nothing (Just ()) . (/=0)
 
 gamepadConnected :: StablePtr (a,InputData) -> CInt -> IO ()
 gamepadConnected inputData ident = do

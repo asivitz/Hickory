@@ -39,6 +39,7 @@ dependencies:
   - ki
   - containers
   - ghc-compact
+  - bitwise-enum
 
 library:
   verbatim:

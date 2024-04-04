@@ -36,7 +36,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Platforms.IOS
   other-extensions:    NamedFieldPuns, Rank2Types, BangPatterns, OverloadedStrings, TupleSections
-  build-depends:       base >=4.7 && <5, OpenGLRaw, time, unordered-containers >=0.2 && <0.3, Hickory, Hickory-FRP, linear, vulkan, acquire
+  build-depends:       base >=4.7 && <5, OpenGLRaw, time, unordered-containers >=0.2 && <0.3, Hickory, Hickory-FRP, linear, vulkan, acquire, bitwise-enum
   default-language:    Haskell2010
   ghc-prof-options:   -fprof-auto
   ghc-options: -Wall -fno-warn-unused-matches -fno-warn-missing-signatures -fno-warn-unused-do-bind
