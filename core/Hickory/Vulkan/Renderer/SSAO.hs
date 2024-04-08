@@ -123,7 +123,7 @@ layout (location = 2) in vec3 inWorldRay;
 layout (location = 0) out vec4 outColor;
 
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
-layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
+layout (set = 1, binding = 0) uniform sampler2D gbuffer[3];
 layout (set = 1, binding = 2) uniform sampler2D ssaoNoise;
 
 layout (scalar, set = 1, binding = 1) uniform SSAOKernel { vec3 kernel[$maxSSAOKernelSizeString]; } ssaoKernel;
@@ -145,7 +145,7 @@ void main ()
 
   vec3 worldNormal = texture(gbuffer[1], inTexCoords).xyz;
   vec3 viewNormal = mat3(globals.viewMat) * worldNormal;
-  float depth = texture(gbuffer[3], inTexCoords).r;
+  float depth = texture(gbuffer[2], inTexCoords).r;
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
   vec3 viewPos  = inViewRay * (depth / globals.farPlane);
 
@@ -169,7 +169,7 @@ void main ()
 		sampleOffset = globals.projMat * sampleOffset;
 		sampleOffset.xyz = (sampleOffset.xyz / sampleOffset.w) * 0.5 + 0.5; // Perspective divide and move to texture coord space
 
-		float sampleDepth = texture(gbuffer[3], sampleOffset.xy).r;
+		float sampleDepth = texture(gbuffer[2], sampleOffset.xy).r;
     sampleDepth = linearizeDepth(sampleDepth, globals.nearPlane, globals.farPlane);
 
 		float inRange = smoothstep(0.0, 1.0, PushConstants.kernelRadius / abs(viewPos.z - sampleDepth));

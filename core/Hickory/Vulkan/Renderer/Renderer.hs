@@ -282,8 +282,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   ssaoViewableImage     <- frameResource $ withSSAOViewableImage vulkanResources swapchain.extent
 
 
-  let gbufferDesc = zipFramedResources [albedoViewableImage, normalViewableImage, objIDViewableImage, depthViewableImage]
+  let gbufferFloatDesc = zipFramedResources [albedoViewableImage, normalViewableImage, depthViewableImage]
                 <&> ImageDescriptor . fmap (,linearSampler)
+      gbufferUIntDesc = zipFramedResources [objIDViewableImage]
+                <&> ImageDescriptor . fmap (,nearestSampler)
       decalDesc = zipFramedResources [ objIDViewableImage <&> \i -> ImageDescriptor [(i, nearestSampler)]
                                      , depthViewableImage <&> \i -> ImageDescriptor [(i, linearSampler)]
                                      ]
@@ -320,8 +322,13 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
         , BufferDescriptor (buf globalShadowPassBuf)
         ] ++ targetDescriptorSpecs
 
+  for_ globalDescriptorSet \pds ->
+    debugName vulkanResources pds.descriptorSet "GlobalDescSet"
+
   -- For debugging
   shadowMapDescriptorSet <- for (map snd . VS.toList . fst <$> cascadedShadowMap) $ withDescriptorSet vulkanResources
+  for_ shadowMapDescriptorSet \pds ->
+    debugName vulkanResources pds.descriptorSet "ShadowMapDescSet"
 
   singleImageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
@@ -337,6 +344,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   -- animatedShadowMaterial   <- withAnimatedShadowMaterial vulkanResources shadowRenderConfig globalDescriptorSet
 
   objHighlightDescriptorSet <- for (pure . snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
+  for_ objHighlightDescriptorSet \pds ->
+    debugName vulkanResources pds.descriptorSet "ObjHighlightDescSet"
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources directRenderConfig globalDescriptorSet objHighlightDescriptorSet
 
   -- SSAO
@@ -361,19 +370,25 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   (noiseImage,_) <- withImageFromArray vulkanResources noiseDim noiseDim noiseFormat False noiseValues
   imageView <- with2DImageView vulkanResources.deviceContext noiseFormat IMAGE_ASPECT_COLOR_BIT noiseImage 0 1
 
-  ssaoMaterialDescriptorSet <- for gbufferDesc $ \gbufDesc -> withDescriptorSet vulkanResources
-    [gbufDesc, BufferDescriptor kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,nearestSampler)]]
+  ssaoMaterialDescriptorSet <- for gbufferFloatDesc $ \gbufFloatDesc -> withDescriptorSet vulkanResources
+    [gbufFloatDesc, BufferDescriptor kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,nearestSampler)]]
+  for_ ssaoMaterialDescriptorSet \pds ->
+    debugName vulkanResources pds.descriptorSet "SSAOMatDescSet"
   ssaoMaterial              <- withSSAOMaterial vulkanResources ssaoRenderConfig globalDescriptorSet ssaoMaterialDescriptorSet
 
-  sunMaterialDescriptorSet <- for (V.zipWith (\a b -> [a,b]) gbufferDesc (snd <$> ssaoRenderFrame)) $ withDescriptorSet vulkanResources
+  sunMaterialDescriptorSet <- for (V.zipWith (\a b -> [a,b]) gbufferFloatDesc (snd <$> ssaoRenderFrame)) $ withDescriptorSet vulkanResources
+  for_ sunMaterialDescriptorSet \pds ->
+    debugName vulkanResources pds.descriptorSet "SunMatDescSet"
   sunMaterial              <- withDirectionalLightMaterial vulkanResources lightingRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
   postMaterialDescriptorSet <- for (pure . snd <$> directRenderFrame) $ withDescriptorSet vulkanResources
+  for_ postMaterialDescriptorSet \pds ->
+    debugName vulkanResources pds.descriptorSet "PostMatDescSet"
   postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderConfig globalDescriptorSet postMaterialDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
-  objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 2 gbufferDesc
+  objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 0 gbufferUIntDesc
 
   let renderTargets = RenderTargets {..}
 

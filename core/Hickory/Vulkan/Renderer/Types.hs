@@ -62,7 +62,8 @@ data RenderTargets = RenderTargets
   -- Stage 8 Post + Overlay
   , swapchainRenderConfig        :: !RenderConfig
   , swapchainRenderFrame         :: FramedResource Framebuffer
-  , gbufferDesc                  :: FramedResource DescriptorSpec -- A set of 4 images (albedo, normal, objId, depth)
+  , gbufferFloatDesc             :: FramedResource DescriptorSpec -- A set of 3 images (albedo, normal, depth)
+  , gbufferUIntDesc              :: FramedResource DescriptorSpec -- A set of 1 image (objId)
   , decalDesc                    :: FramedResource [DescriptorSpec] -- ObjID and Depth
   }
 

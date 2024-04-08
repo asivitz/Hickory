@@ -146,7 +146,7 @@ layout( push_constant, scalar ) uniform constants
 } PushConstants;
 
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
-layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
+layout (set = 1, binding = 0) uniform sampler2D gbuffer[3];
 layout (set = 1, binding = 1) uniform sampler2D ssao;
 
 const mat4 biasMat = mat4(
@@ -209,7 +209,7 @@ float calcShadow(vec3 viewPos, vec3 worldPos)
 
 void main()
 {
-  float depth = texture(gbuffer[3], inTexCoords).r;
+  float depth = texture(gbuffer[2], inTexCoords).r;
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
   vec3 viewDir  = normalize(inViewRay);
   vec3 worldDir = normalize(inWorldRay);
