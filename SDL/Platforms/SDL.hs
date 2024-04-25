@@ -480,7 +480,7 @@ sdlKeyToKey SDL.Keysym {..} = case keysymScancode of
 
 sdlButtonToGamePadButton :: SDL.ControllerButton -> E.EnumSet GamePadButton
 sdlButtonToGamePadButton = \case
-  SDL.ControllerButtonInvalid -> error "Invalid sdl button"
+  SDL.ControllerButtonInvalid -> E.empty
   SDL.ControllerButtonA -> E.fromFoldable [A, Cross]
   SDL.ControllerButtonB -> E.fromFoldable [B, Circle]
   SDL.ControllerButtonX -> E.fromFoldable [X, Square]

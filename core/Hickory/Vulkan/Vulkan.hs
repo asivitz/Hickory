@@ -187,7 +187,7 @@ withLogicalDevice inst surface = do
     extensionsNotAvailable = desiredExtensions DL.\\ extensionsToEnable
 
     deviceCreateInfo :: DeviceCreateInfo '[ PhysicalDeviceDescriptorIndexingFeatures
-                                          , PhysicalDeviceDynamicRenderingFeatures
+                                          -- , PhysicalDeviceDynamicRenderingFeatures
                                           , PhysicalDevicePortabilitySubsetFeaturesKHR
                                           ]
     deviceCreateInfo = zero
@@ -196,10 +196,10 @@ withLogicalDevice inst surface = do
       , enabledExtensionNames = V.fromList extensionsToEnable
       , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True, independentBlend = True }
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
-               , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
+               -- , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
                , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow
                , ()
-               )))
+               ))
       }
 
   for_ extensionsNotAvailable \e ->
