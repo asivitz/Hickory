@@ -158,7 +158,7 @@ editorScene
   -- -> CoreEvents (Renderer, FrameContext)
   -> IORef (HashMap Word32 Object)
   -> HashMap String (Component m a)
-  -> (swapchainResources -> Resources -> Camera -> Size Int -> m () -> Command ())
+  -> (H.FrameContext -> swapchainResources -> Resources -> Camera -> Size Int -> m () -> Command ())
   -> IO ()
   -- -> B.Event (HashMap Int Object, FilePath)
   -- -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
@@ -267,7 +267,7 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
       drawObjectEditorUI componentDefs objectsRef st.selectedObjectIDs
 
       let worldRender :: Writer [DrawCommand] ()
-          worldRender = renderComponent sr res camera size $ editorWorldView renderer.lineDirectMaterialConfig componentDefs camera selectedObjects objects manipMode
+          worldRender = renderComponent frameContext sr res camera size $ editorWorldView renderer.lineDirectMaterialConfig componentDefs camera selectedObjects objects manipMode
           overlayRender :: Writer [DrawCommand] ()
           overlayRender = runResources res $ editorOverlayView renderer.staticDirectMaterialConfig size camera cursorLoc selectedObjects (fst <$> manipMode)
 

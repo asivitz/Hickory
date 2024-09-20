@@ -39,9 +39,13 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     mat4 invViewMat;
     mat4 invProjMat;
     vec3 cameraPos;
+    float padding1;
     vec3 lightDirection;
+    float padding2;
     vec3 sunColor;
+    float padding3;
     vec3 ambientColor;
+    float padding4;
     vec2 gbufferSize;
     float multiSampleCount;
     float nearPlane;

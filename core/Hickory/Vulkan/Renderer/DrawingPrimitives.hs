@@ -19,7 +19,7 @@ drawLine materialConfig color a@(V3 p1x p1y p1z) b@(V3 p2x p2y p2z) = do
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = flip poke $ StaticConstants
+    , pokeData = \_ -> flip poke $ StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
@@ -43,7 +43,7 @@ drawPoint materialConfig color (V3 px py pz)  = do
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = flip poke $ StaticConstants
+    , pokeData = \_ -> flip poke $ StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
@@ -67,7 +67,7 @@ drawSolidCube materialConfig color = do
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Buffered cube
-    , pokeData = flip poke $ StaticConstants
+    , pokeData = \_ -> flip poke $ StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
@@ -155,7 +155,7 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = flip poke $ StaticConstants
+    , pokeData = \_ -> flip poke $ StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
@@ -201,7 +201,7 @@ drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = flip poke $ StaticConstants
+    , pokeData = \_ -> flip poke $ StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color

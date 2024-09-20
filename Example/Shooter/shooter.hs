@@ -160,7 +160,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
       H.addCommand $ DrawCommand
         { instances = [("", [(0,mat)])]
         , mesh = H.Buffered square
-        , pokeData = flip poke $ H.StaticConstants
+        , pokeData = \_ -> flip poke $ H.StaticConstants
             { modelMat    = mat
             , normalMat   = transpose . inv33 $ mat ^. _m33
             , color       = red
@@ -178,7 +178,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
     H.addCommand $ DrawCommand
       { instances = [("", [(0,mat)])]
       , mesh = H.Buffered square
-      , pokeData = flip poke $ H.StaticConstants
+      , pokeData = \_ -> flip poke $ H.StaticConstants
           { modelMat    = mat
           , normalMat   = transpose . inv33 $ mat ^. _m33
           , color       = white

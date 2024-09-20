@@ -46,6 +46,8 @@ import Foreign.C (CUShort, CUInt)
 import qualified Data.Enum.Set as E
 import SDL.Input.Keyboard.Codes
 import Data.Text.Foreign (withCString)
+import DearImGui (wantCaptureMouse, wantCaptureKeyboard)
+import Control.Monad.Extra (unlessM)
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -109,6 +111,8 @@ sdlFrameBuilder = do
     --
     time <- getCurrentTime
     events <- pollEventsWithImGui
+    captureMouse <- wantCaptureMouse
+    captureKeyboard <- wantCaptureKeyboard
     inputEvs <- catMaybes <$> for events \(SDL.Event _ payload) -> case payload of
           SDL.ControllerButtonEvent SDL.ControllerButtonEventData {..} -> do
             let bs = sdlButtonStateToButtonState controllerButtonEventState
@@ -131,7 +135,7 @@ sdlFrameBuilder = do
                 modifyIORef' indat.gamepads $ HashMap.delete (fromIntegral controllerDeviceEventWhich)
                 pure $ Just $ InputGamePadConnection (fromIntegral controllerDeviceEventWhich) False
               SDL.ControllerDeviceRemapped -> pure Nothing
-          SDL.KeyboardEvent SDL.KeyboardEventData {..} -> let key = sdlKeyToKey keyboardEventKeysym in
+          SDL.KeyboardEvent SDL.KeyboardEventData {..} | not captureKeyboard -> let key = sdlKeyToKey keyboardEventKeysym in
             case keyboardEventKeyMotion of
               SDL.Pressed  -> do
                 modifyIORef' indat.keys $ HashMap.insert key time
@@ -143,12 +147,12 @@ sdlFrameBuilder = do
                       Just prev -> realToFrac $ diffUTCTime time prev
                 modifyIORef' indat.keys $ HashMap.delete key
                 pure $ Just $ InputKeyUp key delta
-          SDL.MouseMotionEvent SDL.MouseMotionEventData {mouseMotionEventPos = (P v)} -> do
+          SDL.MouseMotionEvent SDL.MouseMotionEventData {mouseMotionEventPos = (P v)} | not captureMouse-> do
             touches <- readIORef indat.touches
             let location = fmap realToFrac v
                 ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
             pure $ Just $ InputTouchesLoc [(location,ident)]
-          SDL.MouseButtonEvent SDL.MouseButtonEventData {mouseButtonEventPos = (P v), ..} -> do
+          SDL.MouseButtonEvent SDL.MouseButtonEventData {mouseButtonEventPos = (P v), ..} | not captureMouse -> do
             let location = fmap realToFrac v
                 ident = case mouseButtonEventButton of
                   SDL.ButtonLeft -> 1

@@ -36,7 +36,7 @@ import Control.Lens (view, _1)
 import System.FilePath.Lens (filename)
 import Data.Bits ((.|.))
 import VulkanMemoryAllocator (withMappedMemory)
-import Foreign (Storable, copyArray, castPtr, sizeOf, withArrayLen, poke)
+import Foreign (Storable, copyArray, castPtr, sizeOf, withArrayLen, poke, plusPtr)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Exception (bracket)
 import Hickory.Vulkan.Mesh (withBuffer')
@@ -48,6 +48,7 @@ import Data.UUID.V4 (nextRandom)
 import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..))
 import GHC.Word (Word32)
 import Data.Maybe (isJust, fromMaybe)
+import qualified Data.Vector.Storable as SV
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
@@ -195,9 +196,18 @@ withBufferDescriptorSet vulkanResources num = do
   pure BufferDescriptorSet {descriptorSet = ds, ..}
 
 uploadBufferDescriptorArray :: (MonadIO m, Storable a) => DataBuffer a -> [a] -> m ()
-uploadBufferDescriptorArray DataBuffer {..} as = liftIO do
+uploadBufferDescriptorArray buf as = uploadBufferDescriptorArrayWithOffset buf as 0
+
+uploadBufferDescriptorArrayWithOffset :: forall m a. (MonadIO m, Storable a) => DataBuffer a -> [a] -> Int -> m ()
+uploadBufferDescriptorArrayWithOffset DataBuffer {..} as offset = liftIO do
   withMappedMemory allocator allocation bracket \bptr ->
-    withArrayLen as \len dptr -> copyArray (castPtr bptr) dptr len
+    withArrayLen as \len dptr -> copyArray (plusPtr (castPtr bptr) (offset * sizeOf (undefined :: a))) dptr len
+
+uploadBufferDescriptorVectorWithOffset :: forall m a. (MonadIO m, Storable a) => DataBuffer a -> SV.Vector a -> Int -> m ()
+uploadBufferDescriptorVectorWithOffset DataBuffer {..} as offset = liftIO do
+  withMappedMemory allocator allocation bracket \bptr ->
+    SV.unsafeWith as \vptr ->
+      copyArray (plusPtr (castPtr bptr) (offset * sizeOf (undefined :: a))) vptr (SV.length as)
 
 uploadBufferDescriptor :: (MonadIO m, Storable a) => DataBuffer a -> a -> m ()
 uploadBufferDescriptor DataBuffer {..} a = liftIO do

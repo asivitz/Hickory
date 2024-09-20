@@ -664,6 +664,10 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
         gbufferSize = realToFrac <$> V2 w h
+        padding1 = 0
+        padding2 = 0
+        padding3 = 0
+        padding4 = 0
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
         testSphereInCameraFrustum = frustumSphereIntersection viewProjMat
 
@@ -747,7 +751,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
                      withMappedMemory idBuffer.allocator idBuffer.allocation bracket \idbufptr -> do
                 snd <$> (\f -> mapAccumM f 0 group) \startIdx (ordering, (isOverlay, dc@DrawCommand {pokeData, instances})) -> do
                   let objIds = concatMap (map fst . snd) instances
-                  liftIO $ pokeData (plusPtr uniformbufptr (uniformSize * fromIntegral startIdx))
+                  liftIO $ pokeData startIdx (plusPtr uniformbufptr (uniformSize * fromIntegral startIdx))
                   liftIO $ pokeArray (plusPtr idbufptr (sizeOf (undefined :: Word32) * fromIntegral startIdx)) objIds
                   pure (startIdx + fromIntegral (length objIds), (startIdx, ordering, isOverlay, dc))
 
@@ -815,7 +819,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
                                 , meshMemberName
                                 , 0
                                 , flip mapMaybe (zip bss [0..]) \(bs, i) ->
-                                    if uncurry testSphereInCameraFrustum bs then Just (offset + startUniformIndex + i) else Nothing)
+                                    if not cull || uncurry testSphereInCameraFrustum bs then Just (offset + startUniformIndex + i) else Nothing)
                               )
                   newShowSel = snd $ instances & mapAccumOffset \offset (meshMemberName, idsAndTransforms) ->
                     ( fromIntegral (length idsAndTransforms)
@@ -1019,7 +1023,7 @@ drawText materialConfig (font, fontTex, sdfPixelRange) mat color outlineColor ou
     , doBlend         = True
     , descriptorSet   = Just fontTex
     , cull = False
-    , pokeData = flip poke $ MSDFMatConstants
+    , pokeData = \_ -> flip poke $ MSDFMatConstants
         { modelMat      = mat
         , color         = color
         , outlineColor  = outlineColor

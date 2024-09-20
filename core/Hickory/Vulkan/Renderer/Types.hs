@@ -147,7 +147,7 @@ data DrawBatch = DrawBatch
 
 data DrawCommand = forall uniform. DrawCommand
   { materialConfig  :: MaterialConfig uniform
-  , pokeData        :: Ptr uniform -> IO ()
+  , pokeData        :: Word32 -> Ptr uniform -> IO ()
   , mesh            :: MeshType
   -- This describes the actual draw commands we send to vulkan
   , instances       :: [(Text, [(Word32, M44 Float)])] -- MeshMember Name, [(Id, Transform)]
@@ -282,9 +282,13 @@ data WorldGlobals = WorldGlobals
   , invViewMat     :: M44 Scalar
   , invProjMat     :: M44 Scalar
   , camPos         :: V3 Scalar
+  , padding1       :: Scalar
   , lightDirection :: V3 Scalar
+  , padding2       :: Scalar
   , sunColor       :: V3 Scalar -- HDR
+  , padding3       :: Scalar
   , ambientColor   :: V3 Scalar -- HDR
+  , padding4       :: Scalar
   , gbufferSize    :: V2 Scalar
   , multiSampleCount :: Scalar
   , nearPlane      :: Scalar

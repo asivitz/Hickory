@@ -67,7 +67,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           H.addCommand $ DrawCommand
             { instances = [("",[(0,mat)])]
             , mesh = H.Buffered square
-            , pokeData = flip poke $ H.StaticConstants
+            , pokeData = \_ -> flip poke $ H.StaticConstants
                 { modelMat    = mat
                 , normalMat   = transpose . inv33 $ mat ^. _m33
                 , color       = white
@@ -86,7 +86,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           H.addCommand $ DrawCommand
             { instances = [("", [(0,mat)])]
             , mesh = H.Buffered square
-            , pokeData = flip poke $ H.StaticConstants
+            , pokeData = \_ -> flip poke $ H.StaticConstants
                 { modelMat    = mat
                 , normalMat   = transpose . inv33 $ mat ^. _m33
                 , color       = white
