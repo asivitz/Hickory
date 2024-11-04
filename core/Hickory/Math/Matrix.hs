@@ -85,7 +85,7 @@ m44FromList
 m44FromList _ = error "Can't build matrix. Wrong size list."
 
 -- |Orthographic projection following Vulkan conventions
--- (right handed coordinate system, depth dimension along +z, bottom of screen is toward -y)
+-- (right handed coordinate system, depth dimension along +z, bottom of screen is toward +y)
 orthographicProjection :: Fractional a => a -> a -> a -> a -> a -> a -> M44 a
 orthographicProjection l r b t n f = V4
   (V4 (2 / (r - l)) 0             0             (- (r + l) / (r - l)))
@@ -94,7 +94,7 @@ orthographicProjection l r b t n f = V4
   (V4 0             0             0             1)
 
 -- |Perspective projection following Vulkan conventions
--- (right handed coordinate system, depth dimension along +z, bottom of screen is toward -y)
+-- (right handed coordinate system, depth dimension along +z, bottom of screen is toward +y)
 perspectiveProjection :: Floating a => a -> a -> a -> a -> M44 a
 perspectiveProjection screenRatio vfov n f = V4
   (V4 (1 / (screenRatio * tan (vfov/2))) 0                 0             0)
@@ -105,15 +105,15 @@ perspectiveProjection screenRatio vfov n f = V4
 -- |Construct a 4x4 rotation matrix from 3 basis vectors
 orthoNormalBasis :: Num a => V3 a -> V3 a -> V3 a -> M44 a
 orthoNormalBasis (V3 ux uy uz) (V3 vx vy vz) (V3 wx wy wz) = V4
-  (V4 ux uy uz 0)
-  (V4 vx vy vz 0)
-  (V4 wx wy wz 0)
+  (V4 ux vx wx 0)
+  (V4 uy vy wy 0)
+  (V4 uz vz wz 0)
   (V4 0  0  0  1)
 
 -- |Construct a view matrix from a camera position, direction, and up vector
 viewDirection :: (Floating a, Epsilon a) => V3 a -> V3 a -> V3 a -> M44 a
-viewDirection position direction up = orthoNormalBasis u v w    -- Rotate to align w/ camera's ortho normal basis
-                                  !*! mkTranslation (-position) -- Move from world space to camera's center
+viewDirection position direction up = transpose (orthoNormalBasis u v w) -- Rotate to align w/ camera's ortho normal basis
+                                  !*! mkTranslation (-position)          -- Move from world space to camera's center
   where
   w = normalize direction
   u = normalize (cross w up)
