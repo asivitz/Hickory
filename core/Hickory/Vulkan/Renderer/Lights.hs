@@ -99,7 +99,7 @@ withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } S
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
-withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
+withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
   withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
@@ -143,6 +143,7 @@ layout( push_constant, scalar ) uniform constants
   vec3 colorShift;
   float saturation;
   float filmGrain;
+  float shadowBiasSlope;
 } PushConstants;
 
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
@@ -220,10 +221,10 @@ void main()
   vec4 albedo      = texture(gbuffer[0], inTexCoords);
   float specularity = 8; //TODO
 
-  float shadow = calcShadow(viewPos, worldPos) * mix(0.3,1,albedo.a);
-
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;
+
+  float shadow = calcShadow(viewPos, worldPos + worldNormal * PushConstants.shadowBiasSlope) * mix(0.3,1,albedo.a);
 
   float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
 

@@ -173,13 +173,13 @@ loadGBufTextures :: VulkanResources -> FilePath -> FilePath -> Acquire PointedDe
 loadGBufTextures vulkanResources albedo normal = do
   let form = FORMAT_R8G8B8A8_UNORM
   alb <- do
-    (im, mipLevels) <- withTextureImage vulkanResources True albedo
+    (im, mipLevels) <- withTextureImage vulkanResources True False albedo
     iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
 
   nor <- do
-    (im, mipLevels) <- withTextureImage vulkanResources True normal
+    (im, mipLevels) <- withTextureImage vulkanResources True False normal
     iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
@@ -390,7 +390,7 @@ layout(location = 2) out uint outObjectID;
 
 void main() {
   vec4 albedoColor = texture(albedoSampler, inTexCoord);
-  vec4 normalTex    = texture(normalSampler, inTexCoord);
+  vec4 normalTex   = texture(normalSampler, inTexCoord);
 
   vec3 normal = vec3(mix(-1,1,normalTex.r), mix(-1,1,normalTex.g), normalTex.b);
 

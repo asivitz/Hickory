@@ -50,6 +50,7 @@ layout( push_constant, scalar ) uniform constants
   vec3 colorShift;
   float saturation;
   float filmGrain;
+  float shadowBiasSlope;
 } PushConstants;
 
 layout (set = 1, binding = 0) uniform sampler2D textures[2];

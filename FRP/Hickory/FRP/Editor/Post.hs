@@ -38,6 +38,7 @@ data PostEditorState = PostEditorState
   , sunDirectionRef    :: IORef (Float, Float, Float)
   , ssaoKernelSizeRef  :: IORef Int
   , ssaoKernelRadiusRef :: IORef Scalar
+  , shadowBiasSlopeRef    :: IORef Scalar
   }
 
 data GraphicsParams = GraphicsParams
@@ -52,6 +53,7 @@ data GraphicsParams = GraphicsParams
   , sunDirection    :: V3 Scalar
   , ssaoKernelSize  :: Int
   , ssaoKernelRadius :: Scalar
+  , shadowBiasSlope :: Scalar
   } deriving (Show, Read, Generic)
 
 defaultGraphicsParams :: GraphicsParams
@@ -67,6 +69,7 @@ defaultGraphicsParams = GraphicsParams
     , sunDirection    = V3 (-1) (-1) (-6)
     , ssaoKernelSize  = 16
     , ssaoKernelRadius = 0.5
+    , shadowBiasSlope = 0
     }
 
 readGraphicsParams :: PostEditorState -> IO GraphicsParams
@@ -83,6 +86,7 @@ readGraphicsParams PostEditorState{..} =
     <*> (tripleToV3 <$> readIORef sunDirectionRef)
     <*> readIORef ssaoKernelSizeRef
     <*> readIORef ssaoKernelRadiusRef
+    <*> readIORef shadowBiasSlopeRef
 
 mkPostEditorState :: GraphicsParams -> IO PostEditorState
 mkPostEditorState GraphicsParams {..} = do
@@ -98,6 +102,8 @@ mkPostEditorState GraphicsParams {..} = do
 
   ssaoKernelSizeRef    <- newIORef ssaoKernelSize
   ssaoKernelRadiusRef    <- newIORef ssaoKernelRadius
+
+  shadowBiasSlopeRef    <- newIORef shadowBiasSlope
 
   pure PostEditorState {..}
 
@@ -122,6 +128,8 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
     withCollapsingHeaderOpen "SSAO" zeroBits do
       void $ dragInt "Kernel Size" ssaoKernelSizeRef 1 0 64
       void $ dragFloat "Kernel Radius" ssaoKernelRadiusRef 0.01 0 5
+
+    void $ dragFloat "Shadow Bias Slope" shadowBiasSlopeRef 0.001 0 1
 
     let RenderTargets {..} = renderTargets
         Extent2D w h = shadowRenderConfig.extent

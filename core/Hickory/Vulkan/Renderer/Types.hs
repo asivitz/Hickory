@@ -95,7 +95,7 @@ data Renderer = Renderer
 
   , objHighlightMaterial     :: !(Material Word32)
   , postProcessMaterial      :: !(Material PostConstants)
-  , sunMaterial              :: !(Material Word32) -- Word32 isn't actually used. But can't be ()
+  , sunMaterial              :: !(Material PostConstants)
   , ssaoMaterial             :: !(Material SSAOSettings)
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
   , globalShadowPassBuffer   :: !(FramedResource (DataBuffer ShadowGlobals))

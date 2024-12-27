@@ -25,6 +25,7 @@ import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..))
 import Data.Foldable (for_)
 import Vulkan.Utils.Misc ((.&&.))
 import Control.Monad (unless)
+import Data.Bool (bool)
 
 withImageFromArray :: forall a. Storable a => VulkanResources -> Word32 -> Word32 -> Format -> Bool -> SV.Vector a -> Acquire (Image, Word32)
 withImageFromArray = withImageFromArrayGeneratedMips
@@ -116,11 +117,11 @@ withImageFromArrayCustomMips bag@VulkanResources { allocator } width height form
 
   pure image
 
-withTextureImage :: VulkanResources -> Bool -> FilePath -> Acquire (Image, Word32)
-withTextureImage bag shouldGenerateMips path = do
+withTextureImage :: VulkanResources -> Bool -> Bool -> FilePath -> Acquire (Image, Word32)
+withTextureImage bag shouldGenerateMips shouldFlip path = do
   Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
     Left s -> error $ printf "Can't load image at path %s: %s" path s
-    Right dynImage -> pure . Png.flipVertically $ Png.convertRGBA8 dynImage
+    Right dynImage -> pure . (bool id Png.flipVertically shouldFlip) $ Png.convertRGBA8 dynImage
 
   withImageFromArray bag (fromIntegral width) (fromIntegral height) FORMAT_R8G8B8A8_UNORM shouldGenerateMips dat
 

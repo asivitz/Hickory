@@ -156,7 +156,7 @@ withTextureDescriptorSet _ [] = error "No textures in descriptor set"
 withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
   let textureNames = V.fromList $ pack . view filename . view _1 <$> texturePaths
   images <- for texturePaths \(path, filt, addressMode, samplerMipmapMode) -> do
-    (image, mipLevels)   <- withTextureImage bag (isJust samplerMipmapMode) path
+    (image, mipLevels)   <- withTextureImage bag (isJust samplerMipmapMode) True path
     sampler <- withImageSamplerMips bag mipLevels filt addressMode (fromMaybe SAMPLER_MIPMAP_MODE_LINEAR samplerMipmapMode)
     let format = FORMAT_R8G8B8A8_UNORM
     imageView <- with2DImageViewMips deviceContext format IMAGE_ASPECT_COLOR_BIT image mipLevels 0 1
