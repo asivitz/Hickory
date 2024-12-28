@@ -37,7 +37,6 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
-import Data.Word (Word32)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
@@ -150,6 +149,8 @@ layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
 layout (set = 1, binding = 0) uniform sampler2D gbuffer[3];
 layout (set = 1, binding = 1) uniform sampler2D ssao;
 
+#define PI 3.1415926535
+
 const mat4 biasMat = mat4(
   0.5, 0.0, 0.0, 0.0,
   0.0, 0.5, 0.0, 0.0,
@@ -219,19 +220,54 @@ void main()
 
   vec3 worldNormal = texture(gbuffer[1], inTexCoords).xyz;
   vec4 albedo      = texture(gbuffer[0], inTexCoords);
-  float specularity = 8; //TODO
+  vec4 material    = vec4(0.0, 0.5, 0, 0); //texture(gbuffer[3], inTexCoords);
+  float roughness   = clamp(material.x, 0.089, 1.0); // prevent divide by zero and artifacts
+  float reflectance = material.y;
+  float metallic    = material.z;
 
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;
 
   float shadow = calcShadow(viewPos, worldPos + worldNormal * PushConstants.shadowBiasSlope) * mix(0.3,1,albedo.a);
 
-  float diffuseIntensity = max(0.0, dot(worldNormal, directionToLight));
+  float nDotL = max(0.0, dot(worldNormal, directionToLight));
+  float nDotV = max(0.0, dot(worldNormal, viewDir));
+  vec3 halfVector = normalize(directionToLight + viewDir);
+  float hDotV = max(0.0, dot(halfVector, viewDir));
 
-  vec3 halfAngle = normalize(directionToLight + viewDir);
-  float specularIntensity = pow(max(0.0, dot(worldNormal, halfAngle)), specularity);
+  float nDotHalf = max(0.0, dot(worldNormal, halfVector));
+  float roughnessSquared = roughness * roughness;
 
-  vec3 light = (vec3(diffuseIntensity) + vec3(specularIntensity)) * globals.sunColor;
+  float denominator = nDotHalf * nDotHalf * (roughnessSquared - 1) + 1;
+  float ggx = roughnessSquared / (PI * denominator * denominator + 1e-5);
+
+  float normalDistributionFunction = ggx;
+
+  float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+  float lambdaV = nDotV / (nDotV * (1.0 - k) + k);
+  float lambdaL = nDotL / (nDotL * (1.0 - k) + k);
+  float smithGGX = lambdaV * lambdaL;
+
+  float geometryFunction = smithGGX;
+
+  float refl = 0.16 * reflectance * reflectance;
+  vec3 f0 = mix(vec3(refl, refl, refl), albedo.rgb, metallic);
+  float f = pow(1.0 - hDotV, 5.0);
+  vec3 fresnelFunction = mix(f0, vec3(1.0,1.0,1.0), f);
+
+  vec3 cookTorrance = normalDistributionFunction
+                    * geometryFunction
+                    * fresnelFunction
+                    / (4 * nDotL * nDotV + 1e-5);
+
+  vec3 diffuseColor = (1.0 - metallic) * albedo.rgb * (1.0 - fresnelFunction);
+  float lambert = 1.0 / PI;
+
+  vec3 diffuse = diffuseColor * lambert;
+  vec3 specular = cookTorrance;
+
+  vec3 surfaceColor = diffuse + specular;
+  vec3 light = surfaceColor * globals.sunColor * nDotL;
 
   float ao = texture(ssao, inTexCoords).r;
   outColor = vec4((shadow * light + globals.ambientColor * min(albedo.a, 1) * ao) * albedo.rgb, 1);
