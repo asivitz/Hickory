@@ -1,5 +1,8 @@
 cradle:
   stack:
+    - path: "Example/Showcase/showcase.hs"
+      component: "Showcase:exe:showcase"
+
     - path: "Example/Shooter/./shooter.hs"
       component: "Shooter:exe:shooter"
 

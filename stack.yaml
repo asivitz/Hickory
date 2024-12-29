@@ -11,6 +11,7 @@ packages:
 - 'iOS'
 - 'FRP'
 - 'Example/Shooter'
+- 'Example/Showcase'
 - '../oss/sdl2'
 
 allow-newer: true
@@ -30,6 +31,9 @@ extra-deps:
   commit: 0be78f05caf234e5ac72387ae26612bc4ea642cd
 - git: https://github.com/fieldstrength/aeson-deriving.git
   commit: e6e1f5066ebf1f37c10687e9bc90e5b0d3b22b0c
+- gltf-codec-0.1.0.4@sha256:41f3718e93b273ca65fd3072fd02ca59dec1c978a56dc891c62b53821c332326,2633
+- git: https://github.com/asivitz/haskell-gltf-loader.git
+  commit: 89a798675221546f016365b9204e475c5c09b852
 
 # Override default flag values for local packages and extra-deps
 flags:

@@ -1,0 +1,56 @@
+name:                Showcase
+version:             0.1.0.0
+synopsis:            Shows the various features
+description:         Please see README.md
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2024 Axis Sivitz
+
+ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
+
+dependencies:
+    - Hickory
+    - Hickory-GLFW
+    - Hickory-FRP
+    - GLFW-b
+    - base
+    - bytestring
+    - lens
+    - random
+    - raw-strings-qq
+    - unordered-containers
+    - reactive-banana
+    - text
+    - groom
+    - hashable
+    - linear
+    - time
+    - generic-lens
+    - containers
+    - mtl
+    - vector
+    - managed
+    - vulkan
+    - vulkan-utils
+    - extra
+    - derive-storable
+    - acquire
+    - ki
+    - bitwise-enum
+    - ghc-compact
+    - gltf-loader
+
+default-extensions:
+    - LambdaCase
+    - TupleSections
+    - ViewPatterns
+    - NamedFieldPuns
+    - OverloadedStrings
+    - DeriveGeneric
+    - QuasiQuotes
+    - Rank2Types
+
+executables:
+  showcase:
+    main: showcase.hs
+    ghc-options: -threaded
