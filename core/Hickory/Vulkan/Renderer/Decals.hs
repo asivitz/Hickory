@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.Decals where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -21,23 +21,17 @@ import Vulkan
   , pattern SUBPASS_EXTERNAL
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
-  , ImageAspectFlagBits (..)
-  , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..)
+
+
+
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
-import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
-import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
-import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Hickory.Vulkan.Framing (FramedResource)
-import Data.Word (Word32)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
@@ -45,7 +39,7 @@ hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 withDecalRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withDecalRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
-    { attachments  = [albedoAttachmentDescription, normalAttachmentDescription]
+    { attachments  = [albedoAttachmentDescription, normalAttachmentDescription, materialAttachmentDescription]
     , subpasses    = [subpass]
     , dependencies = [dependency]
     } Nothing mkAcquire
@@ -75,6 +69,7 @@ withDecalRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swap
     , initialLayout  = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
+  materialAttachmentDescription = normalAttachmentDescription
   subpass :: SubpassDescription
   subpass = zero
     { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
@@ -85,6 +80,10 @@ withDecalRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swap
         }
       , zero
         { attachment = 1
+        , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        }
+      , zero
+        { attachment = 2
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
       ]

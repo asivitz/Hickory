@@ -7,10 +7,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module Hickory.Vulkan.Renderer.Types where
 
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage, VulkanResources, device, deviceContext)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
 import qualified Data.Vector.Storable.Sized as VSS
 import qualified Data.Vector.Sized as VS
@@ -31,11 +32,13 @@ import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
 import Hickory.Vulkan.DescriptorSet
 import Data.UUID (UUID)
-import Vulkan (DescriptorSetLayout, Framebuffer)
+import Vulkan (DescriptorSetLayout, Framebuffer, HasObjectType (..), DebugUtilsObjectNameInfoEXT (..), setDebugUtilsObjectNameEXT)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (MaxShadowCascadesNat)
 import Data.Text (Text)
+import Control.Monad.IO.Class (MonadIO)
+import Data.ByteString (ByteString)
 
 data RenderTargets = RenderTargets
   -- Stage 1 Shadows
@@ -189,7 +192,7 @@ data StaticConstants = StaticConstants
   { modelMat    :: M44 Float
   , normalMat   :: M33 Float
   , color       :: V4 Float
-  , specularity :: Float
+  , material    :: V4 Float
   , tiling      :: V2 Float
   } deriving Generic
     deriving anyclass GStorable
@@ -198,7 +201,7 @@ data AnimatedConstants = AnimatedConstants
   { modelMat    :: M44 Float
   , normalMat   :: M33 Float
   , color       :: V4 Float
-  , specularity :: Float
+  , material    :: V4 Float
   , skinIdx     :: Word32
   , colors      :: VSS.Vector 6 (V4 Float)
   } deriving Generic
@@ -343,3 +346,8 @@ addCommand = tell . pure
 
 type RenderFunction swapchainResources = Size Int -> (swapchainResources, FrameContext) -> IO ()
 type Scene swapchainResources = InputFrame -> IO (Scalar -> InputFrame -> RenderFunction swapchainResources)
+
+debugName :: (MonadIO io, HasObjectType p) => VulkanResources -> p -> ByteString -> io ()
+debugName vulkanResources a name =
+  let (otype, handle) = objectTypeAndHandle a
+  in setDebugUtilsObjectNameEXT vulkanResources.deviceContext.device (DebugUtilsObjectNameInfoEXT otype handle (Just name))

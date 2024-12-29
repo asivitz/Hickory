@@ -99,7 +99,7 @@ struct Uniforms
   mat4 modelMat;
   mat3 normalMat;
   vec4 color;
-  float specularity;
+  vec4 material;
   vec2 tiling;
 };
 
@@ -126,7 +126,7 @@ struct Uniforms {
   mat4 modelMat;
   mat3 normalMat;
   vec4 color;
-  float specularity;
+  vec4 material;
   uint skinIdx;
   vec4 colors[6];
 };

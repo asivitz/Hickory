@@ -23,26 +23,18 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), PrimitiveTopology (..), Framebuffer, Extent2D, SamplerMipmapMode (..)
+  , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler, withTextureImage, withImageSamplerMips)
+import Hickory.Vulkan.Textures (withIntermediateImage, withTextureImage, withImageSamplerMips)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
-import Hickory.Vulkan.RenderPass (createFramebuffer)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
-import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
-import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), defaultBlend)
-import Hickory.Vulkan.Renderer.Types (StaticConstants)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Hickory.Vulkan.Framing (FramedResource)
-import Data.Word (Word32)
-import Hickory.Resources (loadResource', ResourcesStore(..))
-import Control.Monad (join)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet)
 
 depthFormat :: Format
@@ -53,6 +45,10 @@ hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
 normalFormat :: Format
 normalFormat = FORMAT_R16G16B16A16_SFLOAT
+
+-- roughness, reflectance, metallic
+materialFormat :: Format
+materialFormat = FORMAT_R16G16B16A16_SFLOAT
 
 objIDFormat :: Format
 objIDFormat = FORMAT_R16_UINT
@@ -75,6 +71,9 @@ withNormalViewableImage vulkanResources extent = do
   normalImageView <- with2DImageView vulkanResources.deviceContext normalFormat IMAGE_ASPECT_COLOR_BIT normalImageRaw 0 1
   pure $ ViewableImage normalImageRaw normalImageView normalFormat
 
+withMaterialViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
+withMaterialViewableImage = withNormalViewableImage
+
 withObjIDViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withObjIDViewableImage vulkanResources extent = do
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent SAMPLE_COUNT_1_BIT
@@ -84,7 +83,7 @@ withObjIDViewableImage vulkanResources extent = do
 withGBufferRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
-    { attachments  = [albedoAttachmentDescription, normalAttachmentDescription, objIDAttachmentDescription, depthAttachmentDescription ]
+    { attachments  = [albedoAttachmentDescription, normalAttachmentDescription, materialAttachmentDescription, objIDAttachmentDescription, depthAttachmentDescription ]
     , subpasses    = [gbufferSubpass]
     , dependencies = [gbufferDependency]
     } Nothing mkAcquire
@@ -106,7 +105,7 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
     }
   normalAttachmentDescription :: AttachmentDescription
   normalAttachmentDescription = zero
-    { format         = hdrFormat
+    { format         = normalFormat
     , samples        = SAMPLE_COUNT_1_BIT
     , loadOp         = ATTACHMENT_LOAD_OP_CLEAR
     , storeOp        = ATTACHMENT_STORE_OP_STORE
@@ -115,6 +114,8 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
     , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
     }
+  materialAttachmentDescription :: AttachmentDescription
+  materialAttachmentDescription = normalAttachmentDescription
   depthAttachmentDescription :: AttachmentDescription
   depthAttachmentDescription = zero
     { format         = depthFormat
@@ -153,9 +154,13 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
         { attachment = 2
         , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
         }
+      , zero
+        { attachment = 3
+        , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+        }
       ]
     , depthStencilAttachment = Just $ zero
-      { attachment = 3
+      { attachment = 4
       , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
       }
     }
@@ -183,6 +188,7 @@ loadGBufTextures vulkanResources albedo normal = do
     iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
+
   withDescriptorSet vulkanResources [alb,nor]
 
 {-
@@ -211,6 +217,7 @@ layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
 layout(location = 2) out vec4 color;
 layout(location = 3) flat out uint objectId;
+layout(location = 4) out vec4 material;
 layout(location = 8) out mat3 TBN;
 
 void main() {
@@ -266,13 +273,15 @@ layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inColor;
 layout(location = 3) flat in uint objectId;
+layout(location = 4) in vec4 inMaterial;
 layout(location = 8) in mat3 TBN;
 layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
 layout (set = 2, binding = 1) uniform sampler2D normalSampler;
 
 layout(location = 0) out vec4 outAlbedo;
 layout(location = 1) out vec4 outNormal;
-layout(location = 2) out uint outObjectID;
+layout(location = 2) out vec4 outMaterial;
+layout(location = 3) out uint outObjectID;
 
 void main() {
   vec4 albedoColor  = texture(albedoSampler, inTexCoord);
@@ -282,6 +291,7 @@ void main() {
 
   outAlbedo   = vec4(albedoColor.rgb * inColor.rgb, 1);
   outNormal   = vec4(TBN * normal.xyz,1);
+  outMaterial = inMaterial;
   outObjectID = objectId;
 }
 |])
@@ -306,6 +316,7 @@ layout(location = 0) out vec2 texCoord;
 layout(location = 1) out vec3 normal;
 layout(location = 2) out vec4 color;
 layout(location = 3) flat out uint objectId;
+layout(location = 4) out vec4 material;
 layout(location = 8) out mat3 TBN;
 
 void main() {
@@ -329,6 +340,7 @@ void main() {
   texCoord = inTexCoord;
   normal   = worldNormal;
   color = uniforms.color;
+  material = uniforms.material;
   TBN = mat3(worldTangent, worldBitangent, worldNormal);
   objectId = objectIds[uniformIdx];
 }
@@ -380,13 +392,15 @@ layout(location = 0) in vec2 inTexCoord;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inColor;
 layout(location = 3) flat in uint objectId;
+layout(location = 4) in vec4 inMaterial;
 layout(location = 8) in mat3 TBN;
 layout (set = 2, binding = 0) uniform sampler2D albedoSampler;
 layout (set = 2, binding = 1) uniform sampler2D normalSampler;
 
 layout(location = 0) out vec4 outAlbedo;
 layout(location = 1) out vec4 outNormal;
-layout(location = 2) out uint outObjectID;
+layout(location = 2) out vec4 outMaterial;
+layout(location = 3) out uint outObjectID;
 
 void main() {
   vec4 albedoColor = texture(albedoSampler, inTexCoord);
@@ -396,6 +410,7 @@ void main() {
 
   outAlbedo   = vec4(albedoColor.rgb * inColor.rgb, 1);
   outNormal   = vec4(TBN * normal.xyz,1);
+  outMaterial = inMaterial;
   outObjectID = objectId;
 }
 |])

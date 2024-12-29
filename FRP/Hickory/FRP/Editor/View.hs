@@ -148,7 +148,7 @@ editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
             { modelMat    = mat
             , normalMat   = transpose . inv33 $ mat ^. _m33
             , color       = black
-            , specularity = 0
+            , material    = zero
             , tiling      = zero
             }
         }

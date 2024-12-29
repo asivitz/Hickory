@@ -164,7 +164,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
             { modelMat    = mat
             , normalMat   = transpose . inv33 $ mat ^. _m33
             , color       = red
-            , specularity = 1
+            , material    = zero
             , tiling      = V2 1 1
             }
         , cull = False
@@ -182,7 +182,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
           { modelMat    = mat
           , normalMat   = transpose . inv33 $ mat ^. _m33
           , color       = white
-          , specularity = 1
+          , material    = zero
           , tiling      = V2 1 1
           }
       , cull = False

@@ -37,6 +37,7 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
+import Hickory.Vulkan.Renderer.Types (debugName)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
@@ -54,15 +55,19 @@ withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = Device
   let ViewableImage _ colorImageView _ = colorImage
 
   let descriptorSpec = ImageDescriptor [(colorImage,sampler)]
-  (,descriptorSpec) <$> createFramebuffer device renderPass extent [colorImageView]
+  fb <- createFramebuffer device renderPass extent [colorImageView]
+  debugName vulkanResources fb "LightingFrameBuffer"
+  pure (fb, descriptorSpec)
 
 withLightingRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [hdrAttachmentDescription]
     , subpasses    = [subpass]
     , dependencies = [dependency]
     } Nothing mkAcquire
+
+  debugName vulkanResources renderPass "LightingRenderPass"
 
   let samples = SAMPLE_COUNT_1_BIT
   pure RenderConfig {..}
@@ -146,7 +151,7 @@ layout( push_constant, scalar ) uniform constants
 } PushConstants;
 
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
-layout (set = 1, binding = 0) uniform sampler2D gbuffer[3];
+layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
 layout (set = 1, binding = 1) uniform sampler2D ssao;
 
 #define PI 3.1415926535
@@ -211,7 +216,7 @@ float calcShadow(vec3 viewPos, vec3 worldPos)
 
 void main()
 {
-  float depth = texture(gbuffer[2], inTexCoords).r;
+  float depth = texture(gbuffer[3], inTexCoords).r;
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
   vec3 viewDir  = normalize(inViewRay);
   vec3 worldDir = normalize(inWorldRay);
@@ -220,7 +225,8 @@ void main()
 
   vec3 worldNormal = texture(gbuffer[1], inTexCoords).xyz;
   vec4 albedo      = texture(gbuffer[0], inTexCoords);
-  vec4 material    = vec4(0.0, 0.5, 0, 0); //texture(gbuffer[3], inTexCoords);
+  //vec4 material    = vec4(0.0, 0.5, 0, 0); //texture(gbuffer[3], inTexCoords);
+  vec4 material     = texture(gbuffer[2], inTexCoords);
   float roughness   = clamp(material.x, 0.089, 1.0); // prevent divide by zero and artifacts
   float reflectance = material.y;
   float metallic    = material.z;

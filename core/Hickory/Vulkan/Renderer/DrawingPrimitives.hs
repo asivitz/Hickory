@@ -23,7 +23,7 @@ drawLine materialConfig color a@(V3 p1x p1y p1z) b@(V3 p2x p2y p2z) = do
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
-        , specularity = 0
+        , material    = zero
         , tiling      = zero
         }
     , cull = False
@@ -47,7 +47,7 @@ drawPoint materialConfig color (V3 px py pz)  = do
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
-        , specularity = 0
+        , material    = zero
         , tiling      = zero
         }
     , cull = False
@@ -71,7 +71,7 @@ drawSolidCube materialConfig color = do
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
-        , specularity = 0
+        , material    = zero
         , tiling      = V2 1 1
         }
     , cull = False
@@ -159,7 +159,7 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
-        , specularity = 0
+        , material    = zero
         , tiling      = V2 1 1
         }
     , cull = False
@@ -205,7 +205,7 @@ drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
-        , specularity = 0
+        , material    = zero
         , tiling      = V2 1 1
         }
     , cull = False

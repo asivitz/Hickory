@@ -15,7 +15,7 @@ import qualified Hickory.Vulkan.DescriptorSet as H
 import qualified Hickory.Vulkan.Types as H
 import Linear.Matrix ((!*!))
 import Control.Lens ((^.))
-import Linear ( M44, V2 (..), V3(..), V4(..), identity, _m33, inv33, transpose)
+import Linear ( M44, V2 (..), V3(..), V4(..), identity, _m33, inv33, transpose, zero)
 import Hickory.Math (mkTranslation)
 import Hickory.Math.Matrix ( orthographicProjection, mkScale )
 import Hickory.Camera (Camera(..), Projection(..))
@@ -71,7 +71,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
                 { modelMat    = mat
                 , normalMat   = transpose . inv33 $ mat ^. _m33
                 , color       = white
-                , specularity = 1
+                , material    = zero
                 , tiling      = V2 1 1
                 }
             , cull = False
@@ -90,7 +90,7 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
                 { modelMat    = mat
                 , normalMat   = transpose . inv33 $ mat ^. _m33
                 , color       = white
-                , specularity = 1
+                , material    = zero
                 , tiling      = V2 1 1
                 }
             , cull = False

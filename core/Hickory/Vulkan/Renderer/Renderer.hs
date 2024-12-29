@@ -5,7 +5,7 @@
 
 module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), DecalConstants)
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), DecalConstants, debugName)
 import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -15,7 +15,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..), BufferedMeshMember (..), ViewableImage (..))
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader, withAlbedoViewableImage, withNormalViewableImage, withObjIDViewableImage)
+import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader, withAlbedoViewableImage, withNormalViewableImage, withObjIDViewableImage, withMaterialViewableImage)
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, whiteFragShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
@@ -132,27 +132,22 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
   debugName vulkanResources showSelectionMaterial.pipelineLayout "Show Sel"
   pure GBufferMaterialStack {..}
 
-debugName :: (MonadIO io, HasObjectType p) => VulkanResources -> p -> ByteString -> io ()
-debugName vulkanResources a name =
-  let (otype, handle) = objectTypeAndHandle a
-  in setDebugUtilsObjectNameEXT vulkanResources.deviceContext.device (DebugUtilsObjectNameInfoEXT otype handle (Just name))
-
 withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
 withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS Nothing standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader whiteFragShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS Nothing standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader whiteFragShader
 
 withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Scalar)))
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = do
   skinBuffer :: FramedResource (DataBuffer (M44 Scalar))
     <- frameResource $ withDataBuffer vulkanResources (66 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
   let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.buf]
-  config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
+  config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
   pure (config, skinBuffer)
 
 withDecalMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig DecalConstants)
 withDecalMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
   withDecalMaterialStack vulkanResources renderTargets globalPDS (Just renderTargets.decalDesc) standardMaxNumDraws
-    ((pipelineDefaults [colorBlendLeaveAlpha, defaultBlend ]) { cullMode = CULL_MODE_FRONT_BIT }) [HVT.Position] perDrawLayout decalFragShader
+    ((pipelineDefaults [colorBlendLeaveAlpha, defaultBlend, defaultBlend ]) { cullMode = CULL_MODE_FRONT_BIT }) [HVT.Position] perDrawLayout decalFragShader
 
 withDirectMaterialStack
   :: forall uniform
@@ -277,12 +272,13 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   depthViewableImage    <- frameResource $ withDepthViewableImage vulkanResources swapchain.extent
   albedoViewableImage   <- frameResource $ withAlbedoViewableImage vulkanResources swapchain.extent
   normalViewableImage   <- frameResource $ withNormalViewableImage vulkanResources swapchain.extent
+  materialViewableImage <- frameResource $ withMaterialViewableImage vulkanResources swapchain.extent
   objIDViewableImage    <- frameResource $ withObjIDViewableImage vulkanResources swapchain.extent
 
   ssaoViewableImage     <- frameResource $ withSSAOViewableImage vulkanResources swapchain.extent
 
 
-  let gbufferFloatDesc = zipFramedResources [albedoViewableImage, normalViewableImage, depthViewableImage]
+  let gbufferFloatDesc = zipFramedResources [albedoViewableImage, normalViewableImage, materialViewableImage, depthViewableImage]
                 <&> ImageDescriptor . fmap (,linearSampler)
       gbufferUIntDesc = zipFramedResources [objIDViewableImage]
                 <&> ImageDescriptor . fmap (,nearestSampler)
@@ -291,11 +287,15 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
                                      ]
 
   gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
-  gbufferRenderFrame    <- for (packAttachments [albedoViewableImage, normalViewableImage, objIDViewableImage, depthViewableImage]) $
+  gbufferRenderFrame    <- for (packAttachments [albedoViewableImage, normalViewableImage, materialViewableImage, objIDViewableImage, depthViewableImage]) $
     createFramebuffer vulkanResources.deviceContext.device gbufferRenderConfig.renderPass gbufferRenderConfig.extent
+  for_ gbufferRenderFrame $ \fb -> debugName vulkanResources fb "GBufferFrameBuffer"
+
+
   decalRenderConfig     <- withDecalRenderConfig vulkanResources swapchain
-  decalRenderFrame      <- for (packAttachments [albedoViewableImage, normalViewableImage]) $
+  decalRenderFrame      <- for (packAttachments [albedoViewableImage, normalViewableImage, materialViewableImage]) $
     createFramebuffer vulkanResources.deviceContext.device decalRenderConfig.renderPass decalRenderConfig.extent
+  for_ decalRenderFrame $ \fb -> debugName vulkanResources fb "DecalFrameBuffer"
 
   ssaoRenderConfig      <- withSSAORenderConfig vulkanResources swapchain
   ssaoRenderFrame       <- ssaoViewableImage & V.mapM (withLightingFrameBuffer vulkanResources ssaoRenderConfig)
@@ -914,6 +914,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     useRenderConfig gbufferRenderConfig commandBuffer
       [ Color (Float32 r g b a)
       , Color (Float32 1 1 1 1)
+      , Color (Float32 0 0 0 0)
       , Color (Uint32 0 0 0 0)
       , DepthStencil (ClearDepthStencilValue 1 0)
       ] swapchainImageIndex gbufferRenderFrame do
