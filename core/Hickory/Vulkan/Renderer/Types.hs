@@ -276,6 +276,7 @@ data RenderSettings = RenderSettings
   , postSettings   :: PostConstants
   , highlightObjs  :: [Word32]
   , ssaoSettings :: SSAOSettings
+  , shadowBiasSlope :: Scalar
   } deriving Generic
 
 data WorldGlobals = WorldGlobals
@@ -307,8 +308,9 @@ data OverlayGlobals = OverlayGlobals
     deriving anyclass GStorable
 
 data ShadowGlobals = ShadowGlobals
-  { viewProjMats :: VS.Vector MaxShadowCascadesNat (M44 Scalar)
-  , splitDepths  :: VS.Vector MaxShadowCascadesNat Scalar -- Far plane of each cascade
+  { viewProjMats    :: VS.Vector MaxShadowCascadesNat (M44 Scalar)
+  , splitDepths     :: VS.Vector MaxShadowCascadesNat Scalar -- Far plane of each cascade
+  , shadowBiasSlope :: Scalar
   } deriving Generic
     deriving anyclass GStorable
 

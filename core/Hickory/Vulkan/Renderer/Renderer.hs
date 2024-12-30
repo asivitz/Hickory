@@ -696,7 +696,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
                            & #projection . #_Perspective . _3 .~ dist
               lightProj = lightProjection (cameraProjMat (Size (fromIntegral w) (fromIntegral h)) cam !*! viewMat) lightView shadowRenderConfig.extent
           in  lightProj !*! lightView
-        shadowPassGlobals = ShadowGlobals lightViewProjs splitDepths
+        shadowPassGlobals = ShadowGlobals lightViewProjs splitDepths shadowBiasSlope
 
     withResourceForFrame swapchainImageIndex globalBuffer \buf ->
       uploadBufferDescriptor buf $ Globals frameNumber

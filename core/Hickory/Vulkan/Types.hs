@@ -158,7 +158,6 @@ data PostConstants = PostConstants
   , colorShift  :: V3 Float
   , saturation  :: Float
   , filmGrain   :: Float
-  , shadowBiasSlope :: Float
   } deriving Generic
     deriving anyclass GStorable
 
@@ -174,7 +173,6 @@ postDefaults = PostConstants
   , colorShift  = V3 1 1 1
   , saturation  = 1
   , filmGrain   = 0
-  , shadowBiasSlope = 0
   }
 
 -- Run this every frame. If a cleanup is queued, it will run in a few

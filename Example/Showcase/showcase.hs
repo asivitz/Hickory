@@ -126,10 +126,11 @@ mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor camera selectedO
     , projMat = overlayProjMat
     , viewProjMat = overlayViewProj
     }
-  , postSettings = H.PostConstants exposure colorShift saturation filmGrain shadowBiasSlope
+  , postSettings = H.PostConstants exposure colorShift saturation filmGrain
   , clearColor = clearColor
   , highlightObjs = selectedObjIds
   , ssaoSettings = H.SSAOSettings (fromIntegral ssaoKernelSize) ssaoKernelRadius
+  , shadowBiasSlope = shadowBiasSlope
   }
   where
   overlayViewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)

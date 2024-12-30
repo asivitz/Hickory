@@ -147,7 +147,6 @@ layout( push_constant, scalar ) uniform constants
   vec3 colorShift;
   float saturation;
   float filmGrain;
-  float shadowBiasSlope;
 } PushConstants;
 
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
@@ -234,7 +233,7 @@ void main()
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;
 
-  float shadow = calcShadow(viewPos, worldPos + worldNormal * PushConstants.shadowBiasSlope) * mix(0.3,1,albedo.a);
+  float shadow = calcShadow(viewPos, worldPos + worldNormal * shadowGlobals.shadowBiasSlope) * mix(0.3,1,albedo.a);
 
   float nDotL = max(0.0, dot(worldNormal, directionToLight));
   float nDotV = max(0.0, dot(worldNormal, viewDir));

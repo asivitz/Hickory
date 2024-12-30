@@ -71,6 +71,7 @@ layout (row_major, scalar, set = 0, binding = 3) uniform ShadowGlobalUniform
   {
     mat4 viewProjMat[$maxShadowCascadesString];
     float splitDepths[$maxShadowCascadesString];
+    float shadowBiasSlope;
   } shadowGlobals;
   |]
 
