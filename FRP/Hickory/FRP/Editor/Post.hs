@@ -131,13 +131,14 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
 
     void $ dragFloat "Shadow Bias Slope" shadowBiasSlopeRef 0.001 0 1
 
-    let RenderTargets {..} = renderTargets
-        Extent2D w h = shadowRenderConfig.extent
-        desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet (resourceForFrame swapchainImageIndex shadowMapDescriptorSet))
-        imagePtr = wordPtrToPtr (WordPtr $ fromIntegral desSetHandle)
-    with (ImVec2 (realToFrac w / 4) (realToFrac h / 4)) \sizeptr ->
-      with (ImVec2 0 0) \uv0 ->
-      with (ImVec2 1 1) \uv1 ->
-      with (ImVec4 1 1 1 1) \tintCol ->
-      with (ImVec4 0 0 0 0) \borderCol ->
-        image (castPtr imagePtr) sizeptr uv0 uv1 tintCol borderCol
+    withCollapsingHeaderOpen "Shadowmap Cascades" zeroBits do
+      let RenderTargets {..} = renderTargets
+          Extent2D w h = shadowRenderConfig.extent
+          desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet (resourceForFrame swapchainImageIndex shadowMapDescriptorSet))
+          imagePtr = wordPtrToPtr (WordPtr $ fromIntegral desSetHandle)
+      with (ImVec2 (realToFrac w / 4) (realToFrac h / 4)) \sizeptr ->
+        with (ImVec2 0 0) \uv0 ->
+        with (ImVec2 1 1) \uv1 ->
+        with (ImVec4 1 1 1 1) \tintCol ->
+        with (ImVec4 0 0 0 0) \borderCol ->
+          image (castPtr imagePtr) sizeptr uv0 uv1 tintCol borderCol

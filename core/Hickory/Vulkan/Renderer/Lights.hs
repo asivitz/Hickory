@@ -38,6 +38,7 @@ import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
 import Hickory.Vulkan.Renderer.Types (debugName)
+import Data.Word (Word32)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
@@ -103,7 +104,7 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
 
-withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
+withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
   withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
   where
@@ -140,14 +141,6 @@ layout (location = 0) out vec4 outColor;
 layout (row_major, scalar, set = 0, binding = 0) uniform PostGlobals
   { int frameNumber;
   } postGlobals;
-
-layout( push_constant, scalar ) uniform constants
-{
-  float exposure;
-  vec3 colorShift;
-  float saturation;
-  float filmGrain;
-} PushConstants;
 
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
 layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];

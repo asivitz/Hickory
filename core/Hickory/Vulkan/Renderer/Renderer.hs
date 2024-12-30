@@ -938,7 +938,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       -- Sun is a full screen light
       cmdBindMaterial frameContext sunMaterial
       liftIO do
-        cmdPushMaterialConstants commandBuffer sunMaterial postSettings
+        cmdPushMaterialConstants commandBuffer sunMaterial 0
         cmdDraw commandBuffer 3 1 0 0
 
     -- We use depth as a texture for lighting, but need it for z-testing in forward rendering

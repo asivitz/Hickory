@@ -19,7 +19,7 @@ import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
-import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..), MaterialConfig, StaticConstants)
+import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..), MaterialConfig, StaticConstants, PostConstants (..))
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
@@ -312,7 +312,7 @@ renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedOb
     , projMat = opm
     , viewProjMat = opm !*! ovm
     }
-  , postSettings = H.PostConstants exposure colorShift saturation filmGrain
+  , postSettings = PostConstants exposure colorShift saturation filmGrain
   , clearColor = clearColor
   , highlightObjs = selectedObjIds
   , ssaoSettings = SSAOSettings (fromIntegral ssaoKernelSize) ssaoKernelRadius

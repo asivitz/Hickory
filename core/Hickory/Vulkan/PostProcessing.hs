@@ -10,11 +10,11 @@ import Hickory.Vulkan.Material (withMaterial, pipelineDefaults, defaultBlend)
 import Hickory.Vulkan.Framing (FramedResource)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Data.Proxy (Proxy)
 import Hickory.Vulkan.Types
 import Data.String.QM (qm)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Vulkan (CullModeFlagBits(..))
+import Hickory.Vulkan.Renderer.Types (PostConstants)
 
 withPostProcessMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
 withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =

@@ -153,27 +153,11 @@ data DescriptorSpec
   | DepthImageDescriptor ViewableImage Sampler
   | BufferDescriptor Buffer
 
-data PostConstants = PostConstants
-  { exposure    :: Float
-  , colorShift  :: V3 Float
-  , saturation  :: Float
-  , filmGrain   :: Float
-  } deriving Generic
-    deriving anyclass GStorable
-
 data DataBuffer a = DataBuffer
   { buf        :: Buffer
   , allocation :: Allocation
   , allocator  :: Allocator
   } deriving Generic
-
-postDefaults :: PostConstants
-postDefaults = PostConstants
-  { exposure    = 0
-  , colorShift  = V3 1 1 1
-  , saturation  = 1
-  , filmGrain   = 0
-  }
 
 -- Run this every frame. If a cleanup is queued, it will run in a few
 -- frames, once the frame using the resource has been processed

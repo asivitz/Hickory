@@ -11,13 +11,11 @@
 
 module Hickory.Vulkan.Renderer.Types where
 
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, PostConstants, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage, VulkanResources, device, deviceContext)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage, VulkanResources, device, deviceContext)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
 import qualified Data.Vector.Storable.Sized as VSS
 import qualified Data.Vector.Sized as VS
 import GHC.Generics (Generic)
-import Hickory.Vulkan.Monad (BufferedUniformMaterial)
-import Hickory.Vulkan.Renderer.ObjectPicking (ObjectIDConstants)
 import Foreign.Storable.Generic (GStorable)
 import Hickory.Vulkan.Text (MSDFMatConstants)
 import Hickory.Vulkan.Framing (FramedResource)
@@ -30,7 +28,6 @@ import Hickory.Vulkan.RenderTarget (ImageBuffer)
 import GHC.Word (Word32)
 import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
-import Hickory.Vulkan.DescriptorSet
 import Data.UUID (UUID)
 import Vulkan (DescriptorSetLayout, Framebuffer, HasObjectType (..), DebugUtilsObjectNameInfoEXT (..), setDebugUtilsObjectNameEXT)
 import Hickory.Types (Size)
@@ -39,6 +36,59 @@ import Hickory.Vulkan.Renderer.ShaderDefinitions (MaxShadowCascadesNat)
 import Data.Text (Text)
 import Control.Monad.IO.Class (MonadIO)
 import Data.ByteString (ByteString)
+
+{- Public API -}
+data RenderSettings = RenderSettings
+  { clearColor     :: V4 Scalar
+  , worldSettings  :: WorldSettings
+  , overlayGlobals :: OverlayGlobals
+  , postSettings   :: PostConstants
+  , highlightObjs  :: [Word32]
+  , ssaoSettings :: SSAOSettings
+  , shadowBiasSlope :: Scalar
+  } deriving Generic
+
+data WorldSettings = WorldSettings
+  { camera :: Camera
+  , lightTransform :: M44 Scalar
+  , lightDirection :: V3 Scalar
+  , sunColor       :: V3 Scalar -- HDR
+  , ambientColor   :: V3 Scalar -- HDR
+  } deriving Generic
+
+data OverlayGlobals = OverlayGlobals
+  { viewMat        :: M44 Scalar
+  , projMat        :: M44 Scalar
+  , viewProjMat    :: M44 Scalar
+  } deriving Generic
+    deriving anyclass GStorable
+
+data PostConstants = PostConstants
+  { exposure    :: Float
+  , colorShift  :: V3 Float
+  , saturation  :: Float
+  , filmGrain   :: Float
+  } deriving Generic
+    deriving anyclass GStorable
+
+data SSAOSettings = SSAOSettings
+  { kernelSize :: Word32
+  , kernelRadius :: Scalar
+  } deriving Generic
+    deriving anyclass GStorable
+
+data Features = Features
+  { diffuse :: Bool
+  , specular :: Bool
+  }
+
+postDefaults :: PostConstants
+postDefaults = PostConstants
+  { exposure    = 0
+  , colorShift  = V3 1 1 1
+  , saturation  = 1
+  , filmGrain   = 0
+  }
 
 data RenderTargets = RenderTargets
   -- Stage 1 Shadows
@@ -98,7 +148,7 @@ data Renderer = Renderer
 
   , objHighlightMaterial     :: !(Material Word32)
   , postProcessMaterial      :: !(Material PostConstants)
-  , sunMaterial              :: !(Material PostConstants)
+  , sunMaterial              :: !(Material Word32) -- Can't have () as a push constant so we have a placeholder
   , ssaoMaterial             :: !(Material SSAOSettings)
   , globalBuffer             :: !(FramedResource (DataBuffer Globals))
   , globalShadowPassBuffer   :: !(FramedResource (DataBuffer ShadowGlobals))
@@ -263,22 +313,6 @@ data DecalMaterial uniform = DecalMaterial
   , uuid            :: UUID
   }
 
-data SSAOSettings = SSAOSettings
-  { kernelSize :: Word32
-  , kernelRadius :: Scalar
-  } deriving Generic
-    deriving anyclass GStorable
-
-data RenderSettings = RenderSettings
-  { clearColor     :: V4 Scalar
-  , worldSettings  :: WorldSettings
-  , overlayGlobals :: OverlayGlobals
-  , postSettings   :: PostConstants
-  , highlightObjs  :: [Word32]
-  , ssaoSettings :: SSAOSettings
-  , shadowBiasSlope :: Scalar
-  } deriving Generic
-
 data WorldGlobals = WorldGlobals
   { viewMat        :: M44 Scalar
   , projMat        :: M44 Scalar
@@ -300,27 +334,12 @@ data WorldGlobals = WorldGlobals
   } deriving Generic
     deriving anyclass GStorable
 
-data OverlayGlobals = OverlayGlobals
-  { viewMat        :: M44 Scalar
-  , projMat        :: M44 Scalar
-  , viewProjMat    :: M44 Scalar
-  } deriving Generic
-    deriving anyclass GStorable
-
 data ShadowGlobals = ShadowGlobals
   { viewProjMats    :: VS.Vector MaxShadowCascadesNat (M44 Scalar)
   , splitDepths     :: VS.Vector MaxShadowCascadesNat Scalar -- Far plane of each cascade
   , shadowBiasSlope :: Scalar
   } deriving Generic
     deriving anyclass GStorable
-
-data WorldSettings = WorldSettings
-  { camera :: Camera
-  , lightTransform :: M44 Scalar
-  , lightDirection :: V3 Scalar
-  , sunColor       :: V3 Scalar -- HDR
-  , ambientColor   :: V3 Scalar -- HDR
-  } deriving Generic
 
 worldSettingsDefaults :: WorldSettings
 worldSettingsDefaults = WorldSettings {..}
