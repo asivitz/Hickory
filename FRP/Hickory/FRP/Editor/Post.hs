@@ -10,7 +10,7 @@ import DearImGui
       menuItem,
       dragFloat3,
       dragFloat,
-      colorEdit3, ImVec2 (..), ImVec4 (..), image, withCollapsingHeaderOpen, dragInt )
+      colorEdit3, ImVec2 (..), ImVec4 (..), image, withCollapsingHeaderOpen, dragInt, checkbox )
 import Data.IORef ( IORef, readIORef, newIORef )
 import GHC.Generics (Generic)
 import Hickory.ImGUI.Helpers (imVec3ToV3, tripleToV3, v3ToImVec3, v3ToTriple, myWithWindow)
@@ -18,7 +18,7 @@ import Control.Monad.Extra (whenM)
 import Hickory.Math (Scalar)
 import Linear (V3 (..))
 import Control.Monad (void)
-import Hickory.Vulkan.Renderer.Types (Renderer(..), RenderTargets(..))
+import Hickory.Vulkan.Renderer.Types (Renderer(..), RenderTargets(..), Features (..))
 import Vulkan (Extent2D (..), objectTypeAndHandle)
 import Foreign (with, castPtr, wordPtrToPtr, WordPtr(..))
 import Control.Lens (view)
@@ -39,6 +39,10 @@ data PostEditorState = PostEditorState
   , ssaoKernelSizeRef  :: IORef Int
   , ssaoKernelRadiusRef :: IORef Scalar
   , shadowBiasSlopeRef    :: IORef Scalar
+  , diffuseRef         :: IORef Bool
+  , specularRef        :: IORef Bool
+  , ssaoRef            :: IORef Bool
+  , shadowsRef         :: IORef Bool
   }
 
 data GraphicsParams = GraphicsParams
@@ -54,6 +58,7 @@ data GraphicsParams = GraphicsParams
   , ssaoKernelSize  :: Int
   , ssaoKernelRadius :: Scalar
   , shadowBiasSlope :: Scalar
+  , features        :: Features
   } deriving (Show, Read, Generic)
 
 defaultGraphicsParams :: GraphicsParams
@@ -70,6 +75,12 @@ defaultGraphicsParams = GraphicsParams
     , ssaoKernelSize  = 16
     , ssaoKernelRadius = 0.5
     , shadowBiasSlope = 0
+    , features = Features
+      { diffuse  = True
+      , specular = True
+      , ssao     = True
+      , shadows  = True
+      }
     }
 
 readGraphicsParams :: PostEditorState -> IO GraphicsParams
@@ -87,6 +98,13 @@ readGraphicsParams PostEditorState{..} =
     <*> readIORef ssaoKernelSizeRef
     <*> readIORef ssaoKernelRadiusRef
     <*> readIORef shadowBiasSlopeRef
+    <*> readFeatures
+  where
+  readFeatures
+    = Features <$> readIORef diffuseRef
+               <*> readIORef specularRef
+               <*> readIORef ssaoRef
+               <*> readIORef shadowsRef
 
 mkPostEditorState :: GraphicsParams -> IO PostEditorState
 mkPostEditorState GraphicsParams {..} = do
@@ -104,6 +122,11 @@ mkPostEditorState GraphicsParams {..} = do
   ssaoKernelRadiusRef    <- newIORef ssaoKernelRadius
 
   shadowBiasSlopeRef    <- newIORef shadowBiasSlope
+
+  diffuseRef  <- newIORef features.diffuse
+  specularRef <- newIORef features.specular
+  ssaoRef     <- newIORef features.ssao
+  shadowsRef  <- newIORef features.shadows
 
   pure PostEditorState {..}
 
@@ -125,7 +148,7 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
     void $ dragFloat "Sun Strength" sunStrengthRef 0.1 0 10
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100
 
-    withCollapsingHeaderOpen "SSAO" zeroBits do
+    withCollapsingHeaderOpen "SSAO Config" zeroBits do
       void $ dragInt "Kernel Size" ssaoKernelSizeRef 1 0 64
       void $ dragFloat "Kernel Radius" ssaoKernelRadiusRef 0.01 0 5
 
@@ -142,3 +165,9 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
         with (ImVec4 1 1 1 1) \tintCol ->
         with (ImVec4 0 0 0 0) \borderCol ->
           image (castPtr imagePtr) sizeptr uv0 uv1 tintCol borderCol
+
+    withCollapsingHeaderOpen "Features" zeroBits do
+      void $ checkbox "Diffuse" diffuseRef
+      void $ checkbox "Specular" specularRef
+      void $ checkbox "SSAO" ssaoRef
+      void $ checkbox "Shadows" shadowsRef

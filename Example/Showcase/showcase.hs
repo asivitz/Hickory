@@ -30,7 +30,7 @@ import Vulkan
 import Hickory.Vulkan.Vulkan
 import Data.Foldable (for_)
 import Hickory.Color (red, black, white)
-import Hickory.Vulkan.Renderer.Types (OverlayGlobals(..), DrawCommand (..))
+import Hickory.Vulkan.Renderer.Types (OverlayGlobals(..), DrawCommand (..), Features (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, loadTextureResource, loadFontResource, runResources, loadResource')
 import Platforms.GLFW.GameLoop (glfwGameLoop)
@@ -131,6 +131,7 @@ mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor camera selectedO
   , highlightObjs = selectedObjIds
   , ssaoSettings = H.SSAOSettings (fromIntegral ssaoKernelSize) ssaoKernelRadius
   , shadowBiasSlope = shadowBiasSlope
+  , features = features
   }
   where
   overlayViewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
@@ -199,6 +200,7 @@ graphicsParamsDefaults = GraphicsParams {..}
   ssaoKernelSize = 1
   ssaoKernelRadius = 1
   shadowBiasSlope = 0.003
+  features = Features True True True True
 
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Showcase" \win -> runAcquire do

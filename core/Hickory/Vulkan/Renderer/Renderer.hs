@@ -5,7 +5,7 @@
 
 module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), DecalConstants, debugName)
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), DecalConstants, debugName, Features(..))
 import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView)
 import Acquire.Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
@@ -77,6 +77,7 @@ import Control.Monad.Random (randomRIO)
 import Hickory.Vulkan.Renderer.Decals (withDecalRenderConfig, decalVertShader, decalFragShader)
 import Hickory.Vulkan.Renderer.Direct (lineVertShader)
 import Hickory.Vulkan.Renderer.Direct (pointVertShader)
+import Data.Bool (bool)
 
 withGBufferMaterialStack
   :: forall uniform
@@ -664,6 +665,12 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         nearPlane = cameraNear camera
         farPlane = cameraFar camera
         gbufferSize = realToFrac <$> V2 w h
+
+        diffuseMask  = bool 0 1 features.diffuse
+        specularMask = bool 0 1 features.specular
+        ssaoMask     = bool 0 1 features.ssao
+        shadowsMask  = bool 0 1 features.shadows
+
         padding1 = 0
         padding2 = 0
         padding3 = 0

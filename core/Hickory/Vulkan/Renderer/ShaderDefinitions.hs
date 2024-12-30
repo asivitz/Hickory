@@ -50,6 +50,10 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     float multiSampleCount;
     float nearPlane;
     float farPlane;
+    float diffuseMask;
+    float specularMask;
+    float ssaoMask;
+    float shadowsMask;
   } globals;
   |]
 

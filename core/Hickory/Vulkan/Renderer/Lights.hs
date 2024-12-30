@@ -215,9 +215,8 @@ void main()
   vec3 viewPos  = inViewRay * (depth / globals.farPlane);
   vec3 worldPos = inWorldRay * (depth / globals.farPlane) + globals.cameraPos;
 
-  vec3 worldNormal = texture(gbuffer[1], inTexCoords).xyz;
-  vec4 albedo      = texture(gbuffer[0], inTexCoords);
-  //vec4 material    = vec4(0.0, 0.5, 0, 0); //texture(gbuffer[3], inTexCoords);
+  vec3 worldNormal  = texture(gbuffer[1], inTexCoords).xyz;
+  vec4 albedo       = texture(gbuffer[0], inTexCoords);
   vec4 material     = texture(gbuffer[2], inTexCoords);
   float roughness   = clamp(material.x, 0.089, 1.0); // prevent divide by zero and artifacts
   float reflectance = material.y;
@@ -264,10 +263,13 @@ void main()
   vec3 diffuse = diffuseColor * lambert;
   vec3 specular = cookTorrance;
 
-  vec3 surfaceColor = diffuse + specular;
+  vec3 surfaceColor = diffuse * globals.diffuseMask + specular * globals.specularMask;
   vec3 light = surfaceColor * globals.sunColor * nDotL;
 
   float ao = texture(ssao, inTexCoords).r;
-  outColor = vec4((shadow * light + globals.ambientColor * min(albedo.a, 1) * ao) * albedo.rgb, 1);
+  vec3 combined
+    = mix(1, shadow, globals.shadowsMask) * light
+    + mix(1, ao, globals.ssaoMask) * globals.ambientColor * min(albedo.a, 1);
+  outColor = vec4(combined, 1);
 }
 |])

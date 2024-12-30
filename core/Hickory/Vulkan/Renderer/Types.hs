@@ -46,6 +46,7 @@ data RenderSettings = RenderSettings
   , highlightObjs  :: [Word32]
   , ssaoSettings :: SSAOSettings
   , shadowBiasSlope :: Scalar
+  , features       :: Features
   } deriving Generic
 
 data WorldSettings = WorldSettings
@@ -78,9 +79,13 @@ data SSAOSettings = SSAOSettings
     deriving anyclass GStorable
 
 data Features = Features
-  { diffuse :: Bool
+  { diffuse  :: Bool
   , specular :: Bool
-  }
+  , ssao     :: Bool
+  , shadows  :: Bool
+  } deriving (Show, Read, Generic)
+
+{- -}
 
 postDefaults :: PostConstants
 postDefaults = PostConstants
@@ -331,6 +336,10 @@ data WorldGlobals = WorldGlobals
   , multiSampleCount :: Scalar
   , nearPlane      :: Scalar
   , farPlane       :: Scalar
+  , diffuseMask    :: Scalar
+  , specularMask   :: Scalar
+  , ssaoMask       :: Scalar
+  , shadowsMask    :: Scalar
   } deriving Generic
     deriving anyclass GStorable
 
