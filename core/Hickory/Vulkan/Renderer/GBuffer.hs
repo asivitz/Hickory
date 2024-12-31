@@ -232,7 +232,8 @@ void main() {
 
   texCoord = inTexCoord * uniforms.tiling;
   normal   = worldNormal;
-  color = uniforms.color;
+  color    = uniforms.color;
+  material = uniforms.material;
   TBN = mat3(worldTangent, worldBitangent, worldNormal);
   objectId = objectIds[uniformIdx];
 }

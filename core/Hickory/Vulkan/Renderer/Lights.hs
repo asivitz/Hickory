@@ -122,7 +122,7 @@ void main()
     gl_Position = vec4(texCoords * 2.0f + -1.0f, 1.0f, 1.0f);
 
     vec4 view = globals.invProjMat * vec4(gl_Position.x,gl_Position.y,1,1);
-    viewRay = view.xyz / view.w;
+    viewRay = view.xyz / view.w; // From camera toward fragment
     worldRay = mat3(globals.invViewMat) * viewRay;
 }
 
@@ -210,8 +210,8 @@ void main()
 {
   float depth = texture(gbuffer[3], inTexCoords).r;
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
-  vec3 viewDir  = normalize(inViewRay);
-  vec3 worldDir = normalize(inWorldRay);
+  if (depth + 0.01 > globals.farPlane) discard; // Don't try to light a fragment without geometry
+  vec3 viewDir  = -normalize(inViewRay); // Pointing out of surface toward camera
   vec3 viewPos  = inViewRay * (depth / globals.farPlane);
   vec3 worldPos = inWorldRay * (depth / globals.farPlane) + globals.cameraPos;
 
@@ -249,8 +249,8 @@ void main()
 
   float refl = 0.16 * reflectance * reflectance;
   vec3 f0 = mix(vec3(refl, refl, refl), albedo.rgb, metallic);
-  float f = pow(1.0 - hDotV, 5.0);
-  vec3 fresnelFunction = mix(f0, vec3(1.0,1.0,1.0), f);
+  float f = pow(clamp(1.0 - hDotV, 0.0, 1.0), 5.0);
+  vec3 fresnelFunction = f0 + (1.0 - f0) * f;
 
   vec3 cookTorrance = normalDistributionFunction
                     * geometryFunction

@@ -49,7 +49,7 @@ import Data.Maybe (fromMaybe)
 import Linear.V (toV, toVector)
 import Text.Printf (printf)
 import Hickory.Vulkan.Mesh (withBufferedMesh)
-import Data.Fixed (mod')
+import Data.Fixed (mod', divMod')
 
 pullMeshesFromGltf :: HasCallStack => Gltf -> Text -> V.Vector Mesh
 pullMeshesFromGltf gltf name = fromMaybe V.empty do
@@ -164,7 +164,7 @@ renderGame graphicsParams res t scrSize@(Size _ _h) (renderer, frameContext)
           { modelMat    = mat
           , normalMat   = transpose . inv33 $ mat ^. _m33
           , color       = white
-          , material    = V4 (t `mod'` 5) 0 0 0
+          , material    = V4 ((t `mod'` 5) / 5) 0 0 0
           , tiling      = V2 1 1
           }
       , cull = False
