@@ -75,6 +75,7 @@ dependencies:
     - base-compat
     - ki
     - StateVar
+    - filepath
 
 when:
     - condition: os(osx)

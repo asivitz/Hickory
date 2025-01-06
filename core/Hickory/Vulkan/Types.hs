@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Types where
 
-import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format, PhysicalDeviceProperties)
+import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format (..), PhysicalDeviceProperties, Filter (..), SamplerAddressMode (..), SamplerMipmapMode)
 import qualified Data.Vector as V
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
@@ -158,6 +158,39 @@ data DataBuffer a = DataBuffer
   , allocation :: Allocation
   , allocator  :: Allocator
   } deriving Generic
+
+data ImageType = PNG | HDR
+
+data TextureLoadOptions = TextureLoadOptions
+  { filter :: Filter
+  , samplerAddressMode :: SamplerAddressMode
+  , samplerMipmapMode  :: Maybe SamplerMipmapMode
+  , isCubemap          :: Bool
+  , fileType           :: ImageType
+  }
+
+formatForImageType :: ImageType -> Format
+formatForImageType = \case
+  PNG -> FORMAT_R8G8B8A8_UNORM
+  HDR -> FORMAT_R32G32B32A32_SFLOAT
+
+pngLoadOptions :: TextureLoadOptions
+pngLoadOptions = TextureLoadOptions
+  { filter = FILTER_LINEAR
+  , samplerAddressMode = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  , samplerMipmapMode = Nothing
+  , isCubemap = False
+  , fileType = PNG
+  }
+
+hdrCubeMapLoadOptions :: TextureLoadOptions
+hdrCubeMapLoadOptions = TextureLoadOptions
+  { filter = FILTER_LINEAR
+  , samplerAddressMode = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  , samplerMipmapMode = Nothing
+  , isCubemap = True
+  , fileType = HDR
+  }
 
 -- Run this every frame. If a cleanup is queued, it will run in a few
 -- frames, once the frame using the resource has been processed

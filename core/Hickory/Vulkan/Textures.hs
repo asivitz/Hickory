@@ -5,14 +5,14 @@ module Hickory.Vulkan.Textures where
 import Vulkan
   ( Extent2D(..)
   , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer, reductionMode, SamplerReductionMode (..), ImageBlit (..), getPhysicalDeviceFormatProperties, FormatProperties(..), FormatFeatureFlagBits (..), Offset3D (..), cmdBlitImage
-  , PhysicalDeviceProperties(..), PhysicalDeviceLimits(..)
+  , PhysicalDeviceProperties(..), PhysicalDeviceLimits(..), ImageCreateFlagBits (..)
   )
 import Hickory.Vulkan.Vulkan (runAcquire, mkAcquire)
-import qualified Codec.Picture as Png
-import qualified Codec.Picture.Extra as Png
+import qualified Codec.Picture as Picture
+import qualified Codec.Picture.Extra as Picture
 import Data.Word (Word8, Word32)
 import qualified Data.Vector.Storable as SV
-import Foreign (sizeOf, Bits ((.|.)), copyArray, castPtr, Storable)
+import Foreign (sizeOf, Bits ((.|.), zeroBits), copyArray, castPtr, Storable)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Text.Printf (printf)
 import Hickory.Vulkan.Mesh (withBuffer', withSingleTimeCommands)
@@ -21,17 +21,32 @@ import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Acquire.Acquire (Acquire)
-import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..))
+import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..), TextureLoadOptions(..), ImageType (..), formatForImageType)
 import Data.Foldable (for_)
 import Vulkan.Utils.Misc ((.&&.))
 import Control.Monad (unless)
 import Data.Bool (bool)
+import qualified Data.ByteString as BS
+import Control.Lens (_1, _2, _3, preview, toListOf, each)
+import Data.Traversable (for)
+import System.FilePath (dropExtension)
+import Data.Maybe (fromMaybe)
 
-withImageFromArray :: forall a. Storable a => VulkanResources -> Word32 -> Word32 -> Format -> Bool -> SV.Vector a -> Acquire (Image, Word32)
+withImageFromArray :: forall a. Storable a => VulkanResources -> Word32 -> Word32 -> Format -> Bool -> Word32 -> ImageCreateFlagBits -> SV.Vector a -> Acquire (Image, Word32)
 withImageFromArray = withImageFromArrayGeneratedMips
 
-withImageFromArrayGeneratedMips :: forall a. Storable a => VulkanResources -> Word32 -> Word32 -> Format -> Bool -> SV.Vector a -> Acquire (Image, Word32)
-withImageFromArrayGeneratedMips bag@VulkanResources { allocator } width height format shouldGenerateMips imageDat = do
+withImageFromArrayGeneratedMips
+  :: forall a. Storable a
+  => VulkanResources
+  -> Word32
+  -> Word32
+  -> Format
+  -> Bool
+  -> Word32
+  -> ImageCreateFlagBits
+  -> SV.Vector a
+  -> Acquire (Image, Word32)
+withImageFromArrayGeneratedMips bag@VulkanResources { allocator } width height format shouldGenerateMips arrayLayers imageFlags imageDat = do
   let mipLevels = if shouldGenerateMips then floor (logBase 2 (realToFrac $ max width height)) + 1 else 1
 
   let imageCreateInfo :: ImageCreateInfo '[]
@@ -40,12 +55,13 @@ withImageFromArrayGeneratedMips bag@VulkanResources { allocator } width height f
         , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
         , format        = format
         , mipLevels     = mipLevels
-        , arrayLayers   = 1
+        , arrayLayers   = arrayLayers
         , tiling        = IMAGE_TILING_OPTIMAL
         , samples       = SAMPLE_COUNT_1_BIT
         , usage         = IMAGE_USAGE_TRANSFER_SRC_BIT .|. IMAGE_USAGE_TRANSFER_DST_BIT .|. IMAGE_USAGE_SAMPLED_BIT
         , sharingMode   = SHARING_MODE_EXCLUSIVE
         , initialLayout = IMAGE_LAYOUT_UNDEFINED
+        , flags         = imageFlags
         }
       allocationCreateInfo :: AllocationCreateInfo
       allocationCreateInfo = zero { requiredFlags = MEMORY_PROPERTY_DEVICE_LOCAL_BIT }
@@ -117,13 +133,50 @@ withImageFromArrayCustomMips bag@VulkanResources { allocator } width height form
 
   pure image
 
-withTextureImage :: VulkanResources -> Bool -> Bool -> FilePath -> Acquire (Image, Word32)
-withTextureImage bag shouldGenerateMips shouldFlip path = do
-  Png.Image width height dat <- liftIO $ Png.readPng path >>= \case
-    Left s -> error $ printf "Can't load image at path %s: %s" path s
-    Right dynImage -> pure . (bool id Png.flipVertically shouldFlip) $ Png.convertRGBA8 dynImage
+withTextureImage :: VulkanResources -> Bool -> Bool -> TextureLoadOptions -> FilePath -> Acquire (Image, Word32)
+withTextureImage bag shouldGenerateMips shouldFlip options path = do
+  let arrayLayers = if options.isCubemap then 6 else 1
+      flags = if options.isCubemap then IMAGE_CREATE_CUBE_COMPATIBLE_BIT else zeroBits
+  case options.fileType of
+    PNG -> do
+      liftIO (Picture.readPng path) >>= \case
+        Left s -> error $ printf "Can't load image at path %s: %s" path s
+        Right dynImage -> do
+          let Picture.Image width height dat = (bool id Picture.flipVertically shouldFlip) $ Picture.convertRGBA8 dynImage
+          withImageFromArray bag (fromIntegral width) (fromIntegral height) (formatForImageType options.fileType) shouldGenerateMips arrayLayers flags dat
+    HDR -> do
+      (width, height, dat) <-
+        if options.isCubemap
+        then do
+          let base = dropExtension path
+              allPaths = [ base <> "_posx.hdr"
+                         , base <> "_negx.hdr"
+                         , base <> "_posy.hdr"
+                         , base <> "_negy.hdr"
+                         , base <> "_posz.hdr"
+                         , base <> "_negz.hdr"
+                         ] :: [FilePath]
+          ress <- for allPaths \path' -> do
+            bytes <- liftIO $ BS.readFile path'
+            case Picture.decodeHDR bytes of
+              Left s -> error $ printf "Can't decode HDR image at path %s: %s" path' s
+              Right dynImage -> case dynImage of
+                Picture.ImageRGBF (Picture.Image width height dat) -> pure (width, height, dat)
+                _ -> error "Invalid image type decoded at path %s" path'
+          let w = fromMaybe (error $ printf "Can't find Cubemap width for HDR at path %s" path) $ preview (each . _1) ress
+              h = fromMaybe (error $ printf "Can't find Cubemap width for HDR at path %s" path) $ preview (each . _2) ress
+              allDats = toListOf (each . _3) ress
+          pure (w,h,SV.concat allDats)
 
-  withImageFromArray bag (fromIntegral width) (fromIntegral height) FORMAT_R8G8B8A8_UNORM shouldGenerateMips dat
+        else do
+          bytes <- liftIO $ BS.readFile path
+          case Picture.decodeHDR bytes of
+            Left s -> error $ printf "Can't decode HDR image at path %s: %s" path s
+            Right dynImage -> case dynImage of
+              Picture.ImageRGBF (Picture.Image width height dat) -> pure (width, height, dat)
+              _ -> error $ printf "Invalid image type decoded at path %s" path
+
+      withImageFromArray bag (fromIntegral width) (fromIntegral height) (formatForImageType options.fileType) shouldGenerateMips arrayLayers flags dat
 
 copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> Word32 -> m ()
 copyBufferToImage bag buffer image mipLevel width height = withSingleTimeCommands bag \commandBuffer -> do

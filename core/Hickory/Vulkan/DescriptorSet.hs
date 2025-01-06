@@ -1,5 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields  #-}
-{-# LANGUAGE OverloadedLists, OverloadedLabels #-}
+{-# LANGUAGE OverloadedLists, OverloadedLabels, OverloadedRecordDot #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, PatternSynonyms  #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Avoid lambda" #-}
@@ -25,7 +25,7 @@ import Vulkan
   , DescriptorSetLayout, DescriptorSet
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Filter
-  , pattern IMAGE_ASPECT_COLOR_BIT, SamplerAddressMode, SamplerMipmapMode (..)
+  , pattern IMAGE_ASPECT_COLOR_BIT, SamplerAddressMode, SamplerMipmapMode (..), ImageViewType (..)
   )
 import qualified Vulkan as Writes (WriteDescriptorSet(..))
 import Data.Functor ((<&>))
@@ -45,7 +45,7 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire.Acquire (Acquire)
 import Data.UUID.V4 (nextRandom)
-import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..), TextureLoadOptions(..), formatForImageType)
 import GHC.Word (Word32)
 import Data.Maybe (isJust, fromMaybe)
 import qualified Data.Vector.Storable as SV
@@ -151,15 +151,18 @@ data TextureDescriptorSet = TextureDescriptorSet
   , textureNames  :: Vector Text
   } deriving Generic
 
-withTextureDescriptorSet :: VulkanResources -> [(FilePath, Filter, SamplerAddressMode, Maybe SamplerMipmapMode)] -> Acquire TextureDescriptorSet
+withTextureDescriptorSet :: VulkanResources -> [(FilePath, TextureLoadOptions)] -> Acquire TextureDescriptorSet
 withTextureDescriptorSet _ [] = error "No textures in descriptor set"
 withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
   let textureNames = V.fromList $ pack . view filename . view _1 <$> texturePaths
-  images <- for texturePaths \(path, filt, addressMode, samplerMipmapMode) -> do
-    (image, mipLevels)   <- withTextureImage bag (isJust samplerMipmapMode) True path
-    sampler <- withImageSamplerMips bag mipLevels filt addressMode (fromMaybe SAMPLER_MIPMAP_MODE_LINEAR samplerMipmapMode)
-    let format = FORMAT_R8G8B8A8_UNORM
-    imageView <- with2DImageViewMips deviceContext format IMAGE_ASPECT_COLOR_BIT image mipLevels 0 1
+  images <- for texturePaths \(path, options) -> do
+    (image, mipLevels)   <- withTextureImage bag (isJust options.samplerMipmapMode) True options path
+    sampler <- withImageSamplerMips bag mipLevels options.filter options.samplerAddressMode (fromMaybe SAMPLER_MIPMAP_MODE_LINEAR options.samplerMipmapMode)
+    let viewType = if options.isCubemap then IMAGE_VIEW_TYPE_CUBE else IMAGE_VIEW_TYPE_2D
+        format = (formatForImageType options.fileType)
+        layers = if options.isCubemap then 6 else 1
+
+    imageView <- with2DImageViewMips deviceContext format IMAGE_ASPECT_COLOR_BIT image mipLevels viewType 0 layers
 
     pure (ViewableImage image imageView format, sampler)
   descriptorSet <- withDescriptorSet bag [ImageDescriptor images]

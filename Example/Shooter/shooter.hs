@@ -50,6 +50,7 @@ import Platforms.GLFW.GameLoop (glfwGameLoop)
 import Hickory.GameLoop (newGameStateStack, stepGameState, queryGameState)
 import Data.IORef (newIORef, atomicModifyIORef', readIORef)
 import Platforms.GLFW.Bridge (glfwFrameBuilder)
+import Hickory.Vulkan.Types (TextureLoadOptions(..))
 
 -- ** GAMEPLAY **
 
@@ -123,7 +124,13 @@ loadResources :: String -> H.VulkanResources -> Acquire ResourcesStore
 loadResources path vulkanResources = do
   resourcesStore <- withResourcesStore vulkanResources
   liftIO do
-    loadTextureResource vulkanResources resourcesStore (path ++ "images/circle.png") (FILTER_LINEAR, SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, Nothing)
+    let opts = TextureLoadOptions
+          { filter = FILTER_LINEAR
+          , samplerAddressMode = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+          , samplerMipmapMode = Nothing
+          , isCubemap = False
+          }
+    loadTextureResource vulkanResources resourcesStore (path ++ "images/circle.png") opts
 
     -- gidolinya.json (font data) and gidolinya.png (font texture) were
     -- generated using https://github.com/Chlumsky/msdf-atlas-gen

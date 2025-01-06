@@ -252,7 +252,7 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
 
   (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
   images <- for rawImages $ \image -> let form = surfaceFormat.format in
-    ViewableImage image <$> with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image 0 1 <*> pure form
+    ViewableImage image <$> with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image IMAGE_VIEW_TYPE_2D 0 1 <*> pure form
 
   pure $ Swapchain {..}
 
@@ -296,16 +296,16 @@ vmaVulkanFunctions Instance { instanceCmds } Device { deviceCmds } = zero
   , vkGetDeviceProcAddr   = castFunPtr $ VD.pVkGetDeviceProcAddr deviceCmds
   }
 
-with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Word32 -> Word32 -> Acquire ImageView
-with2DImageView dc format flags image = with2DImageViewMips dc format flags image 1
+with2DImageView :: DeviceContext -> Format -> ImageAspectFlags -> Image -> ImageViewType -> Word32 -> Word32 -> Acquire ImageView
+with2DImageView dc format flags image imageViewType = with2DImageViewMips dc format flags image 1 imageViewType
 
-with2DImageViewMips :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Word32 -> Word32 -> Word32 -> Acquire ImageView
-with2DImageViewMips DeviceContext { device } format flags image mipLevels baseLayer numLayers =
+with2DImageViewMips :: DeviceContext -> Format -> ImageAspectFlags -> Image -> Word32 -> ImageViewType -> Word32 -> Word32 -> Acquire ImageView
+with2DImageViewMips DeviceContext { device } format flags image mipLevels viewType baseLayer numLayers =
   withImageView device imageViewCreateInfo Nothing mkAcquire
   where
   imageViewCreateInfo = zero
     { image      = image
-    , viewType   = if numLayers > 1 then IMAGE_VIEW_TYPE_2D_ARRAY else IMAGE_VIEW_TYPE_2D
+    , viewType   = viewType
     , format     = format
     , components = zero
     , subresourceRange = zero

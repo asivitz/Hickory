@@ -19,8 +19,8 @@ import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVe
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, whiteFragShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), CullModeFlagBits (..), PrimitiveTopology (..), cmdBindDescriptorSets, PipelineBindPoint (..))
-import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.))
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), CullModeFlagBits (..), PrimitiveTopology (..), cmdBindDescriptorSets, PipelineBindPoint (..), ImageViewType (..))
+import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.), Bits (..))
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource, zipFramedResources)
@@ -368,8 +368,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   noiseValues :: SV.Vector (V4 Scalar) <- SV.generateM (fromIntegral $ noiseDim * noiseDim) \_ ->
     normalize <$> (V4 <$> randomRIO (-1,1) <*> randomRIO (-1,1) <*> pure 0 <*> pure 0)
 
-  (noiseImage,_) <- withImageFromArray vulkanResources noiseDim noiseDim noiseFormat False noiseValues
-  imageView <- with2DImageView vulkanResources.deviceContext noiseFormat IMAGE_ASPECT_COLOR_BIT noiseImage 0 1
+  (noiseImage,_) <- withImageFromArray vulkanResources noiseDim noiseDim noiseFormat False 1 zeroBits noiseValues
+  imageView <- with2DImageView vulkanResources.deviceContext noiseFormat IMAGE_ASPECT_COLOR_BIT noiseImage IMAGE_VIEW_TYPE_2D 0 1
 
   ssaoMaterialDescriptorSet <- for gbufferFloatDesc $ \gbufFloatDesc -> withDescriptorSet vulkanResources
     [gbufFloatDesc, BufferDescriptor kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,nearestSampler)]]

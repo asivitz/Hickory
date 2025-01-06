@@ -22,7 +22,7 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..), Framebuffer, SamplerMipmapMode (..)
+  , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..), Framebuffer, SamplerMipmapMode (..), ImageViewType (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -47,10 +47,10 @@ withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = device
   sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits 1
-  depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
+  depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw IMAGE_VIEW_TYPE_2D 0 1
 
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
-  objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw 0 1
+  objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw IMAGE_VIEW_TYPE_2D 0 1
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
 
   let descriptorSpec = ImageDescriptor [(objIDImage,sampler)]

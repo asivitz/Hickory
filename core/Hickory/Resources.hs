@@ -20,7 +20,7 @@ import Control.Lens (view, (^.))
 import Hickory.ModelLoading.DirectXModel (ThreeDModel(..), loadModelFromX)
 import Hickory.Vulkan.Text (TextRenderer, withTextRenderer)
 import Vulkan (Filter (..), SamplerAddressMode (..), SamplerMipmapMode)
-import Hickory.Vulkan.Types (PointedDescriptorSet (..), BufferedMesh (..), VulkanResources, addCleanup)
+import Hickory.Vulkan.Types (PointedDescriptorSet (..), BufferedMesh (..), VulkanResources, addCleanup, TextureLoadOptions)
 import GHC.Generics (Generic)
 import Hickory.Vulkan.Mesh (withBufferedMesh, loadMeshFromFile)
 import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, withDescriptorSet)
@@ -96,11 +96,11 @@ data Resources = Resources
 -- instance Hashable SamplerAddressMode where hashWithSalt s (SamplerAddressMode i) = hashWithSalt s i
 -- instance Hashable Filter where hashWithSalt s (Filter i) = hashWithSalt s i
 
-loadTextureResource :: VulkanResources -> ResourcesStore -> String -> (Filter, SamplerAddressMode, Maybe SamplerMipmapMode) -> IO ()
-loadTextureResource vulkanResources ResourcesStore { textures } path (imageFilter, addressMode, samplerMipmapMode) =
+loadTextureResource :: VulkanResources -> ResourcesStore -> String -> TextureLoadOptions -> IO ()
+loadTextureResource vulkanResources ResourcesStore { textures } path textureLoadOptions =
   loadResourceNoReplace textures (path ^. filename) do
     liftIO (doesFileExist path) >>= \case
-      True -> fmap Just $ view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(path, imageFilter, addressMode, samplerMipmapMode)]
+      True -> fmap Just $ view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(path, textureLoadOptions)]
       False -> pure Nothing
 
 loadMeshResource :: VulkanResources -> ResourcesStore -> String -> IO ()

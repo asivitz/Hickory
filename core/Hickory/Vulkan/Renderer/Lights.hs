@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..)
+  , Filter (..), SamplerAddressMode (..), Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..), ImageViewType (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -46,7 +46,7 @@ hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 withColorViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext } extent = do
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
-  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw 0 1
+  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw IMAGE_VIEW_TYPE_2D 0 1
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)

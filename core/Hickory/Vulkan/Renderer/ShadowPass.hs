@@ -22,7 +22,7 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , CullModeFlagBits (..), ImageUsageFlagBits (..), Extent2D (..), Sampler, Framebuffer
+  , CullModeFlagBits (..), ImageUsageFlagBits (..), Extent2D (..), Sampler, Framebuffer, ImageViewType (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -57,12 +57,12 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
   sampler <- withShadowSampler vulkanResources
   -- Shadowmap depth texture
   shadowmapImageRaw  <- withDepthImage vulkanResources shadowDim depthFormat SAMPLE_COUNT_1_BIT (IMAGE_USAGE_SAMPLED_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) maxShadowCascades
-  shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw 0 maxShadowCascades
+  shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw IMAGE_VIEW_TYPE_2D_ARRAY 0 maxShadowCascades
   let image = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
   let shadowmapDescriptorSpec = DepthImageDescriptor image sampler
 
   cascades <- VS.generateM \(fromIntegral . getFinite -> i) -> do
-    cascadeImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw i 1
+    cascadeImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw IMAGE_VIEW_TYPE_2D i 1
     let cascadeImage = ViewableImage shadowmapImageRaw cascadeImageView depthFormat
     let descriptorSpec = DepthImageDescriptor cascadeImage sampler
 

@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..)
+  , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..), ImageViewType (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -56,19 +56,19 @@ objIDFormat = FORMAT_R16_UINT
 withDepthViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withDepthViewableImage vulkanResources extent = do
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat SAMPLE_COUNT_1_BIT IMAGE_USAGE_SAMPLED_BIT 1
-  depthImageView <- with2DImageView vulkanResources.deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw 0 1
+  depthImageView <- with2DImageView vulkanResources.deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw IMAGE_VIEW_TYPE_2D 0 1
   pure $ ViewableImage depthImageRaw depthImageView depthFormat
 
 withAlbedoViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withAlbedoViewableImage vulkanResources extent = do
   albedoImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
-  albedoImageView <- with2DImageView vulkanResources.deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT albedoImageRaw 0 1
+  albedoImageView <- with2DImageView vulkanResources.deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT albedoImageRaw IMAGE_VIEW_TYPE_2D 0 1
   pure $ ViewableImage albedoImageRaw albedoImageView hdrFormat
 
 withNormalViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withNormalViewableImage vulkanResources extent = do
   normalImageRaw  <- withIntermediateImage vulkanResources normalFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
-  normalImageView <- with2DImageView vulkanResources.deviceContext normalFormat IMAGE_ASPECT_COLOR_BIT normalImageRaw 0 1
+  normalImageView <- with2DImageView vulkanResources.deviceContext normalFormat IMAGE_ASPECT_COLOR_BIT normalImageRaw IMAGE_VIEW_TYPE_2D 0 1
   pure $ ViewableImage normalImageRaw normalImageView normalFormat
 
 withMaterialViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
@@ -77,7 +77,7 @@ withMaterialViewableImage = withNormalViewableImage
 withObjIDViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withObjIDViewableImage vulkanResources extent = do
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent SAMPLE_COUNT_1_BIT
-  objIDImageView <- with2DImageView vulkanResources.deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw 0 1
+  objIDImageView <- with2DImageView vulkanResources.deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw IMAGE_VIEW_TYPE_2D 0 1
   pure $ ViewableImage objIDImageRaw objIDImageView objIDFormat
 
 withGBufferRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
@@ -176,16 +176,18 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
 
 loadGBufTextures :: VulkanResources -> FilePath -> FilePath -> Acquire PointedDescriptorSet
 loadGBufTextures vulkanResources albedo normal = do
-  let form = FORMAT_R8G8B8A8_UNORM
+  let opts = pngLoadOptions
+      form = formatForImageType opts.fileType
+
   alb <- do
-    (im, mipLevels) <- withTextureImage vulkanResources True False albedo
-    iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels 0 1
+    (im, mipLevels) <- withTextureImage vulkanResources True False pngLoadOptions albedo
+    iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels IMAGE_VIEW_TYPE_2D 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
 
   nor <- do
-    (im, mipLevels) <- withTextureImage vulkanResources True False normal
-    iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels 0 1
+    (im, mipLevels) <- withTextureImage vulkanResources True False pngLoadOptions normal
+    iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels IMAGE_VIEW_TYPE_2D 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
 

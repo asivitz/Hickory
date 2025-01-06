@@ -21,7 +21,7 @@ import Vulkan
   , pattern SUBPASS_EXTERNAL
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
-  , CullModeFlagBits (..), Extent2D, ImageUsageFlagBits (..), ImageAspectFlagBits (..)
+  , CullModeFlagBits (..), Extent2D, ImageUsageFlagBits (..), ImageAspectFlagBits (..), ImageViewType (..)
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -42,7 +42,7 @@ hdrFormat = FORMAT_R16_SFLOAT
 withSSAOViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withSSAOViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext } extent = do
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
-  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw 0 1
+  hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw IMAGE_VIEW_TYPE_2D 0 1
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withSSAORenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
