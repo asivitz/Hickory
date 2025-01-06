@@ -211,11 +211,11 @@ void main()
   float depth = texture(gbuffer[3], inTexCoords).r;
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
   if (depth + 0.01 > globals.farPlane) discard; // Don't try to light a fragment without geometry
-  vec3 viewDir  = -normalize(inViewRay); // Pointing out of surface toward camera
+  vec3 worldFragmentToCamera  = -normalize(inWorldRay); // Pointing out of surface toward camera
   vec3 viewPos  = inViewRay * (depth / globals.farPlane);
   vec3 worldPos = inWorldRay * (depth / globals.farPlane) + globals.cameraPos;
 
-  vec3 worldNormal  = texture(gbuffer[1], inTexCoords).xyz;
+  vec3 worldNormal  = normalize(texture(gbuffer[1], inTexCoords).xyz);
   vec4 albedo       = texture(gbuffer[0], inTexCoords);
   vec4 material     = texture(gbuffer[2], inTexCoords);
   float roughness   = clamp(material.x, 0.089, 1.0); // prevent divide by zero and artifacts
@@ -228,9 +228,9 @@ void main()
   float shadow = calcShadow(viewPos, worldPos + worldNormal * shadowGlobals.shadowBiasSlope) * mix(0.3,1,albedo.a);
 
   float nDotL = max(0.0, dot(worldNormal, directionToLight));
-  float nDotV = max(0.0, dot(worldNormal, viewDir));
-  vec3 halfVector = normalize(directionToLight + viewDir);
-  float hDotV = max(0.0, dot(halfVector, viewDir));
+  float nDotV = max(0.0, dot(worldNormal, worldFragmentToCamera));
+  vec3 halfVector = normalize(directionToLight + worldFragmentToCamera);
+  float hDotV = max(0.0, dot(halfVector, worldFragmentToCamera));
 
   float nDotHalf = max(0.0, dot(worldNormal, halfVector));
   float roughnessSquared = roughness * roughness;
@@ -248,7 +248,8 @@ void main()
   float geometryFunction = smithGGX;
 
   float refl = 0.16 * reflectance * reflectance;
-  vec3 f0 = mix(vec3(refl, refl, refl), albedo.rgb, metallic);
+  vec3 f0 = mix(vec3(0.04), albedo.rgb, metallic);
+  //vec3 f0 = mix(vec3(refl, refl, refl), albedo.rgb, metallic);
   float f = pow(clamp(1.0 - hDotV, 0.0, 1.0), 5.0);
   vec3 fresnelFunction = f0 + (1.0 - f0) * f;
 
@@ -269,7 +270,7 @@ void main()
   float ao = texture(ssao, inTexCoords).r;
   vec3 combined
     = mix(1, shadow, globals.shadowsMask) * light
-    + mix(1, ao, globals.ssaoMask) * globals.ambientColor * min(albedo.a, 1);
+    + mix(1, ao, globals.ssaoMask) * albedo.rgb * globals.ambientColor * min(albedo.a, 1);
   outColor = vec4(combined, 1);
 }
 |])

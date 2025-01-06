@@ -317,6 +317,7 @@ renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedOb
   , highlightObjs = selectedObjIds
   , ssaoSettings = SSAOSettings (fromIntegral ssaoKernelSize) ssaoKernelRadius
   , shadowBiasSlope = shadowBiasSlope
+  , features = features
   }
   where
   ovm = viewTarget zero (V3 0 0 1) (V3 0 (-1) 0)
