@@ -145,6 +145,7 @@ library:
     - Hickory.Vulkan.StockMesh
     - Hickory.Vulkan.StockTexture
     - Hickory.Vulkan.PostProcessing
+    - Hickory.Vulkan.HDR
     - Hickory.Vulkan.RenderTarget
     - Hickory.Vulkan.Renderer.ObjectPicking
     - Hickory.Vulkan.Renderer.Renderer

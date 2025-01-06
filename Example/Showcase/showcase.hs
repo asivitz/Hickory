@@ -8,31 +8,26 @@
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
-import Hickory.Math (mkTranslation, mkScale, viewTarget, Interpolatable (..), Scalar, mkRotation)
+import Hickory.Math (mkTranslation, mkScale, viewTarget, Scalar, mkRotation)
 import Hickory.Types
 import Linear ( V2(..), V3(..), V4(..), (!*!), transpose, _m33, inv33, identity, (^*), liftI2)
 import Acquire.Acquire (Acquire)
-import Control.Lens ((^.), filtered, (^?), each)
+import Control.Lens ((^.), filtered, (^?), each, runIdentity)
 import Foreign (poke)
 import Control.Monad (void, when, join)
-import Hickory.FRP.Editor (mkPostEditorState, readGraphicsParams, drawPostUI, editorScene, Object, drawObjects, GraphicsParams (..))
+import Hickory.FRP.Editor (mkPostEditorState, readGraphicsParams, drawPostUI, GraphicsParams (..))
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Renderer.Types as H
 import qualified Hickory.Vulkan.Renderer.Renderer as H
 
-import Vulkan
-  ( pattern FILTER_LINEAR
-  , SamplerAddressMode(..)
-  )
 
 import Hickory.Vulkan.Vulkan
-import Data.Foldable (for_)
-import Hickory.Color (red, black, white)
+import Hickory.Color (black, white)
 import Hickory.Vulkan.Renderer.Types (OverlayGlobals(..), DrawCommand (..), Features (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
-import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, loadTextureResource, loadFontResource, runResources, loadResource')
+import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, loadFontResource, runResources, loadResource', getTextureMay)
 import Platforms.GLFW.GameLoop (glfwGameLoop)
 import Hickory.GameLoop (newGameStateStack, stepGameState, queryGameState)
 import Data.IORef (newIORef, atomicModifyIORef', readIORef)
@@ -49,7 +44,8 @@ import Data.Maybe (fromMaybe)
 import Linear.V (toV, toVector)
 import Text.Printf (printf)
 import Hickory.Vulkan.Mesh (withBufferedMesh)
-import Data.Fixed (mod', divMod')
+import Data.Fixed (mod')
+import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, TextureDescriptorSet(..))
 
 pullMeshesFromGltf :: HasCallStack => Gltf -> Text -> V.Vector Mesh
 pullMeshesFromGltf gltf name = fromMaybe V.empty do
@@ -110,17 +106,20 @@ loadResources path vulkanResources = do
     -- generated using https://github.com/Chlumsky/msdf-atlas-gen
     loadFontResource vulkanResources resourcesStore (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
+    -- loadResource' resourcesStore.textures "envMap" do
+    --   (.descriptorSet) <$> withTextureDescriptorSet vulkanResources [(path ++ "sky/sky_envmap.hdr", H.hdrCubeMapLoadOptions)]
+
   pure resourcesStore
 
-mkRenderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Camera -> [Word32] -> H.RenderSettings
-mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor camera selectedObjIds = H.RenderSettings
+mkRenderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Maybe H.PointedDescriptorSet -> Camera -> [Word32] -> H.RenderSettings
+mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor envMap camera selectedObjIds = H.RenderSettings
   { worldSettings = H.WorldSettings
     { camera
     , lightTransform = identity
     , lightDirection = sunDirection
     , sunColor       = sunLight ^* sunStrength
     , ambientColor   = ambientLight ^* ambientStrength
-    , envMap         = Nothing
+    , envMap         = envMap
     }
   , overlayGlobals = OverlayGlobals
     { viewMat = overlayViewMat
@@ -144,8 +143,9 @@ renderGame :: (MonadIO m) => GraphicsParams -> Resources -> Model -> Size Int ->
 renderGame graphicsParams res t scrSize@(Size _ _h) (renderer, frameContext)
   = void $ H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
+  envMap = runIdentity . runResources res $ getTextureMay "envMap"
   camera = Camera (V3 0 0 0) (V3 0 7 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
-  renderSettings = mkRenderSettings scrSize graphicsParams black camera []
+  renderSettings = mkRenderSettings scrSize graphicsParams black envMap camera []
   litF = runResources res do
     mesh <- getMesh "bunny"
     tex <- getTexture "blank"

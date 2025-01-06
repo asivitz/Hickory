@@ -1,10 +1,11 @@
 {-# LANGUAGE DuplicateRecordFields, OverloadedRecordDot, DataKinds, BlockArguments, PatternSynonyms, OverloadedLists  #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Hickory.Vulkan.Textures where
 
 import Vulkan
   ( Extent2D(..)
-  , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer, reductionMode, SamplerReductionMode (..), ImageBlit (..), getPhysicalDeviceFormatProperties, FormatProperties(..), FormatFeatureFlagBits (..), Offset3D (..), cmdBlitImage
+  , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer, ImageBlit (..), getPhysicalDeviceFormatProperties, FormatProperties(..), FormatFeatureFlagBits (..), Offset3D (..), cmdBlitImage
   , PhysicalDeviceProperties(..), PhysicalDeviceLimits(..), ImageCreateFlagBits (..)
   )
 import Hickory.Vulkan.Vulkan (runAcquire, mkAcquire)
@@ -31,6 +32,9 @@ import Control.Lens (_1, _2, _3, preview, toListOf, each)
 import Data.Traversable (for)
 import System.FilePath (dropExtension)
 import Data.Maybe (fromMaybe)
+import Data.Dynamic (Typeable)
+import Hickory.Vulkan.HDR (PixelRGBAF (..))
+import Debug.Trace
 
 withImageFromArray :: forall a. Storable a => VulkanResources -> Word32 -> Word32 -> Format -> Bool -> Word32 -> ImageCreateFlagBits -> SV.Vector a -> Acquire (Image, Word32)
 withImageFromArray = withImageFromArrayGeneratedMips
@@ -69,7 +73,7 @@ withImageFromArrayGeneratedMips bag@VulkanResources { allocator } width height f
   (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
 
   liftIO $ runAcquire do
-    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels arrayLayers IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
     let bufferSize = fromIntegral $ SV.length imageDat * sizeOf (undefined :: a)
     (stagingBuffer, stagingAlloc, _) <- withBuffer' allocator
@@ -80,11 +84,11 @@ withImageFromArrayGeneratedMips bag@VulkanResources { allocator } width height f
     liftIO $ withMappedMemory allocator stagingAlloc bracket \bptr ->
       SV.unsafeWith imageDat $ \iptr -> copyArray (castPtr bptr) iptr (SV.length imageDat)
 
-    copyBufferToImage bag stagingBuffer image 0 width height
+    copyBufferToImage bag stagingBuffer image 0 arrayLayers width height
 
     if shouldGenerateMips
     then liftIO $ generateMipmaps bag image format width height mipLevels
-    else withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    else withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels arrayLayers IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
   pure (image, mipLevels)
 
@@ -92,13 +96,14 @@ withImageFromArrayCustomMips :: forall a. Storable a => VulkanResources -> Int -
 withImageFromArrayCustomMips bag@VulkanResources { allocator } width height format mips = do
 
   let mipLevels = fromIntegral $ length mips
+      arrayLayers = 1
       imageCreateInfo :: ImageCreateInfo '[]
       imageCreateInfo = zero
         { imageType     = IMAGE_TYPE_2D
         , extent        = Extent3D (fromIntegral width) (fromIntegral height) 1
         , format        = format
         , mipLevels     = mipLevels
-        , arrayLayers   = 1
+        , arrayLayers   = arrayLayers
         , tiling        = IMAGE_TILING_OPTIMAL
         , samples       = SAMPLE_COUNT_1_BIT
         , usage         = IMAGE_USAGE_TRANSFER_DST_BIT .|. IMAGE_USAGE_SAMPLED_BIT
@@ -111,7 +116,7 @@ withImageFromArrayCustomMips bag@VulkanResources { allocator } width height form
   (image, _, _) <- withImage allocator imageCreateInfo allocationCreateInfo mkAcquire
 
   liftIO $ runAcquire do
-    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels arrayLayers IMAGE_LAYOUT_UNDEFINED IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
     let wpot = logBase 2 (realToFrac width)
         hpot = logBase 2 (realToFrac height)
@@ -127,9 +132,9 @@ withImageFromArrayCustomMips bag@VulkanResources { allocator } width height form
       liftIO $ withMappedMemory allocator stagingAlloc bracket \bptr ->
         SV.unsafeWith dat $ \iptr -> copyArray (castPtr bptr) iptr (SV.length dat)
 
-      copyBufferToImage bag stagingBuffer image mipLevel (round w') (round h')
+      copyBufferToImage bag stagingBuffer image mipLevel arrayLayers (round w') (round h')
 
-    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    withSingleTimeCommands bag $ transitionImageLayoutMips image mipLevels arrayLayers IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
   pure image
 
@@ -145,7 +150,7 @@ withTextureImage bag shouldGenerateMips shouldFlip options path = do
           let Picture.Image width height dat = (bool id Picture.flipVertically shouldFlip) $ Picture.convertRGBA8 dynImage
           withImageFromArray bag (fromIntegral width) (fromIntegral height) (formatForImageType options.fileType) shouldGenerateMips arrayLayers flags dat
     HDR -> do
-      (width, height, dat) <-
+      (width, height, dat :: SV.Vector Float) <-
         if options.isCubemap
         then do
           let base = dropExtension path
@@ -161,7 +166,7 @@ withTextureImage bag shouldGenerateMips shouldFlip options path = do
             case Picture.decodeHDR bytes of
               Left s -> error $ printf "Can't decode HDR image at path %s: %s" path' s
               Right dynImage -> case dynImage of
-                Picture.ImageRGBF (Picture.Image width height dat) -> pure (width, height, dat)
+                Picture.ImageRGBF (Picture.pixelMap addAlpha -> (Picture.Image width height dat)) -> pure (width, height, dat)
                 _ -> error "Invalid image type decoded at path %s" path'
           let w = fromMaybe (error $ printf "Can't find Cubemap width for HDR at path %s" path) $ preview (each . _1) ress
               h = fromMaybe (error $ printf "Can't find Cubemap width for HDR at path %s" path) $ preview (each . _2) ress
@@ -173,13 +178,17 @@ withTextureImage bag shouldGenerateMips shouldFlip options path = do
           case Picture.decodeHDR bytes of
             Left s -> error $ printf "Can't decode HDR image at path %s: %s" path s
             Right dynImage -> case dynImage of
-              Picture.ImageRGBF (Picture.Image width height dat) -> pure (width, height, dat)
+              Picture.ImageRGBF (Picture.pixelMap addAlpha -> (Picture.Image width height dat)) -> pure (width, height, dat)
               _ -> error $ printf "Invalid image type decoded at path %s" path
 
       withImageFromArray bag (fromIntegral width) (fromIntegral height) (formatForImageType options.fileType) shouldGenerateMips arrayLayers flags dat
+  where
+  addAlpha :: Picture.PixelRGBF -> PixelRGBAF
+  addAlpha (Picture.PixelRGBF r g b) = PixelRGBAF r g b 1
 
-copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> Word32 -> m ()
-copyBufferToImage bag buffer image mipLevel width height = withSingleTimeCommands bag \commandBuffer -> do
+
+copyBufferToImage :: MonadIO m => VulkanResources -> Buffer -> Image -> Word32 -> Word32 -> Word32 -> Word32 -> m ()
+copyBufferToImage bag buffer image mipLevel arrayLayers width height = withSingleTimeCommands bag \commandBuffer -> do
     let region :: BufferImageCopy
         region = zero
           { bufferOffset      = 0
@@ -189,7 +198,7 @@ copyBufferToImage bag buffer image mipLevel width height = withSingleTimeCommand
             { aspectMask     = IMAGE_ASPECT_COLOR_BIT
             , mipLevel       = mipLevel
             , baseArrayLayer = 0
-            , layerCount     = 1
+            , layerCount     = arrayLayers
             }
           , imageOffset = zero
           , imageExtent = Extent3D width height 1
@@ -198,10 +207,10 @@ copyBufferToImage bag buffer image mipLevel width height = withSingleTimeCommand
     cmdCopyBufferToImage commandBuffer buffer image IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
 
 transitionImageLayout :: MonadIO m => Image -> ImageLayout -> ImageLayout -> CommandBuffer -> m ()
-transitionImageLayout image = transitionImageLayoutMips image 1
+transitionImageLayout image = transitionImageLayoutMips image 1 1
 
-transitionImageLayoutMips :: MonadIO m => Image -> Word32 -> ImageLayout -> ImageLayout -> CommandBuffer -> m ()
-transitionImageLayoutMips image mipLevels oldLayout newLayout commandBuffer = do
+transitionImageLayoutMips :: MonadIO m => Image -> Word32 -> Word32 -> ImageLayout -> ImageLayout -> CommandBuffer -> m ()
+transitionImageLayoutMips image mipLevels arrayLayers oldLayout newLayout commandBuffer = do
   let (srcAccessMask, dstAccessMask, sourceStage, destinationStage, aspectMask) = case (oldLayout, newLayout) of
         (IMAGE_LAYOUT_UNDEFINED, IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) ->
           ( zero
@@ -279,7 +288,7 @@ transitionImageLayoutMips image mipLevels oldLayout newLayout commandBuffer = do
         , baseMipLevel   = 0
         , levelCount     = mipLevels
         , baseArrayLayer = 0
-        , layerCount     = 1
+        , layerCount     = arrayLayers
         }
 
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]

@@ -153,6 +153,7 @@ layout (row_major, scalar, set = 0, binding = 0) uniform PostGlobals
 layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
 layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
 layout (set = 1, binding = 1) uniform sampler2D ssao;
+layout (set = 2, binding = 0) uniform samplerCube envMap;
 
 #define PI 3.1415926535
 
@@ -217,8 +218,15 @@ float calcShadow(vec3 viewPos, vec3 worldPos)
 void main()
 {
   float depth = texture(gbuffer[3], inTexCoords).r;
+
+  if (depth + 0.0001 > 1) {
+    vec4 env = texture(envMap, normalize(inWorldRay));
+    outColor = vec4(env.rgb, 1);
+    return;
+  }
+
   depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
-  if (depth + 0.01 > globals.farPlane) discard; // Don't try to light a fragment without geometry
+
   vec3 worldFragmentToCamera  = -normalize(inWorldRay); // Pointing out of surface toward camera
   vec3 viewPos  = inViewRay * (depth / globals.farPlane);
   vec3 worldPos = inWorldRay * (depth / globals.farPlane) + globals.cameraPos;

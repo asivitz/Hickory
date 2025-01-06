@@ -306,6 +306,7 @@ renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedOb
     , lightDirection = sunDirection
     , sunColor = sunLight ^* sunStrength
     , ambientColor = ambientLight ^* ambientStrength
+    , envMap = Nothing
     }
   , overlayGlobals = OverlayGlobals
     { viewMat = ovm
