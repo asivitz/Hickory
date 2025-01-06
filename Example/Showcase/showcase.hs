@@ -120,6 +120,7 @@ mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor camera selectedO
     , lightDirection = sunDirection
     , sunColor       = sunLight ^* sunStrength
     , ambientColor   = ambientLight ^* ambientStrength
+    , envMap         = Nothing
     }
   , overlayGlobals = OverlayGlobals
     { viewMat = overlayViewMat

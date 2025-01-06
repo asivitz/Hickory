@@ -55,6 +55,7 @@ data WorldSettings = WorldSettings
   , lightDirection :: V3 Scalar
   , sunColor       :: V3 Scalar -- HDR
   , ambientColor   :: V3 Scalar -- HDR
+  , envMap         :: Maybe PointedDescriptorSet
   } deriving Generic
 
 data OverlayGlobals = OverlayGlobals
@@ -167,6 +168,8 @@ data Renderer = Renderer
   , singleImageSetLayout     :: DescriptorSetLayout
   , uberImageSetLayout       :: DescriptorSetLayout
   , skinBuffer               :: FramedResource (DataBuffer (M44 Scalar))
+
+  , defaultEnvMapDescriptorSet :: PointedDescriptorSet
   } deriving Generic
 
 -- params: targ, shaders

@@ -78,6 +78,7 @@ import Hickory.Vulkan.Renderer.Decals (withDecalRenderConfig, decalVertShader, d
 import Hickory.Vulkan.Renderer.Direct (lineVertShader)
 import Hickory.Vulkan.Renderer.Direct (pointVertShader)
 import Data.Bool (bool)
+import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
 
 withGBufferMaterialStack
   :: forall uniform
@@ -401,6 +402,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   lineDirectMaterialConfig <- withLineDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
   pointDirectMaterialConfig <- withPointDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
+
+  defaultEnvMapDescriptorSet <- do
+    ds <- withWhiteImageDescriptor vulkanResources
+    withDescriptorSet vulkanResources [ds]
 
   pure Renderer {..}
 
@@ -945,6 +950,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
       -- Sun is a full screen light
       cmdBindMaterial frameContext sunMaterial
       liftIO do
+        cmdBindDrawDescriptorSet commandBuffer sunMaterial (fromMaybe defaultEnvMapDescriptorSet envMap) -- per draw set so that it can be changed at runtime
         cmdPushMaterialConstants commandBuffer sunMaterial 0
         cmdDraw commandBuffer 3 1 0 0
 

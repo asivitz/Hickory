@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..), ImageViewType (..)
+  , Filter (..), SamplerAddressMode (..), Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..), ImageViewType (..), bindings, withDescriptorSetLayout
   )
 import Vulkan.Zero
 import Acquire.Acquire (Acquire)
@@ -39,6 +39,8 @@ import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
 import Hickory.Vulkan.Renderer.Types (debugName)
 import Data.Word (Word32)
+import qualified Data.Vector as V
+import Hickory.Vulkan.DescriptorSet (descriptorSetBindings)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
@@ -105,9 +107,15 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
     }
 
 withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
-withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
-  withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet = do
+  sunPDS <- withDescriptorSetLayout device zero
+      { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
+      } Nothing mkAcquire
+
+  withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just sunPDS)
   where
+  VulkanResources {..} = vulkanResources
+  DeviceContext {..} = deviceContext
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
 $worldGlobalsDef
