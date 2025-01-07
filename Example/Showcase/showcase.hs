@@ -107,7 +107,7 @@ loadResources path vulkanResources = do
     loadFontResource vulkanResources resourcesStore (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
     -- loadResource' resourcesStore.textures "envMap" do
-    --   (.descriptorSet) <$> withTextureDescriptorSet vulkanResources [(path ++ "sky/sky_envmap.hdr", H.hdrCubeMapLoadOptions)]
+    --   (.descriptorSet) <$> withTextureDescriptorSet vulkanResources [(path ++ "sky/sky_env.hdr", H.hdrCubeMapLoadOptions)]
 
   pure resourcesStore
 
@@ -120,6 +120,7 @@ mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor envMap camera se
     , sunColor       = sunLight ^* sunStrength
     , ambientColor   = ambientLight ^* ambientStrength
     , envMap         = envMap
+    , envMapStrength = envMapStrength
     }
   , overlayGlobals = OverlayGlobals
     { viewMat = overlayViewMat
@@ -195,6 +196,7 @@ graphicsParamsDefaults = GraphicsParams {..}
   filmGrain = 0
   ambientLight = V3 1 1 1
   ambientStrength = 0.1
+  envMapStrength = 1
   sunLight = V3 1 1 1
   sunStrength = 1
   sunDirection = V3 0 0.7 (-1)

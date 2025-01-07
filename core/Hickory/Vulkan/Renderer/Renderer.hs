@@ -676,7 +676,6 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         ssaoMask     = bool 0 1 features.ssao
         shadowsMask  = bool 0 1 features.shadows
 
-        padding1 = 0
         padding2 = 0
         padding3 = 0
         padding4 = 0

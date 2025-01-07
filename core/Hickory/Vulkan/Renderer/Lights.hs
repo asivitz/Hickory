@@ -221,7 +221,7 @@ void main()
 
   if (depth + 0.0001 > 1) {
     vec4 env = texture(envMap, normalize(inWorldRay));
-    outColor = vec4(env.rgb, 1);
+    outColor = vec4(env.rgb * globals.envMapStrength, 1);
     return;
   }
 

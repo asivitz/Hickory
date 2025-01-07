@@ -163,6 +163,7 @@ withTextureImage bag shouldGenerateMips shouldFlip options path = do
                          ] :: [FilePath]
           ress <- for allPaths \path' -> do
             bytes <- liftIO $ BS.readFile path'
+
             case Picture.decodeHDR bytes of
               Left s -> error $ printf "Can't decode HDR image at path %s: %s" path' s
               Right dynImage -> case dynImage of

@@ -39,7 +39,7 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     mat4 invViewMat;
     mat4 invProjMat;
     vec3 cameraPos;
-    float padding1;
+    float envMapStrength;
     vec3 lightDirection;
     float padding2;
     vec3 sunColor;

@@ -55,7 +55,6 @@ layout( push_constant, scalar ) uniform constants
 
 layout (set = 1, binding = 0) uniform sampler2D textures[2];
 
-
 // Bring hdr color into ldr range with an artistic curve
 // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
 
@@ -68,36 +67,19 @@ vec3 aces_tonemapping(vec3 x) {
   return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
-/*
-float linearizeDepth(float depth, float nearPlane, float farPlane)
-{
-    return nearPlane * farPlane / (farPlane - depth * (farPlane - nearPlane));
+vec3 filmic_tonemapping(vec3 x) {
+    const float A = 0.22; // shoulder strength
+    const float B = 0.30; // linear strength
+    const float C = 0.10; // linear angle
+    const float D = 0.20; // toe strength
+    const float E = 0.01; // toe numerator
+    const float F = 0.30; // toe denominator
+    const float W = 11.2; // white point
+
+    vec3 num = (x * (A * x + B * C)) + D * E;
+    vec3 den = (x * (A * x + B)) + D * F;
+    return clamp(num / den - E / F, 0.0, 1.0);
 }
-
-float depthVariance(ivec2 tsize)
-{
-    int multiSampleCount = 1; // int(globals.multiSampleCount); Disabling multi sample for now...
-    int totalSamples = 9 * multiSampleCount;
-
-    float targetDepth = linearizeDepth(texelFetch(textures[1], ivec2(texCoordsVarying * tsize), 0).r, globals.nearPlane, globals.farPlane);
-    int numDisagree = 0;
-    float threshold = (globals.farPlane - globals.nearPlane) / 250;
-
-    for (int j = 0; j < 9; j++)
-    {
-      ivec2 offset = ivec2(j % 3 - 1, j / 3 - 1);
-      for (int i = 0; i < multiSampleCount; i++)
-      {
-          float depth = texelFetch(textures[1], ivec2(texCoordsVarying * tsize) + offset, i).r;
-          depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
-          numDisagree += int(abs(depth - targetDepth) > threshold);
-      }
-    }
-
-    float fr = float(numDisagree) / float(totalSamples);
-    return 2 * (0.5 - abs(0.5 - fr));
-}
-*/
 
 void main()
 {
@@ -114,12 +96,8 @@ void main()
   vec3 saturated = grey + PushConstants.saturation * (color.rgb - grey);
 
   // Tonemapping
-  color = aces_tonemapping(saturated);
-
-  // Edge detection -- Disable for now (slow and not needed)
-  //ivec2 tsize = textureSize(depthSampler);
-  //float variance = depthVariance(tsize);
-  //color = mix(color, vec3(0), variance);
+  //color = aces_tonemapping(saturated);
+  color = filmic_tonemapping(saturated);
 
   // Film grain
   float grainIntensity =
