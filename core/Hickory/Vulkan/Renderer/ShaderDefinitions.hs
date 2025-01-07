@@ -41,7 +41,7 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     vec3 cameraPos;
     float envMapStrength;
     vec3 lightDirection;
-    float padding2;
+    float irradianceStrength;
     vec3 sunColor;
     float padding3;
     vec3 ambientColor;

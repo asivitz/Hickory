@@ -60,6 +60,12 @@ descriptorSetBindings specs = zip [0..] specs <&> \(i, spec) -> case spec of
     , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
     , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
     }
+  ImageFileDescriptor _ -> zero
+    { binding         = i
+    , descriptorCount = 1
+    , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+    , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
+    }
   DepthImageDescriptor _ _ -> zero
     { binding         = i
     , descriptorCount = 1
@@ -107,8 +113,22 @@ withDescriptorSet vulkanResources@VulkanResources{..} specs = do
     , setLayouts     = [ descriptorSetLayout ]
     }
 
-  let writes = zip [0..] specs <&> \(i, spec) -> case spec of
-        ImageDescriptor images -> zero
+  writes <- for (zip [0..] specs) \(i, spec) -> case spec of
+        ImageFileDescriptor (path,opts) -> do
+          (ViewableImage _image imageView _format, sampler) <- loadImage vulkanResources path opts
+          pure zero
+            { Writes.dstSet          = descriptorSet
+            , Writes.dstBinding      = i
+            , Writes.dstArrayElement = 0
+            , Writes.descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+            , Writes.descriptorCount = 1
+            , Writes.imageInfo       = [zero
+              { sampler     = sampler
+              , imageView   = imageView
+              , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+              }]
+            }
+        ImageDescriptor images -> pure zero
           { Writes.dstSet          = descriptorSet
           , Writes.dstBinding      = i
           , Writes.dstArrayElement = 0
@@ -120,7 +140,7 @@ withDescriptorSet vulkanResources@VulkanResources{..} specs = do
             , imageLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             }
           }
-        DepthImageDescriptor (ViewableImage _image imageView _format) sampler -> zero
+        DepthImageDescriptor (ViewableImage _image imageView _format) sampler -> pure zero
           { Writes.dstSet          = descriptorSet
           , Writes.dstBinding      = i
           , Writes.dstArrayElement = 0
@@ -132,7 +152,7 @@ withDescriptorSet vulkanResources@VulkanResources{..} specs = do
             , imageLayout = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
             }]
           }
-        BufferDescriptor buffer -> zero
+        BufferDescriptor buffer -> pure zero
           { Writes.dstSet = descriptorSet
           , Writes.dstBinding      = i
           , Writes.dstArrayElement = 0
@@ -151,20 +171,24 @@ data TextureDescriptorSet = TextureDescriptorSet
   , textureNames  :: Vector Text
   } deriving Generic
 
+loadImage bag path options = do
+  (image, mipLevels)   <- withTextureImage bag (isJust options.samplerMipmapMode) True options path
+  sampler <- withImageSamplerMips bag mipLevels options.filter options.samplerAddressMode (fromMaybe SAMPLER_MIPMAP_MODE_LINEAR options.samplerMipmapMode)
+  let viewType = if options.isCubemap then IMAGE_VIEW_TYPE_CUBE else IMAGE_VIEW_TYPE_2D
+      format = (formatForImageType options.fileType)
+      layers = if options.isCubemap then 6 else 1
+
+  imageView <- with2DImageViewMips deviceContext format IMAGE_ASPECT_COLOR_BIT image mipLevels viewType 0 layers
+
+  pure (ViewableImage image imageView format, sampler)
+  where
+  VulkanResources {..} = bag
+
 withTextureDescriptorSet :: VulkanResources -> [(FilePath, TextureLoadOptions)] -> Acquire TextureDescriptorSet
 withTextureDescriptorSet _ [] = error "No textures in descriptor set"
-withTextureDescriptorSet bag@VulkanResources{..} texturePaths = do
+withTextureDescriptorSet bag texturePaths = do
   let textureNames = V.fromList $ pack . view filename . view _1 <$> texturePaths
-  images <- for texturePaths \(path, options) -> do
-    (image, mipLevels)   <- withTextureImage bag (isJust options.samplerMipmapMode) True options path
-    sampler <- withImageSamplerMips bag mipLevels options.filter options.samplerAddressMode (fromMaybe SAMPLER_MIPMAP_MODE_LINEAR options.samplerMipmapMode)
-    let viewType = if options.isCubemap then IMAGE_VIEW_TYPE_CUBE else IMAGE_VIEW_TYPE_2D
-        format = (formatForImageType options.fileType)
-        layers = if options.isCubemap then 6 else 1
-
-    imageView <- with2DImageViewMips deviceContext format IMAGE_ASPECT_COLOR_BIT image mipLevels viewType 0 layers
-
-    pure (ViewableImage image imageView format, sampler)
+  images <- for texturePaths (uncurry $ loadImage bag)
   descriptorSet <- withDescriptorSet bag [ImageDescriptor images]
 
   pure TextureDescriptorSet {..}

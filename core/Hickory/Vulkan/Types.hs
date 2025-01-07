@@ -150,6 +150,7 @@ data PointedDescriptorSet = PointedDescriptorSet
 
 data DescriptorSpec
   = ImageDescriptor [(ViewableImage, Sampler)]
+  | ImageFileDescriptor (FilePath, TextureLoadOptions)
   | DepthImageDescriptor ViewableImage Sampler
   | BufferDescriptor Buffer
 

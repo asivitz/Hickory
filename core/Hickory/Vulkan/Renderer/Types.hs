@@ -57,6 +57,7 @@ data WorldSettings = WorldSettings
   , ambientColor   :: V3 Scalar -- HDR
   , envMap         :: Maybe PointedDescriptorSet
   , envMapStrength :: Scalar
+  , irradianceStrength :: Scalar
   } deriving Generic
 
 data OverlayGlobals = OverlayGlobals
@@ -331,7 +332,7 @@ data WorldGlobals = WorldGlobals
   , camPos         :: V3 Scalar
   , envMapStrength :: Scalar
   , lightDirection :: V3 Scalar
-  , padding2       :: Scalar
+  , irradianceStrength :: Scalar
   , sunColor       :: V3 Scalar -- HDR
   , padding3       :: Scalar
   , ambientColor   :: V3 Scalar -- HDR

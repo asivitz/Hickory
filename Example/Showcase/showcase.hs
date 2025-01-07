@@ -45,7 +45,7 @@ import Linear.V (toV, toVector)
 import Text.Printf (printf)
 import Hickory.Vulkan.Mesh (withBufferedMesh)
 import Data.Fixed (mod')
-import Hickory.Vulkan.DescriptorSet (withTextureDescriptorSet, TextureDescriptorSet(..))
+import Hickory.Vulkan.DescriptorSet (withDescriptorSet, withTextureDescriptorSet, TextureDescriptorSet(..))
 
 pullMeshesFromGltf :: HasCallStack => Gltf -> Text -> V.Vector Mesh
 pullMeshesFromGltf gltf name = fromMaybe V.empty do
@@ -106,8 +106,9 @@ loadResources path vulkanResources = do
     -- generated using https://github.com/Chlumsky/msdf-atlas-gen
     loadFontResource vulkanResources resourcesStore (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
-    -- loadResource' resourcesStore.textures "envMap" do
-    --   (.descriptorSet) <$> withTextureDescriptorSet vulkanResources [(path ++ "sky/sky_env.hdr", H.hdrCubeMapLoadOptions)]
+    loadResource' resourcesStore.textures "envMap" do
+      withDescriptorSet vulkanResources [H.ImageFileDescriptor (path ++ "sky/sky_env.hdr", H.hdrCubeMapLoadOptions)
+                                        ,H.ImageFileDescriptor (path ++ "sky/sky_env.hdr", H.hdrCubeMapLoadOptions)]
 
   pure resourcesStore
 
@@ -121,6 +122,7 @@ mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor envMap camera se
     , ambientColor   = ambientLight ^* ambientStrength
     , envMap         = envMap
     , envMapStrength = envMapStrength
+    , irradianceStrength = irradianceStrength
     }
   , overlayGlobals = OverlayGlobals
     { viewMat = overlayViewMat
@@ -197,6 +199,7 @@ graphicsParamsDefaults = GraphicsParams {..}
   ambientLight = V3 1 1 1
   ambientStrength = 0.1
   envMapStrength = 1
+  irradianceStrength = 1
   sunLight = V3 1 1 1
   sunStrength = 1
   sunDirection = V3 0 0.7 (-1)

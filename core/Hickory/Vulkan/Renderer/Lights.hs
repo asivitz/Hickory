@@ -109,7 +109,7 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
 withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet = do
   sunPDS <- withDescriptorSetLayout device zero
-      { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
+      { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"], ImageDescriptor [error "Dummy image"]]
       } Nothing mkAcquire
 
   withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just sunPDS)
@@ -154,6 +154,7 @@ layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
 layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
 layout (set = 1, binding = 1) uniform sampler2D ssao;
 layout (set = 2, binding = 0) uniform samplerCube envMap;
+layout (set = 2, binding = 1) uniform samplerCube irradianceMap;
 
 #define PI 3.1415926535
 
@@ -284,9 +285,15 @@ void main()
   vec3 light = surfaceColor * globals.sunColor * nDotL;
 
   float ao = texture(ssao, inTexCoords).r;
+
+  // ambient
+  vec3 ambientkS = f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - nDotV, 0.0, 1.0), 5.0);
+  vec3 ambientkD = 1.0 - ambientkS;
+  vec3 irradiance = texture(irradianceMap, worldNormal).rgb;
+
   vec3 combined
     = mix(1, shadow, globals.shadowsMask) * light
-    + mix(1, ao, globals.ssaoMask) * albedo.rgb * globals.ambientColor * min(albedo.a, 1);
+    + mix(1, ao, globals.ssaoMask) * albedo.rgb * globals.irradianceStrength * (ambientkD * irradiance) * min(albedo.a, 1);
   outColor = vec4(combined, 1);
 }
 |])

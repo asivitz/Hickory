@@ -34,6 +34,7 @@ data PostEditorState = PostEditorState
   , ambientLightRef    :: IORef ImVec3
   , ambientStrengthRef :: IORef Scalar
   , envMapStrengthRef  :: IORef Scalar
+  , irradianceStrengthRef  :: IORef Scalar
   , sunLightRef        :: IORef ImVec3
   , sunStrengthRef     :: IORef Scalar
   , sunDirectionRef    :: IORef (Float, Float, Float)
@@ -54,6 +55,7 @@ data GraphicsParams = GraphicsParams
   , ambientLight    :: V3 Scalar
   , ambientStrength :: Scalar
   , envMapStrength  :: Scalar
+  , irradianceStrength :: Scalar
   , sunLight        :: V3 Scalar
   , sunStrength     :: Scalar
   , sunDirection    :: V3 Scalar
@@ -72,6 +74,7 @@ defaultGraphicsParams = GraphicsParams
     , ambientLight    = V3 1 1 1
     , ambientStrength = 1
     , envMapStrength  = 1
+    , irradianceStrength  = 1
     , sunLight        = V3 1 1 1
     , sunStrength     = 1
     , sunDirection    = V3 (-1) (-1) (-6)
@@ -96,6 +99,7 @@ readGraphicsParams PostEditorState {..} =
     <*> (imVec3ToV3 <$> readIORef ambientLightRef)
     <*> readIORef ambientStrengthRef
     <*> readIORef envMapStrengthRef
+    <*> readIORef irradianceStrengthRef
     <*> (imVec3ToV3 <$> readIORef sunLightRef)
     <*> readIORef sunStrengthRef
     <*> (tripleToV3 <$> readIORef sunDirectionRef)
@@ -119,6 +123,7 @@ mkPostEditorState GraphicsParams {..} = do
   ambientLightRef    <- newIORef (v3ToImVec3 ambientLight)
   ambientStrengthRef <- newIORef ambientStrength
   envMapStrengthRef  <- newIORef envMapStrength
+  irradianceStrengthRef  <- newIORef irradianceStrength
   sunLightRef        <- newIORef (v3ToImVec3 sunLight)
   sunStrengthRef     <- newIORef sunStrength
   sunDirectionRef    <- newIORef (v3ToTriple sunDirection)
@@ -150,6 +155,7 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
     void $ colorEdit3 "Ambient Light" ambientLightRef
     void $ dragFloat "Ambient Strength" ambientStrengthRef 0.1 0 10
     void $ dragFloat "Env Map Strength" envMapStrengthRef 0.1 0 10
+    void $ dragFloat "Irradiance Strength" irradianceStrengthRef 0.1 0 10
     void $ colorEdit3 "Sun Light" sunLightRef
     void $ dragFloat "Sun Strength" sunStrengthRef 0.1 0 10
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100

@@ -404,8 +404,9 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   pointDirectMaterialConfig <- withPointDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
 
   defaultEnvMapDescriptorSet <- do
-    ds <- withWhiteImageDescriptor vulkanResources
-    withDescriptorSet vulkanResources [ds]
+    ds1 <- withWhiteImageDescriptor vulkanResources
+    ds2 <- withWhiteImageDescriptor vulkanResources
+    withDescriptorSet vulkanResources [ds1, ds2]
 
   pure Renderer {..}
 
@@ -676,7 +677,6 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
         ssaoMask     = bool 0 1 features.ssao
         shadowsMask  = bool 0 1 features.shadows
 
-        padding2 = 0
         padding3 = 0
         padding4 = 0
         worldGlobals = WorldGlobals { camPos = cameraPos camera, multiSampleCount = fromIntegral multiSampleCount, ..}
