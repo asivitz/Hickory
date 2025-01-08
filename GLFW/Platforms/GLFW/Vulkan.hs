@@ -20,7 +20,7 @@ import qualified Data.ByteString as B
 import Hickory.Types (Size (..))
 import Hickory.Vulkan.Utils (buildFrameFunction, initVulkan)
 import Control.Monad.Fix (fix)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import Platforms.GLFW.DearImGui (initDearImGuiForGLFW)
 import Hickory.Vulkan.Types (VulkanResources, FrameContext, Swapchain, runCleanup)

@@ -10,7 +10,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.Vector.Storable as SV
 import Control.Exception (bracket)
 import Data.Maybe (mapMaybe)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources(..), Mesh, indices)
 
 data DynamicBufferedMesh = DynamicBufferedMesh

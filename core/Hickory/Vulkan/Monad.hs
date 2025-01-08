@@ -38,7 +38,7 @@ import Vulkan
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import qualified Data.ByteString as B
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
 import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderConfig (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))

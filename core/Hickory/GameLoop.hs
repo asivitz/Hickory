@@ -17,7 +17,7 @@ import Control.Monad (forever)
 import Data.Time (NominalDiffTime)
 import Hickory.Vulkan.Renderer.Types ( RenderFunction, Scene )
 import Control.Concurrent (threadDelay)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 
 newGameStateStack :: a -> S.Seq a
 newGameStateStack = S.singleton

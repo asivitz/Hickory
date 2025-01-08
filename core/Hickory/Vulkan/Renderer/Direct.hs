@@ -26,13 +26,13 @@ import Vulkan
   , Filter (..), SamplerAddressMode (..), Framebuffer, SamplerMipmapMode (..), depthTestEnable, PrimitiveTopology (..)
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withImageSampler)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.Material (PipelineOptions (..), defaultBlend, pipelineDefaults)
-import Hickory.Vulkan.RenderPass (createFramebuffer)
+import Hickory.Vulkan.RenderPass (createFramebuffer, renderConfigRenderPass)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
@@ -47,7 +47,7 @@ hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
 withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
-withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } RenderConfig {..} colorImage depthImage = do
+withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } rc@RenderConfig {..} colorImage depthImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
@@ -56,7 +56,7 @@ withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceCo
         [ (colorImage,sampler)
         , (depthImage,sampler)
         ]
-  (,descriptorSpec) <$> createFramebuffer device renderPass extent [colorImageView, depthImageView]
+  (,descriptorSpec) <$> createFramebuffer device (renderConfigRenderPass rc) extent [colorImageView, depthImageView]
 
 withDirectRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
 withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
@@ -67,6 +67,7 @@ withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swa
     } Nothing mkAcquire
 
   let samples = SAMPLE_COUNT_1_BIT
+      renderPassInfo = Left renderPass
   pure RenderConfig {..}
   where
   hdrAttachmentDescription :: AttachmentDescription

@@ -41,7 +41,7 @@ import Vulkan
   , RenderPass, CullModeFlagBits (..)
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import qualified Data.Vector as V
 import Data.Generics.Labels ()
 import Data.Traversable (for)
@@ -50,8 +50,16 @@ import Hickory.Vulkan.Types
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource)
 import Data.Word (Word32)
 
+renderConfigRenderPass :: RenderConfig -> RenderPass
+renderConfigRenderPass RenderConfig {..} = case renderPassInfo of
+  Left rp -> rp
+  Right _ -> error "Trying to get a render pass from a dynamic rendering render config"
+
 withSwapchainFramebuffers :: VulkanResources -> Swapchain -> RenderConfig -> Acquire (FramedResource Framebuffer)
 withSwapchainFramebuffers VulkanResources { deviceContext = DeviceContext{..} } sc RenderConfig {..} = do
+  let renderPass = case renderPassInfo of
+        Left rp -> rp
+        Right _ -> error "Trying to use a dynamic render render config to make a framebuffer"
   for sc.images \(ViewableImage _img imgView _format) ->
     createFramebuffer device renderPass extent [imgView]
 
@@ -65,6 +73,7 @@ withSwapchainRenderConfig VulkanResources { deviceContext = DeviceContext{..} } 
 
   let cullModeOverride = Nothing
       samples = SAMPLE_COUNT_1_BIT
+      renderPassInfo = Left renderPass
 
   pure RenderConfig {..}
   where
@@ -116,7 +125,9 @@ useRenderConfig :: (MonadIO io) => RenderConfig -> Vulkan.CommandBuffer -> V.Vec
 useRenderConfig RenderConfig {..} commandBuffer clearValues swapchainImageIndex frameBuffers f = do
   let
       renderPassBeginInfo = zero
-        { renderPass  = renderPass
+        { renderPass  = case renderPassInfo of
+          Left renderPass -> renderPass
+          Right _ -> error "Trying to use dynamic rendering render config in a render pass"
         , framebuffer = resourceForFrame swapchainImageIndex frameBuffers
         , renderArea  = Rect2D { offset = zero , extent = extent }
         , clearValues = clearValues

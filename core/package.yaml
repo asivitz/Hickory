@@ -11,6 +11,7 @@ copyright:           2017 Axis Sivitz
 
 ghc-options:
     - -Wall
+    - -Werror=incomplete-patterns
 
 extra-source-files:
     - Readme.md
@@ -159,6 +160,7 @@ library:
     - Hickory.Vulkan.Renderer.DrawingPrimitives
     - Hickory.Vulkan.Renderer.ShaderDefinitions
     - Hickory.Vulkan.Renderer.Stats
+    - Hickory.Vulkan.Renderer.Environment
     - Hickory.Vulkan.Types
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI

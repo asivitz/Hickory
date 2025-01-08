@@ -32,7 +32,7 @@ import Foreign (poke)
 import Foreign.Storable.Generic (GStorable)
 import GHC.Generics (Generic)
 import Control.Lens (view)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 
 data Resources = Resources
   { square              :: H.BufferedMesh

@@ -2,7 +2,7 @@
 
 module Hickory.Vulkan.StockMesh where
 
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import qualified Data.Vector.Storable as SV
 import Hickory.Vulkan.Mesh (withBufferedMesh)
 import Data.Word (Word32)

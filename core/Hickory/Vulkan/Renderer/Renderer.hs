@@ -7,7 +7,7 @@ module Hickory.Vulkan.Renderer.Renderer where
 
 import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), DecalConstants, debugName, Features(..))
 import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
 import Linear (V4 (..), V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon, (^*))
 import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
@@ -17,7 +17,7 @@ import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, msdfVertShader, msdfFragShader)
 import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader, withAlbedoViewableImage, withNormalViewableImage, withObjIDViewableImage, withMaterialViewableImage)
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, whiteFragShader, withShadowMap)
-import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer)
+import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer, renderConfigRenderPass)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
 import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), CullModeFlagBits (..), PrimitiveTopology (..), cmdBindDescriptorSets, PipelineBindPoint (..), ImageViewType (..))
 import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.), Bits (..))
@@ -290,13 +290,13 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
   gbufferRenderFrame    <- for (packAttachments [albedoViewableImage, normalViewableImage, materialViewableImage, objIDViewableImage, depthViewableImage]) $
-    createFramebuffer vulkanResources.deviceContext.device gbufferRenderConfig.renderPass gbufferRenderConfig.extent
+    createFramebuffer vulkanResources.deviceContext.device (renderConfigRenderPass gbufferRenderConfig) gbufferRenderConfig.extent
   for_ gbufferRenderFrame $ \fb -> debugName vulkanResources fb "GBufferFrameBuffer"
 
 
   decalRenderConfig     <- withDecalRenderConfig vulkanResources swapchain
   decalRenderFrame      <- for (packAttachments [albedoViewableImage, normalViewableImage, materialViewableImage]) $
-    createFramebuffer vulkanResources.deviceContext.device decalRenderConfig.renderPass decalRenderConfig.extent
+    createFramebuffer vulkanResources.deviceContext.device (renderConfigRenderPass decalRenderConfig) decalRenderConfig.extent
   for_ decalRenderFrame $ \fb -> debugName vulkanResources fb "DecalFrameBuffer"
 
   ssaoRenderConfig      <- withSSAORenderConfig vulkanResources swapchain

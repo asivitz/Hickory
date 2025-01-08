@@ -1,7 +1,7 @@
 module Hickory.Vulkan.StockTexture where
 import qualified Data.Vector.Storable as SV
 import Hickory.Vulkan.Types (VulkanResources (..), DescriptorSpec (..), ViewableImage (..))
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Vulkan (SamplerAddressMode (..), Filter (..), ImageAspectFlagBits (..), Format (..), SamplerMipmapMode (..), ImageViewType (..))
 import Hickory.Vulkan.Textures (withImageFromArray, withImageSampler)
 import Hickory.Vulkan.Vulkan (with2DImageView)

@@ -8,7 +8,7 @@ import Platforms.GLFW.Bridge (glfwFrameBuilder, getWindowSizeRef)
 import Data.Time (NominalDiffTime)
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import Hickory.Vulkan.Renderer.Types (Scene)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.GameLoop (gameLoop)
 import Data.IORef (readIORef)
 

@@ -363,6 +363,9 @@ worldSettingsDefaults = WorldSettings {..}
   lightDirection = V3 1 1 1
   sunColor = V3 1 1 1
   ambientColor = V3 1 1 1
+  envMapStrength = 1
+  envMap = Nothing
+  irradianceStrength = 0.2
 
 -- Monad
 

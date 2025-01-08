@@ -7,7 +7,7 @@
 
 module Hickory.Vulkan.Text where
 
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
 import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)

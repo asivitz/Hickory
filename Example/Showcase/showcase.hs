@@ -10,9 +10,9 @@ import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
 import Hickory.Math (mkTranslation, mkScale, viewTarget, Scalar, mkRotation)
 import Hickory.Types
-import Linear ( V2(..), V3(..), V4(..), (!*!), transpose, _m33, inv33, identity, (^*), liftI2)
-import Acquire.Acquire (Acquire)
-import Control.Lens ((^.), filtered, (^?), each, runIdentity)
+import Linear ( V2(..), V3(..), V4(..), (!*!), transpose, _m33, inv33, identity, (^*), liftI2, (!*))
+import Acquire (Acquire)
+import Control.Lens ((^.), filtered, (^?), each, runIdentity, view)
 import Foreign (poke)
 import Control.Monad (void, when, join)
 import Hickory.FRP.Editor (mkPostEditorState, readGraphicsParams, drawPostUI, GraphicsParams (..))
@@ -46,6 +46,8 @@ import Text.Printf (printf)
 import Hickory.Vulkan.Mesh (withBufferedMesh)
 import Data.Fixed (mod')
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, withTextureDescriptorSet, TextureDescriptorSet(..))
+import Vulkan (Extent2D(..))
+import Hickory.Vulkan.Renderer.Environment (renderEnvironmentMap, renderIrradianceMap)
 
 pullMeshesFromGltf :: HasCallStack => Gltf -> Text -> V.Vector Mesh
 pullMeshesFromGltf gltf name = fromMaybe V.empty do
@@ -106,9 +108,12 @@ loadResources path vulkanResources = do
     -- generated using https://github.com/Chlumsky/msdf-atlas-gen
     loadFontResource vulkanResources resourcesStore (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
+  envDesSpec <- renderEnvironmentMap vulkanResources (Extent2D 512 512) (path ++ "sky/uv.hdr")
+  irrDesSpec <- renderIrradianceMap vulkanResources (Extent2D 32 32) envDesSpec
+
+  liftIO do
     loadResource' resourcesStore.textures "envMap" do
-      withDescriptorSet vulkanResources [H.ImageFileDescriptor (path ++ "sky/sky_env.hdr", H.hdrCubeMapLoadOptions)
-                                        ,H.ImageFileDescriptor (path ++ "sky/sky_env.hdr", H.hdrCubeMapLoadOptions)]
+      withDescriptorSet vulkanResources [envDesSpec, irrDesSpec]
 
   pure resourcesStore
 
@@ -147,7 +152,8 @@ renderGame graphicsParams res t scrSize@(Size _ _h) (renderer, frameContext)
   = void $ H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
   envMap = runIdentity . runResources res $ getTextureMay "envMap"
-  camera = Camera (V3 0 0 0) (V3 0 7 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
+  -- camera = Camera (V3 0 0 0) (V3 1 0 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
+  camera = Camera (V3 0 0 0) (view _m33 (mkRotation (V3 0 0 1) (t/2)) !* V3 7 0 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
   renderSettings = mkRenderSettings scrSize graphicsParams black envMap camera []
   litF = runResources res do
     mesh <- getMesh "bunny"
@@ -160,7 +166,8 @@ renderGame graphicsParams res t scrSize@(Size _ _h) (renderer, frameContext)
         -- x = (frac - 0.5) * sceneWidth
         pos = V3 0 0 (-2)
 
-    let mat = mkTranslation pos !*! mkRotation (V3 0 0 1) (t/2) !*! mkScale (V3 itemScale itemScale itemScale)
+    let mat = mkTranslation pos !*!  mkScale (V3 itemScale itemScale itemScale)
+    -- let mat = mkTranslation pos !*! mkRotation (V3 0 0 1) (t/2) !*! mkScale (V3 itemScale itemScale itemScale)
     H.addCommand $ DrawCommand
       { instances = [("", [(0,mat)])]
       , mesh = H.Buffered mesh

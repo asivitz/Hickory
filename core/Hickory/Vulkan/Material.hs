@@ -30,7 +30,7 @@ import Vulkan
   , PipelineVertexInputStateCreateInfo(..), VertexInputBindingDescription, VertexInputAttributeDescription
   , BlendOp (..), BlendFactor (..)
   , PipelineDepthStencilStateCreateInfo(..)
-  , CompareOp (..), RenderPass, DescriptorSetLayout
+  , CompareOp (..), RenderPass, DescriptorSetLayout, PipelineRenderingCreateInfo
   )
 import Hickory.Vulkan.Vulkan (mkAcquire, mkAcquire, createVertShader, createFragShader)
 import Data.Vector as V
@@ -41,7 +41,7 @@ import Control.Lens (view, set)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderConfig (..), VulkanResources (..), Attribute, DeviceContext (..), FrameContext (..))
 import Data.Maybe (isJust, fromMaybe)
@@ -79,11 +79,10 @@ withMaterial
       , setLayouts = V.fromList $ (view #descriptorSetLayout . resourceForFrame (0 :: Word32)
                                <$> descriptorSets) Prelude.++ maybe [] pure perDrawDescriptorSetLayout
       }
-    (globalDescriptorSet : materialDescriptorSet : _) = descriptorSets
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
   pipeline <-
-    withGraphicsPipeline bag renderPass 0 samples extent pipelineOptions cullMode vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+    withGraphicsPipeline bag renderPassInfo 0 samples extent pipelineOptions cullMode vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
@@ -101,7 +100,7 @@ cmdBindMaterial FrameContext {..} Material {..} = do
   cmdBindPipeline commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipeline
   cmdBindDescriptorSets commandBuffer PIPELINE_BIND_POINT_GRAPHICS pipelineLayout 0 sets []
   where
-  sets = fmap (view #descriptorSet . resourceForFrame swapchainImageIndex) [globalDescriptorSet, materialDescriptorSet]
+  sets = V.fromList $ fmap (view #descriptorSet . resourceForFrame swapchainImageIndex) descriptorSets
 
 {- GRAPHICS PIPELINE -}
 
@@ -125,7 +124,8 @@ pipelineDefaults colorBlends = PipelineOptions {..}
 
 withGraphicsPipeline
   :: VulkanResources
-  -> RenderPass
+  -- Left for traditional renderpass, right for dynamic rendering
+  -> Either RenderPass PipelineRenderingCreateInfo
   -> Word32
   -> SampleCountFlagBits
   -> Extent2D
@@ -138,15 +138,15 @@ withGraphicsPipeline
   -> V.Vector VertexInputAttributeDescription
   -> Acquire Pipeline
 withGraphicsPipeline
-  VulkanResources {..} renderPass subpassIndex samples extent
+  VulkanResources {..} renderPassInfo subpassIndex samples extent
   pipelineOptions cullMode vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
   shaderStages   <- V.sequence [ createVertShader device vertShader, createFragShader device fragShader ]
 
   let
-    pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
-    pipelineCreateInfo = zero
+    -- pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
+    pipelineCreateInfoBase = zero
       { stages             = shaderStages
       , vertexInputState   = Just . SomeStruct $ zero
         { vertexBindingDescriptions   = vertexBindingDescriptions
@@ -197,10 +197,14 @@ withGraphicsPipeline
       , layout             = pipelineLayout
       , subpass            = subpassIndex
       , basePipelineHandle = zero
-      , renderPass
       }
+
+    createInfo = case renderPassInfo of
+      Left renderPass -> SomeStruct $ pipelineCreateInfoBase { renderPass = renderPass }
+      Right prci      -> SomeStruct $ (pipelineCreateInfoBase { next = (prci, ()) } :: GraphicsPipelineCreateInfo '[PipelineRenderingCreateInfo])
+
   V.head . snd
-    <$> withGraphicsPipelines device zero [SomeStruct pipelineCreateInfo] Nothing mkAcquire
+    <$> withGraphicsPipelines device zero [createInfo] Nothing mkAcquire
 
 defaultBlend :: PipelineColorBlendAttachmentState
 defaultBlend = zero

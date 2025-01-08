@@ -15,7 +15,7 @@ import Vulkan
   , AttachmentDescription(..), SubpassDescription(..), SubpassDependency(..), AttachmentReference(..)
   , RenderPassCreateInfo(..), AttachmentLoadOp (..), AttachmentStoreOp (..), ImageLayout (..), PipelineBindPoint (..), Format, pattern SUBPASS_EXTERNAL, PipelineStageFlagBits (..), AccessFlagBits (..), withRenderPass, SurfaceFormatKHR(SurfaceFormatKHR), RenderPass, Rect2D (..), ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (SUBPASS_CONTENTS_INLINE), Framebuffer
   )
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import DearImGui (createContext, destroyContext, render, getDrawData, newFrame)
 import DearImGui.Vulkan (vulkanInit, vulkanShutdown, vulkanCreateFontsTexture, vulkanDestroyFontUploadObjects, vulkanNewFrame, vulkanRenderDrawData)

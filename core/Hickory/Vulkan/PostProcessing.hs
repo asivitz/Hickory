@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.PostProcessing where
 
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Material (withMaterial, pipelineDefaults, defaultBlend)
 import Hickory.Vulkan.Framing (FramedResource)

@@ -26,7 +26,7 @@ import Vulkan
 
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Types
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
@@ -45,6 +45,7 @@ withDecalRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swap
     } Nothing mkAcquire
 
   let samples = SAMPLE_COUNT_1_BIT
+      renderPassInfo = Left renderPass
   pure RenderConfig {..}
   where
   albedoAttachmentDescription :: AttachmentDescription

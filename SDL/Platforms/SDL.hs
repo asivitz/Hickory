@@ -25,7 +25,7 @@ import qualified SDL.Raw as SDLRaw
 import qualified Data.Vector as V
 import Data.Foldable (traverse_, for_, foldl')
 import SDL (WindowConfig(..), ControllerButtonEventData(..))
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
 import Vulkan (Instance, SurfaceKHR(..), instanceHandle)
 import Data.Text (pack)

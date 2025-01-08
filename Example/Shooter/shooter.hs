@@ -18,7 +18,7 @@ import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (
 import Hickory.Types
 import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero, transpose, _m33, inv33)
 import Linear.Metric
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Control.Lens ((^.))
 import Foreign (poke)
 import Control.Monad (void)

@@ -2,7 +2,7 @@
 
 module Platforms.GLFW.DearImGui where
 
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Control.Monad (void)
 import DearImGui.GLFW (glfwShutdown)
 import DearImGui.GLFW.Vulkan (glfwInitForVulkan)

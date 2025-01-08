@@ -22,24 +22,20 @@ import Vulkan
   , PipelineStageFlagBits (..)
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
-  , CullModeFlagBits (..), ImageUsageFlagBits (..), Extent2D (..), Sampler, Framebuffer, ImageViewType (..)
+  , ImageUsageFlagBits (..), Extent2D (..), Framebuffer, ImageViewType (..)
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withShadowSampler)
 import Data.Bits ((.|.))
-import Hickory.Vulkan.Material (pipelineDefaults, depthClampEnable)
 import Hickory.Vulkan.Types
-import Hickory.Vulkan.RenderPass (createFramebuffer)
-import Hickory.Vulkan.Monad (BufferedUniformMaterial, withBufferedUniformMaterial)
+import Hickory.Vulkan.RenderPass (createFramebuffer, renderConfigRenderPass)
 import Data.ByteString (ByteString)
-import Hickory.Vulkan.Renderer.Types (AnimatedConstants, StaticConstants, ShadowPushConsts)
 import Hickory.Types (Size(..))
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Hickory.Vulkan.Framing (FramedResource, frameResource)
 import qualified Data.Vector.Sized as VS
 import Data.Finite (getFinite)
 
@@ -53,7 +49,7 @@ shadowMapSize :: Size Int
 shadowMapSize = Size 2048 2048
 
 withShadowMap :: VulkanResources -> RenderConfig -> Acquire (VS.Vector MaxShadowCascadesNat(Framebuffer, DescriptorSpec), DescriptorSpec)
-withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
+withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } rc = do
   sampler <- withShadowSampler vulkanResources
   -- Shadowmap depth texture
   shadowmapImageRaw  <- withDepthImage vulkanResources shadowDim depthFormat SAMPLE_COUNT_1_BIT (IMAGE_USAGE_SAMPLED_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) maxShadowCascades
@@ -66,19 +62,20 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
     let cascadeImage = ViewableImage shadowmapImageRaw cascadeImageView depthFormat
     let descriptorSpec = DepthImageDescriptor cascadeImage sampler
 
-    (,descriptorSpec) <$> createFramebuffer device renderPass shadowDim [cascadeImageView]
+    (,descriptorSpec) <$> createFramebuffer device (renderConfigRenderPass rc) shadowDim [cascadeImageView]
   pure (cascades, shadowmapDescriptorSpec)
 
 withShadowRenderConfig :: VulkanResources -> Acquire RenderConfig
 withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do
-  let extent = shadowDim
-      samples = SAMPLE_COUNT_1_BIT
-
   renderPass <- withRenderPass device zero
     { attachments  = [shadowmapAttachmentDescription]
     , subpasses    = [shadowSubpass]
     , dependencies = [shadowDependency]
     } Nothing mkAcquire
+
+  let extent = shadowDim
+      samples = SAMPLE_COUNT_1_BIT
+      renderPassInfo = Left renderPass
 
   pure RenderConfig {..}
   where

@@ -13,7 +13,7 @@ module Hickory.Resources where
 import qualified Data.HashMap.Strict as Map
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import Data.IORef (IORef, readIORef, newIORef, modifyIORef', atomicModifyIORef')
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
 import Control.Monad (unless, join, (<=<))
 import Control.Lens (view, (^.))

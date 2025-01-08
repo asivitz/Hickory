@@ -26,12 +26,12 @@ import Vulkan
   , Filter (..), SamplerAddressMode (..), Framebuffer, Extent2D, CullModeFlagBits (..), SamplerMipmapMode (..), ImageViewType (..), bindings, withDescriptorSetLayout
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
-import Hickory.Vulkan.RenderPass (createFramebuffer)
+import Hickory.Vulkan.RenderPass (createFramebuffer, renderConfigRenderPass)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
@@ -52,13 +52,13 @@ withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceC
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
-withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } RenderConfig {..} colorImage = do
+withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } rc@RenderConfig {..} colorImage = do
   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   let ViewableImage _ colorImageView _ = colorImage
 
   let descriptorSpec = ImageDescriptor [(colorImage,sampler)]
-  fb <- createFramebuffer device renderPass extent [colorImageView]
+  fb <- createFramebuffer device (renderConfigRenderPass rc) extent [colorImageView]
   debugName vulkanResources fb "LightingFrameBuffer"
   pure (fb, descriptorSpec)
 
@@ -73,6 +73,7 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
   debugName vulkanResources renderPass "LightingRenderPass"
 
   let samples = SAMPLE_COUNT_1_BIT
+      renderPassInfo = Left renderPass
   pure RenderConfig {..}
   where
   hdrAttachmentDescription :: AttachmentDescription

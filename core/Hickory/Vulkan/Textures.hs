@@ -21,7 +21,7 @@ import VulkanMemoryAllocator (withMappedMemory, withImage, AllocationCreateInfo(
 import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..), TextureLoadOptions(..), ImageType (..), formatForImageType)
 import Data.Foldable (for_)
 import Vulkan.Utils.Misc ((.&&.))

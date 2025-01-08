@@ -15,7 +15,7 @@ import Vulkan.Zero
 import qualified Data.Vector as V
 import qualified Data.ByteString as B
 import Hickory.Vulkan.Vulkan (mkAcquire)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.List as DL
 import Data.Foldable (for_)

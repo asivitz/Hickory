@@ -26,7 +26,7 @@ import Vulkan
   , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..), ImageViewType (..)
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withTextureImage, withImageSamplerMips)
 import Data.Bits ((.|.))
@@ -90,6 +90,7 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
 
   let cullModeOverride = Nothing
       samples = SAMPLE_COUNT_1_BIT
+      renderPassInfo = Left renderPass
   pure RenderConfig {..}
   where
   albedoAttachmentDescription :: AttachmentDescription

@@ -24,7 +24,7 @@ import Vulkan
   , CullModeFlagBits (..), Extent2D, ImageUsageFlagBits (..), ImageAspectFlagBits (..), ImageViewType (..)
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
@@ -54,6 +54,7 @@ withSSAORenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapc
     } Nothing mkAcquire
 
   let samples = SAMPLE_COUNT_1_BIT
+      renderPassInfo = Left renderPass
   pure RenderConfig {..}
   where
   hdrAttachmentDescription :: AttachmentDescription

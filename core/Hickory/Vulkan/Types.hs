@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Types where
 
-import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format (..), PhysicalDeviceProperties, Filter (..), SamplerAddressMode (..), SamplerMipmapMode)
+import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format (..), PhysicalDeviceProperties, Filter (..), SamplerAddressMode (..), SamplerMipmapMode, PipelineRenderingCreateInfo)
 import qualified Data.Vector as V
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
@@ -13,7 +13,7 @@ import VulkanMemoryAllocator (Allocation, Allocator)
 import Linear (V3 (..))
 import Foreign.Storable.Generic (GStorable)
 import GHC.Word (Word32)
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import qualified Data.Vector.Storable as SV
 import Data.Text (Text)
 import Data.IORef (IORef, atomicModifyIORef')
@@ -124,20 +124,21 @@ data FrameInOut = FrameInOut
   }
 
 data RenderConfig = RenderConfig
-  { renderPass      :: RenderPass
+  -- Left for traditional renderpass, right for dynamic rendering
+  { renderPassInfo  :: Either RenderPass PipelineRenderingCreateInfo
   , extent          :: Extent2D
   , samples         :: SampleCountFlagBits
   } deriving Generic
 
 data Material a = Material
-  { pipelineLayout         :: PipelineLayout
-  , materialDescriptorSet  :: FramedResource PointedDescriptorSet -- Bound along with the material
-  , uuid                   :: UUID
-  , attributes             :: [Attribute]
+  { pipelineLayout          :: PipelineLayout
+  , uuid                    :: UUID
+  , attributes              :: [Attribute]
+  -- This is likely [globalSet, materialSet]
   -- We rebind this global set along with the material, b/c if the push
   -- constant range doesn't match between materials, this can get unbound :(
-  , globalDescriptorSet    :: FramedResource PointedDescriptorSet
-  , pipeline               :: Pipeline
+  , descriptorSets          :: [FramedResource PointedDescriptorSet]
+  , pipeline                :: Pipeline
   , hasPerDrawDescriptorSet :: Bool
   } deriving Generic
 

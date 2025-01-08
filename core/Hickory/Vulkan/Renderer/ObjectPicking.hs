@@ -25,13 +25,13 @@ import Vulkan
   , Filter (..), SamplerAddressMode (..), CullModeFlagBits (..), ImageUsageFlagBits (..), Framebuffer, SamplerMipmapMode (..), ImageViewType (..)
   )
 import Vulkan.Zero
-import Acquire.Acquire (Acquire)
+import Acquire (Acquire)
 import Data.Generics.Labels ()
 import Hickory.Vulkan.Textures (withIntermediateImage, withImageSampler)
 import Data.Bits (zeroBits, Bits ((.|.)))
 import Hickory.Vulkan.Material (pipelineDefaults, PipelineOptions(..), withMaterial, defaultBlend)
 import Hickory.Vulkan.Types
-import Hickory.Vulkan.RenderPass (createFramebuffer)
+import Hickory.Vulkan.RenderPass (createFramebuffer, renderConfigRenderPass)
 import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)
 import Linear (M44)
@@ -43,7 +43,7 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 
 withObjectIDFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, DescriptorSpec)
-withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } RenderConfig {..} = do
+withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } rc@RenderConfig {..} = do
   sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits 1
@@ -54,7 +54,8 @@ withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = device
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
 
   let descriptorSpec = ImageDescriptor [(objIDImage,sampler)]
-  (,descriptorSpec) <$> createFramebuffer device renderPass extent [depthImageView, objIDImageView]
+
+  (,descriptorSpec) <$> createFramebuffer device (renderConfigRenderPass rc) extent [depthImageView, objIDImageView]
 
 objIDFormat :: Format
 objIDFormat = FORMAT_R16_UINT
@@ -72,6 +73,7 @@ withObjectIDRenderConfig vulkanResources@VulkanResources { deviceContext = devic
     } Nothing mkAcquire
 
   let cullModeOverride = Nothing
+      renderPassInfo = Left renderPass
 
   pure RenderConfig {..}
   where
