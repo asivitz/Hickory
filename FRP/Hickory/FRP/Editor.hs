@@ -1,5 +1,6 @@
 module Hickory.FRP.Editor
   ( editorScene
+  , editorLayer
   , mkPostEditorState
   , readGraphicsParams
   , drawPostUI

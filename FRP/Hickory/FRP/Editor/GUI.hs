@@ -6,7 +6,6 @@
 
 module Hickory.FRP.Editor.GUI where
 
-import qualified Reactive.Banana.Frameworks as B
 import qualified Data.HashMap.Strict as Map
 import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2, pattern ImGuiTreeNodeFlags_Leaf)
 import Hickory.ImGUI.Helpers (myWithWindow, v3ToTriple, tripleToV3, v2ToTuple, tupleToV2, imVec4ToV4, v4ToImVec4)
@@ -32,7 +31,7 @@ import Text.Printf (printf)
 import Hickory.Utils.Utils (deleteAt)
 import Data.Word (Word32)
 
-drawMainEditorUI :: FilePath -> HashMap Word32 Object -> HashMap Word32 Object -> B.Handler Word32 -> IO ()
+drawMainEditorUI :: FilePath -> HashMap Word32 Object -> HashMap Word32 Object -> (Word32 -> IO ()) -> IO ()
 drawMainEditorUI sceneFile selected objects guiPickObjectID =
   myWithWindow "Editor" do
     withMenuBarOpen do

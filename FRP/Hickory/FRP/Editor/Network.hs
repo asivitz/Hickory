@@ -323,3 +323,10 @@ renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedOb
   where
   ovm = viewTarget zero (V3 0 0 1) (V3 0 (-1) 0)
   opm = shotMatrix (Ortho (realToFrac w) 0 1 False) (aspectRatio size)
+
+editorLayer :: FilePath -> HashMap String (Component m a) -> IORef (HashMap Word32 Object) -> [Word32] -> (Word32 -> IO ()) -> IO ()
+editorLayer sceneFile componentDefs objectsRef selectedObjectIds guiPickedObjectID = do
+  objects <- readIORef objectsRef
+  let selectedObjects :: HashMap Word32 Object = Map.filterWithKey (\k _ -> k `elem` selectedObjectIds) objects
+  drawMainEditorUI sceneFile selectedObjects objects guiPickedObjectID
+  drawObjectEditorUI componentDefs objectsRef selectedObjectIds

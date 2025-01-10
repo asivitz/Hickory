@@ -108,7 +108,7 @@ loadResources path vulkanResources = do
     -- generated using https://github.com/Chlumsky/msdf-atlas-gen
     loadFontResource vulkanResources resourcesStore (path ++ "fonts/gidolinya.json") (path ++ "images/gidolinya.png") 2
 
-  envDesSpec <- renderEnvironmentMap vulkanResources (Extent2D 512 512) (path ++ "sky/uv.hdr")
+  envDesSpec <- renderEnvironmentMap vulkanResources (Extent2D 512 512) (path ++ "sky/sky7.hdr")
   irrDesSpec <- renderIrradianceMap vulkanResources (Extent2D 32 32) envDesSpec
 
   liftIO do
