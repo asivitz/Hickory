@@ -163,6 +163,7 @@ library:
     - Hickory.Vulkan.Renderer.Stats
     - Hickory.Vulkan.Renderer.Environment
     - Hickory.Vulkan.Renderer.StockMaterials
+    - Hickory.Vulkan.Renderer.Screenshot
     - Hickory.Vulkan.Types
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI

@@ -473,7 +473,7 @@ filterStages f stages = Stages {..}
   decals = filter f stages.decals
 
 renderToRenderer :: (MonadIO m) => FrameContext -> Renderer -> RenderSettings -> Command () -> Command () -> m Stats
-renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..} litF overlayF = do
+renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..} litF overlayF = do
   useDynamicMesh (resourceForFrame swapchainImageIndex dynamicMesh) do
     let WorldSettings {..} = worldSettings
         RenderTargets {..} = renderTargets
