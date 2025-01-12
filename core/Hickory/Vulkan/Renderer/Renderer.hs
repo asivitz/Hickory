@@ -5,33 +5,32 @@
 
 module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), StaticConstants (..), MeshType (..), AnimatedConstants (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), DecalConstants, debugName, Features(..))
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), MeshType (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), debugName, Features(..))
 import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView)
 import Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
 import Linear (V4 (..), V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon, (^*))
-import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), cmdDrawBufferedMesh, getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
+import Hickory.Vulkan.Monad (material, BufferedUniformMaterial (..), getMeshes, addMesh, askDynamicMesh, useDynamicMesh, DynamicMeshMonad, textMesh)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), PointedDescriptorSet, buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..), BufferedMeshMember (..), ViewableImage (..))
+import Hickory.Vulkan.Types (RenderConfig (..), DescriptorSpec (..), buf, hasPerDrawDescriptorSet, Material(..), DeviceContext (..), VulkanResources (..), Swapchain, FrameContext (..), BufferedMesh (..), vertices, indices, DataBuffer (..), Mesh (..), BufferedMeshMember (..), ViewableImage (..))
 import qualified Hickory.Vulkan.Types as HVT
-import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer, msdfVertShader, msdfFragShader)
-import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, withDepthViewableImage, staticGBufferShadowVertShader, animatedGBufferShadowVertShader, withAlbedoViewableImage, withNormalViewableImage, withObjIDViewableImage, withMaterialViewableImage)
-import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, whiteFragShader, withShadowMap)
+import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer)
+import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, withDepthViewableImage, withAlbedoViewableImage, withNormalViewableImage, withObjIDViewableImage, withMaterialViewableImage)
+import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer, renderConfigRenderPass)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), CullModeFlagBits (..), PrimitiveTopology (..), cmdBindDescriptorSets, PipelineBindPoint (..), ImageViewType (..), Extent3D (..), ImageType (..))
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), ImageViewType (..), Extent3D (..), ImageType (..))
 import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.), Bits (..))
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
-import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, FramedResource, zipFramedResources)
-import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, PipelineOptions (..), withMaterial, pipelineDefaults, noBlend, defaultBlend, cmdPushMaterialConstants, colorBlendLeaveAlpha)
+import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, zipFramedResources)
+import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, cmdPushMaterialConstants)
 import Data.List (sortOn, mapAccumL, foldl')
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Renderer.ObjectPicking (withObjectIDRenderConfig, withObjectHighlightMaterial, withObjectIDFrameBuffer)
-import qualified Hickory.Vulkan.Renderer.ObjectPicking as OP
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
 import Control.Monad (when, void)
@@ -42,7 +41,7 @@ import Data.Word (Word32)
 import Data.UUID (UUID)
 import Control.Monad.State.Class ( MonadState, put, get )
 import qualified Data.UUID as UUID
-import Data.Maybe (fromMaybe, mapMaybe, isJust)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
 import Hickory.Math (Scalar, orthographicProjection, transformV3, glerp)
 import Data.Fixed (div')
@@ -51,216 +50,30 @@ import VulkanMemoryAllocator (withMappedMemory)
 import Control.Exception (bracket)
 import Safe (headMay)
 import qualified Data.HashMap.Strict as HashMap
-import Data.ByteString (ByteString)
-import Data.UUID.V4 (nextRandom)
 import Control.Arrow ((&&&))
 import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import qualified Data.Vector.Storable.Sized as VSS
-import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, cascadeOverlapThreshold, buildDirectVertShader, buildOverlayVertShader, MaxShadowCascadesNat, MaxSSAOKernelSizeNat, maxSSAOKernelSize)
-import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withDirectFrameBuffer, staticDirectVertShader, staticDirectFragShader, simpleFragShader)
+import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, cascadeOverlapThreshold, MaxShadowCascadesNat, MaxSSAOKernelSizeNat, maxSSAOKernelSize)
+import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withDirectFrameBuffer)
 import Hickory.Vulkan.Renderer.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
 import Hickory.Vulkan.Textures (transitionImageLayout, withImageFromArray, withImageSampler)
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Hickory.Vulkan.Renderer.Stats (Stats (..))
 import Data.Functor ((<&>))
 import Data.Traversable.Compat (mapAccumM)
-import Data.Text (Text, unpack)
+import Data.Text (Text)
 import Data.Finite (getFinite)
 import Data.Hashable (Hashable)
 import GHC.Generics (Generic)
-import Control.Applicative ((<|>))
 import Text.Printf (printf)
 import Data.IORef (readIORef, newIORef, modifyIORef', writeIORef)
 import Hickory.Vulkan.Renderer.SSAO (withSSAOMaterial, withSSAORenderConfig, withSSAOViewableImage)
 import Control.Monad.Random (randomRIO)
-import Hickory.Vulkan.Renderer.Decals (withDecalRenderConfig, decalVertShader, decalFragShader)
-import Hickory.Vulkan.Renderer.Direct (lineVertShader)
-import Hickory.Vulkan.Renderer.Direct (pointVertShader)
+import Hickory.Vulkan.Renderer.Decals (withDecalRenderConfig)
 import Data.Bool (bool)
 import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
 import Hickory.Vulkan.LUT (withBaseLUT)
-
-withGBufferMaterialStack
-  :: forall uniform
-  .  Storable uniform
-  => VulkanResources
-  -> RenderTargets
-  -> FramedResource PointedDescriptorSet
-  -> Maybe (FramedResource [DescriptorSpec])
-  -> Int
-  -> PipelineOptions
-  -> [HVT.Attribute]
-  -> Maybe DescriptorSetLayout -- Per draw descriptor set
-  -> ByteString
-  -> ByteString
-  -> ByteString
-  -> ByteString
-  -> Acquire (MaterialConfig uniform)
-withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet extraMaterialDescriptors maxNumDraws pipelineOptions attributes perDrawLayout
-  gbufferVertShader gbufferFragShader
-  shadowVertShader shadowFragShader
-  = GBufferConfig <$> do
-  uuid <- liftIO nextRandom
-  extras <- maybe (frameResource $ pure []) pure extraMaterialDescriptors
-  descriptor <- flip V.mapM extras \descs -> do
-    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    descriptorSet <- withDescriptorSet vulkanResources $
-      [ BufferDescriptor (buf uniformBuffer)
-      , BufferDescriptor (buf idBuffer)
-      , BufferDescriptor (buf instancesBuffer)
-      ] ++ descs
-    pure MaterialDescriptorSet {..}
-
-  let uniformSize = sizeOf (undefined :: uniform)
-      materialSet = view #descriptorSet <$> descriptor
-      materialSets =
-        [ globalDescriptorSet
-        , materialSet
-        ]
-
-  gbufferMaterial <- withMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions pipelineOptions.cullMode gbufferVertShader gbufferFragShader materialSets perDrawLayout
-  shadowMaterial  <- withMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } pipelineOptions.shadowCullMode shadowVertShader shadowFragShader materialSets Nothing
-  showSelectionMaterial <- withMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} pipelineOptions.cullMode gbufferVertShader OP.objectIDFragShader materialSets Nothing
-
-  debugName vulkanResources gbufferMaterial.pipeline "GBuffer"
-  debugName vulkanResources gbufferMaterial.pipelineLayout "GBuffer"
-
-  debugName vulkanResources shadowMaterial.pipeline "Shadow"
-  debugName vulkanResources shadowMaterial.pipelineLayout "Shadow"
-
-  debugName vulkanResources showSelectionMaterial.pipeline "Show Sel"
-  debugName vulkanResources showSelectionMaterial.pipelineLayout "Show Sel"
-  pure GBufferMaterialStack {..}
-
-withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
-withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS Nothing standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader whiteFragShader
-
-withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Scalar)))
-withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = do
-  skinBuffer :: FramedResource (DataBuffer (M44 Scalar))
-    <- frameResource $ withDataBuffer vulkanResources (66 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
-  let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.buf]
-  config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
-  pure (config, skinBuffer)
-
-withDecalMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig DecalConstants)
-withDecalMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withDecalMaterialStack vulkanResources renderTargets globalPDS (Just renderTargets.decalDesc) standardMaxNumDraws
-    ((pipelineDefaults [colorBlendLeaveAlpha, defaultBlend, defaultBlend ]) { cullMode = CULL_MODE_FRONT_BIT }) [HVT.Position] perDrawLayout decalFragShader
-
-withDirectMaterialStack
-  :: forall uniform
-  .  Storable uniform
-  => VulkanResources
-  -> RenderTargets
-  -> FramedResource PointedDescriptorSet
-  -> Int
-  -> PipelineOptions
-  -> [HVT.Attribute]
-  -> Maybe DescriptorSetLayout -- Per draw descriptor set
-  -- -> DirectStage
-  -> ByteString
-  -> ByteString
-  -> ByteString
-  -> Acquire (MaterialConfig uniform)
-withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet maxNumDraws pipelineOptions attributes perDrawLayout
-  directVertShader overlayVertShader fragShader
-  = DirectConfig <$> do
-  uuid <- liftIO nextRandom
-  descriptor <- frameResource do
-    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    descriptorSet <- withDescriptorSet vulkanResources [BufferDescriptor (buf uniformBuffer), BufferDescriptor (buf idBuffer), BufferDescriptor (buf instancesBuffer)]
-    pure MaterialDescriptorSet {..}
-
-  let uniformSize = sizeOf (undefined :: uniform)
-      materialSet = view #descriptorSet <$> descriptor
-      materialSets =
-        [ globalDescriptorSet
-        , materialSet
-        ]
-
-  directMaterial  <- withMaterial vulkanResources directRenderConfig  attributes pipelineOptions pipelineOptions.cullMode directVertShader fragShader materialSets perDrawLayout
-  overlayMaterial <- withMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions pipelineOptions.cullMode overlayVertShader fragShader materialSets perDrawLayout
-  pure DirectMaterial {..}
-
-withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
-withStaticDirectMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout
-    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader staticDirectVertShader))
-    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader staticDirectVertShader))
-    staticDirectFragShader
-
-withLineDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Acquire (MaterialConfig StaticConstants)
-withLineDirectMaterialConfig vulkanResources renderTargets globalPDS =
-  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineOptions [HVT.Position] Nothing
-    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader lineVertShader))
-    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader lineVertShader))
-    simpleFragShader
-  where
-  pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
-
-withPointDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Acquire (MaterialConfig StaticConstants)
-withPointDirectMaterialConfig vulkanResources renderTargets globalPDS =
-  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws pipelineOptions [HVT.Position] Nothing
-    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader pointVertShader))
-    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader pointVertShader))
-    simpleFragShader
-  where
-  pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
-
-withMSDFMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig MSDFMatConstants)
-withMSDFMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withDirectMaterialStack vulkanResources renderTargets globalPDS standardMaxNumDraws (pipelineDefaults [defaultBlend]) [HVT.Position, HVT.TextureCoord] perDrawLayout
-    $(compileShaderQ Nothing "vert" Nothing (buildDirectVertShader msdfVertShader))
-    $(compileShaderQ Nothing "vert" Nothing (buildOverlayVertShader msdfVertShader))
-    msdfFragShader
-
-withDecalMaterialStack
-  :: forall uniform
-  .  Storable uniform
-  => VulkanResources
-  -> RenderTargets
-  -> FramedResource PointedDescriptorSet
-  -> Maybe (FramedResource [DescriptorSpec])
-  -> Int
-  -> PipelineOptions
-  -> [HVT.Attribute]
-  -> Maybe DescriptorSetLayout -- Per draw descriptor set
-  -> ByteString
-  -> Acquire (MaterialConfig uniform)
-withDecalMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet extraMaterialDescriptors maxNumDraws pipelineOptions attributes perDrawLayout fragShader
-  = DecalConfig <$> do
-  uuid <- liftIO nextRandom
-  extras <- maybe (frameResource $ pure []) pure extraMaterialDescriptors
-  descriptor <- flip V.mapM extras \descs -> do
-    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    descriptorSet <- withDescriptorSet vulkanResources $
-      [ BufferDescriptor (buf uniformBuffer)
-      , BufferDescriptor (buf idBuffer)
-      , BufferDescriptor (buf instancesBuffer)
-      ] ++ descs
-    pure MaterialDescriptorSet {..}
-
-  let uniformSize = sizeOf (undefined :: uniform)
-      materialSet = view #descriptorSet <$> descriptor
-      materialSets =
-        [ globalDescriptorSet
-        , materialSet
-        ]
-
-  material <- withMaterial vulkanResources decalRenderConfig attributes pipelineOptions pipelineOptions.cullMode decalVertShader fragShader materialSets perDrawLayout
-  pure DecalMaterial {..}
-
-standardMaxNumDraws :: Num a => a
-standardMaxNumDraws = 2048
+import Hickory.Vulkan.Renderer.StockMaterials (withStaticGBufferMaterialConfig, withAnimatedGBufferMaterialConfig, withStaticDirectMaterialConfig, withMSDFMaterialConfig, withLineDirectMaterialConfig, withPointDirectMaterialConfig, withDecalMaterialConfig)
 
 withRenderer :: VulkanResources -> Swapchain -> Acquire Renderer
 withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}} swapchain = do
@@ -1142,21 +955,3 @@ processDrawCommands fc@FrameContext {..} logger batches = do
             cmdDraw commandBuffer numVertices numInstances 0 firstInstanceIndex
 
         liftIO $ writeIORef curMeshRef UUID.nil
-
-{-
-processDirectUngrouped
-  :: (MonadIO m, DynamicMeshMonad m)
-  => FrameContext
-  -> [(Word32, DrawCommand)]
-  -> DirectStage
-  -> m ()
-processDirectUngrouped fc commands stage = do
-  -- TODO....... LOTS HERE
-  flip evalStateT UUID.nil do
-    for_ commands \(i, DrawCommand {mesh, descriptorSet, materialConfig }) -> case materialConfig of
-      DirectConfig material -> do
-        let mat = if stage == WorldDirect then material.directMaterial else material.overlayMaterial
-        bindMaterialIfNeeded fc mat
-        renderCommand fc mat mesh Nothing 1 descriptorSet
-      _ -> error "Only direct rendering supported here"
-    -}
