@@ -162,13 +162,17 @@ data DataBuffer a = DataBuffer
   } deriving Generic
 
 data ImageType = PNG | HDR
+data ConversionTo3D = Simply2D | HorizontalSlices | VerticalSlices
+  deriving Eq
 
 data TextureLoadOptions = TextureLoadOptions
-  { filter :: Filter
-  , samplerAddressMode :: SamplerAddressMode
-  , samplerMipmapMode  :: Maybe SamplerMipmapMode
-  , isCubemap          :: Bool
-  , fileType           :: ImageType
+  { filter               :: Filter
+  , samplerAddressMode   :: SamplerAddressMode
+  , samplerMipmapMode    :: Maybe SamplerMipmapMode
+  , isCubemap            :: Bool
+  , fileType             :: ImageType
+  , conversionTo3D       :: ConversionTo3D
+  , shouldFlipVertically :: Bool
   }
 
 formatForImageType :: ImageType -> Format
@@ -183,6 +187,19 @@ pngLoadOptions = TextureLoadOptions
   , samplerMipmapMode = Nothing
   , isCubemap = False
   , fileType = PNG
+  , conversionTo3D = Simply2D
+  , shouldFlipVertically = True
+  }
+
+lutLoadOptions :: TextureLoadOptions
+lutLoadOptions = TextureLoadOptions
+  { filter = FILTER_LINEAR
+  , samplerAddressMode = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  , samplerMipmapMode = Nothing
+  , isCubemap = False
+  , fileType = PNG
+  , conversionTo3D = HorizontalSlices
+  , shouldFlipVertically = False
   }
 
 hdrCubeMapLoadOptions :: TextureLoadOptions
@@ -192,6 +209,8 @@ hdrCubeMapLoadOptions = TextureLoadOptions
   , samplerMipmapMode = Nothing
   , isCubemap = True
   , fileType = HDR
+  , conversionTo3D = Simply2D
+  , shouldFlipVertically = False
   }
 
 -- Run this every frame. If a cleanup is queued, it will run in a few

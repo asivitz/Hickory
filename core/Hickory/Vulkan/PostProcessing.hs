@@ -13,14 +13,23 @@ import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Types
 import Data.String.QM (qm)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
-import Vulkan (CullModeFlagBits(..))
+import Vulkan (CullModeFlagBits(..), bindings, withDescriptorSetLayout)
 import Hickory.Vulkan.Renderer.Types (PostConstants)
+import Vulkan.Zero (Zero(..))
+import qualified Data.Vector as V
+import Hickory.Vulkan.DescriptorSet (descriptorSetBindings)
+import Hickory.Vulkan.Vulkan (mkAcquire)
 
 withPostProcessMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material PostConstants)
-withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =
+withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet = do
+  postPDS <- withDescriptorSetLayout device zero
+    { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
+    } Nothing mkAcquire
   withMaterial vulkanResources renderConfig
-    [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] Nothing
+    [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just postPDS)
   where
+  VulkanResources {..} = vulkanResources
+  DeviceContext {..} = deviceContext
   vertShader = [vert|
 #version 450
 
@@ -54,6 +63,7 @@ layout( push_constant, scalar ) uniform constants
 } PushConstants;
 
 layout (set = 1, binding = 0) uniform sampler2D textures[2];
+layout (set = 2, binding = 0) uniform sampler3D lut;
 
 // Bring hdr color into ldr range with an artistic curve
 // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
@@ -85,19 +95,11 @@ void main()
 {
   lowp vec4 origColor = texture(textures[0], texCoordsVarying);
 
-  // Exposure
-  vec3 exposureFilter = exp2(PushConstants.exposure) * PushConstants.colorShift;
-  vec3 color = origColor.rgb * exposureFilter;
+  vec3 color = origColor.rgb * exp2(PushConstants.exposure);
 
-  // Saturation
-  vec3 lumaWeights = vec3(0.25,0.50,0.25);
-  float luminance = dot(lumaWeights, color.rgb);
-  vec3 grey = vec3(luminance, luminance, luminance);
-  vec3 saturated = grey + PushConstants.saturation * (color.rgb - grey);
-
-  // Tonemapping
   //color = aces_tonemapping(saturated);
-  color = filmic_tonemapping(saturated);
+  color = filmic_tonemapping(color);
+  color = texture(lut, color).rgb;
 
   // Film grain
   float grainIntensity =

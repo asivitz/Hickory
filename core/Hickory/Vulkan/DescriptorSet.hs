@@ -3,6 +3,7 @@
 {-# LANGUAGE DataKinds, DeriveGeneric, PatternSynonyms  #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Avoid lambda" #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Hickory.Vulkan.DescriptorSet where
 
@@ -45,7 +46,7 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire (Acquire)
 import Data.UUID.V4 (nextRandom)
-import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..), TextureLoadOptions(..), formatForImageType)
+import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..), TextureLoadOptions(..), formatForImageType, ConversionTo3D (..))
 import GHC.Word (Word32)
 import Data.Maybe (isJust, fromMaybe)
 import qualified Data.Vector.Storable as SV
@@ -172,9 +173,11 @@ data TextureDescriptorSet = TextureDescriptorSet
   } deriving Generic
 
 loadImage bag path options = do
-  (image, mipLevels)   <- withTextureImage bag (isJust options.samplerMipmapMode) True options path
+  (image, mipLevels)   <- withTextureImage bag (isJust options.samplerMipmapMode) options path
   sampler <- withImageSamplerMips bag mipLevels options.filter options.samplerAddressMode (fromMaybe SAMPLER_MIPMAP_MODE_LINEAR options.samplerMipmapMode)
-  let viewType = if options.isCubemap then IMAGE_VIEW_TYPE_CUBE else IMAGE_VIEW_TYPE_2D
+  let viewType = if | options.isCubemap -> IMAGE_VIEW_TYPE_CUBE
+                    | options.conversionTo3D == Simply2D -> IMAGE_VIEW_TYPE_2D
+                    | otherwise -> IMAGE_VIEW_TYPE_3D
       format = (formatForImageType options.fileType)
       layers = if options.isCubemap then 6 else 1
 

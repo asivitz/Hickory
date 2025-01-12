@@ -39,14 +39,15 @@ import Data.ByteString (ByteString)
 
 {- Public API -}
 data RenderSettings = RenderSettings
-  { clearColor     :: V4 Scalar
-  , worldSettings  :: WorldSettings
-  , overlayGlobals :: OverlayGlobals
-  , postSettings   :: PostConstants
-  , highlightObjs  :: [Word32]
-  , ssaoSettings :: SSAOSettings
+  { clearColor      :: V4 Scalar
+  , worldSettings   :: WorldSettings
+  , overlayGlobals  :: OverlayGlobals
+  , postSettings    :: PostConstants
+  , highlightObjs   :: [Word32]
+  , ssaoSettings    :: SSAOSettings
   , shadowBiasSlope :: Scalar
-  , features       :: Features
+  , features        :: Features
+  , lut             :: Maybe PointedDescriptorSet
   } deriving Generic
 
 data WorldSettings = WorldSettings
@@ -172,6 +173,7 @@ data Renderer = Renderer
   , skinBuffer               :: FramedResource (DataBuffer (M44 Scalar))
 
   , defaultEnvMapDescriptorSet :: PointedDescriptorSet
+  , defaultLutDescriptorSet    :: PointedDescriptorSet
   } deriving Generic
 
 -- params: targ, shaders

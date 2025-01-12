@@ -6,7 +6,7 @@
 module Hickory.Vulkan.Renderer.Environment where
 
 import Hickory.Vulkan.Mesh (withSingleTimeCommands)
-import Hickory.Vulkan.Types (TextureLoadOptions(..), ImageType (..), VulkanResources (..), RenderConfig (..), Material(..), DescriptorSpec (..), PointedDescriptorSet(..), ViewableImage (..))
+import Hickory.Vulkan.Types (TextureLoadOptions(..), ImageType (..), VulkanResources (..), RenderConfig (..), Material(..), DescriptorSpec (..), PointedDescriptorSet(..), ViewableImage (..), ConversionTo3D (..))
 import Vulkan (Filter(..), SamplerAddressMode (..), RenderingInfo(..), RenderingAttachmentInfo(..), Rect2D (..), Offset2D (..), Extent2D (..), AttachmentStoreOp (..), AttachmentLoadOp (..), ImageLayout (..), ClearValue (..), ClearColorValue (..), cmdDraw, cmdUseRendering, ImageCreateInfo(..), SharingMode (..), ImageType (..), Extent3D (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), ImageCreateFlagBits (..), Format (..), MemoryPropertyFlagBits (..), ImageAspectFlagBits (..), ImageViewType (..), PipelineRenderingCreateInfo (..), CullModeFlagBits (..), PipelineBindPoint (..), cmdBindPipeline, cmdBindDescriptorSets, SamplerMipmapMode (..), DescriptorSet)
 import Vulkan.Zero (zero)
 import Acquire (Acquire (..))
@@ -153,6 +153,8 @@ renderEnvironmentMap vulkanResources faceExtent pathToHDR = do
         , samplerMipmapMode = Nothing
         , isCubemap = False
         , fileType = HDR
+        , conversionTo3D = Simply2D
+        , shouldFlipVertically = False
         }
 
   hdrDescSet <- withDescriptorSet vulkanResources [ImageFileDescriptor (pathToHDR, options)]

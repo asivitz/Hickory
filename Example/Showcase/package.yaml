@@ -6,7 +6,7 @@ author:              Axis Sivitz
 maintainer:          aosivitz@gmail.com
 copyright:           2024 Axis Sivitz
 
-ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
+ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall -Werror=incomplete-patterns
 
 dependencies:
     - Hickory

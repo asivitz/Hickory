@@ -181,13 +181,13 @@ loadGBufTextures vulkanResources albedo normal = do
       form = formatForImageType opts.fileType
 
   alb <- do
-    (im, mipLevels) <- withTextureImage vulkanResources True False pngLoadOptions albedo
+    (im, mipLevels) <- withTextureImage vulkanResources True pngLoadOptions { shouldFlipVertically = False} albedo
     iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels IMAGE_VIEW_TYPE_2D 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
 
   nor <- do
-    (im, mipLevels) <- withTextureImage vulkanResources True False pngLoadOptions normal
+    (im, mipLevels) <- withTextureImage vulkanResources True pngLoadOptions { shouldFlipVertically = False} normal
     iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels IMAGE_VIEW_TYPE_2D 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]

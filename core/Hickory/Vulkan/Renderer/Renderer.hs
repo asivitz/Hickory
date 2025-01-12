@@ -19,7 +19,7 @@ import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, staticGBufferVe
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, whiteFragShader, withShadowMap)
 import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer, renderConfigRenderPass)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), CullModeFlagBits (..), PrimitiveTopology (..), cmdBindDescriptorSets, PipelineBindPoint (..), ImageViewType (..))
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), DescriptorSetLayout, ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, setDebugUtilsObjectNameEXT, objectTypeAndHandle, DebugUtilsObjectNameInfoEXT (..), HasObjectType, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), CullModeFlagBits (..), PrimitiveTopology (..), cmdBindDescriptorSets, PipelineBindPoint (..), ImageViewType (..), Extent3D (..), ImageType (..))
 import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.), Bits (..))
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
@@ -79,6 +79,7 @@ import Hickory.Vulkan.Renderer.Direct (lineVertShader)
 import Hickory.Vulkan.Renderer.Direct (pointVertShader)
 import Data.Bool (bool)
 import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
+import Hickory.Vulkan.LUT (withBaseLUT)
 
 withGBufferMaterialStack
   :: forall uniform
@@ -369,7 +370,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   noiseValues :: SV.Vector (V4 Scalar) <- SV.generateM (fromIntegral $ noiseDim * noiseDim) \_ ->
     normalize <$> (V4 <$> randomRIO (-1,1) <*> randomRIO (-1,1) <*> pure 0 <*> pure 0)
 
-  (noiseImage,_) <- withImageFromArray vulkanResources noiseDim noiseDim noiseFormat False 1 zeroBits noiseValues
+  (noiseImage,_) <- withImageFromArray vulkanResources (Extent3D noiseDim noiseDim 1) IMAGE_TYPE_2D noiseFormat False 1 zeroBits noiseValues
   imageView <- with2DImageView vulkanResources.deviceContext noiseFormat IMAGE_ASPECT_COLOR_BIT noiseImage IMAGE_VIEW_TYPE_2D 0 1
 
   ssaoMaterialDescriptorSet <- for gbufferFloatDesc $ \gbufFloatDesc -> withDescriptorSet vulkanResources
@@ -407,6 +408,10 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     ds1 <- withWhiteImageDescriptor vulkanResources
     ds2 <- withWhiteImageDescriptor vulkanResources
     withDescriptorSet vulkanResources [ds1, ds2]
+
+  defaultLutDescriptorSet <- do
+    ds <- withBaseLUT vulkanResources
+    withDescriptorSet vulkanResources [ds]
 
   pure Renderer {..}
 
@@ -972,6 +977,7 @@ renderToRenderer frameContext@FrameContext{..} Renderer {..} RenderSettings {..}
     void $ useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex swapchainRenderFrame do
       -- Post processing
       cmdBindMaterial frameContext postProcessMaterial
+      cmdBindDrawDescriptorSet commandBuffer postProcessMaterial (fromMaybe defaultLutDescriptorSet lut) -- per draw set so that it can be changed at runtime
       liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postSettings
       liftIO $ cmdDraw commandBuffer 3 1 0 0
 

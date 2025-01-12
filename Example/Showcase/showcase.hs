@@ -33,7 +33,7 @@ import Hickory.GameLoop (newGameStateStack, stepGameState, queryGameState)
 import Data.IORef (newIORef, atomicModifyIORef', readIORef)
 import Data.Word (Word32)
 import Hickory.Vulkan.Renderer.GBuffer (loadGBufTextures)
-import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
+import Hickory.Vulkan.Types (Mesh(..), Attribute (..), DescriptorSpec (..), lutLoadOptions)
 import qualified Text.GLTF.Loader as GLTF
 import Text.GLTF.Loader (Gltf)
 import qualified Data.Vector as V
@@ -115,10 +115,14 @@ loadResources path vulkanResources = do
     loadResource' resourcesStore.textures "envMap" do
       withDescriptorSet vulkanResources [envDesSpec, irrDesSpec]
 
+  liftIO do
+    loadResource' resourcesStore.textures "lut" do
+      withDescriptorSet vulkanResources [ImageFileDescriptor (path ++ "lut4.png", lutLoadOptions)]
+
   pure resourcesStore
 
-mkRenderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Maybe H.PointedDescriptorSet -> Camera -> [Word32] -> H.RenderSettings
-mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor envMap camera selectedObjIds = H.RenderSettings
+mkRenderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Maybe H.PointedDescriptorSet -> Maybe H.PointedDescriptorSet -> Camera -> [Word32] -> H.RenderSettings
+mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor envMap lut camera selectedObjIds = H.RenderSettings
   { worldSettings = H.WorldSettings
     { camera
     , lightTransform = identity
@@ -140,6 +144,7 @@ mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor envMap camera se
   , ssaoSettings = H.SSAOSettings (fromIntegral ssaoKernelSize) ssaoKernelRadius
   , shadowBiasSlope = shadowBiasSlope
   , features = features
+  , lut
   }
   where
   overlayViewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
@@ -152,9 +157,10 @@ renderGame graphicsParams res t scrSize@(Size _ _h) (renderer, frameContext)
   = void $ H.renderToRenderer frameContext renderer renderSettings litF overlayF
   where
   envMap = runIdentity . runResources res $ getTextureMay "envMap"
+  lut = runIdentity . runResources res $ getTextureMay "lut"
   -- camera = Camera (V3 0 0 0) (V3 1 0 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
   camera = Camera (V3 0 0 0) (view _m33 (mkRotation (V3 0 0 1) (t/2)) !* V3 7 0 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
-  renderSettings = mkRenderSettings scrSize graphicsParams black envMap camera []
+  renderSettings = mkRenderSettings scrSize graphicsParams black envMap lut camera []
   litF = runResources res do
     mesh <- getMesh "bunny"
     tex <- getTexture "blank"
