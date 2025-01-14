@@ -59,7 +59,7 @@ layout( push_constant, scalar ) uniform constants
   vec3 colorShift;
   float saturation;
   float filmGrain;
-  float shadowBiasSlope;
+  bool falseColor;
 } PushConstants;
 
 layout (set = 1, binding = 0) uniform sampler2D textures[2];
@@ -91,6 +91,23 @@ vec3 filmic_tonemapping(vec3 x) {
     return clamp(num / den - E / F, 0.0, 1.0);
 }
 
+float luminance(vec3 color) {
+  return dot(color, vec3(0.2126, 0.7152, 0.0722));  // Rec. 709
+}
+
+vec3 falseColor(float lum) {
+  if (lum < 0.0005) return vec3(0.0); // Clipping
+  else if (lum < 0.005) return vec3(0.0, 0.0, 1.0);
+  else if (lum < 0.05) return vec3(0.0, 0.5, 1.0);
+  else if (lum < 0.16) return vec3(0.0, 1.0, 1.0);
+  else if (lum < 0.22) return vec3(0.0, 1.0, 0.5);
+  else if (lum < 0.35) return vec3(0.5, 0.5, 0.5);
+  else if (lum < 0.55) return vec3(0.68, 1.0, 0.18);
+  else if (lum < 0.80) return vec3(1.0, 1.0, 0.0);
+  else if (lum < 0.97) return vec3(1.0, 0.5, 0.0);
+  else                 return vec3(1.0, 0.0, 0.0);
+}
+
 void main()
 {
   lowp vec4 origColor = texture(textures[0], texCoordsVarying);
@@ -113,6 +130,10 @@ void main()
          );
 
   color += PushConstants.filmGrain * grainIntensity;
+
+  if (PushConstants.falseColor) {
+    color = falseColor(luminance(color));
+  }
 
   outColor = vec4(color, 1.0);
 }

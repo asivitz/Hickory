@@ -73,6 +73,7 @@ data PostConstants = PostConstants
   , colorShift  :: V3 Float
   , saturation  :: Float
   , filmGrain   :: Float
+  , falseColor  :: Bool
   } deriving Generic
     deriving anyclass GStorable
 
@@ -83,10 +84,10 @@ data SSAOSettings = SSAOSettings
     deriving anyclass GStorable
 
 data Features = Features
-  { diffuse  :: Bool
-  , specular :: Bool
-  , ssao     :: Bool
-  , shadows  :: Bool
+  { diffuse    :: Bool
+  , specular   :: Bool
+  , ssao       :: Bool
+  , shadows    :: Bool
   } deriving (Show, Read, Generic)
 
 {- -}
@@ -97,6 +98,7 @@ postDefaults = PostConstants
   , colorShift  = V3 1 1 1
   , saturation  = 1
   , filmGrain   = 0
+  , falseColor  = False
   }
 
 data RenderTargets = RenderTargets

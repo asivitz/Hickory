@@ -45,6 +45,8 @@ data PostEditorState = PostEditorState
   , specularRef        :: IORef Bool
   , ssaoRef            :: IORef Bool
   , shadowsRef         :: IORef Bool
+  , falseColorRef      :: IORef Bool
+  , applyLutRef        :: IORef Bool
   }
 
 data GraphicsParams = GraphicsParams
@@ -63,6 +65,8 @@ data GraphicsParams = GraphicsParams
   , ssaoKernelRadius :: Scalar
   , shadowBiasSlope :: Scalar
   , features        :: Features
+  , falseColor      :: Bool
+  , applyLut        :: Bool
   } deriving (Show, Read, Generic)
 
 defaultGraphicsParams :: GraphicsParams
@@ -87,6 +91,8 @@ defaultGraphicsParams = GraphicsParams
       , ssao     = True
       , shadows  = True
       }
+    , falseColor = False
+    , applyLut   = True
     }
 
 readGraphicsParams :: PostEditorState -> IO GraphicsParams
@@ -107,6 +113,8 @@ readGraphicsParams PostEditorState {..} =
     <*> readIORef ssaoKernelRadiusRef
     <*> readIORef shadowBiasSlopeRef
     <*> readFeatures
+    <*> readIORef falseColorRef
+    <*> readIORef applyLutRef
   where
   readFeatures
     = Features <$> readIORef diffuseRef
@@ -137,6 +145,8 @@ mkPostEditorState GraphicsParams {..} = do
   specularRef <- newIORef features.specular
   ssaoRef     <- newIORef features.ssao
   shadowsRef  <- newIORef features.shadows
+  falseColorRef  <- newIORef falseColor
+  applyLutRef  <- newIORef falseColor
 
   pure PostEditorState {..}
 
@@ -148,6 +158,8 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
         whenM (menuItem "Save Post Parameters") do
           readGraphicsParams pes >>= writeFile "post.txt" . show
 
+    void $ checkbox "False Color" falseColorRef
+    void $ checkbox "Apply Lut" applyLutRef
     void $ dragFloat "Exposure" exposureRef 0.05 (-10) 10
     void $ colorEdit3 "ColorShift" colorShiftRef
     void $ dragFloat "Saturation" saturationRef 0.05 0 2

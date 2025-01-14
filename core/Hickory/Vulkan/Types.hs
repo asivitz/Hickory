@@ -198,7 +198,7 @@ lutLoadOptions = TextureLoadOptions
   , samplerMipmapMode = Nothing
   , isCubemap = False
   , fileType = PNG
-  , conversionTo3D = HorizontalSlices
+  , conversionTo3D = VerticalSlices
   , shouldFlipVertically = False
   }
 

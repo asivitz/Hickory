@@ -93,7 +93,6 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   ssaoViewableImage     <- frameResource $ withSSAOViewableImage vulkanResources swapchain.extent
 
-
   let gbufferFloatDesc = zipFramedResources [albedoViewableImage, normalViewableImage, materialViewableImage, depthViewableImage]
                 <&> ImageDescriptor . fmap (,linearSampler)
       gbufferUIntDesc = zipFramedResources [objIDViewableImage]

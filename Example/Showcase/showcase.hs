@@ -14,7 +14,7 @@ import Linear ( V2(..), V3(..), V4(..), (!*!), transpose, _m33, inv33, identity,
 import Acquire (Acquire)
 import Control.Lens ((^.), filtered, (^?), each, runIdentity, view)
 import Foreign (poke)
-import Control.Monad (void, when, join)
+import Control.Monad (void, when, join, mfilter)
 import Hickory.FRP.Editor (mkPostEditorState, readGraphicsParams, drawPostUI, GraphicsParams (..))
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
@@ -117,7 +117,7 @@ loadResources path vulkanResources = do
 
   liftIO do
     loadResource' resourcesStore.textures "lut" do
-      withDescriptorSet vulkanResources [ImageFileDescriptor (path ++ "lut4.png", lutLoadOptions)]
+      withDescriptorSet vulkanResources [ImageFileDescriptor (path ++ "lut11.png", lutLoadOptions)]
 
   pure resourcesStore
 
@@ -138,13 +138,13 @@ mkRenderSettings size@(Size w _) GraphicsParams {..} clearColor envMap lut camer
     , projMat = overlayProjMat
     , viewProjMat = overlayViewProj
     }
-  , postSettings = H.PostConstants exposure colorShift saturation filmGrain
+  , postSettings = H.PostConstants exposure colorShift saturation filmGrain falseColor
   , clearColor = clearColor
   , highlightObjs = selectedObjIds
   , ssaoSettings = H.SSAOSettings (fromIntegral ssaoKernelSize) ssaoKernelRadius
   , shadowBiasSlope = shadowBiasSlope
   , features = features
-  , lut
+  , lut = mfilter (const applyLut) lut
   }
   where
   overlayViewMat = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
@@ -220,6 +220,8 @@ graphicsParamsDefaults = GraphicsParams {..}
   ssaoKernelRadius = 1
   shadowBiasSlope = 0.003
   features = Features True True True True
+  falseColor = False
+  applyLut = True
 
 main :: IO ()
 main = GLFWV.withWindow 750 750 "Showcase" \win -> runAcquire do
