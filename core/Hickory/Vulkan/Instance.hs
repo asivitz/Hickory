@@ -1,6 +1,7 @@
-{-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields #-}
+{-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields, OverloadedLists #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use infix" #-}
+{-# LANGUAGE DataKinds #-}
 
 module Hickory.Vulkan.Instance where
 
@@ -9,7 +10,7 @@ import Vulkan
   , Instance
   , InstanceCreateInfo (..)
   , withInstance
-  , pattern API_VERSION_1_2, InstanceCreateFlagBits (..), enumerateInstanceExtensionProperties, layerName, extensionName, enumerateInstanceLayerProperties
+  , pattern API_VERSION_1_2, InstanceCreateFlagBits (..), enumerateInstanceExtensionProperties, layerName, extensionName, enumerateInstanceLayerProperties, ValidationFeaturesEXT (..), ValidationFeatureEnableEXT (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -40,11 +41,17 @@ withStandardInstance (DL.nub -> desiredExtensions) (DL.nub -> desiredLayers) = d
     liftIO . putStrLn $ "Requested extension not available: " ++ show e
 
   let
+    instanceCreateInfo :: InstanceCreateInfo '[ValidationFeaturesEXT]
     instanceCreateInfo = zero
       { applicationInfo = Just zero { applicationName = Just "Vulkan Demo", apiVersion = API_VERSION_1_2 }
       , enabledLayerNames     = V.fromList layersToEnable
       , enabledExtensionNames = V.fromList extensionsToEnable
       , flags = INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
+      , next = (zero
+        { enabledValidationFeatures =
+          [ -- VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+          ]
+        },())
       }
 
   withInstance instanceCreateInfo Nothing mkAcquire

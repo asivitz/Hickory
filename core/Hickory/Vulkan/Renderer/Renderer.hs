@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds, OverloadedLists, OverloadedLabels #-}
 {-# LANGUAGE FlexibleContexts, OverloadedRecordDot, OverloadedStrings, TemplateHaskell #-}
-{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingStrategies, DuplicateRecordFields #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
 module Hickory.Vulkan.Renderer.Renderer where
@@ -17,9 +17,9 @@ import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), TextRenderer)
 import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, withDepthViewableImage, withAlbedoViewableImage, withNormalViewableImage, withObjIDViewableImage, withMaterialViewableImage)
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, withShadowMap)
-import Hickory.Vulkan.RenderPass (withSwapchainRenderConfig, useRenderConfig, withSwapchainFramebuffers, createFramebuffer, renderConfigRenderPass)
+import Hickory.Vulkan.RenderPass (useRenderConfig, createFramebuffer, renderConfigRenderPass)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), ImageViewType (..), Extent3D (..), ImageType (..))
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), ImageViewType (..), Extent3D (..), ImageType (..), RenderingInfo(..), RenderingAttachmentInfo(..), cmdUseRendering, AttachmentLoadOp (..), AttachmentStoreOp (..), Rect2D (..), PipelineStageFlagBits (..), AccessFlagBits (..))
 import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.), Bits (..))
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
@@ -30,10 +30,10 @@ import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Renderer.ObjectPicking (withObjectIDRenderConfig, withObjectHighlightMaterial, withObjectIDFrameBuffer)
+import Hickory.Vulkan.Renderer.ObjectPicking (withCurrentSelectionRenderConfig, withObjectHighlightMaterial, withCurrentSelectionFrameBuffer)
 import Linear.Matrix (M44)
 import Hickory.Text.Types ( TextCommand(..) )
-import Control.Monad (when, void)
+import Control.Monad (when)
 import Hickory.Types (Size (..))
 import Hickory.Camera (cameraViewMat, cameraPos, cameraProjMat, cameraNear, cameraFar, Camera (..), Projection (..))
 import Hickory.Math.Matrix ( viewDirection )
@@ -55,9 +55,9 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.Vector.Sized as VS
 import qualified Data.Vector.Storable.Sized as VSS
 import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, cascadeOverlapThreshold, MaxShadowCascadesNat, MaxSSAOKernelSizeNat, maxSSAOKernelSize)
-import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withDirectFrameBuffer)
+import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withOverlayRenderConfig)
 import Hickory.Vulkan.Renderer.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
-import Hickory.Vulkan.Textures (transitionImageLayout, withImageFromArray, withImageSampler)
+import Hickory.Vulkan.Textures (transitionImageLayout, withImageFromArray, withImageSampler, imageBarrier)
 import Hickory.Vulkan.Renderer.Stats (Stats (..))
 import Data.Functor ((<&>))
 import Data.Traversable.Compat (mapAccumM)
@@ -106,7 +106,6 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     createFramebuffer vulkanResources.deviceContext.device (renderConfigRenderPass gbufferRenderConfig) gbufferRenderConfig.extent
   for_ gbufferRenderFrame $ \fb -> debugName vulkanResources fb "GBufferFrameBuffer"
 
-
   decalRenderConfig     <- withDecalRenderConfig vulkanResources swapchain
   decalRenderFrame      <- for (packAttachments [albedoViewableImage, normalViewableImage, materialViewableImage]) $
     createFramebuffer vulkanResources.deviceContext.device (renderConfigRenderPass decalRenderConfig) decalRenderConfig.extent
@@ -117,11 +116,9 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   lightingRenderConfig  <- withLightingRenderConfig vulkanResources swapchain
   lightingRenderFrame   <- colorViewableImage & V.mapM (withLightingFrameBuffer vulkanResources lightingRenderConfig)
   directRenderConfig    <- withDirectRenderConfig vulkanResources swapchain
-  directRenderFrame     <- V.zip colorViewableImage depthViewableImage & V.mapM (uncurry $ withDirectFrameBuffer vulkanResources directRenderConfig)
-  swapchainRenderConfig <- withSwapchainRenderConfig vulkanResources swapchain
-  swapchainRenderFrame  <- withSwapchainFramebuffers vulkanResources swapchain swapchainRenderConfig
-  objectIDRenderConfig  <- withObjectIDRenderConfig vulkanResources swapchain
-  currentSelectionRenderFrame <- frameResource $ withObjectIDFrameBuffer vulkanResources objectIDRenderConfig
+  overlayRenderConfig   <- withOverlayRenderConfig vulkanResources swapchain
+  currentSelectionRenderConfig  <- withCurrentSelectionRenderConfig vulkanResources swapchain
+  currentSelectionRenderFrame <- frameResource $ withCurrentSelectionFrameBuffer vulkanResources currentSelectionRenderConfig
 
   globalBuffer             <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
   globalShadowPassBuffer   <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
@@ -161,7 +158,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   objHighlightDescriptorSet <- for (pure . snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
   for_ objHighlightDescriptorSet \pds ->
     debugName vulkanResources pds.descriptorSet "ObjHighlightDescSet"
-  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources directRenderConfig globalDescriptorSet objHighlightDescriptorSet
+  objHighlightMaterial <- withObjectHighlightMaterial vulkanResources overlayRenderConfig globalDescriptorSet objHighlightDescriptorSet
 
   -- SSAO
   kernel :: VSS.Vector MaxSSAOKernelSizeNat (V3 Scalar) <- VSS.generateM \(getFinite -> i) -> do
@@ -196,14 +193,21 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     debugName vulkanResources pds.descriptorSet "SunMatDescSet"
   sunMaterial              <- withDirectionalLightMaterial vulkanResources lightingRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
-  postMaterialDescriptorSet <- for (pure . snd <$> directRenderFrame) $ withDescriptorSet vulkanResources
+  postSampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
+  postMaterialDescriptorSet <- V.zip colorViewableImage depthViewableImage & V.mapM \(color, depth) -> do
+    let descriptorSpec = ImageDescriptor
+          [ (color,postSampler)
+          , (depth,postSampler)
+          ]
+    withDescriptorSet vulkanResources [descriptorSpec]
+
   for_ postMaterialDescriptorSet \pds ->
     debugName vulkanResources pds.descriptorSet "PostMatDescSet"
-  postProcessMaterial <- withPostProcessMaterial vulkanResources swapchainRenderConfig globalDescriptorSet postMaterialDescriptorSet
+  postProcessMaterial <- withPostProcessMaterial vulkanResources overlayRenderConfig globalDescriptorSet postMaterialDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
-  objectPickingImageBuffer <- withImageBuffer vulkanResources objectIDRenderConfig 0 gbufferUIntDesc
+  objectPickingImageBuffer <- withImageBuffer vulkanResources swapchain.extent 0 gbufferUIntDesc
 
   let renderTargets = RenderTargets {..}
 
@@ -733,7 +737,7 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
         processDrawCommands frameContext logger (concatMap sortOpaque bs)
 
     -- Stage 2 Current Selection
-    useRenderConfig objectIDRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
+    useRenderConfig currentSelectionRenderConfig commandBuffer [ DepthStencil (ClearDepthStencilValue 1 0), Color (Uint32 0 0 0 0) ] swapchainImageIndex (fst <$> currentSelectionRenderFrame) do
       logger "\n\nProcessing current selection"
       processDrawCommands frameContext logger (concatMap sortOpaque stages.showSel)
 
@@ -770,14 +774,86 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
         cmdPushMaterialConstants commandBuffer sunMaterial 0
         cmdDraw commandBuffer 3 1 0 0
 
-    -- We use depth as a texture for lighting, but need it for z-testing in forward rendering
-    transitionImageLayout (resourceForFrame swapchainImageIndex depthViewableImage).image IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL commandBuffer
+    imageBarrier commandBuffer IMAGE_LAYOUT_UNDEFINED PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                               IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                               IMAGE_ASPECT_COLOR_BIT colorImage.image
+    -- Stage 7 Post
+    cmdUseRendering commandBuffer (zero
+      { layerCount = 1
+      , renderArea = Rect2D zero extent
+      , colorAttachments =
+        [ zero
+          { imageView = colorImage.imageView
+          , imageLayout = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+          , loadOp = ATTACHMENT_LOAD_OP_DONT_CARE
+          , storeOp = ATTACHMENT_STORE_OP_STORE
+          , clearValue = Color (Float32 0 0 0 1)
+          }
+        ]
+      }) do
+      cmdBindMaterial frameContext postProcessMaterial
+      cmdBindDrawDescriptorSet commandBuffer postProcessMaterial (fromMaybe defaultLutDescriptorSet lut) -- per draw set so that it can be changed at runtime
+      liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postSettings
+      liftIO $ cmdDraw commandBuffer 3 1 0 0
 
-    -- Stage 7 Forward
-    useRenderConfig directRenderConfig commandBuffer [Color (Float32 0 0 0 1)] swapchainImageIndex (fst <$> directRenderFrame) do
+    let currentDepthViewableImage = resourceForFrame swapchainImageIndex depthViewableImage
+    -- We use depth as a texture for lighting, but need it for z-testing in forward rendering
+    transitionImageLayout currentDepthViewableImage.image IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL commandBuffer
+    let swapchainImageReuseBarrier =
+          imageBarrier commandBuffer IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                                     IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                       (ACCESS_COLOR_ATTACHMENT_READ_BIT .|. ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                                     IMAGE_ASPECT_COLOR_BIT colorImage.image
+        depthImageReuseBarrier =
+          imageBarrier commandBuffer IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL (PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT) ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+                                     IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL (PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT)
+                                       (ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT)
+                                     IMAGE_ASPECT_DEPTH_BIT currentDepthViewableImage.image
+    swapchainImageReuseBarrier
+    depthImageReuseBarrier
+
+    -- Stage 8 Forward (aka 'Direct')
+    cmdUseRendering commandBuffer (zero
+      { layerCount = 1
+      , renderArea = Rect2D zero extent
+      , colorAttachments =
+        [ zero
+          { imageView = colorImage.imageView
+          , imageLayout = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+          , loadOp = ATTACHMENT_LOAD_OP_LOAD
+          , storeOp = ATTACHMENT_STORE_OP_STORE
+          , clearValue = Color (Float32 0 0 0 1)
+          }
+        ]
+      , depthAttachment = Just
+        zero
+          { imageView = currentDepthViewableImage.imageView
+          , imageLayout = IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL
+          , loadOp = ATTACHMENT_LOAD_OP_LOAD
+          , storeOp = ATTACHMENT_STORE_OP_STORE
+          , clearValue = DepthStencil (ClearDepthStencilValue 1 0)
+          }
+      }) do
       -- Layer in extra direct color commands
       logger "\n\nProcessing direct world"
       processDrawCommands frameContext logger (sortBlended $ concat stages.direct)
+
+    swapchainImageReuseBarrier
+
+    -- UI (No depth)
+    cmdUseRendering commandBuffer (zero
+      { layerCount = 1
+      , renderArea = Rect2D zero extent
+      , colorAttachments =
+        [ zero
+          { imageView = colorImage.imageView
+          , imageLayout = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+          , loadOp = ATTACHMENT_LOAD_OP_LOAD
+          , storeOp = ATTACHMENT_STORE_OP_STORE
+          , clearValue = Color (Float32 0 0 0 1)
+          }
+        ]
+      }) do
 
       case highlightObjs of
         (_:_) -> do
@@ -785,17 +861,11 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
           liftIO $ cmdDraw commandBuffer 3 1 0 0
         _ -> pure ()
 
-    -- Stage 8 Post + Overlay
-    void $ useRenderConfig swapchainRenderConfig commandBuffer [] swapchainImageIndex swapchainRenderFrame do
-      -- Post processing
-      cmdBindMaterial frameContext postProcessMaterial
-      cmdBindDrawDescriptorSet commandBuffer postProcessMaterial (fromMaybe defaultLutDescriptorSet lut) -- per draw set so that it can be changed at runtime
-      liftIO $ cmdPushMaterialConstants commandBuffer postProcessMaterial postSettings
-      liftIO $ cmdDraw commandBuffer 3 1 0 0
-
-      -- Extra direct commands over the top
       logger "\n\nProcessing overlay"
       processDrawCommands frameContext logger (sortBlended $ concat stages.overlay)
+
+    -- Barrier before ImGUI gets a hold of it
+    swapchainImageReuseBarrier
 
     -- Make object picking texture available for reading
     liftIO $ copyDescriptorImageToBuffer commandBuffer (resourceForFrame swapchainImageIndex objectPickingImageBuffer)

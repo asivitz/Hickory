@@ -24,8 +24,4 @@ withScreenshotRenderConfig format extent = do
         }
   pure RenderConfig {..}
 
-renderLinearScreenshot renderer extent renderSettings litF overlayF filePath = do
-  renderConfig <- withScreenshotRenderConfig linearFormat extent
-  let frameContext = FrameContext {..}
-
-  renderToRenderer frameContext renderer renderSettings litF overlayF
+renderLinearScreenshot renderer extent renderSettings litF overlayF filePath = error "Not implemented"

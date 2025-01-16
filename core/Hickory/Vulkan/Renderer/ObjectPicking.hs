@@ -41,16 +41,22 @@ import Hickory.Vulkan.Framing (FramedResource)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
+import Hickory.Vulkan.Renderer.Types (debugName)
 
-withObjectIDFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, DescriptorSpec)
-withObjectIDFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } rc@RenderConfig {..} = do
+withCurrentSelectionFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, DescriptorSpec)
+withCurrentSelectionFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } rc@RenderConfig {..} = do
   sampler <- withImageSampler vulkanResources FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
 
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits 1
   depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources depthImageRaw "CurrentSelectionDepthImage"
+  debugName vulkanResources depthImageView "CurrentSelectionDepthImageView"
 
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
   objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources objIDImageRaw "CurrentSelectionImage"
+  debugName vulkanResources objIDImageView "CurrentSelectionImageView"
+
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
 
   let descriptorSpec = ImageDescriptor [(objIDImage,sampler)]
@@ -64,13 +70,14 @@ depthFormat = FORMAT_D16_UNORM
 
 
 -- For e.g. mouse picking objects in scene
-withObjectIDRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withObjectIDRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
+withCurrentSelectionRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
+withCurrentSelectionRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [depthDescription, objIDDescription]
     , subpasses    = [subpass]
-    , dependencies = [dependency]
+    , dependencies
     } Nothing mkAcquire
+  debugName vulkanResources renderPass "CurrentSelectionRenderPass"
 
   let cullModeOverride = Nothing
       renderPassInfo = Left renderPass
@@ -92,15 +99,22 @@ withObjectIDRenderConfig vulkanResources@VulkanResources { deviceContext = devic
       , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
       }
     }
-  dependency :: SubpassDependency
-  dependency = zero
+  dependencies = [zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-    , srcAccessMask = zero
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+    , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+    , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    },zero
+    { srcSubpass    = 0
+    , dstSubpass    = SUBPASS_EXTERNAL
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+    ]
   depthDescription :: AttachmentDescription
   depthDescription = zero
     { format         = depthFormat
@@ -110,7 +124,7 @@ withObjectIDRenderConfig vulkanResources@VulkanResources { deviceContext = devic
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
+    , finalLayout    = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
     }
   objIDDescription :: AttachmentDescription
   objIDDescription = zero
@@ -122,7 +136,6 @@ withObjectIDRenderConfig vulkanResources@VulkanResources { deviceContext = devic
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
     , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    -- , finalLayout    = IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
     }
 
 data ObjectIDConstants = ObjectIDConstants

@@ -7,7 +7,7 @@ module Hickory.Vulkan.Textures where
 import Vulkan
   ( Extent2D(..)
   , Image, ImageCreateInfo (..), BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), ImageType (..), Extent3D (..), Format (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), SharingMode (..), ImageLayout (..), ImageSubresourceRange (..), ImageMemoryBarrier (..), cmdPipelineBarrier, PipelineStageFlagBits (..), AccessFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageAspectFlagBits (..), BufferImageCopy(..), Buffer, ImageSubresourceLayers(..), cmdCopyBufferToImage, SamplerCreateInfo(..), withSampler, Sampler, SamplerMipmapMode (..), CompareOp (..), BorderColor (..), SamplerAddressMode (..), Filter (..), CommandBuffer, ImageBlit (..), getPhysicalDeviceFormatProperties, FormatProperties(..), FormatFeatureFlagBits (..), Offset3D (..), cmdBlitImage
-  , PhysicalDeviceProperties(..), PhysicalDeviceLimits(..), ImageCreateFlagBits (..)
+  , PhysicalDeviceProperties(..), PhysicalDeviceLimits(..), ImageCreateFlagBits (..), AccessFlags, PipelineStageFlags, ImageAspectFlags
   )
 import Hickory.Vulkan.Vulkan (runAcquire, mkAcquire)
 import qualified Codec.Picture as Picture
@@ -288,12 +288,19 @@ transitionImageLayoutMips image mipLevels arrayLayers oldLayout newLayout comman
           , PIPELINE_STAGE_FRAGMENT_SHADER_BIT
           , IMAGE_ASPECT_DEPTH_BIT
           )
-        (IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL ) ->
+        (IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) ->
           ( ACCESS_SHADER_READ_BIT
           , ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
           , PIPELINE_STAGE_FRAGMENT_SHADER_BIT
           , PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
           , IMAGE_ASPECT_DEPTH_BIT
+          )
+        (IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) ->
+          ( ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+          , ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+          , PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+          , PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+          , IMAGE_ASPECT_COLOR_BIT
           )
         _ -> error "Unsupported image layout transition"
 
@@ -319,6 +326,42 @@ transitionImageLayoutMips image mipLevels arrayLayers oldLayout newLayout comman
         }
 
   cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
+
+imageBarrier
+  :: MonadIO io
+  => CommandBuffer
+  -> ImageLayout
+  -> PipelineStageFlags
+  -> AccessFlags
+  -> ImageLayout
+  -> PipelineStageFlags
+  -> AccessFlags
+  -> ImageAspectFlags
+  -> Image
+  -> io ()
+imageBarrier commandBuffer oldLayout sourceStage srcAccessMask newLayout destinationStage dstAccessMask aspectMask image =
+  cmdPipelineBarrier commandBuffer sourceStage destinationStage zero [] [] [SomeStruct barrier]
+  where
+  barrier :: ImageMemoryBarrier '[]
+  barrier = zero
+    { oldLayout = oldLayout
+    , newLayout = newLayout
+    , srcQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+    , dstQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+    , image = image
+    , srcAccessMask = srcAccessMask
+    , dstAccessMask = dstAccessMask
+    , subresourceRange = subResourceRange
+    }
+
+  subResourceRange :: ImageSubresourceRange
+  subResourceRange = ImageSubresourceRange
+    { aspectMask     = aspectMask
+    , baseMipLevel   = 0
+    , levelCount     = 1
+    , baseArrayLayer = 0
+    , layerCount     = 1
+    }
 
 withImageSampler :: VulkanResources -> Filter -> SamplerAddressMode -> SamplerMipmapMode -> Acquire Sampler
 withImageSampler vr = withImageSamplerMips vr 0

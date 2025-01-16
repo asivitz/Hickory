@@ -38,6 +38,7 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import qualified Data.Vector.Sized as VS
 import Data.Finite (getFinite)
+import Hickory.Vulkan.Renderer.Types (debugName)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -56,9 +57,12 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
   shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw IMAGE_VIEW_TYPE_2D_ARRAY 0 maxShadowCascades
   let image = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
   let shadowmapDescriptorSpec = DepthImageDescriptor image sampler
+  debugName vulkanResources shadowmapImageRaw "ShadowmapImage"
+  debugName vulkanResources shadowmapImageView "ShadowmapImageView"
 
   cascades <- VS.generateM \(fromIntegral . getFinite -> i) -> do
     cascadeImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw IMAGE_VIEW_TYPE_2D i 1
+    debugName vulkanResources cascadeImageView "CascadeImageView"
     let cascadeImage = ViewableImage shadowmapImageRaw cascadeImageView depthFormat
     let descriptorSpec = DepthImageDescriptor cascadeImage sampler
 
@@ -70,8 +74,9 @@ withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceC
   renderPass <- withRenderPass device zero
     { attachments  = [shadowmapAttachmentDescription]
     , subpasses    = [shadowSubpass]
-    , dependencies = [shadowDependency]
+    , dependencies = dependencies
     } Nothing mkAcquire
+  debugName vulkanResources renderPass "ShadowRenderPass"
 
   let extent = shadowDim
       samples = SAMPLE_COUNT_1_BIT
@@ -87,15 +92,22 @@ withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceC
       , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
       }
     }
-  shadowDependency :: SubpassDependency
-  shadowDependency = zero
+  dependencies = [zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-    , srcAccessMask = zero
-    , dstStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT
+    , srcStageMask  = PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+    , srcAccessMask = ACCESS_MEMORY_READ_BIT
+    , dstStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
     , dstAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    },zero
+    { srcSubpass    = 0
+    , dstSubpass    = SUBPASS_EXTERNAL
+    , srcStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+    , srcAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
+    , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+    ]
   shadowmapAttachmentDescription :: AttachmentDescription
   shadowmapAttachmentDescription = zero
     { format         = depthFormat

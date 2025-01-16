@@ -78,7 +78,7 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
 
   gbufferMaterial <- withMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions pipelineOptions.cullMode gbufferVertShader gbufferFragShader materialSets perDrawLayout
   shadowMaterial  <- withMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } pipelineOptions.shadowCullMode shadowVertShader shadowFragShader materialSets Nothing
-  showSelectionMaterial <- withMaterial vulkanResources objectIDRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} pipelineOptions.cullMode gbufferVertShader OP.objectIDFragShader materialSets Nothing
+  showSelectionMaterial <- withMaterial vulkanResources currentSelectionRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} pipelineOptions.cullMode gbufferVertShader OP.objectIDFragShader materialSets Nothing
 
   debugName vulkanResources gbufferMaterial.pipeline "GBuffer"
   debugName vulkanResources gbufferMaterial.pipelineLayout "GBuffer"
@@ -141,7 +141,7 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
         ]
 
   directMaterial  <- withMaterial vulkanResources directRenderConfig  attributes pipelineOptions pipelineOptions.cullMode directVertShader fragShader materialSets perDrawLayout
-  overlayMaterial <- withMaterial vulkanResources swapchainRenderConfig  attributes pipelineOptions pipelineOptions.cullMode overlayVertShader fragShader materialSets perDrawLayout
+  overlayMaterial <- withMaterial vulkanResources overlayRenderConfig attributes pipelineOptions pipelineOptions.cullMode overlayVertShader fragShader materialSets perDrawLayout
   pure DirectMaterial {..}
 
 withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)

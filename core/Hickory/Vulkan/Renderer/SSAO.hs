@@ -33,7 +33,7 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
-import Hickory.Vulkan.Renderer.Types (SSAOSettings)
+import Hickory.Vulkan.Renderer.Types (SSAOSettings, debugName)
 import Hickory.Vulkan.Textures (withIntermediateImage)
 
 hdrFormat :: Format
@@ -43,15 +43,18 @@ withSSAOViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withSSAOViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext } extent = do
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources hdrImageRaw "SSAOImage"
+  debugName vulkanResources hdrImageView "SSAOImageView"
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withSSAORenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withSSAORenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+withSSAORenderConfig vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [hdrAttachmentDescription]
     , subpasses    = [subpass]
-    , dependencies = [dependency]
+    , dependencies
     } Nothing mkAcquire
+  debugName vulkanResources renderPass "SSAORenderPass"
 
   let samples = SAMPLE_COUNT_1_BIT
       renderPassInfo = Left renderPass
@@ -78,15 +81,22 @@ withSSAORenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapc
         }
       ]
     }
-  dependency :: SubpassDependency
-  dependency = zero
+  dependencies = [zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
-    , srcAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    , srcStageMask  = PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+    , srcAccessMask = ACCESS_MEMORY_READ_BIT
+    , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    }, zero
+    { srcSubpass    = 0
+    , dstSubpass    = SUBPASS_EXTERNAL
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+    ]
 
 withSSAOMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material SSAOSettings)
 withSSAOMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet =

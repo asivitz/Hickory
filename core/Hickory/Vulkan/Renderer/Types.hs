@@ -106,7 +106,7 @@ data RenderTargets = RenderTargets
   { shadowRenderConfig           :: !RenderConfig
   , cascadedShadowMap            :: FramedResource (VS.Vector MaxShadowCascadesNat (Framebuffer, DescriptorSpec), DescriptorSpec)
   -- Stage 2 Current Selection
-  , objectIDRenderConfig         :: !RenderConfig
+  , currentSelectionRenderConfig         :: !RenderConfig
   , currentSelectionRenderFrame  :: FramedResource (Framebuffer, DescriptorSpec)
   -- Stage 3 GBuffer
   , gbufferRenderConfig          :: !RenderConfig
@@ -120,12 +120,10 @@ data RenderTargets = RenderTargets
   -- Stage 6 Lighting
   , lightingRenderConfig         :: !RenderConfig
   , lightingRenderFrame          :: FramedResource (Framebuffer, DescriptorSpec)
-  -- Stage 7 Forward
+  -- Stage 7 Post + Stage 9 Overlay
+  , overlayRenderConfig          :: !RenderConfig
+  -- Stage 8 Forward
   , directRenderConfig           :: !RenderConfig
-  , directRenderFrame            :: FramedResource (Framebuffer, DescriptorSpec)
-  -- Stage 8 Post + Overlay
-  , swapchainRenderConfig        :: !RenderConfig
-  , swapchainRenderFrame         :: FramedResource Framebuffer
   -- Etc
   , gbufferFloatDesc             :: FramedResource DescriptorSpec -- A set of 3 images (albedo, normal, depth)
   , gbufferUIntDesc              :: FramedResource DescriptorSpec -- A set of 1 image (objId)
@@ -136,6 +134,7 @@ data Renderer = Renderer
   { renderTargets :: RenderTargets
   -- , colorViewableImage :: FramedResource ViewableImage
   , depthViewableImage :: FramedResource ViewableImage
+  , objIDViewableImage :: FramedResource ViewableImage
 
   -- Pipelines
   -- , currentSelectionMaterial   :: !(BufferedUniformMaterial Word32 ObjectIDConstants)

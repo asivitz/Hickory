@@ -9,52 +9,33 @@ module Hickory.Vulkan.RenderPass where
 -- (Only needed really if we need to take advantage of subpasses for
 -- performance benefits.)
 
-import Hickory.Vulkan.Vulkan (mkAcquire)
 import qualified Vulkan
 import Vulkan
-  ( Device
-  , Extent2D (..)
+  ( Framebuffer
 
-  , withRenderPass
-  , SampleCountFlagBits (..)
-  , AttachmentDescription(..)
-  , SubpassDescription(..)
-  , SubpassDependency(..)
-  , RenderPassCreateInfo(..)
-  , AttachmentReference(..)
-  , AttachmentLoadOp (..)
-  , AttachmentStoreOp (..)
-  , ImageLayout (..)
-  , PipelineBindPoint (..)
-  , pattern SUBPASS_EXTERNAL
-  , PipelineStageFlagBits (..)
-  , AccessFlagBits (..)
-  , FramebufferCreateInfo(..)
-  , ImageView
-  , Framebuffer
-  , withFramebuffer
 
   , ClearValue(..)
   , Rect2D (..), RenderPassBeginInfo(..)
   , cmdUseRenderPass
   , pattern SUBPASS_CONTENTS_INLINE
-  , RenderPass, CullModeFlagBits (..)
+  , RenderPass, FramebufferCreateInfo(..), Device, ImageView, Extent2D, withFramebuffer
   )
 import Vulkan.Zero
-import Acquire (Acquire)
 import qualified Data.Vector as V
 import Data.Generics.Labels ()
-import Data.Traversable (for)
 import Control.Monad.IO.Class (MonadIO)
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.Framing (resourceForFrame, FramedResource)
 import Data.Word (Word32)
+import Acquire (Acquire)
+import Hickory.Vulkan.Vulkan (mkAcquire)
 
 renderConfigRenderPass :: RenderConfig -> RenderPass
 renderConfigRenderPass RenderConfig {..} = case renderPassInfo of
   Left rp -> rp
   Right _ -> error "Trying to get a render pass from a dynamic rendering render config"
 
+{-
 withSwapchainFramebuffers :: VulkanResources -> Swapchain -> RenderConfig -> Acquire (FramedResource Framebuffer)
 withSwapchainFramebuffers VulkanResources { deviceContext = DeviceContext{..} } sc RenderConfig {..} = do
   let renderPass = case renderPassInfo of
@@ -108,6 +89,7 @@ withSwapchainRenderConfig VulkanResources { deviceContext = DeviceContext{..} } 
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+  -}
 
 createFramebuffer :: Device -> RenderPass -> Extent2D -> V.Vector ImageView -> Acquire Framebuffer
 createFramebuffer dev renderPass swapchainExtent imageViews =

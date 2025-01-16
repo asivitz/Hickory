@@ -1,13 +1,13 @@
-{-# LANGUAGE OverloadedLists, OverloadedLabels #-}
+{-# LANGUAGE OverloadedLists, OverloadedLabels, OverloadedRecordDot #-}
 {-# LANGUAGE DeriveGeneric, DuplicateRecordFields #-}
 {-# LANGUAGE DataKinds, PatternSynonyms #-}
 
 module Hickory.Vulkan.RenderTarget where
 
-import Vulkan (Format(..), BufferImageCopy (..), ImageSubresourceLayers (..), CommandBuffer, ImageAspectFlagBits (..), Offset3D (..), ImageLayout (..), cmdCopyImageToBuffer, Extent2D (..), Extent3D (..), BufferUsageFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageMemoryBarrier(..), ImageSubresourceRange (..), AccessFlagBits (..), PipelineStageFlagBits (..), cmdPipelineBarrier)
+import Vulkan (Format(..), BufferImageCopy (..), ImageSubresourceLayers (..), CommandBuffer, ImageAspectFlagBits (..), Offset3D (..), ImageLayout (..), cmdCopyImageToBuffer, Extent2D (..), Extent3D (..), BufferUsageFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageMemoryBarrier(..), ImageSubresourceRange (..), AccessFlagBits (..), PipelineStageFlagBits (..), cmdPipelineBarrier, BufferMemoryBarrier(..), pattern WHOLE_SIZE)
 import Hickory.Vulkan.Types (DescriptorSpec(..), RenderConfig (..), DataBuffer (..), VulkanResources, ViewableImage (..))
 import VulkanMemoryAllocator (withMappedMemory)
-import Foreign (peek, plusPtr)
+import Foreign (peek, plusPtr, Bits (..))
 import Control.Exception (bracket)
 import GHC.Generics (Generic)
 import Hickory.Vulkan.DescriptorSet (withDataBuffer)
@@ -19,8 +19,8 @@ import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Traversable (for)
 
-withImageBuffer :: VulkanResources -> RenderConfig -> Int -> FramedResource DescriptorSpec -> Acquire (FramedResource ImageBuffer)
-withImageBuffer vulkanResources RenderConfig {..} descIdx framedDescriptorSpecs = for framedDescriptorSpecs \descriptorSpec -> do
+withImageBuffer :: VulkanResources -> Extent2D -> Int -> FramedResource DescriptorSpec -> Acquire (FramedResource ImageBuffer)
+withImageBuffer vulkanResources extent descIdx framedDescriptorSpecs = for framedDescriptorSpecs \descriptorSpec -> do
   let viewableImage = case descriptorSpec of
         ImageDescriptor is -> fst (is !! descIdx)
         _ -> error "Can only copy image from image descriptor of one image"
@@ -45,14 +45,14 @@ withImageBuffer vulkanResources RenderConfig {..} descIdx framedDescriptorSpecs 
 -- Copying the whole image, so addressing x,y is (y * rowLength + x) * texelSize
 copyDescriptorImageToBuffer :: CommandBuffer -> ImageBuffer -> IO ()
 copyDescriptorImageToBuffer cb ImageBuffer {..} = do
-  let barrier :: ImageMemoryBarrier '[]
-      barrier = zero
+  let imageBarrier :: ImageMemoryBarrier '[]
+      imageBarrier = zero
         { oldLayout = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
         , newLayout = IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL
         , srcQueueFamilyIndex = QUEUE_FAMILY_IGNORED
         , dstQueueFamilyIndex = QUEUE_FAMILY_IGNORED
         , image = img
-        , srcAccessMask = ACCESS_TRANSFER_WRITE_BIT
+        , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
         , dstAccessMask = ACCESS_TRANSFER_READ_BIT
         , subresourceRange = ImageSubresourceRange
           { aspectMask = IMAGE_ASPECT_COLOR_BIT
@@ -62,9 +62,19 @@ copyDescriptorImageToBuffer cb ImageBuffer {..} = do
           , layerCount = 1
           }
         }
-  -- Transition image to TRANSFER layout. Might not be needed depending on usage
-  cmdPipelineBarrier cb PIPELINE_STAGE_TRANSFER_BIT PIPELINE_STAGE_TRANSFER_BIT zero [] [] [SomeStruct barrier]
+      bufferBarrier :: BufferMemoryBarrier '[]
+      bufferBarrier = zero
+        { srcQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+        , dstQueueFamilyIndex = QUEUE_FAMILY_IGNORED
+        , buffer = buffer.buf
+        , srcAccessMask = ACCESS_TRANSFER_WRITE_BIT
+        , dstAccessMask = ACCESS_TRANSFER_WRITE_BIT
+        , offset = 0
+        , size = WHOLE_SIZE
+        }
 
+  cmdPipelineBarrier cb PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT PIPELINE_STAGE_TRANSFER_BIT zero [] [] [SomeStruct imageBarrier]
+  cmdPipelineBarrier cb PIPELINE_STAGE_TRANSFER_BIT PIPELINE_STAGE_TRANSFER_BIT zero [] [SomeStruct bufferBarrier] []
   cmdCopyImageToBuffer cb img IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL buf [ region ]
   where
   DataBuffer {..} = buffer

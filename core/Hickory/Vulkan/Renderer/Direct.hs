@@ -1,38 +1,19 @@
 {-# LANGUAGE PatternSynonyms, DuplicateRecordFields #-}
 {-# LANGUAGE DerivingStrategies, TemplateHaskell, QuasiQuotes #-}
-{-# LANGUAGE DataKinds, OverloadedLists #-}
+{-# LANGUAGE DataKinds, OverloadedLists, OverloadedRecordDot #-}
 
 module Hickory.Vulkan.Renderer.Direct where
 
-import Hickory.Vulkan.Vulkan (mkAcquire)
 import Vulkan
   ( Format (..)
-  , withRenderPass
   , SampleCountFlagBits (..)
-  , AttachmentDescription(..)
-  , SubpassDescription(..)
-  , SubpassDependency(..)
-  , RenderPassCreateInfo(..)
-  , AttachmentReference(..)
-  , AttachmentLoadOp (..)
-  , AttachmentStoreOp (..)
-  , ImageLayout (..)
-  , PipelineBindPoint (..)
-  , pattern SUBPASS_EXTERNAL
-  , PipelineStageFlagBits (..)
-  , AccessFlagBits (..)
-
-
-  , Filter (..), SamplerAddressMode (..), Framebuffer, SamplerMipmapMode (..), depthTestEnable, PrimitiveTopology (..)
+  , SurfaceFormatKHR(..)
+  , PrimitiveTopology (..), PipelineRenderingCreateInfo (..)
   )
-import Vulkan.Zero
 import Acquire (Acquire)
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Textures (withImageSampler)
-import Data.Bits ((.|.))
 import Hickory.Vulkan.Types
 import Hickory.Vulkan.Material (PipelineOptions (..), defaultBlend, pipelineDefaults)
-import Hickory.Vulkan.RenderPass (createFramebuffer, renderConfigRenderPass)
 import Data.ByteString (ByteString)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
@@ -46,74 +27,40 @@ import Hickory.Vulkan.Renderer.Types (StaticConstants)
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
-withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
-withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } rc@RenderConfig {..} colorImage depthImage = do
-  sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
-
-  let ViewableImage _ colorImageView _ = colorImage
-      ViewableImage _ depthImageView _ = depthImage
-  let descriptorSpec = ImageDescriptor
-        [ (colorImage,sampler)
-        , (depthImage,sampler)
-        ]
-  (,descriptorSpec) <$> createFramebuffer device (renderConfigRenderPass rc) extent [colorImageView, depthImageView]
+-- withDirectFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
+-- withDirectFrameBuffer vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } rc@RenderConfig {..} colorImage depthImage = do
+--   sampler <- withImageSampler vulkanResources FILTER_LINEAR SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE SAMPLER_MIPMAP_MODE_LINEAR
+--
+--   let ViewableImage _ colorImageView _ = colorImage
+--       ViewableImage _ depthImageView _ = depthImage
+--   let descriptorSpec = ImageDescriptor
+--         [ (colorImage,sampler)
+--         , (depthImage,sampler)
+--         ]
+--   (,descriptorSpec) <$> createFramebuffer device (renderConfigRenderPass rc) extent [colorImageView, depthImageView]
 
 withDirectRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withDirectRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
-  renderPass <- withRenderPass device zero
-    { attachments  = [hdrAttachmentDescription, depthAttachmentDescription ]
-    , subpasses    = [subpass]
-    , dependencies = [dependency]
-    } Nothing mkAcquire
-
+withDirectRenderConfig _vulkanResources Swapchain {..} = do
   let samples = SAMPLE_COUNT_1_BIT
-      renderPassInfo = Left renderPass
   pure RenderConfig {..}
   where
-  hdrAttachmentDescription :: AttachmentDescription
-  hdrAttachmentDescription = zero
-    { format         = hdrFormat
-    , samples        = SAMPLE_COUNT_1_BIT
-    , loadOp         = ATTACHMENT_LOAD_OP_LOAD
-    , storeOp        = ATTACHMENT_STORE_OP_STORE
-    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
-    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+  renderPassInfo = Right PipelineRenderingCreateInfo
+    { colorAttachmentFormats = [imageFormat.format]
+    , depthAttachmentFormat = depthFormat
+    , stencilAttachmentFormat = FORMAT_UNDEFINED
+    , viewMask = 0
     }
-  depthAttachmentDescription :: AttachmentDescription
-  depthAttachmentDescription = zero
-    { format         = depthFormat
-    , samples        = SAMPLE_COUNT_1_BIT
-    , loadOp         = ATTACHMENT_LOAD_OP_LOAD
-    , storeOp        = ATTACHMENT_STORE_OP_STORE
-    , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
-    , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
-    , initialLayout  = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    }
-  subpass :: SubpassDescription
-  subpass = zero
-    { pipelineBindPoint = PIPELINE_BIND_POINT_GRAPHICS
-    , colorAttachments =
-      [ zero
-        { attachment = 0
-        , layout     = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-        }
-      ]
-    , depthStencilAttachment = Just $ zero
-      { attachment = 1
-      , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-      }
-    }
-  dependency :: SubpassDependency
-  dependency = zero
-    { srcSubpass    = SUBPASS_EXTERNAL
-    , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
-    , srcAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-    , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-    , dstAccessMask = ACCESS_SHADER_READ_BIT
+
+withOverlayRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
+withOverlayRenderConfig _vulkanResources Swapchain {..} = do
+  let samples = SAMPLE_COUNT_1_BIT
+  pure RenderConfig {..}
+  where
+  renderPassInfo = Right PipelineRenderingCreateInfo
+    { colorAttachmentFormats = [imageFormat.format]
+    , depthAttachmentFormat = FORMAT_UNDEFINED
+    , stencilAttachmentFormat = FORMAT_UNDEFINED
+    , viewMask = 0
     }
 
 staticDirectVertShader :: String

@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..), ImageViewType (..)
+  , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..), ImageViewType (..), AccessFlagBits2 (..)
   )
 import Vulkan.Zero
 import Acquire (Acquire)
@@ -36,6 +36,7 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet)
+import Hickory.Vulkan.Renderer.Types (debugName)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -57,18 +58,24 @@ withDepthViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withDepthViewableImage vulkanResources extent = do
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat SAMPLE_COUNT_1_BIT IMAGE_USAGE_SAMPLED_BIT 1
   depthImageView <- with2DImageView vulkanResources.deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources depthImageRaw "DepthImage"
+  debugName vulkanResources depthImageView "DepthImageView"
   pure $ ViewableImage depthImageRaw depthImageView depthFormat
 
 withAlbedoViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withAlbedoViewableImage vulkanResources extent = do
   albedoImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   albedoImageView <- with2DImageView vulkanResources.deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT albedoImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources albedoImageRaw "AlbedoImage"
+  debugName vulkanResources albedoImageView "AlbedoImageView"
   pure $ ViewableImage albedoImageRaw albedoImageView hdrFormat
 
 withNormalViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withNormalViewableImage vulkanResources extent = do
   normalImageRaw  <- withIntermediateImage vulkanResources normalFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   normalImageView <- with2DImageView vulkanResources.deviceContext normalFormat IMAGE_ASPECT_COLOR_BIT normalImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources normalImageRaw "NormalImage"
+  debugName vulkanResources normalImageView "NormalImageView"
   pure $ ViewableImage normalImageRaw normalImageView normalFormat
 
 withMaterialViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
@@ -78,15 +85,18 @@ withObjIDViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withObjIDViewableImage vulkanResources extent = do
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent SAMPLE_COUNT_1_BIT
   objIDImageView <- with2DImageView vulkanResources.deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources objIDImageRaw "ObjIDImage"
+  debugName vulkanResources objIDImageView "ObjIDImageView"
   pure $ ViewableImage objIDImageRaw objIDImageView objIDFormat
 
 withGBufferRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+withGBufferRenderConfig vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [albedoAttachmentDescription, normalAttachmentDescription, materialAttachmentDescription, objIDAttachmentDescription, depthAttachmentDescription ]
     , subpasses    = [gbufferSubpass]
-    , dependencies = [gbufferDependency]
+    , dependencies
     } Nothing mkAcquire
+  debugName vulkanResources renderPass "GBufferRenderPass"
 
   let cullModeOverride = Nothing
       samples = SAMPLE_COUNT_1_BIT
@@ -165,15 +175,23 @@ withGBufferRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Sw
       , layout     = IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
       }
     }
-  gbufferDependency :: SubpassDependency
-  gbufferDependency = zero
+  dependencies =
+    [ zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
-    , srcAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-    , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
-    , dstAccessMask = ACCESS_SHADER_READ_BIT
-    }
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_TRANSFER_BIT
+    , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT .|. ACCESS_TRANSFER_READ_BIT
+    , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+    , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    }, zero
+    { srcSubpass    = 0
+    , dstSubpass    = SUBPASS_EXTERNAL
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT .|. PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+    , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT .|. PIPELINE_STAGE_TRANSFER_BIT
+    , dstAccessMask = ACCESS_SHADER_READ_BIT .|. ACCESS_TRANSFER_READ_BIT -- We copy the obj Id texture for use in object picking
+    }]
+
 
 loadGBufTextures :: VulkanResources -> FilePath -> FilePath -> Acquire PointedDescriptorSet
 loadGBufTextures vulkanResources albedo normal = do
@@ -193,16 +211,6 @@ loadGBufTextures vulkanResources albedo normal = do
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
 
   withDescriptorSet vulkanResources [alb,nor]
-
-{-
-withStaticGBufferMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial GBufferPushConsts StaticConstants)
-withStaticGBufferMaterial vulkanResources renderConfig globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord] pipelineDefaults staticGBufferVertShader staticGBufferFragShader globalPDS (Just perDrawLayout)
-
-withAnimatedGBufferMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial GBufferPushConsts AnimatedConstants)
-withAnimatedGBufferMaterial vulkanResources renderConfig globalPDS perDrawLayout
-  = withBufferedUniformMaterial vulkanResources renderConfig [Position, Normal, TextureCoord, JointIndices, JointWeights] pipelineDefaults animatedGBufferVertShader animatedGBufferFragShader globalPDS (Just perDrawLayout)
-  -}
 
 staticGBufferVertShader :: ByteString
 staticGBufferVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
@@ -418,15 +426,6 @@ void main() {
   outObjectID = objectId;
 }
 |])
-
--- withStaticUnlitMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
--- withStaticUnlitMaterial vulkanResources renderConfig globalPDS perDrawLayout
---   = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] pipelineDefaults staticUnlitVertShader unlitFragShader globalPDS (Just perDrawLayout)
-
--- withLineMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
--- withLineMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
---   where
---   pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_LINE_LIST, depthTestEnable = False }
 
 staticUnlitVertShader :: ByteString
 staticUnlitVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

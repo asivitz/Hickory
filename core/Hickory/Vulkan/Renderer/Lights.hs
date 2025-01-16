@@ -49,6 +49,8 @@ withColorViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext } extent = do
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw IMAGE_VIEW_TYPE_2D 0 1
+  debugName vulkanResources hdrImageRaw "HDRImage"
+  debugName vulkanResources hdrImageView "HDRImageView"
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
@@ -67,7 +69,7 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
   renderPass <- withRenderPass device zero
     { attachments  = [hdrAttachmentDescription]
     , subpasses    = [subpass]
-    , dependencies = [dependency]
+    , dependencies
     } Nothing mkAcquire
 
   debugName vulkanResources renderPass "LightingRenderPass"
@@ -85,7 +87,7 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
     , stencilLoadOp  = ATTACHMENT_LOAD_OP_DONT_CARE
     , stencilStoreOp = ATTACHMENT_STORE_OP_DONT_CARE
     , initialLayout  = IMAGE_LAYOUT_UNDEFINED
-    , finalLayout    = IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+    , finalLayout    = IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     }
   subpass :: SubpassDescription
   subpass = zero
@@ -97,15 +99,22 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
         }
       ]
     }
-  dependency :: SubpassDependency
-  dependency = zero
+  dependencies = [zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
-    , srcAccessMask = ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    , srcStageMask  = PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
+    , srcAccessMask = ACCESS_MEMORY_READ_BIT
+    , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+    }, zero
+    { srcSubpass    = 0
+    , dstSubpass    = SUBPASS_EXTERNAL
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     , dstStageMask  = PIPELINE_STAGE_FRAGMENT_SHADER_BIT
     , dstAccessMask = ACCESS_SHADER_READ_BIT
     }
+    ]
 
 withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet = do

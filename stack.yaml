@@ -20,9 +20,9 @@ allow-newer: true
 extra-deps:
 - reactive-banana-1.3.1.0
 - wavefront-0.7.1.4
-- vulkan-3.23
-- vulkan-utils-0.5.10.1
-- VulkanMemoryAllocator-0.10.4
+- vulkan-3.26.1
+- vulkan-utils-0.5.10.6
+- VulkanMemoryAllocator-0.11.0.1
 - derive-storable-0.3.1.0
 - acquire-0.3.6
 - ki-1.0.1.1

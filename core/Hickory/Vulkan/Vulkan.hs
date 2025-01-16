@@ -66,7 +66,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME
+  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -251,8 +251,12 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
   let imageFormat = surfaceFormat
 
   (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
-  images <- for rawImages $ \image -> let form = surfaceFormat.format in
-    ViewableImage image <$> with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image IMAGE_VIEW_TYPE_2D 0 1 <*> pure form
+  images <- for rawImages $ \image -> do
+    let form = surfaceFormat.format
+    imageView <- with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image IMAGE_VIEW_TYPE_2D 0 1
+    let (otype, handle) = objectTypeAndHandle imageView in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImageView"))
+    let (otype, handle) = objectTypeAndHandle image in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImage"))
+    pure $ ViewableImage image imageView form
 
   pure $ Swapchain {..}
 
