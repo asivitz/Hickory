@@ -402,23 +402,13 @@ mkComponent acquireF drawF =
 class GlslType a where
   glslTypeName :: Proxy a -> String
 
-instance GlslType Float where
-  glslTypeName _ = "float"
-
-instance GlslType (V2 Float) where
-  glslTypeName _ = "vec2"
-
-instance GlslType (V3 Float) where
-  glslTypeName _ = "vec3"
-
-instance GlslType (V4 Float) where
-  glslTypeName _ = "vec4"
-
-instance GlslType (M33 Float) where
-  glslTypeName _ = "mat3"
-
-instance GlslType (M44 Float) where
-  glslTypeName _ = "mat4"
+instance GlslType Bool        where glslTypeName _ = "bool"
+instance GlslType Float       where glslTypeName _ = "float"
+instance GlslType (V2 Float)  where glslTypeName _ = "vec2"
+instance GlslType (V3 Float)  where glslTypeName _ = "vec3"
+instance GlslType (V4 Float)  where glslTypeName _ = "vec4"
+instance GlslType (M33 Float) where glslTypeName _ = "mat3"
+instance GlslType (M44 Float) where glslTypeName _ = "mat4"
 
 class GHasGlslUniformDef (f :: Type -> Type) where
   gGlslLines :: Proxy f -> [String]
