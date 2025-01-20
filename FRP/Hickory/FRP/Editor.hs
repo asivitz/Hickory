@@ -11,6 +11,7 @@ module Hickory.FRP.Editor
   , Component(..)
   , Attribute(..)
   , SomeAttribute(..)
+  , glslStructDef
   , mkComponent
   , mkComponent2
   , mkComponent3

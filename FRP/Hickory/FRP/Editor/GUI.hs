@@ -107,6 +107,8 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
                   V3Attribute     -> void $ dragFloat3 (pack attrName) (mkComponentVar i attrName v3ToTriple tripleToV3) 1 1 1
                   V2Attribute     -> void $ dragFloat2 (pack attrName) (mkComponentVar i attrName v2ToTuple tupleToV2) 1 1 1
                   ColorAttribute  -> void $ colorEdit4 (pack attrName) (mkComponentVar i attrName v4ToImVec4 imVec4ToV4)
+                  Mat3Attribute  -> pure ()
+                  Mat4Attribute  -> pure ()
                 pure ()
 
       withComboOpen "AddComponent" "Select" do
