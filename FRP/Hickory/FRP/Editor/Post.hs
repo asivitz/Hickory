@@ -146,7 +146,7 @@ mkPostEditorState GraphicsParams {..} = do
   ssaoRef     <- newIORef features.ssao
   shadowsRef  <- newIORef features.shadows
   falseColorRef  <- newIORef falseColor
-  applyLutRef  <- newIORef falseColor
+  applyLutRef  <- newIORef applyLut
 
   pure PostEditorState {..}
 
@@ -169,7 +169,7 @@ drawPostUI pes@PostEditorState {..} (Renderer {..}, FrameContext {..}) = do
     void $ dragFloat "Env Map Strength" envMapStrengthRef 0.1 0 10
     void $ dragFloat "Irradiance Strength" irradianceStrengthRef 0.1 0 10
     void $ colorEdit3 "Sun Light" sunLightRef
-    void $ dragFloat "Sun Strength" sunStrengthRef 0.1 0 10
+    void $ dragFloat "Sun Strength" sunStrengthRef 0.1 0 100
     void $ dragFloat3 "Sun Direction" sunDirectionRef 0.1 (-100) 100
 
     withCollapsingHeaderOpen "SSAO Config" zeroBits do

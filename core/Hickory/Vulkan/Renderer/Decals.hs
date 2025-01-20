@@ -162,6 +162,6 @@ void main()
   vec4 albedo = texture(decal, uv) * uniforms.color;
 
   outColor = albedo;
-  outNormal = vec4(0,0,1,0);
+  outNormal = vec4(0,0,1,albedo.a);
 }
 |])

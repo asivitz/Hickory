@@ -248,6 +248,7 @@ void main()
   float roughness   = clamp(material.x, 0.089, 1.0); // prevent divide by zero and artifacts
   float reflectance = material.y;
   float metallic    = material.z;
+  float lightScale  = material.a; // Overall multiplier of the light sources against this material
 
   vec3 lightDirection = normalize(globals.lightDirection);
   vec3 directionToLight = -lightDirection;
@@ -292,7 +293,7 @@ void main()
   vec3 specular = cookTorrance;
 
   vec3 surfaceColor = diffuse * globals.diffuseMask + specular * globals.specularMask;
-  vec3 light = surfaceColor * globals.sunColor * nDotL;
+  vec3 light = surfaceColor * globals.sunColor * lightScale * nDotL;
 
   float ao = texture(ssao, inTexCoords).r;
 
@@ -303,7 +304,7 @@ void main()
 
   vec3 combined
     = mix(1, shadow, globals.shadowsMask) * light
-    + mix(1, ao, globals.ssaoMask) * albedo.rgb * globals.irradianceStrength * (ambientkD * irradiance) * min(albedo.a, 1);
+    + mix(1, ao, globals.ssaoMask) * albedo.rgb * globals.irradianceStrength * lightScale * (ambientkD * irradiance) * min(albedo.a, 1);
   outColor = vec4(combined, 1);
 }
 |])
