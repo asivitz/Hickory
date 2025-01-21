@@ -45,4 +45,4 @@ lerpUnproject (V2 x y) depth modelView vp =
             upnear = viewUnproject winnear modelView vp
             upfar = viewUnproject winfar modelView vp
             u = (depth - (upnear ^. _z)) / ((upfar ^. _z) - (upnear ^. _z)) in
-                lerp u upfar upnear
+                lerp u upnear upfar

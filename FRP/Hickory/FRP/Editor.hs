@@ -1,3 +1,5 @@
+{-# LANGUAGE DuplicateRecordFields #-}
+
 module Hickory.FRP.Editor
   ( editorScene
   , editorLayer
