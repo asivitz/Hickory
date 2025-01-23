@@ -158,22 +158,15 @@ renderGame graphicsParams res t scrSize@(Size _ _h) (renderer, frameContext)
   where
   envMap = runIdentity . runResources res $ getTextureMay "envMap"
   lut = runIdentity . runResources res $ getTextureMay "lut"
-  -- camera = Camera (V3 0 0 0) (V3 1 0 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
-  camera = Camera (V3 0 0 0) (view _m33 (mkRotation (V3 0 0 1) (t/2)) !* V3 7 0 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main"
+  camera = Camera (V3 0 0 0) (view _m33 (mkRotation (V3 0 0 1) (t/2)) !* V3 7 0 0) (V3 0 0 1) (Perspective (pi/2) 1 100) "Main" Nothing
   renderSettings = mkRenderSettings scrSize graphicsParams black envMap lut camera []
   litF = runResources res do
     mesh <- getMesh "bunny"
     tex <- getTexture "blank"
-    let numExamples = 8
-        sceneWidth = 10
-        itemScale = 3
-    -- for_ [(0::Int)..numExamples-1] \i -> do
-    -- let frac = realToFrac i / realToFrac (numExamples-1)
-        -- x = (frac - 0.5) * sceneWidth
+    let itemScale = 3
         pos = V3 0 0 (-2)
 
     let mat = mkTranslation pos !*!  mkScale (V3 itemScale itemScale itemScale)
-    -- let mat = mkTranslation pos !*! mkRotation (V3 0 0 1) (t/2) !*! mkScale (V3 itemScale itemScale itemScale)
     H.addCommand $ DrawCommand
       { instances = [("", [(0,mat)])]
       , mesh = H.Buffered mesh
@@ -203,6 +196,7 @@ stepF _ t = (t + realToFrac physicsTimeStep, [])
 physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/20
 
+graphicsParamsDefaults :: GraphicsParams
 graphicsParamsDefaults = GraphicsParams {..}
   where
   exposure = 1

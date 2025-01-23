@@ -147,7 +147,7 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
   pm = shotMatrix (Ortho (realToFrac w) 1 100 False) (aspectRatio scrSize)
   renderSettings = H.RenderSettings
     { worldSettings = H.worldSettingsDefaults
-      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho (realToFrac w) 1 100 True) "Main"
+      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho (realToFrac w) 1 100 True) "Main" Nothing
       }
     , overlayGlobals = OverlayGlobals
       { viewMat = vm

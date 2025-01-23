@@ -142,20 +142,22 @@ float linearizeDepth(float depth, float nearPlane, float farPlane)
 
 void main()
 {
-  vec4 orig = texture(origTex, texCoords);
+  vec3 orig = texture(origTex, texCoords).rgb;
+  vec3 color = vec3(0,0,0);
   if (PushConstants.dofMax > 0) {
     float depth = texture(depthTex, texCoords).r;
     depth = linearizeDepth(depth, globals.nearPlane, globals.farPlane);
 
     vec3 viewPos  = viewRay * (depth / globals.farPlane);
 
-    vec4 blurred = texture(blurredTex, texCoords);
+    vec3 blurred = texture(blurredTex, texCoords).rgb;
 
     float amt = smoothstep(PushConstants.dofMin, PushConstants.dofMax, abs(PushConstants.focalDist - viewPos.z));
-    outColor = mix(orig, blurred, amt);
+    color = mix(orig, blurred, amt);
   } else {
-    outColor = orig;
+    color = orig;
   }
+  outColor = vec4(color, 1);
 }
 |])
 

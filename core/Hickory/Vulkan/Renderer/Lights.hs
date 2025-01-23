@@ -102,8 +102,8 @@ withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = Devic
   dependencies = [zero
     { srcSubpass    = SUBPASS_EXTERNAL
     , dstSubpass    = 0
-    , srcStageMask  = PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT
-    , srcAccessMask = ACCESS_MEMORY_READ_BIT
+    , srcStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    , srcAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     }, zero

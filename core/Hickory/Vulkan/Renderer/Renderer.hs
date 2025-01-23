@@ -19,12 +19,12 @@ import Hickory.Vulkan.Renderer.GBuffer (withGBufferRenderConfig, withDepthViewab
 import Hickory.Vulkan.Renderer.ShadowPass (withShadowRenderConfig, withShadowMap)
 import Hickory.Vulkan.RenderPass (useRenderConfig, createFramebuffer, renderConfigRenderPass)
 import Hickory.Vulkan.Mesh (vsizeOf, attrLocation, numVerts)
-import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), ImageViewType (..), Extent3D (..), ImageType (..), RenderingInfo(..), RenderingAttachmentInfo(..), cmdUseRendering, AttachmentLoadOp (..), AttachmentStoreOp (..), Rect2D (..), PipelineStageFlagBits (..), AccessFlagBits (..), SurfaceFormatKHR(..), CullModeFlagBits (..), ImageUsageFlagBits (..), SampleCountFlagBits (..), cmdBindPipeline, PipelineBindPoint (..), cmdBindDescriptorSets)
+import Vulkan (ClearValue (..), ClearColorValue (..), cmdDraw, ClearDepthStencilValue (..), bindings, withDescriptorSetLayout, BufferUsageFlagBits (..), Extent2D (..), ImageLayout (..), cmdBindVertexBuffers, cmdBindIndexBuffer, IndexType (..), cmdDrawIndexed, ShaderStageFlagBits (..), cmdPushConstants, Format (..), Filter (..), SamplerAddressMode (..), SamplerMipmapMode (..), ImageAspectFlagBits (..), ImageViewType (..), Extent3D (..), ImageType (..), RenderingInfo(..), RenderingAttachmentInfo(..), cmdUseRendering, AttachmentLoadOp (..), AttachmentStoreOp (..), Rect2D (..), PipelineStageFlagBits (..), AccessFlagBits (..), SurfaceFormatKHR(..), ImageUsageFlagBits (..), SampleCountFlagBits (..), cmdBindPipeline, PipelineBindPoint (..), cmdBindDescriptorSets, MemoryBarrier(..), cmdPipelineBarrier, CommandBuffer)
 import Foreign (Storable, plusPtr, sizeOf, poke, pokeArray, castPtr, with, (.|.), Bits (..))
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..), descriptorSetBindings, withDataBuffer, uploadBufferDescriptor, uploadBufferDescriptorArray)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, zipFramedResources)
-import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, cmdPushMaterialConstants, withMaterial)
+import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, cmdPushMaterialConstants)
 import Data.List (sortOn, mapAccumL, foldl')
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
@@ -57,7 +57,7 @@ import qualified Data.Vector.Storable.Sized as VSS
 import Hickory.Vulkan.Renderer.ShaderDefinitions (maxShadowCascades, cascadeOverlapThreshold, MaxShadowCascadesNat, MaxSSAOKernelSizeNat, maxSSAOKernelSize)
 import Hickory.Vulkan.Renderer.Direct (withDirectRenderConfig, withOverlayRenderConfig)
 import Hickory.Vulkan.Renderer.Lights (withDirectionalLightMaterial, withLightingRenderConfig, withLightingFrameBuffer, withColorViewableImage)
-import Hickory.Vulkan.Textures (transitionImageLayout, withImageFromArray, withImageSampler, imageBarrier, withIntermediateImage)
+import Hickory.Vulkan.Textures (withImageFromArray, withImageSampler, imageBarrier, withIntermediateImage)
 import Hickory.Vulkan.Renderer.Stats (Stats (..))
 import Data.Functor ((<&>))
 import Data.Traversable.Compat (mapAccumM)
@@ -1109,3 +1109,12 @@ processDrawCommands fc@FrameContext {..} logger batches = do
             cmdDraw commandBuffer numVertices numInstances 0 firstInstanceIndex
 
         liftIO $ writeIORef curMeshRef UUID.nil
+
+
+debugBarrier :: MonadIO io => CommandBuffer -> io ()
+debugBarrier commandBuffer =
+  cmdPipelineBarrier commandBuffer PIPELINE_STAGE_ALL_COMMANDS_BIT PIPELINE_STAGE_ALL_COMMANDS_BIT zero
+    [zero
+      { srcAccessMask = ACCESS_MEMORY_READ_BIT .|. ACCESS_MEMORY_WRITE_BIT
+      , dstAccessMask = ACCESS_MEMORY_READ_BIT .|. ACCESS_MEMORY_WRITE_BIT
+      }] [] []
