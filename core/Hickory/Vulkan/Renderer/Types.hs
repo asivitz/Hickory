@@ -29,13 +29,14 @@ import GHC.Word (Word32)
 import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
 import Data.UUID (UUID)
-import Vulkan (DescriptorSetLayout, Framebuffer, HasObjectType (..), DebugUtilsObjectNameInfoEXT (..), setDebugUtilsObjectNameEXT)
+import Vulkan (DescriptorSetLayout, Framebuffer, HasObjectType (..), DebugUtilsObjectNameInfoEXT (..), setDebugUtilsObjectNameEXT, Extent2D)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (MaxShadowCascadesNat)
 import Data.Text (Text)
 import Control.Monad.IO.Class (MonadIO)
 import Data.ByteString (ByteString)
+import Hickory.Vulkan.Renderer.Blur (BlurConstants, DepthOfFieldConstants)
 
 {- Public API -}
 data RenderSettings = RenderSettings
@@ -121,9 +122,17 @@ data RenderTargets = RenderTargets
   , lightingRenderConfig         :: !RenderConfig
   , lightingRenderFrame          :: FramedResource (Framebuffer, DescriptorSpec)
   -- Stage 7 Post + Stage 9 Overlay
+  , postImage                    :: FramedResource ViewableImage
   , overlayRenderConfig          :: !RenderConfig
   -- Stage 8 Forward
   , directRenderConfig           :: !RenderConfig
+  -- Blur + Depth of Field
+  , blurMaterial                 :: Material BlurConstants
+  , blurImage                    :: FramedResource ViewableImage
+  , blurExtent                   :: Extent2D
+  , blurDescriptorSet            :: FramedResource PointedDescriptorSet
+  , depthOfFieldMaterial         :: Material DepthOfFieldConstants
+  , depthOfFieldDescriptorSet    :: FramedResource PointedDescriptorSet
   -- Etc
   , gbufferFloatDesc             :: FramedResource DescriptorSpec -- A set of 3 images (albedo, normal, depth)
   , gbufferUIntDesc              :: FramedResource DescriptorSpec -- A set of 1 image (objId)
@@ -362,7 +371,7 @@ data ShadowGlobals = ShadowGlobals
 worldSettingsDefaults :: WorldSettings
 worldSettingsDefaults = WorldSettings {..}
   where
-  camera = Camera zero (V3 (-1) (-1) (-1)) (V3 0 0 1) (Perspective (pi/4) 0.1 100) "DefaultWorldSettings"
+  camera = Camera zero (V3 (-1) (-1) (-1)) (V3 0 0 1) (Perspective (pi/4) 0.1 100) "DefaultWorldSettings" Nothing
   lightTransform = identity
   lightDirection = V3 1 1 1
   sunColor = V3 1 1 1

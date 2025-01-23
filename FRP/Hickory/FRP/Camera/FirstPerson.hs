@@ -42,7 +42,7 @@ firstPersonCamera coreEvents = do
       angleVec = lookDir
       projection = Perspective (pi/2) 0.01 400
 
-  pure $ Camera <$> focusPos <*> angleVec <*> up <*> pure projection <*> pure "FirstPerson"
+  pure $ Camera <$> focusPos <*> angleVec <*> up <*> pure projection <*> pure "FirstPerson" <*> pure Nothing
 
 {-
 firstPersonLook

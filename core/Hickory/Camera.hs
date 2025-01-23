@@ -11,6 +11,7 @@ import Hickory.Types (Size(..), aspectRatio)
 import Control.Lens (has)
 import Data.Generics.Labels ()
 import Data.Text (Text)
+import Hickory.Vulkan.Renderer.Blur (DepthOfFieldConstants)
 
 data Projection = Perspective
   { fov       :: Scalar -- Vertical fov
@@ -60,6 +61,7 @@ data Camera = Camera
   , up           :: V3 Scalar
   , projection   :: Projection
   , name         :: Text      -- For interpolating shot changes
+  , depthOfField :: Maybe DepthOfFieldConstants
   } deriving (Generic, Show)
 
 cameraNear :: Camera -> Scalar

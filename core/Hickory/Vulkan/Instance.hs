@@ -49,7 +49,7 @@ withStandardInstance (DL.nub -> desiredExtensions) (DL.nub -> desiredLayers) = d
       , flags = INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
       , next = (zero
         { enabledValidationFeatures =
-          [ -- VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+          [VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
           ]
         },())
       }

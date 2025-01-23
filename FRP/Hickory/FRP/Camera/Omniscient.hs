@@ -12,15 +12,10 @@
 
 module Hickory.FRP.Camera.Omniscient where
 
-import qualified Reactive.Banana as B
 -- import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents)
-import qualified Reactive.Banana.Frameworks as B
-import Reactive.Banana ((<@>))
 import Hickory.Math (Scalar)
 import Hickory.Types (Size (..))
-import Hickory.FRP.UI (trackTouches, TouchChange(..))
-import Data.Maybe (mapMaybe, fromMaybe, isJust)
-import Hickory.FRP.Combinators (unionFirst)
+import Data.Maybe (fromMaybe, isJust)
 import Hickory.Input (Key(..), InputFrame(..))
 import Linear (rotate, axisAngle, V3 (..), V2 (..), normalize, (^*), cross, zero)
 import Control.Lens ((<&>), set)
@@ -29,7 +24,7 @@ import Hickory.Camera (Projection(..), Camera (..), perspectiveFocusPlaneSize)
 import Data.IORef (newIORef, readIORef, writeIORef, modifyIORef')
 import qualified Data.Enum.Set as ES
 import Control.Monad (mfilter)
-import Control.Applicative (asum, Alternative (..))
+import Control.Applicative (Alternative (..))
 import GHC.Generics (Generic)
 
 data CameraMoveMode = Pan | Rotate | Zoom
@@ -136,7 +131,7 @@ omniscientCamera = do
                      else Perspective camFov 0.1 400
     writeIORef stateRef Omniscient {..}
 
-    pure $ Camera focusPos cameraAngleVec up projection "Omniscient"
+    pure $ Camera focusPos cameraAngleVec up projection "Omniscient" Nothing
 
 isOrthographicViewMode :: CameraViewMode -> Bool
 isOrthographicViewMode = \case
