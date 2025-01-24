@@ -19,13 +19,13 @@ import Data.HashMap.Strict (HashMap)
 import Hickory.FRP.Editor.Types
 import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI)
 import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
-import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..), MaterialConfig, StaticConstants, PostConstants (..))
+import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..), PostConstants (..))
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
 import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, runResources, getResourcesStoreResources, Resources)
 import Safe (maximumMay, headMay)
-import Hickory.FRP.Editor.Post (GraphicsParams (..), PostEditorState, readGraphicsParams)
+import Hickory.FRP.Editor.Post (GraphicsParams (..))
 import Data.Traversable (for)
 import Hickory.FRP.Camera (omniscientCamera)
 import Hickory.Graphics (MatrixMonad)
@@ -37,7 +37,6 @@ import qualified Data.Enum.Set as ES
 import Control.Monad.Writer.Strict (Writer)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Word (Word32)
-import Control.Applicative (liftA2)
 
 data ObjectManip = ObjectManip
   { mode       :: Maybe ObjectManipMode
@@ -153,7 +152,7 @@ editorScene
     (ResourcesMonad m, MatrixMonad m, CommandMonad m)
   => H.VulkanResources
   -> ResourcesStore
-  -> PostEditorState
+  -> IORef GraphicsParams
   -> FilePath
   -- -> CoreEvents (Renderer, FrameContext)
   -> IORef (HashMap Word32 Object)
@@ -163,7 +162,7 @@ editorScene
   -- -> B.Event (HashMap Int Object, FilePath)
   -- -> B.MomentIO (B.Behavior (Scene m), B.Behavior (HashMap Int Object))
   -> IO (Scene (Renderer, swapchainResources))
-editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef componentDefs renderComponent quitAction = do
+editorScene vulkanResources resourcesStore graphicsParamsRef sceneFile objectsRef componentDefs renderComponent quitAction = do
   -- sceneFile <- B.stepper (error "No scene file") (snd <$> eLoadScene)
   -- let eReplaceObjects = fst <$> eLoadScene
 
@@ -207,7 +206,7 @@ editorScene vulkanResources resourcesStore postEditorState sceneFile objectsRef 
           whenE f = mfilter (const f)
 
       res <- getResourcesStoreResources ress
-      graphicsParams <- readGraphicsParams postEditorState
+      graphicsParams <- readIORef graphicsParamsRef
 
       let eLeftClick = (\PointUp { location = V2 x y } -> (x/ realToFrac size.width, y/ realToFrac size.height))
                    <$> headMay (filter (\t -> t.duration < 0.3 && t.ident == 1) renderInputFrame.touchesUp)

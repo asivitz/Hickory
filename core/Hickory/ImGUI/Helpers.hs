@@ -7,6 +7,7 @@ import Control.Exception (bracket)
 import GHC.Ptr (nullPtr)
 import Linear (V3 (..), V4 (..), V2 (..))
 import Control.Monad (when)
+import Control.Lens (iso, Iso')
 
 
 myWithWindow :: String -> IO () -> IO ()
@@ -56,3 +57,8 @@ v2ToTuple (V2 r g) = (r,g)
 instance Eq ImVec4 where
   a == b = imVec4ToV4 a == imVec4ToV4 b
 
+v3ImVec3Iso :: Iso' (V3 Float) ImVec3
+v3ImVec3Iso = iso v3ToImVec3 imVec3ToV3
+
+v3TripleIso :: Iso' (V3 Float) (Float,Float,Float)
+v3TripleIso = iso v3ToTriple tripleToV3
