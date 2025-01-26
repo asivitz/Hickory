@@ -62,3 +62,6 @@ v3ImVec3Iso = iso v3ToImVec3 imVec3ToV3
 
 v3TripleIso :: Iso' (V3 Float) (Float,Float,Float)
 v3TripleIso = iso v3ToTriple tripleToV3
+
+v4ImVec4Iso :: Iso' (V4 Float) ImVec4
+v4ImVec4Iso = iso v4ToImVec4 imVec4ToV4
