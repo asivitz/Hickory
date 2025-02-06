@@ -77,6 +77,8 @@ dependencies:
     - ki
     - StateVar
     - filepath
+    - yaml
+    - data-default
 
 when:
     - condition: os(osx)
@@ -89,6 +91,7 @@ library:
   exposed-modules:
     - Hickory.Camera
     - Hickory.Color
+    - Hickory.Config
     - Hickory.GameLoop
     - Hickory.Graphics
     - Hickory.Graphics.Debug
