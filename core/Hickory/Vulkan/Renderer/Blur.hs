@@ -31,7 +31,7 @@ data DepthOfFieldConstants = DepthOfFieldConstants
   { focalDist :: Float
   , dofMin    :: Float
   , dofMax    :: Float
-  } deriving (Generic, Show)
+  } deriving (Generic, Show, Read)
     deriving anyclass GStorable
 
 withBlurRenderConfig :: Format -> Extent2D -> Acquire RenderConfig
