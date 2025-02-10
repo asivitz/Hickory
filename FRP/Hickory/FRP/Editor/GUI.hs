@@ -7,7 +7,7 @@
 module Hickory.FRP.Editor.GUI where
 
 import qualified Data.HashMap.Strict as Map
-import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, withCollapsingHeaderOpen, dragFloat3, colorEdit4, treePop, withDragDropTarget, acceptDragDropPayload, withDragDropSource, setDragDropPayload, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2, pattern ImGuiTreeNodeFlags_Leaf)
+import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, collapsingHeader, dragFloat3, colorEdit4, treePop, withDragDropTarget, withDragDropSource, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2, pattern ImGuiTreeNodeFlags_Leaf, ImGuiMouseButton (..))
 import Hickory.ImGUI.Helpers (myWithWindow, v3ToTriple, tripleToV3, v2ToTuple, tupleToV2, imVec4ToV4, v4ToImVec4)
 import Control.Monad.Extra (whenM)
 import Data.Bits (zeroBits, (.|.))
@@ -33,7 +33,7 @@ import Data.Word (Word32)
 
 drawMainEditorUI :: FilePath -> HashMap Word32 Object -> HashMap Word32 Object -> (Word32 -> IO ()) -> IO ()
 drawMainEditorUI sceneFile selected objects guiPickObjectID =
-  myWithWindow "Editor" do
+  void $ myWithWindow "Editor" do
     withMenuBarOpen do
       withMenuOpen "File" do
         whenM (menuItem "Save Scene") do
@@ -47,27 +47,25 @@ drawMainEditorUI sceneFile selected objects guiPickObjectID =
         $   (if Map.member k selected then ImGuiTreeNodeFlags_Selected else zeroBits)
         .|. (if null children then ImGuiTreeNodeFlags_Leaf else zeroBits)
 
-      whenM isItemClicked do
+      whenM (isItemClicked (ImGuiMouseButton 0)) do
         guiPickObjectID k
 
-      withDragDropTarget do
-        acceptDragDropPayload "obj" >>= \case
-          Nothing -> pure ()
-          Just (droppedId :: Int) -> pure ()
-      withDragDropSource do
-        _ <- setDragDropPayload "obj" k
+      withDragDropTarget zeroBits "obj" \(droppedId :: Int) -> do
+        pure ()
+      withDragDropSource zeroBits "obj" k \_ -> do
         pure ()
       when open do
         for_ children \childId -> do
           childOpen <- treeNodeWith (pack $ show childId) (ImGuiTreeNodeFlags_Leaf .|. if Map.member childId selected then ImGuiTreeNodeFlags_Selected else zeroBits)
 
-          whenM isItemClicked do
+          whenM (isItemClicked (ImGuiMouseButton 0)) do
             guiPickObjectID childId
 
           when childOpen do
             treePop
 
         treePop
+    pure Nothing
 
 drawObjectEditorUI :: HashMap String (Component m a) -> IORef (HashMap Word32 Object) -> [Word32] -> IO ()
 drawObjectEditorUI componentDefs objectsRef selectedIds = do
@@ -86,13 +84,13 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
                                             (g $ defaultAttrVal (mkAttr :: Attribute a))
 
     myWithWindow "Object" do
-      withCollapsingHeaderOpen "Transform" zeroBits do
+      whenM (collapsingHeader "Transform" (Just True)) do
         void $ dragFloat3 "Position" (mkVar (#transform . translation) v3ToTriple (const . tripleToV3) (0,0,0))  1 1 1
         void $ dragFloat3 "Scale" (mkVar #transform (v3ToTriple . matScale) (setScale . tripleToV3) (0,0,0)) 1 1 1
         void $ dragFloat3 "Rotation" (mkVar #transform (v3ToTriple . matEuler) (setRotation . tripleToV3) (0,0,0)) 1 1 1
 
       ifor_ (maybe [] (.components) oneSelected) \i (compName, _attrVals) -> do
-        withCollapsingHeaderOpen (pack $ printf "[%d] %s" i compName) zeroBits do
+        whenM (collapsingHeader (pack $ printf "[%d] %s" i compName) (Just True)) do
           whenM (button "Delete") do
             modifyIORef' objectsRef $ \m -> foldl' (\b a -> over (ix a . #components) (`deleteAt` i) b) m selectedIds
           let compDef = HashMap.lookup compName componentDefs
@@ -116,6 +114,7 @@ drawObjectEditorUI componentDefs objectsRef selectedIds = do
           selectable (pack name) >>= \case
             True -> modifyIORef' objectsRef $ \m -> foldl' (\b a -> over (ix a . #components) (++ [(name, mkDefaultComponent def.attributes)]) b) m selectedIds
             False -> pure ()
+      pure Nothing
   where
   -- Look up the value for an attribute
   pullAttrVal :: forall a. Attr a => SomeAttribute Identity -> a

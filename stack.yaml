@@ -13,6 +13,7 @@ packages:
 - 'Example/Shooter'
 - 'Example/Showcase'
 - '../oss/sdl2'
+# - '../oss/dear-imgui.hs'
 
 allow-newer: true
 
@@ -28,7 +29,7 @@ extra-deps:
 - ki-1.0.1.1
 # - dear-imgui-2.1.0
 - git: https://github.com/asivitz/dear-imgui.hs.git
-  commit: 0be78f05caf234e5ac72387ae26612bc4ea642cd
+  commit: 3e4a6eae8480de872a9051f9b224f393a32b311b
 - git: https://github.com/fieldstrength/aeson-deriving.git
   commit: e6e1f5066ebf1f37c10687e9bc90e5b0d3b22b0c
 - gltf-codec-0.1.0.4@sha256:41f3718e93b273ca65fd3072fd02ca59dec1c978a56dc891c62b53821c332326,2633

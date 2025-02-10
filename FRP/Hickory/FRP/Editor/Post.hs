@@ -9,7 +9,7 @@ import DearImGui
       menuItem,
       dragFloat3,
       dragFloat,
-      colorEdit3, ImVec2 (..), ImVec4 (..), image, withCollapsingHeaderOpen, dragInt, checkbox )
+      colorEdit3, ImVec2 (..), ImVec4 (..), image, collapsingHeader, dragInt, checkbox )
 import Data.IORef ( IORef, readIORef, modifyIORef' )
 import GHC.Generics (Generic)
 import Hickory.ImGUI.Helpers (myWithWindow, v3TripleIso)
@@ -75,7 +75,7 @@ defaultGraphicsParams = GraphicsParams
 
 drawPostUI :: IORef GraphicsParams -> (Renderer, FrameContext) -> IO ()
 drawPostUI graphicsParamsRef (Renderer {..}, FrameContext {..}) = do
-  myWithWindow "Post Processing" do
+  void $ myWithWindow "Post Processing" do
     withMenuBarOpen do
       withMenuOpen "File" do
         whenM (menuItem "Save Post Parameters") do
@@ -95,13 +95,13 @@ drawPostUI graphicsParamsRef (Renderer {..}, FrameContext {..}) = do
     void $ dragFloat "Sun Strength" (mkVar #sunStrength) 0.1 0 100
     void $ dragFloat3 "Sun Direction" (mkVar (#sunDirection . v3TripleIso)) 0.1 (-100) 100
 
-    withCollapsingHeaderOpen "SSAO Config" zeroBits do
+    whenM (collapsingHeader "SSAO Config" (Just True)) do
       void $ dragInt "Kernel Size" (mkVar #ssaoKernelSize) 1 0 64
       void $ dragFloat "Kernel Radius" (mkVar #ssaoKernelRadius) 0.01 0 5
 
     void $ dragFloat "Shadow Bias Slope" (mkVar #shadowBiasSlope) 0.001 0 1
 
-    withCollapsingHeaderOpen "Shadowmap Cascades" zeroBits do
+    whenM (collapsingHeader "Shadowmap Cascades" (Just True)) do
       let RenderTargets {..} = renderTargets
           Extent2D w h = shadowRenderConfig.extent
           desSetHandle = snd $ objectTypeAndHandle (view #descriptorSet (resourceForFrame swapchainImageIndex shadowMapDescriptorSet))
@@ -113,11 +113,12 @@ drawPostUI graphicsParamsRef (Renderer {..}, FrameContext {..}) = do
         with (ImVec4 0 0 0 0) \borderCol ->
           image (castPtr imagePtr) sizeptr uv0 uv1 tintCol borderCol
 
-    withCollapsingHeaderOpen "Features" zeroBits do
+    whenM (collapsingHeader "Features" (Just True)) do
       void $ checkbox "Diffuse" (mkVar (#features . #diffuse))
       void $ checkbox "Specular" (mkVar (#features . #specular))
       void $ checkbox "SSAO" (mkVar (#features . #ssao))
       void $ checkbox "Shadows" (mkVar (#features . #shadows))
+    pure Nothing
   where
   mkVar :: Lens' GraphicsParams a -> StateVar a
   mkVar l = makeStateVar (view l <$> readIORef graphicsParamsRef) (\a -> modifyIORef' graphicsParamsRef $ set l a)

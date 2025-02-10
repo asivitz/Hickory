@@ -15,7 +15,7 @@ import Acquire (Acquire)
 import Control.Lens ((^.), filtered, (^?), each, runIdentity, view)
 import Foreign (poke)
 import Control.Monad (void, when, join, mfilter)
-import Hickory.FRP.Editor (mkPostEditorState, readGraphicsParams, drawPostUI, GraphicsParams (..))
+import Hickory.FRP.Editor (drawPostUI, GraphicsParams (..))
 
 import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
@@ -224,7 +224,8 @@ main = GLFWV.withWindow 750 750 "Showcase" \win -> runAcquire do
   liftIO do
     res <- getResourcesStoreResources resStore
     let shouldShowPost = True
-    postEditorState <- mkPostEditorState graphicsParamsDefaults
+
+    graphicsParamsRef <- newIORef graphicsParamsDefaults
 
     let mkScene = do
           stack <- newIORef (newGameStateStack newModel)
@@ -233,9 +234,9 @@ main = GLFWV.withWindow 750 750 "Showcase" \win -> runAcquire do
             pure $ \frac _ size (sr,fc) -> do
 
               when shouldShowPost do
-                drawPostUI postEditorState (sr,fc)
+                drawPostUI graphicsParamsRef (sr,fc)
 
-              graphicsParams <- readGraphicsParams postEditorState
+              graphicsParams <- readIORef graphicsParamsRef
               model <- queryGameState <$> readIORef stack
               renderGame graphicsParams res (model (2 - frac)) size (sr, fc)
 
