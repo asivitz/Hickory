@@ -40,7 +40,7 @@ import Hickory.Graphics.DrawText (textcommand)
 import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Color (white, red)
-import Hickory.Vulkan.Renderer.Types (OverlayGlobals(..), DrawCommand (..))
+import Hickory.Vulkan.Renderer.Types (OverlayGlobals(..), DrawCommand (..), Features (..))
 import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource, runResources)
 import Data.Functor ((<&>))
@@ -124,7 +124,7 @@ loadResources :: String -> H.VulkanResources -> Acquire ResourcesStore
 loadResources path vulkanResources = do
   resourcesStore <- withResourcesStore vulkanResources
   liftIO do
-    let opts = TextureLoadOptions
+    let opts = H.pngLoadOptions
           { filter = FILTER_LINEAR
           , samplerAddressMode = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
           , samplerMipmapMode = Nothing
@@ -158,6 +158,9 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
     , clearColor = V4 0 0 0 1
     , highlightObjs = []
     , ssaoSettings = H.SSAOSettings 0 0
+    , shadowBiasSlope = 0.003
+    , lut = Nothing
+    , features = Features {diffuse = True, specular = True, ssao = True, shadows = True}
     }
   litF = runResources res do
     square <- getMesh "square"

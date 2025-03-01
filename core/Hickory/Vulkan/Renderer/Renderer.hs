@@ -71,7 +71,7 @@ import Hickory.Vulkan.Renderer.SSAO (withSSAOMaterial, withSSAORenderConfig, wit
 import Control.Monad.Random (randomRIO)
 import Hickory.Vulkan.Renderer.Decals (withDecalRenderConfig)
 import Data.Bool (bool)
-import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor)
+import Hickory.Vulkan.StockTexture (withWhiteImageDescriptor, withWhiteCubeImageDescriptor)
 import Hickory.Vulkan.LUT (withBaseLUT)
 import Hickory.Vulkan.Renderer.StockMaterials (withStaticGBufferMaterialConfig, withAnimatedGBufferMaterialConfig, withStaticDirectMaterialConfig, withMSDFMaterialConfig, withLineDirectMaterialConfig, withPointDirectMaterialConfig, withDecalMaterialConfig)
 import Hickory.Vulkan.Renderer.Blur (BlurConstants (..), withBlurMaterial, withDepthOfFieldMaterial, DepthOfFieldConstants (..))
@@ -250,8 +250,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   pointDirectMaterialConfig <- withPointDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet
 
   defaultEnvMapDescriptorSet <- do
-    ds1 <- withWhiteImageDescriptor vulkanResources
-    ds2 <- withWhiteImageDescriptor vulkanResources
+    ds1 <- withWhiteCubeImageDescriptor vulkanResources
+    ds2 <- withWhiteCubeImageDescriptor vulkanResources
     withDescriptorSet vulkanResources [ds1, ds2]
 
   defaultLutDescriptorSet <- do
