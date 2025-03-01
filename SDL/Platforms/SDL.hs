@@ -29,7 +29,7 @@ import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
 import Vulkan (Instance, SurfaceKHR(..), instanceHandle)
 import Data.Text (pack)
-import Hickory.Vulkan.Vulkan (mkAcquire)
+import Hickory.Vulkan.Vulkan (mkAcquire, unWrapAcquire)
 import Foreign (castPtr)
 import qualified SDL.Video.Vulkan as SDL
 import Hickory.Vulkan.Utils (initVulkan, buildFrameFunction)
@@ -561,13 +561,12 @@ runFrames win shouldQuit vulkanResources acquireRenderer f = do
           f userRes frameContext
 
   -- TODO: Option to turn off dear-imgui?
-  -- (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
-  (exeFrame, cleanup) <- buildFrameFunction vulkanResources ((\(V2 x y) -> Size x y) . fmap fromIntegral <$> SDL.vkGetDrawableSize win) imguiAcquire imguiRender
+  (exeFrame, cleanup) <- unWrapAcquire (buildFrameFunction vulkanResources ((\(V2 x y) -> Size x y) . fmap fromIntegral <$> SDL.vkGetDrawableSize win) imguiAcquire)
 
   let
     runFrame = do
       -- events <- SDL.pollEvents
-      exeFrame
+      exeFrame imguiRender
       runCleanup vulkanResources
       shouldQuit
 

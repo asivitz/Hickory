@@ -16,7 +16,7 @@ import Hickory.Vulkan.Framing (resourceForFrame, frameResource)
 import Hickory.Vulkan.Frame (drawFrame, withFrame)
 import Data.ByteString (ByteString)
 import Data.IORef (newIORef, atomicModifyIORef, readIORef, IORef, writeIORef)
-import Acquire (Acquire)
+import Acquire (Acquire (..))
 import Control.Monad.IO.Class (liftIO)
 import Hickory.Vulkan.Instance (withStandardInstance, validationLayers)
 import Vulkan.Zero (zero)
@@ -51,9 +51,8 @@ buildFrameFunction
   :: VulkanResources
   -> IO (Size Int) -- ^ Query framebuffer size
   -> (Swapchain -> Acquire userRes) -- ^ Acquire user resources
-  -> (userRes -> FrameContext -> IO ()) -- ^ Run with frame context
-  -> IO (IO (), IO ()) -- ^ (Execute a frame, Cleanup user res)
-buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes exeFrame = do
+  -> Acquire ((userRes -> FrameContext -> IO ()) -> IO ()) -- ^ Execute a frame
+buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes = do
   frameCounter :: IORef Int <- liftIO $ newIORef 0
 
   -- When the window is resized, we have to rebuild the swapchain
@@ -65,11 +64,11 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes e
       userResources <- acqUserRes swapchain
       pure (swapchain, userResources)
 
-  dynamicResources <- unWrapAcquire acquireDynamicResources >>= newIORef
+  dynamicResources <- liftIO $ unWrapAcquire acquireDynamicResources >>= newIORef
 
   let
     waitForIdleDevice = deviceWaitIdle (device deviceContext)
-    runASingleFrame = do
+    runASingleFrame exeFrame = do
       frameNumber <- atomicModifyIORef frameCounter (\a -> (a+1,a+1))
       let frame = resourceForFrame (fromIntegral frameNumber) frames -- usually we index by swapchainImageIndex, but we don't have it yet
       ((swapchain, userResources), releaseRes) <- liftIO $ readIORef dynamicResources
@@ -81,4 +80,4 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes e
     cleanup = do
       waitForIdleDevice
       readIORef dynamicResources >>= snd
-  pure (runASingleFrame, cleanup)
+  Acquire $ pure (runASingleFrame, cleanup)

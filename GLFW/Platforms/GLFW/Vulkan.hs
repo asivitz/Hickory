@@ -81,12 +81,12 @@ runFrames win vulkanResources acquireRenderer f = do
 
   -- TODO: Option to turn off dear-imgui?
   -- (exeFrame, cleanup) <- buildFrameFunction glfwReqExts (uncurry Size <$> GLFW.getFramebufferSize win) (`withWindowSurface` win) acquireUserResources f
-  (exeFrame, cleanup) <- buildFrameFunction vulkanResources (uncurry Size <$> GLFW.getFramebufferSize win) imguiAcquire imguiRender
+  (exeFrame, cleanup) <- unWrapAcquire (buildFrameFunction vulkanResources (uncurry Size <$> GLFW.getFramebufferSize win) imguiAcquire)
 
   let
     glfwRunFrame = do
       GLFW.pollEvents
-      exeFrame
+      exeFrame imguiRender
       runCleanup vulkanResources
       GLFW.windowShouldClose win
 

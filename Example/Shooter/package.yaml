@@ -12,6 +12,7 @@ dependencies:
     - Hickory
     - Hickory-GLFW
     - Hickory-FRP
+    - Hickory-SDL
     - GLFW-b
     - base
     - bytestring

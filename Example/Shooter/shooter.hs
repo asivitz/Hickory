@@ -23,11 +23,9 @@ import Control.Lens ((^.))
 import Foreign (poke)
 import Control.Monad (void)
 
-import qualified Platforms.GLFW.Vulkan as GLFWV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Renderer.Types as H
 import qualified Hickory.Vulkan.Renderer.Renderer as H
-import qualified Hickory.Vulkan.Renderer.GBuffer as H
 
 import Vulkan
   ( pattern FILTER_LINEAR
@@ -41,16 +39,14 @@ import Hickory.Text (TextCommand(..), XAlign (..))
 import Hickory.Math.Vector (Scalar)
 import Hickory.Color (white, red)
 import Hickory.Vulkan.Renderer.Types (OverlayGlobals(..), DrawCommand (..), Features (..))
-import Platforms.GLFW.Vulkan (initGLFWVulkan)
 import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTexture, getResourcesStoreResources, Resources, getSomeFont, loadTextureResource, loadFontResource, runResources)
 import Data.Functor ((<&>))
 import qualified Data.Enum.Set as E
 import qualified Data.Map.Strict as HashMap
-import Platforms.GLFW.GameLoop (glfwGameLoop)
-import Hickory.GameLoop (newGameStateStack, stepGameState, queryGameState)
+import Hickory.GameLoop (newGameStateStack, stepGameState, queryGameState, gameLoop)
 import Data.IORef (newIORef, atomicModifyIORef', readIORef)
-import Platforms.GLFW.Bridge (glfwFrameBuilder)
 import Hickory.Vulkan.Types (TextureLoadOptions(..))
+import qualified Platforms.SDL as HSDL
 
 -- ** GAMEPLAY **
 
@@ -225,18 +221,20 @@ physicsTimeStep :: NominalDiffTime
 physicsTimeStep = 1/20
 
 main :: IO ()
-main = GLFWV.withWindow 750 750 "Demo" \win -> runAcquire do
-  vulkanResources <- initGLFWVulkan win
+main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
+  vulkanResources <- HSDL.initSDLVulkan win
   resStore <- loadResources "Example/Shooter/assets/" vulkanResources
+
+  sdlHandles <- liftIO HSDL.sdlFrameBuilder
+  res <- liftIO $ getResourcesStoreResources resStore
+  let mkScene = do
+        stack <- newIORef (newGameStateStack newGame)
+        pure \inputFrame -> do
+          _evs <- atomicModifyIORef' stack (stepGameState $ stepF inputFrame)
+          pure $ \frac _ size (sr,fc) -> do
+            model <- queryGameState <$> readIORef stack
+            renderGame res (model (2 - frac)) size (sr, fc)
+
   liftIO do
-    res <- getResourcesStoreResources resStore
-
-    let mkScene = do
-          stack <- newIORef (newGameStateStack newGame)
-          pure \inputFrame -> do
-            _evs <- atomicModifyIORef' stack (stepGameState $ stepF inputFrame)
-            pure $ \frac _ size (sr,fc) -> do
-              model <- queryGameState <$> readIORef stack
-              renderGame res (model (2 - frac)) size (sr, fc)
-
-    glfwGameLoop win vulkanResources (H.withRenderer vulkanResources) physicsTimeStep $ const mkScene
+    gameLoop (HSDL.sdlScreenSize win) (H.withRenderer vulkanResources) physicsTimeStep sdlHandles.buildInputFrame
+      (HSDL.runFrames win sdlHandles.shouldQuit vulkanResources) \_cs -> mkScene

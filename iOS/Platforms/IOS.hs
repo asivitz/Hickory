@@ -75,7 +75,7 @@ mkDrawInit acquireSwapchainResources physicsTimeStep initialScene layerPtr w h =
 
   builder <- inputFrameBuilder
 
-  ((exeFrame, cleanupUserRes), cleanupVulkan)
+  (exeFrame, cleanup)
     <- unWrapAcquire do
       vulkanResources <- initIOSVulkan layerPtr
       inputRef   :: IORef InputFrame <- liftIO $ newIORef mempty
@@ -97,8 +97,8 @@ mkDrawInit acquireSwapchainResources physicsTimeStep initialScene layerPtr w h =
               scene <- readIORef sceneRef
               scene inputFrame >>= writeIORef renderFRef
 
-      liftIO $ buildFrameFunction vulkanResources (pure $ Size (fromIntegral w) (fromIntegral h)) (acquireSwapchainResources vulkanResources)
-                          \swapchainResources frameContext -> do
+      exeFrame <- buildFrameFunction vulkanResources (pure $ Size (fromIntegral w) (fromIntegral h)) (acquireSwapchainResources vulkanResources)
+      pure $ exeFrame \swapchainResources frameContext -> do
         rawInputs <- touchFunc td
         inputFrame <- builder rawInputs
         modifyIORef' inputRef (inputFrame<>)
@@ -106,7 +106,7 @@ mkDrawInit acquireSwapchainResources physicsTimeStep initialScene layerPtr w h =
         scrSize <- readIORef wSizeRef
         readIORef renderFRef >>= \f -> f (realToFrac $ curInputFrame.delta / physicsTimeStep) inputFrame { frameNum = curInputFrame.frameNum } scrSize (swapchainResources , frameContext)
 
-  newStablePtr (exeFrame, td, cleanupUserRes >> cleanupVulkan)
+  newStablePtr (exeFrame, td, cleanup)
 
 resourcesPath :: IO String
 resourcesPath = do
