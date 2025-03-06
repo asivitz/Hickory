@@ -49,7 +49,6 @@ library:
     - Platforms.GLFW.Bridge
     - Platforms.GLFW.Vulkan
     - Platforms.GLFW.DearImGui
-    - Platforms.GLFW.GameLoop
     - Platforms.GLFW
 
 executables:

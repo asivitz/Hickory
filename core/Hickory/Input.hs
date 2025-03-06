@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, OverloadedLabels, StrictData, OverloadedRecordDot #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE StrictData #-}
 
 module Hickory.Input where
 
@@ -311,7 +312,7 @@ makeTimePoller = do
   time <- newIORef initial_time
   pure do
     new_time <- getCurrentTime
-    atomicModifyIORef time (\prev_time -> (new_time, min 0.1 (diffUTCTime new_time prev_time)))
+    atomicModifyIORef' time (\prev_time -> (new_time, min 0.1 (diffUTCTime new_time prev_time)))
 
 makeInputPoller :: ((RawInput -> IO ()) -> IO (IO ())) -> IO (IO [RawInput])
 makeInputPoller inputSetup = do
@@ -320,9 +321,9 @@ makeInputPoller inputSetup = do
 
   pure do
     stepInp
-    atomicModifyIORef is ([],)
+    atomicModifyIORef' is ([],)
   where
-  addRawInput stream event = atomicModifyIORef stream (\evs -> (evs ++ [event], ()))
+  addRawInput stream event = atomicModifyIORef' stream (\evs -> (evs ++ [event], ()))
 
 data InputFrame = InputFrame
   { delta              :: NominalDiffTime
@@ -373,15 +374,13 @@ instance Monoid InputFrame where
     gamePadConnections = mempty
     frameNum = 0
 
-inputFrameBuilder :: IO ([RawInput] -> IO InputFrame)
+inputFrameBuilder :: IO ([RawInput] -> NominalDiffTime -> IO InputFrame)
 inputFrameBuilder = do
-  timePoller     <- makeTimePoller
   heldKeysRef    <- newIORef E.empty
   -- heldTouchesRef <- newIORef mempty
   gamepadsRef    <- newIORef mempty
 
-  pure $ \newInputs -> do
-    delta <- timePoller
+  pure $ \newInputs delta -> do
 
     let pressedKeys  = foldl' (flip E.insert) E.empty $ [k | InputKeyDown k <- newInputs]
         releasedKeys = foldl' (flip E.insert) E.empty $ [k | InputKeyUp k _ <- newInputs]

@@ -8,6 +8,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE StrictData #-}
 
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Time.Clock (NominalDiffTime)
@@ -43,10 +44,11 @@ import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTe
 import Data.Functor ((<&>))
 import qualified Data.Enum.Set as E
 import qualified Data.Map.Strict as HashMap
-import Hickory.GameLoop (newGameStateStack, stepGameState, queryGameState, gameLoop)
-import Data.IORef (newIORef, atomicModifyIORef', readIORef)
+import Hickory.GameLoop (gameLoop)
+import Data.IORef (newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Types (TextureLoadOptions(..))
 import qualified Platforms.SDL as HSDL
+import Data.Bool (bool)
 
 -- ** GAMEPLAY **
 
@@ -81,8 +83,8 @@ newGame :: Model
 newGame = Model (V2 0 0) (V2 0 0) mempty 0
 
 -- Move our game state forward in time
-stepF :: InputFrame -> Model -> (Model, [()])
-stepF inputFrame mdl = (actionStep,[])
+stepF :: InputFrame -> Model -> Model
+stepF inputFrame mdl = actionStep
   where
   actionStep = foldr stepMsg simulationStep msgs
   simulationStep = physics inputFrame.delta (mkMoveDir inputFrame) mdl
@@ -218,7 +220,7 @@ mkMoveDir InputFrame {..} = sum
     _ -> V2 0 0
 
 physicsTimeStep :: NominalDiffTime
-physicsTimeStep = 1/20
+physicsTimeStep = 1/30
 
 main :: IO ()
 main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
@@ -227,14 +229,13 @@ main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
 
   sdlHandles <- liftIO HSDL.sdlFrameBuilder
   res <- liftIO $ getResourcesStoreResources resStore
-  let mkScene = do
-        stack <- newIORef (newGameStateStack newGame)
-        pure \inputFrame -> do
-          _evs <- atomicModifyIORef' stack (stepGameState $ stepF inputFrame)
-          pure $ \frac _ size (sr,fc) -> do
-            model <- queryGameState <$> readIORef stack
-            renderGame res (model (2 - frac)) size (sr, fc)
 
-  liftIO do
-    gameLoop (HSDL.sdlScreenSize win) (H.withRenderer vulkanResources) physicsTimeStep sdlHandles.buildInputFrame
-      (HSDL.runFrames win sdlHandles.shouldQuit vulkanResources) \_cs -> mkScene
+  gameState <- liftIO $ newIORef newGame
+  renderWrapper <- HSDL.runFrames win vulkanResources (H.withRenderer vulkanResources)
+  let physF inputFrame = atomicModifyIORef' gameState $ (\a -> (a,a)) . stepF inputFrame
+      renderF mdl =
+        renderWrapper \sr fc -> do
+          size <- HSDL.sdlScreenSize win
+          renderGame res mdl size (sr, fc)
+
+  liftIO $ gameLoop physicsTimeStep sdlHandles.inputPoller (bool Nothing (Just ()) <$> sdlHandles.shouldQuit) [] physF renderF

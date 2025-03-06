@@ -23,20 +23,19 @@ import qualified SDL.Input.GameController as SDL
 import qualified SDL.Internal.Types as SDL
 import qualified SDL.Raw as SDLRaw
 import qualified Data.Vector as V
-import Data.Foldable (traverse_, for_, foldl')
+import Data.Foldable (traverse_, for_)
 import SDL (WindowConfig(..), ControllerButtonEventData(..))
 import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
 import Vulkan (Instance, SurfaceKHR(..), instanceHandle)
 import Data.Text (pack)
-import Hickory.Vulkan.Vulkan (mkAcquire, unWrapAcquire)
+import Hickory.Vulkan.Vulkan (mkAcquire)
 import Foreign (castPtr)
 import qualified SDL.Video.Vulkan as SDL
 import Hickory.Vulkan.Utils (initVulkan, buildFrameFunction)
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString as B
 import Vulkan.Extensions (destroySurfaceKHR)
-import Data.Function (fix)
 import Hickory.ImGUI.ImGUI (renderDearImGui, initDearImGui)
 import DearImGui.SDL.Vulkan (sdl2InitForVulkan)
 import DearImGui.SDL (sdl2Shutdown, sdl2NewFrame, pollEventsWithImGui)
@@ -47,7 +46,6 @@ import qualified Data.Enum.Set as E
 import SDL.Input.Keyboard.Codes
 import Data.Text.Foreign (withCString)
 import DearImGui (wantCaptureMouse, wantCaptureKeyboard)
-import Control.Monad.Extra (unlessM)
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -59,8 +57,8 @@ data InputData = InputData
   }
 
 data SDLHandles = SDLHandles
-  { buildInputFrame  :: IO InputFrame
-  , shouldQuit       :: IO Bool
+  { inputPoller :: IO [RawInput]
+  , shouldQuit  :: IO Bool
   -- The controller
   -- Intensity of the low frequency (left) rumble motor
   -- Intensity of the high frequency (right) rumble motor
@@ -76,8 +74,6 @@ touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
 
 sdlFrameBuilder :: IO SDLHandles
 sdlFrameBuilder = do
-  builder <- inputFrameBuilder
-
   cds <- SDL.availableControllers
   gcs <- for cds SDL.openController
   gcids <- for gcs \(SDL.GameController ptr) -> do
@@ -102,7 +98,7 @@ sdlFrameBuilder = do
         HashMap.lookup (fromIntegral i) <$> readIORef indat.gamepads >>= traverse_ \(SDL.GameController ptr,_) -> do
           void $ SDLRaw.gameControllerRumble ptr left right dur
 
-  buildInputFrame <- pure do
+  inputPoller <- pure do
     -- touches <- readIORef indat.touches
     -- curPos <- GLFW.getCursorPos win
     -- let curloc = touchPosToScreenPos curPos
@@ -228,7 +224,7 @@ sdlFrameBuilder = do
       addInput $ InputGamePadButtons Pressed (fromIntegral gcid) [stickButtonPresses]
       addInput $ InputGamePadButtons Released (fromIntegral gcid) [stickButtonReleases]
 
-    atomicModifyIORef' inputsRef (\is -> ([], reverse is)) >>= builder
+    atomicModifyIORef' inputsRef (\is -> ([], reverse is))
   let shouldQuit = readIORef quitSignal
   pure SDLHandles {..}
   where
@@ -547,33 +543,23 @@ initSDLVulkan win = do
 
 runFrames
   :: SDL.Window
-  -> IO Bool
   -> VulkanResources
   -> (Swapchain -> Acquire renderer) -- ^ Acquire renderer
-  -> (renderer -> FrameContext -> IO ()) -- ^ Execute a frame
-  -> IO ()
-runFrames win shouldQuit vulkanResources acquireRenderer f = do
+  -> Acquire ((renderer -> FrameContext -> IO ()) -> IO ())
+runFrames win vulkanResources acquireRenderer = do
   let imguiAcquire swap =
         (,) <$> initDearImGui (void $ sdl2InitForVulkan win) sdl2Shutdown vulkanResources swap
             <*> acquireRenderer swap
-      imguiRender (imguiRes, userRes) frameContext = do
+      imguiRender f (imguiRes, userRes) frameContext = do
         renderDearImGui imguiRes frameContext sdl2NewFrame do
           f userRes frameContext
 
   -- TODO: Option to turn off dear-imgui?
-  (exeFrame, cleanup) <- unWrapAcquire (buildFrameFunction vulkanResources ((\(V2 x y) -> Size x y) . fmap fromIntegral <$> SDL.vkGetDrawableSize win) imguiAcquire)
+  exeFrame <- buildFrameFunction vulkanResources ((\(V2 x y) -> Size x y) . fmap fromIntegral <$> SDL.vkGetDrawableSize win) imguiAcquire
 
-  let
-    runFrame = do
-      -- events <- SDL.pollEvents
-      exeFrame imguiRender
-      runCleanup vulkanResources
-      shouldQuit
-
-  fix \rec -> liftIO runFrame >>= \case
-    False -> rec
-    True -> pure ()
-  liftIO cleanup
+  pure \f -> do
+    exeFrame (imguiRender f)
+    runCleanup vulkanResources
 
 sdlScreenSize :: MonadIO f => SDL.Window -> f (Size Int)
 sdlScreenSize win = ((\(V2 x y) -> fmap fromIntegral (Size x y)) <$> SDL.get (SDL.windowSize win))

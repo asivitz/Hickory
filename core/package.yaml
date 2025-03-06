@@ -79,6 +79,8 @@ dependencies:
     - filepath
     - yaml
     - data-default
+    - extra
+    - deepseq
 
 when:
     - condition: os(osx)
