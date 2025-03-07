@@ -54,51 +54,64 @@ pureGameScene initialModel stepFunction = do
   --       Just (to, from) -> glerp (realToFrac $ curInputFrame.delta / physicsTimeStep) from to
   --       Nothing -> fromMaybe (error "No game states available") $ S.lookup 0 gameSeq
 
+data Scene = forall a. Interpolatable a => Scene
+  { logicF      :: InputFrame -> IO a
+  , renderF     :: a -> IO ()
+  , sceneStates :: [a]
+  }
+
 -- For more predictable timing, keep the fields of your game state strict
 -- (Use the StrictData extension)
 gameLoop
-  :: (Interpolatable a)
-  => NominalDiffTime
+  :: NominalDiffTime
   -> IO [RawInput]
-  -> IO (Maybe b)
-  -> [a]
-  -> (InputFrame -> IO a)
-  -> (a -> IO ())
-  -> IO b
-gameLoop physicsTimeStep inputPoller termination initialStates physF renderF = do
+  -> IO Bool
+  -> Scene
+  -> IO (Maybe Scene)
+  -> IO ()
+gameLoop physicsTimeStep inputPoller termination initialScene newScenePoll = do
   -- Triple buffer recorded game states
   initialFrameTime <- getCurrentTime
-  statesRef :: IORef (UTCTime, Word, [a]) <- newIORef (initialFrameTime, 0, initialStates)
+  statesRef :: IORef (UTCTime, Word, Maybe Scene, Scene) <- newIORef (initialFrameTime, 0, Nothing, initialScene)
 
   builder <- inputFrameBuilder
-  inputsRef <- newIORef []
+  initialInput <- inputPoller
+  inputsRef <- newIORef initialInput
   logicThreadAlive <- newIORef True
 
   Ki.scoped \scope -> do
     _thr <- Ki.fork scope do
       whileM do
-        (lastFrameTime, curFrameNum, _) <- readIORef statesRef
+        newScenePoll >>= flip for_ \newScene -> do
+          atomicModifyIORef' statesRef \(lft, fn, _, currentScene) -> ((lft, fn, Just currentScene, newScene), ())
+
+        (lastFrameTime, curFrameNum, _, Scene { logicF, renderF, sceneStates }) <- readIORef statesRef
         currentTime <- getCurrentTime
         let diff = diffUTCTime currentTime lastFrameTime
         if diff > physicsTimeStep
         then do
           input <- atomicModifyIORef' inputsRef ([],)
           inputFrame <- builder input physicsTimeStep
-          !a <- physF $ inputFrame { frameNum = curFrameNum }
-          atomicModifyIORef' statesRef \(lft, fn, ss) ->
-            ((if diff > 1 then currentTime else addUTCTime physicsTimeStep lft, fn + 1, a : take 2 ss), ())
+
+          !a <- logicF $ inputFrame { frameNum = curFrameNum }
+          atomicModifyIORef' statesRef \(lft, fn, oldScene, _) ->
+            ((if diff > 1 then currentTime else addUTCTime physicsTimeStep lft, fn + 1, oldScene, Scene { logicF, renderF, sceneStates = a : take 2 sceneStates }), ())
         else
           threadDelay 1000 -- 1 ms
 
         (readIORef logicThreadAlive)
 
-    exitVal <- untilJustM do
-      (lastFrameTime, _, ss) <- readIORef statesRef
+    exitVal <- whileM do
+      (lastFrameTime, _, oldScene, Scene { renderF = currentRenderF, sceneStates = currentSceneStates} ) <- readIORef statesRef
       input <- inputPoller -- Need to poll input on main thread (on SDL at least)
       atomicModifyIORef' inputsRef \is -> (is ++ input, ())
       currentTime <- getCurrentTime
-      let frac = realToFrac $ (diffUTCTime currentTime lastFrameTime) / physicsTimeStep
-          interpState = case ss of
+      let lft = case oldScene of
+            Nothing -> lastFrameTime
+            _ | length currentSceneStates > 2 -> lastFrameTime
+            _ -> addUTCTime (-(realToFrac $ length currentSceneStates) * physicsTimeStep) lastFrameTime
+          frac = realToFrac $ (diffUTCTime currentTime lft) / physicsTimeStep
+          interpState ss = case ss of
             -- Most of the time we're interpolating the 2 oldest states, so
             -- there's a slight lag
             [_latest, middle, oldest] | frac < 1 -> Just $ glerp frac oldest middle
@@ -107,7 +120,11 @@ gameLoop physicsTimeStep inputPoller termination initialStates physF renderF = d
             [one] -> Just one
             _ -> Nothing
 
-      for_ interpState renderF
-      termination
+      case oldScene of
+        Nothing -> for_ (interpState currentSceneStates) currentRenderF
+        _ | length currentSceneStates > 2 ->
+          for_ (interpState currentSceneStates) currentRenderF
+        Just (Scene { renderF = oldRenderF, sceneStates = oldSceneStates }) -> for_ (interpState oldSceneStates) oldRenderF
+      not <$> termination
     writeIORef logicThreadAlive False
     pure exitVal

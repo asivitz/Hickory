@@ -25,3 +25,13 @@ instance Interpolatable (M44 Scalar) where glerp fr = liftA2 (lerp fr)
 
 instance (Interpolatable a, Interpolatable b) => Interpolatable (a, b)
   where glerp fr a b = (glerp fr (fst a) (fst b), glerp fr (snd a) (snd b))
+
+instance ( Interpolatable a
+         , Interpolatable b
+         , Interpolatable c
+         ) => Interpolatable (a, b, c)
+  where glerp fr (a1, a2, a3) (b1, b2, b3) =
+          ( glerp fr a1 b1
+          , glerp fr a2 b2
+          , glerp fr a3 b3
+          )
