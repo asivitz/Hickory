@@ -44,7 +44,7 @@ import Hickory.Resources (ResourcesStore(..), withResourcesStore, getMesh, getTe
 import Data.Functor ((<&>))
 import qualified Data.Enum.Set as E
 import qualified Data.Map.Strict as HashMap
-import Hickory.GameLoop (gameLoop)
+import Hickory.GameLoop (gameLoop, Scene (..))
 import Data.IORef (newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Types (TextureLoadOptions(..))
 import qualified Platforms.SDL as HSDL
@@ -232,10 +232,12 @@ main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
 
   gameState <- liftIO $ newIORef newGame
   renderWrapper <- HSDL.runFrames win vulkanResources (H.withRenderer vulkanResources)
-  let physF inputFrame = atomicModifyIORef' gameState $ (\a -> (a,a)) . stepF inputFrame
+  let logicF inputFrame = atomicModifyIORef' gameState $ (\a -> (a,a)) . stepF inputFrame
       renderF mdl =
         renderWrapper \sr fc -> do
           size <- HSDL.sdlScreenSize win
           renderGame res mdl size (sr, fc)
+      sceneStates = []
+      sc = Scene {..}
 
-  liftIO $ gameLoop physicsTimeStep sdlHandles.inputPoller (bool Nothing (Just ()) <$> sdlHandles.shouldQuit) [] physF renderF
+  liftIO $ gameLoop physicsTimeStep sdlHandles.inputPoller sdlHandles.shouldQuit sc (pure Nothing)

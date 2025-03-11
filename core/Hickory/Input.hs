@@ -16,13 +16,10 @@ import Data.Generics.Labels ()
 import qualified Data.Enum.Set as E
 import Data.Word (Word32)
 import Data.Time (NominalDiffTime, getCurrentTime, diffUTCTime)
-import Data.IORef (atomicModifyIORef, newIORef, atomicModifyIORef', readIORef, modifyIORef')
+import Data.IORef (newIORef, atomicModifyIORef', readIORef, modifyIORef')
 import Data.Foldable (foldl')
-import Data.Functor ((<&>))
-import Data.Maybe (fromMaybe)
 import Data.WideWord.Word128 (Word128)
 import Data.HashMap.Strict (HashMap)
-import qualified Data.Enum.Set as ES
 import GHC.Records (HasField(..))
 import Data.Bool (bool)
 
@@ -56,25 +53,6 @@ data GamePad = GamePad
   , leftTrigger  :: Scalar
   , rightTrigger :: Scalar
   , buttons :: E.EnumSet GamePadButton
-  -- , a            :: ButtonState
-  -- , b            :: ButtonState
-  -- , x            :: ButtonState
-  -- , y            :: ButtonState
-  -- , leftBumper   :: ButtonState
-  -- , rightBumper  :: ButtonState
-  -- , back         :: ButtonState
-  -- , start        :: ButtonState
-  -- , guide        :: ButtonState
-  -- , leftThumb    :: ButtonState
-  -- , rightThumb   :: ButtonState
-  -- , dpadUp       :: ButtonState
-  -- , dpadRight    :: ButtonState
-  -- , dpadDown     :: ButtonState
-  -- , dpadLeft     :: ButtonState
-  -- , cross        :: ButtonState
-  -- , circle       :: ButtonState
-  -- , square       :: ButtonState
-  -- , triangle     :: ButtonState
   } deriving (Show, Generic)
 
 instance HasField "a" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member A buttons
@@ -377,7 +355,6 @@ instance Monoid InputFrame where
 inputFrameBuilder :: IO ([RawInput] -> NominalDiffTime -> IO InputFrame)
 inputFrameBuilder = do
   heldKeysRef    <- newIORef E.empty
-  -- heldTouchesRef <- newIORef mempty
   gamepadsRef    <- newIORef mempty
 
   pure $ \newInputs delta -> do
@@ -392,31 +369,11 @@ inputFrameBuilder = do
         gamePadReleased = HashMap.fromListWith (++) [(i, [es]) | InputGamePadButtons state i ess <- newInputs, state == Released, es <- ess]
     modifyIORef' gamepadsRef (HashMap.union newGamepadStates)
     gamePad <- readIORef gamepadsRef
-    -- \curGamePads ->
-    --   let newGamePad = HashMap.union newGamepadStates curGamePads
-    --       states oldGp newGp = [minBound..maxBound] <&> \but -> (but, gamePadButtonState oldGp but, gamePadButtonState newGp but)
-    --       -- newPressed = flip HashMap.mapWithKey newGamepadStates \i newGP ->
-    --       --   let oldGP = fromMaybe emptyGamePad $ HashMap.lookup i curGamePads
-    --       --   in pure $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Released && new == Pressed
-    --       -- newReleased = flip HashMap.mapWithKey newGamepadStates \i newGP ->
-    --       --   let oldGP = fromMaybe emptyGamePad $ HashMap.lookup i curGamePads
-    --       --   in pure $ E.fromFoldable . map (\(but, _, _) -> but) . flip filter (states oldGP newGP) $ \(_, old, new) -> old == Pressed && new == Released
-    --   in (newGamePad, (newGamePad, newPressed, newReleased))
-
-    -- let gamePadPressed  = HashMap.unionWith (++) gamePadPressed' gamePadPressed''
-    --     gamePadReleased = HashMap.unionWith (++) gamePadReleased' gamePadReleased''
-    -- print gamePadPressed
 
     let touchesDown = [p | InputTouchesDown ps <- newInputs, p <- ps]
         touchesUp   = [p | InputTouchesUp ps <- newInputs, p <- ps]
         touchesLoc  = [p | InputTouchesLoc ps <- newInputs, p <- ps]
 
         frameNum = 0
-    -- touchesLoc <- atomicModifyIORef' heldTouchesRef \curTouches ->
-    --   let newTouches =
-    --           flip (foldl' (\m PointUp {..} -> HashMap.delete ident m)) touchesUp
-    --         . flip (foldl' (\m (v,i) -> HashMap.insert i v m)) touchesDown
-    --         $ curTouches
-    --   in (newTouches, swap <$> HashMap.toList newTouches)
 
     pure InputFrame {..}

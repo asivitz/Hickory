@@ -79,7 +79,6 @@ sdlFrameBuilder = do
   gcids <- for gcs \(SDL.GameController ptr) -> do
     js <- SDLRaw.gameControllerGetJoystick ptr
     SDLRaw.joystickInstanceID js
-  -- let gcids = cds <&> fromIntegral . SDL.gameControllerDeviceId
   let initialGamepads = HashMap.fromList (zip (V.toList gcids) ((,emptyGamePad) <$> V.toList gcs))
 
 
@@ -99,12 +98,6 @@ sdlFrameBuilder = do
           void $ SDLRaw.gameControllerRumble ptr left right dur
 
   inputPoller <- pure do
-    -- touches <- readIORef indat.touches
-    -- curPos <- GLFW.getCursorPos win
-    -- let curloc = touchPosToScreenPos curPos
-        -- ident = fromMaybe 0 $ listToMaybe $ HashMap.keys touches
-    -- addInput $ InputTouchesLoc [(curloc,ident)]
-    --
     time <- getCurrentTime
     events <- pollEventsWithImGui
     captureMouse <- wantCaptureMouse
@@ -128,7 +121,9 @@ sdlFrameBuilder = do
                 modifyIORef' indat.gamepads $ HashMap.insert gcid (SDL.GameController gc, emptyGamePad)
                 pure $ Just $ InputGamePadConnection (fromIntegral gcid) True
               SDL.ControllerDeviceRemoved -> do
-                modifyIORef' indat.gamepads $ HashMap.delete (fromIntegral controllerDeviceEventWhich)
+                gc <- fmap fst . HashMap.lookup controllerDeviceEventWhich <$> readIORef indat.gamepads
+                for_ gc \(SDL.GameController ptr) -> SDLRaw.gameControllerClose ptr
+                modifyIORef' indat.gamepads $ HashMap.delete controllerDeviceEventWhich
                 pure $ Just $ InputGamePadConnection (fromIntegral controllerDeviceEventWhich) False
               SDL.ControllerDeviceRemapped -> pure Nothing
           SDL.KeyboardEvent SDL.KeyboardEventData {..} | not captureKeyboard -> let key = sdlKeyToKey keyboardEventKeysym in
