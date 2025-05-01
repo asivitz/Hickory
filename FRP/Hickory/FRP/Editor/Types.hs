@@ -134,8 +134,6 @@ eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
 eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
 
 data SomeAttribute contents = forall a. Attr a => SomeAttribute    { attr :: Attribute a, contents :: contents a }
--- Need a separate type for Refs because unsaturated type families can't be used as arguments
-data SomeAttributeRef       = forall a. Attr a => SomeAttributeRef { attr :: Attribute a, contents :: IORef (AttrRef a) }
 
 instance Show (SomeAttribute Identity) where
   show (SomeAttribute attr val) = "SomeAttribute " ++ case attr of
@@ -298,32 +296,6 @@ defaultAttrVal = \case
   ColorAttribute -> V4 1 1 1 1
   Mat3Attribute -> identity
   Mat4Attribute -> identity
-
--- Convert to the storage representation of an attribute
-toAttrRefType :: forall a. Attr a => a -> AttrRef a
-toAttrRefType a = case mkAttr :: Attribute a of
-  StringAttribute -> pack a
-  V3Attribute     -> v3ToTriple a
-  V2Attribute     -> v2ToTuple a
-  IntAttribute    -> a
-  FloatAttribute  -> a
-  BoolAttribute   -> a
-  ColorAttribute  -> v4ToImVec4 a
-  Mat3Attribute   -> 0 -- TODO
-  Mat4Attribute   -> 0 -- TODO
-
--- Convert from the storage representation of an attribute
-fromAttrRefType :: forall a. Attr a => AttrRef a -> a
-fromAttrRefType a = case mkAttr :: Attribute a of
-  StringAttribute -> unpack a
-  V3Attribute     -> tripleToV3 a
-  V2Attribute     -> tupleToV2 a
-  IntAttribute    -> a
-  FloatAttribute  -> a
-  BoolAttribute   -> a
-  ColorAttribute  -> imVec4ToV4 a
-  Mat3Attribute   -> identity -- TODO
-  Mat4Attribute   -> identity -- TODO
 
 mkDefaultComponent :: [SomeAttribute (Const String)] -> HashMap String (SomeAttribute Identity)
 mkDefaultComponent xs = Map.fromList $ xs <&> \case

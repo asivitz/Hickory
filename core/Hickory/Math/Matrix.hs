@@ -9,13 +9,13 @@ module Hickory.Math.Matrix
   , sizePosRotMat
   , size3PosRotMat
   , viewDirection
+  , viewDirectionAndInverse
   , viewTarget
   , orthographicProjection
   , perspectiveProjection
   , prettyPrint
   , MakeMat44(..)
   , transformV3
-  , orthoNormalBasis
   ) where
 
 import Linear.Vector
@@ -102,22 +102,22 @@ perspectiveProjection screenRatio vfov n f = V4
   (V4 0                                 0                 (f / (f - n)) (- f * n / (f - n)))
   (V4 0                                 0                 1             0)
 
--- |Construct a 4x4 rotation matrix from 3 basis vectors
-orthoNormalBasis :: Num a => V3 a -> V3 a -> V3 a -> M44 a
-orthoNormalBasis (V3 ux uy uz) (V3 vx vy vz) (V3 wx wy wz) = V4
-  (V4 ux vx wx 0)
-  (V4 uy vy wy 0)
-  (V4 uz vz wz 0)
-  (V4 0  0  0  1)
-
 -- |Construct a view matrix from a camera position, direction, and up vector
 viewDirection :: (Floating a, Epsilon a) => V3 a -> V3 a -> V3 a -> M44 a
-viewDirection position direction up = transpose (orthoNormalBasis u v w) -- Rotate to align w/ camera's ortho normal basis
-                                  !*! mkTranslation (-position)          -- Move from world space to camera's center
+viewDirection position direction up = fst $ viewDirectionAndInverse position direction up
+
+-- |Construct a view matrix from a camera position, direction, and up vector
+viewDirectionAndInverse :: (Floating a, Epsilon a) => V3 a -> V3 a -> V3 a -> (M44 a, M44 a)
+viewDirectionAndInverse position direction up = (forward, backward)
   where
   w = normalize direction
   u = normalize (cross w up)
   v = cross w u
+  basis' = V3 u v w
+  forward = mkTransformationMat basis' zero -- Rotate to align w/ camera's ortho normal basis
+        !*! mkTranslation (-position) -- Move from world space to camera's center
+  backward = mkTranslation position -- Move from world space to camera's center
+         !*! mkTransformationMat (transpose basis') zero -- Rotate to align w/ camera's ortho normal basis
 
 viewTarget :: (Floating a, Epsilon a) => V3 a -> V3 a -> V3 a -> M44 a
 viewTarget position target = viewDirection position (target - position)

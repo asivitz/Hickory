@@ -23,9 +23,6 @@ module Hickory.FRP.Editor
   , pullAttrValMay
   , setSomeAttribute
   , mkSomeAttr
-  , SomeAttributeRef(..)
-  , toAttrRefType
-  , fromAttrRefType
   , eqAttr
   , Attr
   ) where

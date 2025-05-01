@@ -13,7 +13,7 @@ import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef', writeIORef)
 import qualified Ki
 import Data.Time (NominalDiffTime, getCurrentTime, UTCTime, diffUTCTime, addUTCTime)
 import Control.Concurrent (threadDelay)
-import Control.Monad.Extra (whileM, untilJustM)
+import Control.Monad.Extra (whileM)
 import Data.Foldable (for_)
 
 newGameStateStack :: a -> S.Seq a
