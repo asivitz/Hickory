@@ -24,7 +24,7 @@ import qualified SDL.Internal.Types as SDL
 import qualified SDL.Raw as SDLRaw
 import qualified Data.Vector as V
 import Data.Foldable (traverse_, for_)
-import SDL (WindowConfig(..), ControllerButtonEventData(..))
+import SDL (WindowConfig(..), ControllerButtonEventData(..), pollEvents)
 import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
 import Vulkan (Instance, SurfaceKHR(..), instanceHandle)
@@ -72,8 +72,8 @@ getCurrentGamePadIds = undefined
 touchPosToScreenPos :: (Double, Double) -> V2 Scalar
 touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
 
-sdlFrameBuilder :: IO SDLHandles
-sdlFrameBuilder = do
+sdlFrameBuilder :: Bool -> IO SDLHandles
+sdlFrameBuilder useImgui = do
   cds <- SDL.availableControllers
   gcs <- for cds SDL.openController
   gcids <- for gcs \(SDL.GameController ptr) -> do
@@ -99,9 +99,9 @@ sdlFrameBuilder = do
 
   inputPoller <- pure do
     time <- getCurrentTime
-    events <- pollEventsWithImGui
-    captureMouse <- wantCaptureMouse
-    captureKeyboard <- wantCaptureKeyboard
+    events <- if useImgui then pollEventsWithImGui else pollEvents
+    captureMouse <- if useImgui then wantCaptureMouse else pure False
+    captureKeyboard <- if useImgui then wantCaptureKeyboard else pure False
     inputEvs <- catMaybes <$> for events \(SDL.Event _ payload) -> case payload of
           SDL.ControllerButtonEvent SDL.ControllerButtonEventData {..} -> do
             let bs = sdlButtonStateToButtonState controllerButtonEventState
@@ -542,6 +542,18 @@ runFrames
   -> (Swapchain -> Acquire renderer) -- ^ Acquire renderer
   -> Acquire ((renderer -> FrameContext -> IO ()) -> IO ())
 runFrames win vulkanResources acquireRenderer = do
+  exeFrame <- buildFrameFunction vulkanResources ((\(V2 x y) -> Size x y) . fmap fromIntegral <$> SDL.vkGetDrawableSize win) acquireRenderer
+
+  pure \f -> do
+    exeFrame f
+    runCleanup vulkanResources
+
+runFramesWithImGUI
+  :: SDL.Window
+  -> VulkanResources
+  -> (Swapchain -> Acquire renderer) -- ^ Acquire renderer
+  -> Acquire ((renderer -> FrameContext -> IO ()) -> IO ())
+runFramesWithImGUI win vulkanResources acquireRenderer = do
   let imguiAcquire swap =
         (,) <$> initDearImGui (void $ sdl2InitForVulkan win) sdl2Shutdown vulkanResources swap
             <*> acquireRenderer swap
