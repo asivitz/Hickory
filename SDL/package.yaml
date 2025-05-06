@@ -9,6 +9,8 @@ copyright:           2024 Axis Sivitz
 
 ghc-options:
     - -Wall
+    - -Wunused-packages
+    - -Werror=unused-packages
 
 default-extensions:
   - NamedFieldPuns
@@ -20,25 +22,17 @@ default-extensions:
 
 dependencies:
   - base
-  - OpenGLRaw
   - sdl2
   - time
   - unordered-containers
   - Hickory
-  - Hickory-FRP
   - linear
   - vector
   - bytestring
-  - managed
   - vulkan
   - lens
-  - derive-storable
-  - extra
   - acquire
   - dear-imgui
-  - ki
-  - containers
-  - ghc-compact
   - text
   - bitwise-enum
 

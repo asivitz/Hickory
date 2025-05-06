@@ -1,40 +1,40 @@
 cradle:
-  stack:
-    - path: "Example/Showcase/showcase.hs"
+  cabal:
+    - path: "./Example/Showcase/showcase.hs"
       component: "Showcase:exe:showcase"
 
-    - path: "Example/Shooter/./shooter.hs"
+    - path: "./Example/Shooter/./shooter.hs"
       component: "Shooter:exe:shooter"
 
-    - path: "Example/Shooter/./Paths_Shooter.hs"
+    - path: "./Example/Shooter/./Paths_Shooter.hs"
       component: "Shooter:exe:shooter"
 
-    - path: "FRP/./"
+    - path: "./FRP/./"
       component: "Hickory-FRP:lib"
 
-    - path: "GLFW/./"
+    - path: "./GLFW/./"
       component: "Hickory-GLFW:lib"
 
-    - path: "GLFW/./main.hs"
+    - path: "./GLFW/./main.hs"
       component: "Hickory-GLFW:exe:vulkan"
 
-    - path: "GLFW/./Paths_Hickory_GLFW.hs"
+    - path: "./GLFW/./Paths_Hickory_GLFW.hs"
       component: "Hickory-GLFW:exe:vulkan"
 
-    - path: "SDL/./"
+    - path: "./SDL/./"
       component: "Hickory-SDL:lib"
 
-    - path: "core/./"
+    - path: "./core/./"
       component: "Hickory:lib"
 
-    - path: "core/pack-model/main.hs"
+    - path: "./core/pack-model/main.hs"
       component: "Hickory:exe:pack-model"
 
-    - path: "core/pack-model/Paths_Hickory.hs"
+    - path: "./core/pack-model/Paths_Hickory.hs"
       component: "Hickory:exe:pack-model"
 
-    - path: "core/test"
+    - path: "./core/test"
       component: "Hickory:test:hickory-test"
 
-    - path: "iOS/./"
+    - path: "./iOS/./"
       component: "Hickory-iOS:lib"

@@ -9,6 +9,8 @@ copyright:           2022 Axis Sivitz
 
 ghc-options:
     - -Wall
+    - -Wunused-packages
+    - -Werror=unused-packages
 
 default-extensions:
     - NamedFieldPuns

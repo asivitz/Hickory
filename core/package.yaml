@@ -12,6 +12,8 @@ copyright:           2017 Axis Sivitz
 ghc-options:
     - -Wall
     - -Werror=incomplete-patterns
+    - -Wunused-packages
+    - -Werror=unused-packages
 
 extra-source-files:
     - Readme.md
@@ -36,7 +38,6 @@ dependencies:
     - OpenGLRaw
     - VulkanMemoryAllocator
     - acquire
-    - attoparsec
     - aeson
     - deriving-aeson
     - base
@@ -51,12 +52,10 @@ dependencies:
     - hashable
     - lens
     - linear
-    - managed
     - megaparsec
     - mtl
     - random
     - rawstring-qm
-    - reactive-banana
     - scientific
     - text
     - time
@@ -75,12 +74,10 @@ dependencies:
     - dear-imgui
     - base-compat
     - ki
-    - StateVar
     - filepath
     - yaml
     - data-default
     - extra
-    - deepseq
 
 when:
     - condition: os(osx)
@@ -173,17 +170,6 @@ library:
     - Hickory.Vulkan.Types
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI
-
-executables:
-  pack-model:
-    verbatim:
-      default-language: GHC2021
-    source-dirs:
-      - pack-model/
-    main: main.hs
-    dependencies:
-      - Hickory
-      - filepath
 
 tests:
     hickory-test:
