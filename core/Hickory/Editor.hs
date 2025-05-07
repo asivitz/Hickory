@@ -1,6 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
-module Hickory.FRP.Editor
+module Hickory.Editor
   ( editorScene
   , editorLayer
   , drawPostUI
@@ -27,7 +27,7 @@ module Hickory.FRP.Editor
   , Attr
   ) where
 
-import Hickory.FRP.Editor.Network
-import Hickory.FRP.Editor.Post
-import Hickory.FRP.Editor.Types
-import Hickory.FRP.Editor.View
+import Hickory.Editor.Network
+import Hickory.Editor.Post
+import Hickory.Editor.Types
+import Hickory.Editor.View

@@ -1,7 +1,5 @@
-module Hickory.FRP.Editor.General where
+module Hickory.Editor.General where
 
-import qualified Reactive.Banana as B
-import Hickory.FRP.CoreEvents (CoreEvents (..))
 import Hickory.Math (Scalar, mkScale)
 import Linear (M44, column, V3 (..), V2 (..), V4 (..), norm, _x, _y, _z, Epsilon (..))
 import Data.IORef (IORef, readIORef, writeIORef, newIORef)
@@ -33,10 +31,6 @@ matEuler m =
      (V4 m20 m21 m22 _m23)
      (V4 _m30 _m31 _m32 _m33) = m
   sy = sqrt (m00 * m00 + m10 * m10)
-
-mkCursorLoc :: B.MonadMoment m => CoreEvents a -> m (B.Behavior (V2 Scalar))
-mkCursorLoc coreEvents =
-  B.accumB (V2 0 0) (const . fst . head <$> B.filterE (not . null) (eTouchesLoc coreEvents))
 
 setScale :: (Floating a, Epsilon a) => V3 a -> M44 a -> M44 a
 setScale v m = m & column _x %~ (^* (v ^. _x)) . normalize . (\x -> if nearZero x then unit _x else x)

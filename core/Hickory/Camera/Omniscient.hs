@@ -10,9 +10,8 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE BlockArguments #-}
 
-module Hickory.FRP.Camera.Omniscient where
+module Hickory.Camera.Omniscient where
 
--- import Hickory.FRP.CoreEvents (CoreEvents (..), concatTouchEvents)
 import Hickory.Math (Scalar)
 import Hickory.Types (Size (..))
 import Data.Maybe (fromMaybe, isJust)

@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 
-module Hickory.FRP.Editor.Network where
+module Hickory.Editor.Network where
 
 import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar)
 import Hickory.Types (Size (..), aspectRatio)
@@ -16,18 +16,18 @@ import Hickory.Math.Vector (v2angle)
 import Hickory.Vulkan.Renderer.Renderer (renderToRenderer, pickObjectID)
 import Control.Lens (traversed, (^.), (&), (%~), (<&>), sumOf)
 import Data.HashMap.Strict (HashMap)
-import Hickory.FRP.Editor.Types
-import Hickory.FRP.Editor.GUI (drawObjectEditorUI, drawMainEditorUI)
-import Hickory.FRP.Editor.View (editorWorldView, editorOverlayView)
+import Hickory.Editor.Types
+import Hickory.Editor.GUI (drawObjectEditorUI, drawMainEditorUI)
+import Hickory.Editor.View (editorWorldView, editorOverlayView)
 import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..), PostConstants (..))
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
 import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, runResources, getResourcesStoreResources, Resources)
 import Safe (maximumMay, headMay)
-import Hickory.FRP.Editor.Post (GraphicsParams (..))
+import Hickory.Editor.Post (GraphicsParams (..))
 import Data.Traversable (for)
-import Hickory.FRP.Camera (omniscientCamera)
+import Hickory.Camera.Omniscient (omniscientCamera)
 import Hickory.Graphics (MatrixMonad)
 import Control.Monad (join, mfilter, void, when)
 import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef', IORef)

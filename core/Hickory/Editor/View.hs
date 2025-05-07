@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, OverloadedRecordDot #-}
 
-module Hickory.FRP.Editor.View where
+module Hickory.Editor.View where
 
 import qualified Hickory.Graphics as H
 import Hickory.Color (rgba, black, green, red, blue)
@@ -12,7 +12,7 @@ import qualified Data.HashMap.Strict as Map
 import qualified Hickory.Vulkan.Renderer.Types as H
 import Data.HashMap.Strict (HashMap)
 import Hickory.Graphics (askMatrix, MatrixMonad)
-import Hickory.FRP.Editor.Types
+import Hickory.Editor.Types
 import Hickory.Resources (getTexture, getMesh, ResourcesMonad)
 import Hickory.Vulkan.Renderer.Types (CommandMonad, MeshType (..), MaterialConfig)
 import Control.Lens ((.~), (&), (^.))

@@ -12,7 +12,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE DefaultSignatures #-}
 
-module Hickory.FRP.Editor.Types where
+module Hickory.Editor.Types where
 
 import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..), identity, M33)
 import DearImGui (ImVec4 (..))

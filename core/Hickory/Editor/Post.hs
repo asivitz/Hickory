@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLabels, OverloadedRecordDot #-}
 
-module Hickory.FRP.Editor.Post where
+module Hickory.Editor.Post where
 
 import DearImGui
     ( withMenuBarOpen,

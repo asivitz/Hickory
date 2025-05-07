@@ -1,16 +1,14 @@
-module Hickory.FRP.Camera.FirstPerson where
+module Hickory.Camera.FirstPerson where
 
-import Reactive.Banana (MonadMoment, Behavior, (<@), unions, accumB)
 import Hickory.Math (clamp)
 import Hickory.Types (Size(..))
 import Linear (V2 (..), V3 (..), cross, (^*), normalize, rotate, axisAngle)
-import Hickory.FRP.CoreEvents (CoreEvents(..))
 import Data.Fixed (mod')
 import Data.Functor ((<&>))
 import Hickory.Input (Key(..))
-import Hickory.FRP.Editor.General (mkCursorLoc)
 import Hickory.Camera (Projection(..), Camera (..))
 
+{-
 firstPersonCamera :: MonadMoment m => CoreEvents a -> m (Behavior Camera)
 firstPersonCamera coreEvents = do
   cursorLoc <- mkCursorLoc coreEvents
@@ -44,7 +42,6 @@ firstPersonCamera coreEvents = do
 
   pure $ Camera <$> focusPos <*> angleVec <*> up <*> pure projection <*> pure "FirstPerson" <*> pure Nothing
 
-{-
 firstPersonLook
   :: MonadMoment m
   => Behavior (Size Int) -> Behavior (V2 Scalar) -> CoreEvents a -> m (Behavior Mat44)
