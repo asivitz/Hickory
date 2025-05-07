@@ -10,10 +10,10 @@ cradle:
       component: "Shooter:exe:shooter"
 
     - path: "./FRP"
-      component: "Hickory-FRP:lib"
+      component: "lib:Hickory-FRP"
 
     - path: "./GLFW"
-      component: "Hickory-GLFW:lib"
+      component: "lib:Hickory-GLFW"
 
     - path: "./GLFW/main.hs"
       component: "Hickory-GLFW:exe:vulkan"
@@ -22,10 +22,10 @@ cradle:
       component: "Hickory-GLFW:exe:vulkan"
 
     - path: "./SDL/"
-      component: "Hickory-SDL:lib"
+      component: "lib:Hickory-SDL"
 
     - path: "./core"
-      component: "Hickory:lib"
+      component: "lib:Hickory"
 
     - path: "./core/pack-model/main.hs"
       component: "Hickory:exe:pack-model"
@@ -37,4 +37,4 @@ cradle:
       component: "Hickory:test:hickory-test"
 
     - path: "./iOS"
-      component: "Hickory-iOS:lib"
+      component: "lib:Hickory-iOS"
