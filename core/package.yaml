@@ -1,6 +1,6 @@
 name:                Hickory
 version:             0.1.0.0
-synopsis:            Tools for building OpenGL based programs in Haskell
+synopsis:            Tools for building 3D programs in Haskell
 homepage:            https://github.com/asivitz/Hickory
 description:         Please see README.md
 license:             MIT
@@ -36,26 +36,36 @@ dependencies:
     - JuicyPixels-extra
     - MonadRandom
     - OpenGLRaw
+    - StateVar
     - VulkanMemoryAllocator
     - acquire
     - aeson
-    - deriving-aeson
     - base
+    - base-compat
     - binary
+    - bitwise-enum
     - bytestring
     - containers
+    - data-default
+    - dear-imgui
     - derive-storable
-    - vector-sized
+    - deriving-aeson
+    - directory
+    - extra
+    - filepath
     - finite-typelits
     - generic-lens
+    - ghc-compact
     - groom
     - hashable
+    - ki
     - lens
     - linear
     - megaparsec
     - mtl
     - random
     - rawstring-qm
+    - safe
     - scientific
     - text
     - time
@@ -63,22 +73,12 @@ dependencies:
     - uuid
     - vector
     - vector-binary-instances
+    - vector-sized
     - vulkan
     - vulkan-utils
     - wavefront
-    - directory
-    - bitwise-enum
-    - safe
-    - ghc-compact
     - wide-word
-    - dear-imgui
-    - base-compat
-    - ki
-    - filepath
     - yaml
-    - data-default
-    - extra
-    - StateVar
 
 when:
     - condition: os(osx)
