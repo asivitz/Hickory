@@ -28,7 +28,7 @@ kernGlyphs kernMap glyphs = primary ++ [(last glyphs, 0)]
 
 transformTextCommandToVerts :: TextCommand -> Font -> (Int, [V3 Scalar], [V2 Scalar])
 transformTextCommandToVerts (TextCommand text align valign) Font {..}
-  = (num_squares, posLstResult, tcLstResult)
+  = (numSquares, posRes, tcRes)
   where
   Metrics {..} = metrics
   Atlas {..} = atlas
@@ -66,11 +66,7 @@ transformTextCommandToVerts (TextCommand text align valign) Font {..}
         in (left + (advance + kerning), num + 1, new_verts ++ pl, texCoords ++ tl)
       Nothing -> (left + advance, num, pl, tl)
 
-  accum
-    :: (Int, Int, [V3 Scalar], [V2 Scalar])
-    -> [((Glyph, Maybe GlyphVerts), Scalar)]
-    -> (Int, Int, [V3 Scalar], [V2 Scalar])
-  accum (linenum, numsquares, posLst, tcLst) line = case layoutLine linenum line of
-    (numsquares', posLst', tcLst') -> (linenum + 1, numsquares + numsquares', posLst' ++ posLst, tcLst' ++ tcLst)
-
-  (_, num_squares, posLstResult, tcLstResult) = foldl' accum (0, 0, [], []) kernedGlyphs
+  laidLines = zipWith layoutLine [0..] kernedGlyphs
+  numSquares = sum $ laidLines <&> \(ns,_,_) -> ns
+  posRes    = concat $ laidLines <&> \(_, ps, _) -> ps
+  tcRes     = concat $ laidLines <&> \(_, _, tc) -> tc
