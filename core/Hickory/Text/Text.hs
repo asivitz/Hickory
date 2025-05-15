@@ -42,15 +42,22 @@ transformTextCommandToVerts (TextCommand text align valign) Font {..}
     10 -> Just (Glyph 10 0 Nothing Nothing, Nothing)
     _  -> Nothing
   glyphs = mapMaybe (\c -> HashMap.lookup (ord c) glyphMap <|> defaultGlyph (ord c)) <$> lines (Text.unpack text)
+
+  kernedGlyphs :: [[((Glyph, Maybe GlyphVerts), Scalar)]]
   kernedGlyphs = kernGlyphs kerningMap <$> glyphs
+
   lineWidth kerned = sum $ kerned <&> \((g,_), k) -> advance g + k
+
+  xoffset :: [((Glyph, b), Scalar)] -> Scalar
   xoffset kerned = lineShiftX (realToFrac $ lineWidth kerned) align
 
-  accum :: (Scalar, Int, Int, [V3 Scalar], [V2 Scalar]) -> [((Glyph, Maybe GlyphVerts), Scalar)] -> (Scalar, Int, Int, [V3 Scalar], [V2 Scalar])
-  accum (leftBump, linenum, numsquares, posLst, tcLst) line = case layoutLine of
-    (_, numsquares', posLst', tcLst') -> (leftBump, linenum + 1, numsquares + numsquares', posLst' ++ posLst, tcLst' ++ tcLst)
+  layoutLine
+    :: Int
+    -> [((Glyph, Maybe GlyphVerts), Scalar)]
+    -> (Int, [V3 Scalar], [V2 Scalar])
+  layoutLine linenum line = (n, ps, tcs)
     where
-    layoutLine = foldl' lineAccum (leftBump + xoffset line, 0, [], []) line
+    (_, n, ps, tcs) = foldl' lineAccum (xoffset line, 0, [], []) line
     lineAccum (left, num, pl, tl) ((Glyph {..}, gv), kerning) = case gv of
       Just GlyphVerts {..} ->
         let placeGlyph :: V2 Scalar -> V3 Scalar
@@ -59,4 +66,11 @@ transformTextCommandToVerts (TextCommand text align valign) Font {..}
         in (left + (advance + kerning), num + 1, new_verts ++ pl, texCoords ++ tl)
       Nothing -> (left + advance, num, pl, tl)
 
-  (_, _, num_squares, posLstResult, tcLstResult) = foldl' accum (0, 0, 0, [], []) kernedGlyphs
+  accum
+    :: (Int, Int, [V3 Scalar], [V2 Scalar])
+    -> [((Glyph, Maybe GlyphVerts), Scalar)]
+    -> (Int, Int, [V3 Scalar], [V2 Scalar])
+  accum (linenum, numsquares, posLst, tcLst) line = case layoutLine linenum line of
+    (numsquares', posLst', tcLst') -> (linenum + 1, numsquares + numsquares', posLst' ++ posLst, tcLst' ++ tcLst)
+
+  (_, num_squares, posLstResult, tcLstResult) = foldl' accum (0, 0, [], []) kernedGlyphs
