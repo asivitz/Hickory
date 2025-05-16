@@ -42,7 +42,7 @@ import Acquire (Acquire)
 import Hickory.Text.ParseJson (Font)
 import Hickory.Text.Types (TextCommand)
 import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderConfig (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))
-import Linear (liftI2)
+import Linear (liftI2, zero)
 import GHC.List (foldl1')
 
 
@@ -167,10 +167,12 @@ packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a
 packVecs = SV.fromList . concatMap toList
 
 textMesh :: Font -> TextCommand -> Mesh
-textMesh font tc = Mesh { indices = Just (SV.fromList indices)
-                        , vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)]
-                        , minPosition, maxPosition, morphTargets = []
-                        }
+textMesh font tc = case numSquares of
+  0 -> Mesh { indices = Nothing, vertices = [], minPosition = zero, maxPosition = zero, morphTargets = [] }
+  _ -> Mesh { indices = Just (SV.fromList indices)
+            , vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)]
+            , minPosition, maxPosition, morphTargets = []
+            }
   where
   (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
   (indices, _numBlockIndices)   = squareIndices (fromIntegral numSquares)

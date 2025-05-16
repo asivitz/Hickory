@@ -33,6 +33,7 @@ textcommand = TextCommand
   { text   = ""
   , align  = AlignCenter
   , valign = AlignMiddle
+  , scrollFrame = Nothing
   }
 
 squareIndices :: (Num a, Enum a, Ord a) => a -> ([a], a)

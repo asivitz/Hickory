@@ -1080,6 +1080,7 @@ processDrawCommands fc@FrameContext {..} logger batches = do
           Nothing -> do
             liftIO . logger $ printf "Drawing %d instances" numInstances
             cmdDraw commandBuffer vertexCount numInstances vertexOffset firstInstanceIndex
+      Dynamic (Mesh { vertices = [] }) -> pure ()
       Dynamic dyn -> do
         meshes <- getMeshes
         addMesh dyn

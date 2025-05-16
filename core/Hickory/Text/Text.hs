@@ -27,7 +27,7 @@ kernGlyphs kernMap glyphs = primary ++ [(last glyphs, 0)]
   primary = zip glyphs (drop 1 glyphs) <&> \((g1,gv1), (g2, _)) -> ((g1, gv1), fromMaybe 0 $ HashMap.lookup (unicode g1, unicode g2) kernMap)
 
 transformTextCommandToVerts :: TextCommand -> Font -> (Int, [V3 Scalar], [V2 Scalar])
-transformTextCommandToVerts (TextCommand text align valign) Font {..}
+transformTextCommandToVerts (TextCommand text align valign mCutoff) Font {..}
   = (numSquares, posRes, tcRes)
   where
   Metrics {..} = metrics
@@ -60,10 +60,19 @@ transformTextCommandToVerts (TextCommand text align valign) Font {..}
     (_, n, ps, tcs) = foldl' lineAccum (xoffset line, 0, [], []) line
     lineAccum (left, num, pl, tl) ((Glyph {..}, gv), kerning) = case gv of
       Just GlyphVerts {..} ->
-        let placeGlyph :: V2 Scalar -> V3 Scalar
-            placeGlyph (V2 vx vy) = V3 (vx + left) (realToFrac linenum * realToFrac lineHeight + (vy + yoffset)) 0 ^* size
+        let fromOffset = case mCutoff of
+              Just (from, to) -> from
+              Nothing -> 0
+            baseY = (realToFrac linenum - fromOffset) * realToFrac lineHeight
+            placeGlyph :: V2 Scalar -> V3 Scalar
+            placeGlyph (V2 vx vy) = V3 (vx + left) ( baseY + (vy + yoffset)) 0 ^* size
             new_verts = map placeGlyph verts
-        in (left + (advance + kerning), num + 1, new_verts ++ pl, texCoords ++ tl)
+        in case mCutoff of
+          Just (from, to) | realToFrac linenum > from - 1 && realToFrac linenum < to ->
+            (left + (advance + kerning), num + 1, new_verts ++ pl, texCoords ++ tl)
+          Nothing ->
+            (left + (advance + kerning), num + 1, new_verts ++ pl, texCoords ++ tl)
+          _ -> (left + advance, num, pl, tl)
       Nothing -> (left + advance, num, pl, tl)
 
   laidLines = zipWith layoutLine [0..] kernedGlyphs

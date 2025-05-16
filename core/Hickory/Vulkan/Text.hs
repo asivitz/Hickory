@@ -31,14 +31,18 @@ import Data.Word (Word32)
 
 type TextRenderer = (Font, PointedDescriptorSet, Float)
 
+readFont :: FilePath -> IO Font
+readFont fontPath = do
+  text <- BS.readFile fontPath
+  pure case makeFont text of
+    Left s -> error s
+    Right f -> f
+
 withTextRenderer :: VulkanResources -> FilePath -> FilePath -> Float -> Acquire TextRenderer
 withTextRenderer vulkanResources fontPath imagePath sdfPixelRange = do
   let opts = pngLoadOptions { samplerMipmapMode = Just SAMPLER_MIPMAP_MODE_LINEAR }
   fontTex   <- view #descriptorSet <$> withTextureDescriptorSet vulkanResources [(imagePath, opts)]
-  text <- liftIO $ BS.readFile fontPath
-  let font = case makeFont text of
-                Left s -> error s
-                Right f -> f
+  font <- liftIO $ readFont fontPath
   pure (font, fontTex, sdfPixelRange)
 
 data MSDFMatConstants = MSDFMatConstants
