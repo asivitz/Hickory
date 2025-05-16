@@ -3,20 +3,17 @@ module Hickory.ModelLoading.Wavefront where
 import Data.List
 import Data.Maybe
 import Data.Functor ((<&>))
-import Hickory.Graphics.GLSupport
 import Linear (V2(..), V3(..), zero)
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import Codec.Wavefront (WavefrontOBJ(..), Location(..), TexCoord(..), Normal(..), Face(..), FaceIndex(..), elValue)
 import qualified Codec.Wavefront as Wavefront
 
-import Graphics.GL.Compatibility41 as GL
-import Hickory.Graphics.VAO (createIndexedVAO, createDirectVAO, VAO(..), VertexGroup (..), Attachment (..))
 import qualified Data.HashMap.Strict as Map
 import Control.Monad.State.Strict (State, execState, modify, gets)
 import Data.Hashable (Hashable(..))
-import Hickory.Graphics.Shader (Shader)
 import qualified Hickory.Vulkan.Types as V
+import Hickory.Math (Scalar)
 
 loadWavefront :: FilePath -> IO WavefrontOBJ
 loadWavefront path = Wavefront.fromFile path >>= \case
@@ -44,19 +41,6 @@ loadWavefrontMesh = fmap wavefrontToMesh . loadWavefront
 
 --
 
--- Pack a WavefrontOBJ into vertices and indices
--- Configurable for different data (positions, normals, etc.)
-{-# DEPRECATED #-}
-packOBJIndexed :: WavefrontOBJ -> [WavefrontOBJ -> FaceIndex -> V.Vector GLfloat] -> (SV.Vector GLfloat, SV.Vector GLuint)
-packOBJIndexed obj@WavefrontOBJ { objFaces } fs = (SV.convert verts, SV.convert indices)
-  where
-  indices = V.concatMap (\(Face one two three _) -> V.fromList $ mapMaybe (fmap fromIntegral . (`V.elemIndex` allFaceIndices)) [one,two,three]) faces
-  verts :: V.Vector GLfloat
-  verts = V.concatMap (\fi -> V.concat $ map ($ fi) packFuns) allFaceIndices
-  packFuns = map ($ obj) fs
-  faces = fmap elValue objFaces
-  allFaceIndices :: V.Vector FaceIndex
-  allFaceIndices = V.fromList . nub . concat $ faces <&> \(Face one two three xtras) -> one : two : three : xtras
 
 grabLocation :: WavefrontOBJ -> FaceIndex -> V3 Float
 grabLocation WavefrontOBJ { objLocations } (FaceIndex loci _ _) =
@@ -82,13 +66,13 @@ convertV3 (V3 x y z) = V.fromList [x, y, z]
 convertV2 :: V2 a -> V.Vector a
 convertV2 (V2 x y) = V.fromList [x, y]
 
-packNormals :: WavefrontOBJ -> FaceIndex -> V.Vector GLfloat
+packNormals :: WavefrontOBJ -> FaceIndex -> V.Vector Scalar
 packNormals obj fi = convertV3 . fromMaybe zero $ grabNormal obj fi
 
-packLocations :: WavefrontOBJ -> FaceIndex -> V.Vector GLfloat
+packLocations :: WavefrontOBJ -> FaceIndex -> V.Vector Scalar
 packLocations obj fi = convertV3 $ grabLocation obj fi
 
-packTexCoords :: WavefrontOBJ -> FaceIndex -> V.Vector GLfloat
+packTexCoords :: WavefrontOBJ -> FaceIndex -> V.Vector Scalar
 packTexCoords obj fi = convertV2 . fromMaybe zero $ grabTexCoords obj fi
 
 
@@ -102,7 +86,7 @@ packTexCoords obj fi = convertV2 . fromMaybe zero $ grabTexCoords obj fi
 --     ------
 -- (0,1,0)  (0,0,1)
 -- Useful for effects like drawing edges
-packBarycentricCoords :: WavefrontOBJ -> FaceIndex -> V.Vector GLfloat
+packBarycentricCoords :: WavefrontOBJ -> FaceIndex -> V.Vector Scalar
 packBarycentricCoords obj = \fi -> case Map.lookup fi cache of
   Nothing -> V.fromList [0, 0, 0]
   Just (V3 x y z) -> V.fromList [x,y,z]
@@ -171,37 +155,20 @@ colorObj WavefrontOBJ { objNormals = _, objFaces } = execState (V.mapM (foo . el
   setColorOfIndex :: FaceIndex -> ObjColor -> State (Map.HashMap FaceIndex ObjColor) ()
   setColorOfIndex k = modify . Map.insert k
 
--- Standard config of positions, tex coords, and normals
-{-# DEPRECATED #-}
-vaoFromWavefront :: Shader -> WavefrontOBJ -> IO VAO
-vaoFromWavefront shader obj =
-  createIndexedVAO
-    shader
-    [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3]]
-    (packOBJIndexed obj [packLocations, packTexCoords, packNormals])
-    Triangles
-
-vaoFromWavefrontWithBarycentric :: Shader -> WavefrontOBJ -> IO VAO
-vaoFromWavefrontWithBarycentric shader obj =
-  createIndexedVAO shader
-    [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "barycentric" 3]]
-    (packOBJIndexed obj [packLocations, packTexCoords, packNormals, packBarycentricCoords])
-    Triangles
-
 -- Pack a WavefrontOBJ into vertices
 -- Configurable for different data (positions, normals, etc.)
-packOBJ :: WavefrontOBJ -> [WavefrontOBJ -> Face -> [V.Vector GLfloat]] -> (SV.Vector GLfloat, Int)
+packOBJ :: WavefrontOBJ -> [WavefrontOBJ -> Face -> [V.Vector Scalar]] -> (SV.Vector Scalar, Int)
 packOBJ obj@WavefrontOBJ { objFaces } fs = (SV.convert verts, V.length objFaces * 3)
   where
-  verts :: V.Vector GLfloat
+  verts :: V.Vector Scalar
   verts = V.concatMap (\face -> V.concat . fmap V.concat . transpose $ map ($ face) packFuns) faces
   packFuns = map ($ obj) fs
   faces = fmap elValue objFaces
 
-eachFaceIndex :: (WavefrontOBJ -> FaceIndex -> V.Vector GLfloat) -> WavefrontOBJ -> Face -> [V.Vector GLfloat]
+eachFaceIndex :: (WavefrontOBJ -> FaceIndex -> V.Vector Scalar) -> WavefrontOBJ -> Face -> [V.Vector Scalar]
 eachFaceIndex f obj (Face one two three xtras) = f obj <$> one : two : three : xtras
 
-packInternalEdge :: WavefrontOBJ -> Face -> [V.Vector GLfloat]
+packInternalEdge :: WavefrontOBJ -> Face -> [V.Vector Scalar]
 packInternalEdge obj = \(Face one two three _) ->
   let internal12 = numFacesContaining obj edgeCache one two   > 1
       internal23 = numFacesContaining obj edgeCache two three > 1
@@ -212,7 +179,7 @@ packInternalEdge obj = \(Face one two three _) ->
   toV True  = V.fromList [ 1 ]
   edgeCache = mkEdgeCache obj
 
-packBarycentricFace :: WavefrontOBJ -> Face -> [V.Vector GLfloat]
+packBarycentricFace :: WavefrontOBJ -> Face -> [V.Vector Scalar]
 packBarycentricFace obj = \(Face one two three _) ->
   let basis1 = V3 1 0 0
       basis2 = V3 0 1 0
@@ -226,21 +193,6 @@ packBarycentricFace obj = \(Face one two three _) ->
   in [ convertV3 c1, convertV3 c2, convertV3 c3]
   where
   edgeCache = mkEdgeCache obj
-
-vaoFromWavefrontWithInternalEdges :: Shader -> WavefrontOBJ -> IO VAO
-vaoFromWavefrontWithInternalEdges shader obj =
-  createDirectVAO
-    shader
-    [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "excludeEdge" 1]]
-    (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packInternalEdge])
-    Triangles
-
-vaoFromWavefrontWithBarycentricDirect :: Shader -> WavefrontOBJ -> IO VAO
-vaoFromWavefrontWithBarycentricDirect shader obj =
-  createDirectVAO shader
-    [VertexGroup [Attachment "position" 3, Attachment "texCoords" 2, Attachment "normal" 3, Attachment "barycentric" 3]]
-    (packOBJ obj [eachFaceIndex packLocations, eachFaceIndex packTexCoords, eachFaceIndex packNormals, packBarycentricFace])
-    Triangles
 
  -- Utils
 

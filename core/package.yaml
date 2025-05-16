@@ -35,7 +35,6 @@ dependencies:
     - JuicyPixels
     - JuicyPixels-extra
     - MonadRandom
-    - OpenGLRaw
     - StateVar
     - VulkanMemoryAllocator
     - acquire
@@ -63,7 +62,6 @@ dependencies:
     - linear
     - megaparsec
     - mtl
-    - random
     - rawstring-qm
     - safe
     - scientific
@@ -95,20 +93,9 @@ library:
     - Hickory.GameLoop
     - Hickory.Graphics
     - Hickory.Graphics.Debug
-    - Hickory.Graphics.DeferredRendering
     - Hickory.Graphics.DrawText
     - Hickory.Graphics.Mesh
-    - Hickory.Graphics.Drawing
-    - Hickory.Graphics.GLSupport
     - Hickory.Graphics.MatrixMonad
-    - Hickory.Graphics.SSAO
-    - Hickory.Graphics.Shader
-    - Hickory.Graphics.ShaderMonad
-    - Hickory.Graphics.StockShaders
-    - Hickory.Graphics.Textures
-    - Hickory.Graphics.Uniforms
-    - Hickory.Graphics.VAO
-    - Hickory.Graphics.Framebuffer
     - Hickory.Input
     - Hickory.Math
     - Hickory.Math.Interpolate
@@ -122,7 +109,6 @@ library:
     - Hickory.ModelLoading.DirectXModel
     - Hickory.ModelLoading.Parsing
     - Hickory.ModelLoading.Wavefront
-    - Hickory.ModelLoading.Packed
     - Hickory.Resources
     - Hickory.Serialize
     # - Hickory.Text.ParseFnt
