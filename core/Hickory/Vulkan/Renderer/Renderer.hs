@@ -805,7 +805,8 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
 
     imageBarrier commandBuffer IMAGE_LAYOUT_UNDEFINED PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-                               IMAGE_ASPECT_COLOR_BIT (resourceForFrame swapchainImageIndex postImage).image
+                               IMAGE_ASPECT_COLOR_BIT 1 1 (resourceForFrame swapchainImageIndex postImage).image
+
     -- Stage 7 Post
     cmdUseRendering commandBuffer (zero
       { layerCount = 1
@@ -830,12 +831,12 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
     imageBarrier commandBuffer IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL (PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT) ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
                                IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL (PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT)
                                  (ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT)
-                               IMAGE_ASPECT_DEPTH_BIT currentDepthViewableImage.image
+                               IMAGE_ASPECT_DEPTH_BIT 1 1 currentDepthViewableImage.image
     let imageReuseBarrier image =
           imageBarrier commandBuffer IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                      IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
                                        (ACCESS_COLOR_ATTACHMENT_READ_BIT .|. ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
-                                     IMAGE_ASPECT_COLOR_BIT image
+                                     IMAGE_ASPECT_COLOR_BIT 1 1 image
     imageReuseBarrier (resourceForFrame swapchainImageIndex postImage).image
 
     -- Stage 8 Forward (aka 'Direct')
@@ -866,11 +867,11 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
 
     imageBarrier commandBuffer IMAGE_LAYOUT_UNDEFINED PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-                               IMAGE_ASPECT_COLOR_BIT (resourceForFrame swapchainImageIndex blurImage).image
+                               IMAGE_ASPECT_COLOR_BIT 1 1 (resourceForFrame swapchainImageIndex blurImage).image
 
     imageBarrier commandBuffer IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL PIPELINE_STAGE_FRAGMENT_SHADER_BIT ACCESS_SHADER_READ_BIT
-                               IMAGE_ASPECT_COLOR_BIT (resourceForFrame swapchainImageIndex postImage).image
+                               IMAGE_ASPECT_COLOR_BIT 1 1 (resourceForFrame swapchainImageIndex postImage).image
 
     -- Blur (for depth of field)
     for_ camera.depthOfField \_ -> cmdUseRendering commandBuffer (zero
@@ -894,15 +895,15 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
 
     imageBarrier commandBuffer IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL PIPELINE_STAGE_FRAGMENT_SHADER_BIT ACCESS_SHADER_READ_BIT
-                               IMAGE_ASPECT_COLOR_BIT (resourceForFrame swapchainImageIndex blurImage).image
+                               IMAGE_ASPECT_COLOR_BIT 1 1 (resourceForFrame swapchainImageIndex blurImage).image
 
     imageBarrier commandBuffer IMAGE_LAYOUT_UNDEFINED PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
                                IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-                               IMAGE_ASPECT_COLOR_BIT colorImage.image
+                               IMAGE_ASPECT_COLOR_BIT 1 1 colorImage.image
 
     imageBarrier commandBuffer IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL (PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT) ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
                                IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL PIPELINE_STAGE_FRAGMENT_SHADER_BIT ACCESS_SHADER_READ_BIT
-                               IMAGE_ASPECT_DEPTH_BIT currentDepthViewableImage.image
+                               IMAGE_ASPECT_DEPTH_BIT 1 1 currentDepthViewableImage.image
 
     cmdUseRendering commandBuffer (zero
       { layerCount = 1

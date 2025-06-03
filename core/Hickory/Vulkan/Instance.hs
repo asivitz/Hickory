@@ -1,4 +1,4 @@
-{-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields, OverloadedLists #-}
+{-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields, OverloadedLists, CPP #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use infix" #-}
 {-# LANGUAGE DataKinds #-}
@@ -23,7 +23,12 @@ import Data.Foldable (for_)
 
 validationLayers :: [B.ByteString]
 -- validationLayers = ["VK_LAYER_LUNARG_api_dump", "VK_LAYER_KHRONOS_validation"]
-validationLayers = ["VK_LAYER_KHRONOS_validation"]
+validationLayers =
+#ifdef PRODUCTION
+  []
+#else
+  ["VK_LAYER_KHRONOS_validation"]
+#endif
 
 withStandardInstance :: [B.ByteString] -> [B.ByteString] -> Acquire Instance
 withStandardInstance (DL.nub -> desiredExtensions) (DL.nub -> desiredLayers) = do

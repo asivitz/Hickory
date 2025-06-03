@@ -6,9 +6,6 @@ cradle:
     - path: "./Example/Shooter/shooter.hs"
       component: "Shooter:exe:shooter"
 
-    - path: "./Example/Shooter/Paths_Shooter.hs"
-      component: "Shooter:exe:shooter"
-
     - path: "./FRP"
       component: "lib:Hickory-FRP"
 
@@ -18,9 +15,6 @@ cradle:
     - path: "./GLFW/main.hs"
       component: "Hickory-GLFW:exe:vulkan"
 
-    - path: "./GLFW/Paths_Hickory_GLFW.hs"
-      component: "Hickory-GLFW:exe:vulkan"
-
     - path: "./SDL/"
       component: "lib:Hickory-SDL"
 
@@ -28,9 +22,6 @@ cradle:
       component: "lib:Hickory"
 
     - path: "./core/pack-model/main.hs"
-      component: "Hickory:exe:pack-model"
-
-    - path: "./core/pack-model/Paths_Hickory.hs"
       component: "Hickory:exe:pack-model"
 
     - path: "./core/test"

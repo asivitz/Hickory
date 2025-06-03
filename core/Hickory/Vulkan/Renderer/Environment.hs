@@ -7,7 +7,7 @@ module Hickory.Vulkan.Renderer.Environment where
 
 import Hickory.Vulkan.Mesh (withSingleTimeCommands)
 import Hickory.Vulkan.Types (TextureLoadOptions(..), ImageType (..), VulkanResources (..), RenderConfig (..), Material(..), DescriptorSpec (..), PointedDescriptorSet(..), ViewableImage (..), ConversionTo3D (..))
-import Vulkan (Filter(..), SamplerAddressMode (..), RenderingInfo(..), RenderingAttachmentInfo(..), Rect2D (..), Offset2D (..), Extent2D (..), AttachmentStoreOp (..), AttachmentLoadOp (..), ImageLayout (..), ClearValue (..), ClearColorValue (..), cmdDraw, cmdUseRendering, ImageCreateInfo(..), SharingMode (..), ImageType (..), Extent3D (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), ImageCreateFlagBits (..), Format (..), MemoryPropertyFlagBits (..), ImageAspectFlagBits (..), ImageViewType (..), PipelineRenderingCreateInfo (..), CullModeFlagBits (..), PipelineBindPoint (..), cmdBindPipeline, cmdBindDescriptorSets, SamplerMipmapMode (..), DescriptorSet)
+import Vulkan (Filter(..), SamplerAddressMode (..), RenderingInfo(..), RenderingAttachmentInfo(..), Rect2D (..), Offset2D (..), Extent2D (..), AttachmentStoreOp (..), AttachmentLoadOp (..), ImageLayout (..), ClearValue (..), ClearColorValue (..), cmdDraw, cmdUseRendering, ImageCreateInfo(..), SharingMode (..), ImageType (..), Extent3D (..), ImageTiling (..), SampleCountFlagBits (..), ImageUsageFlagBits (..), ImageCreateFlagBits (..), Format (..), MemoryPropertyFlagBits (..), ImageAspectFlagBits (..), ImageViewType (..), PipelineRenderingCreateInfo (..), CullModeFlagBits (..), PipelineBindPoint (..), cmdBindPipeline, cmdBindDescriptorSets, SamplerMipmapMode (..), DescriptorSet, Sampler)
 import Vulkan.Zero (zero)
 import Acquire (Acquire (..))
 import VulkanMemoryAllocator (withImage, AllocationCreateInfo(..))
@@ -26,11 +26,8 @@ import Linear (V3 (..), (!*!), inv44)
 import Hickory.Math (Mat44, viewDirection)
 import Hickory.Camera (shotMatrix, Projection (..))
 import Hickory.Vulkan.Framing (unframedResource)
-import Hickory.Vulkan.Textures (transitionImageLayoutMips, withImageSamplerMips)
+import Hickory.Vulkan.Textures (transitionImageLayoutMips, withImageSamplerMips, cubeFormat)
 import Data.Vector (Vector)
-
-cubeFormat :: Format
-cubeFormat = FORMAT_R32G32B32A32_SFLOAT
 
 withEnvMapRenderConfig :: Extent2D -> Acquire RenderConfig
 withEnvMapRenderConfig extent = do
@@ -145,7 +142,7 @@ void main()
 |])
 
 -- TODO: Can we garbage collect? E.g. the render material, the hdr image, etc
-renderEnvironmentMap :: VulkanResources -> Extent2D -> FilePath -> Acquire DescriptorSpec
+renderEnvironmentMap :: VulkanResources -> Extent2D -> FilePath -> Acquire (ViewableImage, Sampler)
 renderEnvironmentMap vulkanResources faceExtent pathToHDR = do
   let options = TextureLoadOptions
         { filter = FILTER_LINEAR
@@ -165,7 +162,7 @@ renderEnvironmentMap vulkanResources faceExtent pathToHDR = do
   renderCubeMap vulkanResources faceExtent material [hdrDescSet.descriptorSet]
 
 -- Face size of 32x32 should be good enough
-renderIrradianceMap :: VulkanResources -> Extent2D -> DescriptorSpec -> Acquire DescriptorSpec
+renderIrradianceMap :: VulkanResources -> Extent2D -> DescriptorSpec -> Acquire (ViewableImage, Sampler)
 renderIrradianceMap vulkanResources faceExtent envMapDescSpec = do
   renderConfig <- withEnvMapRenderConfig faceExtent
   descSet <- withDescriptorSet vulkanResources [envMapDescSpec]
@@ -173,7 +170,7 @@ renderIrradianceMap vulkanResources faceExtent envMapDescSpec = do
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader irradianceFragShader [unframedResource descSet] Nothing
   renderCubeMap vulkanResources faceExtent material [descSet.descriptorSet]
 
-renderCubeMap :: VulkanResources -> Extent2D -> Material Mat44 -> Vector DescriptorSet -> Acquire DescriptorSpec
+renderCubeMap :: VulkanResources -> Extent2D -> Material Mat44 -> Vector DescriptorSet -> Acquire (ViewableImage, Sampler)
 renderCubeMap vulkanResources@VulkanResources {..} faceExtent material descriptorSets = do
   let cubeImageCreateInfo :: ImageCreateInfo '[]
       cubeImageCreateInfo = zero
@@ -234,4 +231,4 @@ renderCubeMap vulkanResources@VulkanResources {..} faceExtent material descripto
       cmdDraw commandBuffer 3 1 0 0
 
     transitionImageLayoutMips cubeImage 1 6 IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL commandBuffer
-  pure cubeDescriptorSpec
+  pure (cubeViewableImage, cubeSampler)

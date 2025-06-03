@@ -13,7 +13,7 @@
 import Control.Monad.IO.Class ( MonadIO, liftIO )
 import Data.Time.Clock (NominalDiffTime)
 import Hickory.Camera
-import Hickory.FRP.UI (topLeft)
+import Hickory.UI (topLeft)
 import Hickory.Input
 import Hickory.Math (vnull, mkTranslation, mkScale, viewTarget, Interpolatable (..))
 import Hickory.Types
@@ -21,7 +21,7 @@ import Linear ( V2(..), V3(..), (^*), V4(..), (!*!), zero, transpose, _m33, inv3
 import Linear.Metric
 import Acquire (Acquire)
 import Control.Lens ((^.))
-import Foreign (poke)
+import Foreign (poke, (.|.))
 import Control.Monad (void)
 
 import qualified Hickory.Vulkan.Types as H
@@ -30,7 +30,7 @@ import qualified Hickory.Vulkan.Renderer.Renderer as H
 
 import Vulkan
   ( pattern FILTER_LINEAR
-  , SamplerAddressMode(..)
+  , SamplerAddressMode(..), ImageLayout (..), PipelineStageFlagBits (..), AccessFlagBits (..), ImageAspectFlagBits (..)
   )
 
 import Hickory.Vulkan.Vulkan
@@ -48,7 +48,7 @@ import Hickory.GameLoop (gameLoop, Scene (..))
 import Data.IORef (newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Types (TextureLoadOptions(..))
 import qualified Platforms.SDL as HSDL
-import Data.Bool (bool)
+import Hickory.Vulkan.Textures (imageBarrier)
 
 -- ** GAMEPLAY **
 
@@ -139,7 +139,13 @@ loadResources path vulkanResources = do
 -- Our render function
 renderGame :: (MonadIO m) => Resources -> Model -> Size Int -> (H.Renderer, H.FrameContext) -> m ()
 renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, frameContext)
-  = void $ H.renderToRenderer frameContext renderer renderSettings litF overlayF
+  = do
+    void $ H.renderToRenderer frameContext renderer renderSettings litF overlayF
+
+    imageBarrier frameContext.commandBuffer IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT ACCESS_COLOR_ATTACHMENT_WRITE_BIT
+                                IMAGE_LAYOUT_PRESENT_SRC_KHR PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+                                  (ACCESS_COLOR_ATTACHMENT_READ_BIT .|. ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                                IMAGE_ASPECT_COLOR_BIT 1 1 frameContext.colorImage.image
   where
   vm = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
   pm = shotMatrix (Ortho (realToFrac w) 1 100 False) (aspectRatio scrSize)
@@ -225,9 +231,10 @@ physicsTimeStep = 1/30
 main :: IO ()
 main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
   vulkanResources <- HSDL.initSDLVulkan win
+
   resStore <- loadResources "Example/Shooter/assets/" vulkanResources
 
-  sdlHandles <- liftIO HSDL.sdlFrameBuilder
+  sdlHandles <- liftIO (HSDL.sdlFrameBuilder False)
   res <- liftIO $ getResourcesStoreResources resStore
 
   gameState <- liftIO $ newIORef newGame

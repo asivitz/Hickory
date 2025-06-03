@@ -77,6 +77,13 @@ dependencies:
     - wavefront
     - wide-word
     - yaml
+    - ktx-codec
+
+flags:
+  production:
+    description: Enable production mode
+    manual: true
+    default: false
 
 when:
     - condition: os(osx)
@@ -85,6 +92,9 @@ when:
 library:
   verbatim:
     default-language: GHC2021
+  when:
+    - condition: "flag(production)"
+      cpp-options: -DPRODUCTION
 
   exposed-modules:
     - Hickory.Camera

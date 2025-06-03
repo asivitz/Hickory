@@ -161,7 +161,7 @@ data DataBuffer a = DataBuffer
   , allocator  :: Allocator
   } deriving Generic
 
-data ImageType = PNG | HDR
+data ImageType = PNG | HDR | KTX2
 data ConversionTo3D = Simply2D | HorizontalSlices | VerticalSlices
   deriving Eq
 
@@ -179,6 +179,7 @@ formatForImageType :: ImageType -> Format
 formatForImageType = \case
   PNG -> FORMAT_R8G8B8A8_UNORM
   HDR -> FORMAT_R32G32B32A32_SFLOAT
+  KTX2 -> FORMAT_R32G32B32A32_SFLOAT
 
 pngLoadOptions :: TextureLoadOptions
 pngLoadOptions = TextureLoadOptions

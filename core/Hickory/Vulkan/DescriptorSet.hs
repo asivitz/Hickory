@@ -26,7 +26,7 @@ import Vulkan
   , DescriptorSetLayout, DescriptorSet
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Filter
-  , pattern IMAGE_ASPECT_COLOR_BIT, SamplerAddressMode, SamplerMipmapMode (..), ImageViewType (..)
+  , pattern IMAGE_ASPECT_COLOR_BIT, SamplerAddressMode, SamplerMipmapMode (..), ImageViewType (..), Sampler
   )
 import qualified Vulkan as Writes (WriteDescriptorSet(..))
 import Data.Functor ((<&>))
@@ -172,6 +172,7 @@ data TextureDescriptorSet = TextureDescriptorSet
   , textureNames  :: Vector Text
   } deriving Generic
 
+loadImage :: VulkanResources -> FilePath -> TextureLoadOptions -> Acquire (ViewableImage, Sampler)
 loadImage bag path options = do
   (image, mipLevels)   <- withTextureImage bag (isJust options.samplerMipmapMode) options path
   sampler <- withImageSamplerMips bag mipLevels options.filter options.samplerAddressMode (fromMaybe SAMPLER_MIPMAP_MODE_LINEAR options.samplerMipmapMode)
