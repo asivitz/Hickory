@@ -28,7 +28,7 @@ import GHC.Generics (Generic)
 data Size a = Size
   { width  :: a
   , height :: a
-  } deriving (Show, Read, Functor)
+  } deriving (Show, Read, Functor, Generic)
 
 data Rect = Rect
   { center :: V2 Scalar

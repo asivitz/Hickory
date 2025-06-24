@@ -22,6 +22,7 @@ import Data.WideWord.Word128 (Word128)
 import Data.HashMap.Strict (HashMap)
 import GHC.Records (HasField(..))
 import Data.Bool (bool)
+import Data.Char (isAsciiLower, toUpper)
 
 type Point = (V2 Scalar, Int) -- Location, Ident
 
@@ -263,6 +264,101 @@ data Key =
   | Key'RightSuper
   | Key'Menu
   deriving (Enum, Eq, Ord, Read, Show)
+
+upshiftChar :: Char -> Char
+upshiftChar = \case
+  a | isAsciiLower a -> toUpper a
+  '1' -> '!'
+  '2' -> '@'
+  '3' -> '#'
+  '4' -> '$'
+  '5' -> '%'
+  '6' -> '^'
+  '7' -> '&'
+  '8' -> '*'
+  '9' -> '('
+  '0' -> ')'
+  '-' -> '_'
+  '=' -> '+'
+  ',' -> '<'
+  '.' -> '>'
+  '/' -> '?'
+  ';' -> ':'
+  '\'' -> '"'
+  '[' -> '{'
+  ']' -> '}'
+  '\\' -> '|'
+  a -> a
+
+keyToChar :: Key -> Maybe Char
+keyToChar = \case
+  Key'Space -> Just ' '
+  Key'Apostrophe -> Just '\''
+  Key'Comma -> Just ','
+  Key'Minus -> Just '-'
+  Key'Period -> Just '.'
+  Key'Slash -> Just '/'
+  Key'0 -> Just '0'
+  Key'1 -> Just '1'
+  Key'2 -> Just '2'
+  Key'3 -> Just '3'
+  Key'4 -> Just '4'
+  Key'5 -> Just '5'
+  Key'6 -> Just '6'
+  Key'7 -> Just '7'
+  Key'8 -> Just '8'
+  Key'9 -> Just '9'
+  Key'Semicolon -> Just ':'
+  Key'Equal -> Just '='
+  Key'A -> Just 'a'
+  Key'B -> Just 'b'
+  Key'C -> Just 'c'
+  Key'D -> Just 'd'
+  Key'E -> Just 'e'
+  Key'F -> Just 'f'
+  Key'G -> Just 'g'
+  Key'H -> Just 'h'
+  Key'I -> Just 'i'
+  Key'J -> Just 'j'
+  Key'K -> Just 'k'
+  Key'L -> Just 'l'
+  Key'M -> Just 'm'
+  Key'N -> Just 'n'
+  Key'O -> Just 'o'
+  Key'P -> Just 'p'
+  Key'Q -> Just 'q'
+  Key'R -> Just 'r'
+  Key'S -> Just 's'
+  Key'T -> Just 't'
+  Key'U -> Just 'u'
+  Key'V -> Just 'v'
+  Key'W -> Just 'w'
+  Key'X -> Just 'x'
+  Key'Y -> Just 'y'
+  Key'Z -> Just 'z'
+  Key'LeftBracket -> Just '['
+  Key'Backslash -> Just '\\'
+  Key'RightBracket -> Just ']'
+  Key'GraveAccent -> Just '`'
+  Key'Enter -> Just '\n'
+  Key'Pad0 -> Just '0'
+  Key'Pad1 -> Just '1'
+  Key'Pad2 -> Just '2'
+  Key'Pad3 -> Just '3'
+  Key'Pad4 -> Just '4'
+  Key'Pad5 -> Just '5'
+  Key'Pad6 -> Just '6'
+  Key'Pad7 -> Just '7'
+  Key'Pad8 -> Just '8'
+  Key'Pad9 -> Just '9'
+  Key'PadDecimal -> Just '.'
+  Key'PadDivide -> Just '/'
+  Key'PadMultiply -> Just '*'
+  Key'PadSubtract -> Just '-'
+  Key'PadAdd -> Just '+'
+  Key'PadEnter -> Just '\n'
+  Key'PadEqual -> Just '='
+  _ -> Nothing
 
 instance Data.Hashable.Hashable Key where
       hashWithSalt s k = hashWithSalt s (fromEnum k)

@@ -35,3 +35,15 @@ instance ( Interpolatable a
           , glerp fr a2 b2
           , glerp fr a3 b3
           )
+
+instance ( Interpolatable a
+         , Interpolatable b
+         , Interpolatable c
+         , Interpolatable d
+         ) => Interpolatable (a, b, c, d)
+  where glerp fr (a1, a2, a3, a4) (b1, b2, b3, b4) =
+          ( glerp fr a1 b1
+          , glerp fr a2 b2
+          , glerp fr a3 b3
+          , glerp fr a4 b4
+          )

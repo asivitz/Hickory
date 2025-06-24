@@ -26,6 +26,7 @@ data TextCommand = TextCommand
   , align    :: XAlign
   , valign   :: YAlign
   , scrollFrame :: Maybe (Scalar, Scalar) -- vertical cutoffs 'from' and 'to', in number of lines
+  , cursor :: Maybe (Word, Word)
   }
   deriving (Show, Eq, Generic)
   deriving anyclass Hashable
