@@ -38,7 +38,7 @@ transformTextCommandToVerts :: TextCommand -> Font -> (Int, [V3 Scalar], [V2 Sca
 transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrapWidth) Font {..}
   = (allNum, allVerts, allTCs)
   where
-  wordSplit = Text.splitOn " " <$> Text.lines text
+  wordSplit = Text.splitOn " " <$> Text.splitOn "\n" text
   kernedWordGlyphs :: [[[Kerned]]]
   kernedWordGlyphs =
     wordSplit <&> \line ->
@@ -66,7 +66,7 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
         ) ws
 
   allPrinted :: [[[(Int, [V3 Scalar], [V2 Scalar])]]]
-  allPrinted = snd $ (\g -> mapAccumL g 0 ended) \lineNum kernedLine ->
+  allPrinted = snd $ (\g -> mapAccumL g (0,0) ended) \(lineNum, cursorLineNum) kernedLine ->
     let printedLines :: [[(Int, [V3 Scalar], [V2 Scalar])]]
         printedLines =
           snd $ (\f -> mapAccumL f 0 (zip [0..] kernedLine)) \wrappedLineCursorX (wrappedLineNum, wrappedLine) ->
@@ -79,7 +79,7 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
                       let placeGlyph :: V2 Scalar -> V3 Scalar
                           placeGlyph (V2 vx vy) = V3 (vx + currentX) (baseY + (vy + yoffset)) 0 ^* size
                           (cursor_num, cursor_verts, cursor_tcs) = case (cursorGlyph, mCursor) of
-                            (Just (_cg, Just cgvs), Just (cLine, cCol)) | lineNum == cLine && cCol == currentLineCursorX + wrappedLineCursorX ->
+                            (Just (_cg, Just cgvs), Just (cLine, cCol)) | cursorLineNum == cLine && cCol == currentLineCursorX + wrappedLineCursorX ->
                               let cverts = map (offset . placeGlyph) cgvs.verts
                                   offset (V3 x y z) = (V3 (x - 24) y z)
                               in (1, cverts, cgvs.texCoords)
@@ -93,7 +93,7 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
                       in ((currentX + g.advance + kerning, currentLineCursorX + 1), (char_num + cursor_num, cursor_verts ++ char_verts, cursor_tcs ++ char_tcs))
                     shift = lineShiftX totalX align * size
                     in (wrappedLineCursorX + fromIntegral totalCursorX, over (each . _2 . each) (\(V3 x y z) -> (V3 (x + shift) y z)) printedSet)
-    in (lineNum + fromIntegral (length printedLines), printedLines)
+    in ((lineNum + fromIntegral (length printedLines), cursorLineNum + 1), printedLines)
   allNum :: Int
   allNum = sumOf (each . each . each . _1) allPrinted
   allVerts = toListOf (each . each . each . _2 . each) allPrinted
