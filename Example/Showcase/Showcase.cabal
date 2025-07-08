@@ -1,0 +1,61 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           Showcase
+version:        0.1.0.0
+synopsis:       Shows the various features
+description:    Please see README.md
+author:         Axis Sivitz
+maintainer:     aosivitz@gmail.com
+copyright:      2024 Axis Sivitz
+build-type:     Simple
+
+executable showcase
+  main-is: showcase.hs
+  other-modules:
+      Paths_Showcase
+  default-extensions:
+      LambdaCase
+      TupleSections
+      ViewPatterns
+      NamedFieldPuns
+      OverloadedStrings
+      DeriveGeneric
+      QuasiQuotes
+      Rank2Types
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -Werror=incomplete-patterns -threaded
+  build-depends:
+      GLFW-b
+    , Hickory
+    , Hickory-FRP
+    , Hickory-GLFW
+    , acquire
+    , base
+    , bitwise-enum
+    , bytestring
+    , containers
+    , derive-storable
+    , extra
+    , generic-lens
+    , ghc-compact
+    , gltf-loader
+    , groom
+    , hashable
+    , ki
+    , lens
+    , linear
+    , managed
+    , mtl
+    , random
+    , raw-strings-qq
+    , reactive-banana
+    , text
+    , time
+    , unordered-containers
+    , vector
+    , vulkan
+    , vulkan-utils
+  default-language: Haskell2010

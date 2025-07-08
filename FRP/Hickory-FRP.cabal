@@ -1,0 +1,65 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.38.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           Hickory-FRP
+version:        0.1.0.0
+homepage:       https://github.com/asivitz/Hickory
+author:         Axis Sivitz
+maintainer:     aosivitz@gmail.com
+copyright:      2022 Axis Sivitz
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Hickory.FRP.Combinators
+      Hickory.FRP.Historical
+      Hickory.FRP.CoreEvents
+      Hickory.FRP.Game
+      Hickory.FRP.UI
+      Hickory.FRP
+      Hickory.FRP.Editor
+      Hickory.FRP.Camera
+  other-modules:
+      Paths_Hickory_FRP
+  hs-source-dirs:
+      ./
+  default-extensions:
+      NamedFieldPuns
+      Rank2Types
+      BangPatterns
+      OverloadedStrings
+      ScopedTypeVariables
+      LambdaCase
+      TupleSections
+      ViewPatterns
+      BlockArguments
+      RecordWildCards
+  ghc-options: -Wall -Wunused-packages -Werror=unused-packages
+  build-depends:
+      Hickory
+    , MonadRandom
+    , StateVar
+    , base
+    , bitwise-enum
+    , containers
+    , dear-imgui
+    , extra
+    , generic-lens
+    , hashable
+    , lens
+    , linear
+    , mtl
+    , random
+    , reactive-banana
+    , safe
+    , text
+    , time
+    , unordered-containers
+    , vector
+    , vulkan
+  default-language: GHC2021

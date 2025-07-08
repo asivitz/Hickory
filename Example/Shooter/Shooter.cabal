@@ -1,0 +1,59 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.38.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           Shooter
+version:        0.1.0.0
+synopsis:       An example action game
+description:    Please see README.md
+author:         Axis Sivitz
+maintainer:     aosivitz@gmail.com
+copyright:      2019 Axis Sivitz
+build-type:     Simple
+
+executable shooter
+  main-is: shooter.hs
+  other-modules:
+      Paths_Shooter
+  default-extensions:
+      LambdaCase
+      TupleSections
+      ViewPatterns
+      NamedFieldPuns
+      OverloadedStrings
+      DeriveGeneric
+      QuasiQuotes
+      Rank2Types
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -threaded
+  build-depends:
+      GLFW-b
+    , Hickory
+    , Hickory-SDL
+    , acquire
+    , base
+    , bitwise-enum
+    , bytestring
+    , containers
+    , derive-storable
+    , extra
+    , generic-lens
+    , ghc-compact
+    , groom
+    , hashable
+    , ki
+    , lens
+    , linear
+    , managed
+    , mtl
+    , random
+    , raw-strings-qq
+    , reactive-banana
+    , text
+    , time
+    , unordered-containers
+    , vector
+    , vulkan
+    , vulkan-utils
+  default-language: Haskell2010

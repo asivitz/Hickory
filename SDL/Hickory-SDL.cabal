@@ -1,0 +1,45 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.38.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           Hickory-SDL
+version:        0.1.0.0
+homepage:       https://github.com/asivitz/Hickory
+author:         Axis Sivitz
+maintainer:     aosivitz@gmail.com
+copyright:      2024 Axis Sivitz
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Platforms.SDL
+  other-modules:
+      Paths_Hickory_SDL
+  default-extensions:
+      NamedFieldPuns
+      TemplateHaskell
+      Rank2Types
+      BangPatterns
+      OverloadedStrings
+      BlockArguments
+  ghc-options: -Wall -Wunused-packages -Werror=unused-packages
+  build-depends:
+      Hickory
+    , acquire
+    , base
+    , bitwise-enum
+    , bytestring
+    , dear-imgui
+    , lens
+    , linear
+    , sdl2
+    , text
+    , time
+    , unordered-containers
+    , vector
+    , vulkan
+  default-language: GHC2021
