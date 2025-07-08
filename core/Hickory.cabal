@@ -1,0 +1,249 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.38.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           Hickory
+version:        0.1.0.0
+synopsis:       Tools for building 3D programs in Haskell
+description:    Please see README.md
+homepage:       https://github.com/asivitz/Hickory
+author:         Axis Sivitz
+maintainer:     aosivitz@gmail.com
+copyright:      2017 Axis Sivitz
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    Readme.md
+
+flag production
+  description: Enable production mode
+  manual: True
+  default: False
+
+library
+  exposed-modules:
+      Hickory.Camera
+      Hickory.Color
+      Hickory.Config
+      Hickory.GameLoop
+      Hickory.Graphics
+      Hickory.Graphics.Debug
+      Hickory.Graphics.DrawText
+      Hickory.Graphics.Mesh
+      Hickory.Graphics.MatrixMonad
+      Hickory.Input
+      Hickory.Math
+      Hickory.Math.Interpolate
+      Hickory.Math.Matrix
+      Hickory.Math.Vector
+      Hickory.Math.VectorMatrix
+      Hickory.Math.Bezier
+      Hickory.ModelLoading.Animation
+      Hickory.ModelLoading.Bvh
+      Hickory.ModelLoading.DirectX
+      Hickory.ModelLoading.DirectXModel
+      Hickory.ModelLoading.Parsing
+      Hickory.ModelLoading.Wavefront
+      Hickory.Resources
+      Hickory.Serialize
+      Hickory.Text.ParseJson
+      Hickory.Text.Text
+      Hickory.Text
+      Hickory.Text.Types
+      Hickory.Types
+      Hickory.Utils.Projection
+      Hickory.Utils.Utils
+      Hickory.Vulkan.Vulkan
+      Hickory.Vulkan.Mesh
+      Hickory.Vulkan.Material
+      Hickory.Vulkan.DescriptorSet
+      Hickory.Vulkan.Textures
+      Hickory.Vulkan.Monad
+      Hickory.Vulkan.Text
+      Hickory.Vulkan.DynamicMesh
+      Hickory.Vulkan.Framing
+      Hickory.Vulkan.Frame
+      Hickory.Vulkan.Instance
+      Hickory.Vulkan.Utils
+      Hickory.Vulkan.RenderPass
+      Hickory.Vulkan.StockMesh
+      Hickory.Vulkan.StockTexture
+      Hickory.Vulkan.PostProcessing
+      Hickory.Vulkan.HDR
+      Hickory.Vulkan.LUT
+      Hickory.Vulkan.RenderTarget
+      Hickory.Vulkan.Renderer.ObjectPicking
+      Hickory.Vulkan.Renderer.Renderer
+      Hickory.Vulkan.Renderer.Types
+      Hickory.Vulkan.Renderer.GBuffer
+      Hickory.Vulkan.Renderer.Lights
+      Hickory.Vulkan.Renderer.Decals
+      Hickory.Vulkan.Renderer.Direct
+      Hickory.Vulkan.Renderer.SSAO
+      Hickory.Vulkan.Renderer.ShadowPass
+      Hickory.Vulkan.Renderer.DrawingPrimitives
+      Hickory.Vulkan.Renderer.ShaderDefinitions
+      Hickory.Vulkan.Renderer.Stats
+      Hickory.Vulkan.Renderer.Environment
+      Hickory.Vulkan.Renderer.StockMaterials
+      Hickory.Vulkan.Renderer.Screenshot
+      Hickory.Vulkan.Renderer.Blur
+      Hickory.Vulkan.Types
+      Hickory.ImGUI.Helpers
+      Hickory.ImGUI.ImGUI
+      Hickory.Editor
+      Hickory.Editor.GUI
+      Hickory.Editor.General
+      Hickory.Editor.Network
+      Hickory.Editor.Post
+      Hickory.Editor.Types
+      Hickory.Editor.View
+      Hickory.Camera.Omniscient
+      Hickory.Camera.FirstPerson
+      Hickory.UI
+  other-modules:
+      Paths_Hickory
+  default-extensions:
+      NamedFieldPuns
+      Rank2Types
+      BangPatterns
+      OverloadedStrings
+      ScopedTypeVariables
+      LambdaCase
+      TupleSections
+      ViewPatterns
+      BlockArguments
+      RecordWildCards
+      GHC2021
+  ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
+  build-depends:
+      JuicyPixels
+    , JuicyPixels-extra
+    , MonadRandom
+    , StateVar
+    , VulkanMemoryAllocator
+    , acquire
+    , aeson
+    , base
+    , base-compat
+    , binary
+    , bitwise-enum
+    , bytestring
+    , containers
+    , data-default
+    , dear-imgui
+    , derive-storable
+    , deriving-aeson
+    , directory
+    , extra
+    , filepath
+    , finite-typelits
+    , generic-lens
+    , ghc-compact
+    , groom
+    , hashable
+    , ki
+    , ktx-codec
+    , lens
+    , linear
+    , megaparsec
+    , mtl
+    , rawstring-qm
+    , safe
+    , scientific
+    , text
+    , time
+    , unordered-containers
+    , uuid
+    , vector
+    , vector-binary-instances
+    , vector-sized
+    , vulkan
+    , vulkan-utils
+    , wavefront
+    , wide-word
+    , yaml
+  if os(osx)
+    cc-options: -F/System/Library/Frameworks
+  if flag(production)
+    cpp-options: -DPRODUCTION
+  default-language: GHC2021
+
+test-suite hickory-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      Paths_Hickory
+  hs-source-dirs:
+      test
+  default-extensions:
+      NamedFieldPuns
+      Rank2Types
+      BangPatterns
+      OverloadedStrings
+      ScopedTypeVariables
+      LambdaCase
+      TupleSections
+      ViewPatterns
+      BlockArguments
+      RecordWildCards
+      GHC2021
+  ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
+  build-depends:
+      HUnit
+    , HUnit-approx >=1.0
+    , Hickory
+    , JuicyPixels
+    , JuicyPixels-extra
+    , MonadRandom
+    , StateVar
+    , VulkanMemoryAllocator
+    , acquire
+    , aeson
+    , base >=4.7 && <5
+    , base-compat
+    , binary
+    , bitwise-enum
+    , bytestring
+    , containers ==0.5.*
+    , data-default
+    , dear-imgui
+    , derive-storable
+    , deriving-aeson
+    , directory
+    , extra
+    , filepath
+    , finite-typelits
+    , generic-lens
+    , ghc-compact
+    , groom
+    , hashable
+    , ki
+    , ktx-codec
+    , lens
+    , linear
+    , megaparsec
+    , mtl
+    , rawstring-qm
+    , safe
+    , scientific
+    , test-framework
+    , test-framework-hunit
+    , text
+    , time
+    , unordered-containers
+    , uuid
+    , vector
+    , vector-binary-instances
+    , vector-sized
+    , vulkan
+    , vulkan-utils
+    , wavefront
+    , wide-word
+    , yaml
+  if os(osx)
+    cc-options: -F/System/Library/Frameworks
+  default-language: GHC2021
