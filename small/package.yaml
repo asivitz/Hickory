@@ -9,6 +9,11 @@ dependencies:
     - text
     - dear-imgui
     - vulkan-utils
+    - gltf-loader
+    - yoga
+    - file-embed
+    - Hickory
+    - Hickory-SDL
 
 library:
   verbatim:

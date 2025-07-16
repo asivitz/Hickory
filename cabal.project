@@ -42,6 +42,12 @@ source-repository-package
   location: https://github.com/asivitz/sdl2.git
   tag: 0c78116f98343199664671ee18eef4bd86557003
 
+source-repository-package
+  type: git
+  location: https://github.com/asivitz/yoga-hs.git
+  tag: 35a4c66b687fa635045a5c08400111ec5ebc2b96
+
+
 if os(darwin)
   extra-lib-dirs: /usr/local/lib
 
