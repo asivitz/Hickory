@@ -17,7 +17,7 @@ library
       OverloadedStrings
   build-depends:
       base
+    , dear-imgui
     , rawstring-qm
-    , sdl2
     , text
   default-language: GHC2021
