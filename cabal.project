@@ -42,7 +42,7 @@ source-repository-package
   location: https://github.com/asivitz/sdl2.git
   tag: 0c78116f98343199664671ee18eef4bd86557003
 
-extra-lib-dirs:
-  /usr/local/lib
+if os(darwin)
+  extra-lib-dirs: /usr/local/lib
 
 allow-newer: all
