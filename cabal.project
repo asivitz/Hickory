@@ -8,6 +8,7 @@ packages:
   ./FRP
   ./Example/Shooter
   ./Example/Showcase
+  ./small
 
 package dear-imgui
   flags: -opengl3 +vulkan +sdl -glfw

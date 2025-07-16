@@ -66,4 +66,4 @@ jobs:
 
     - name: Build
       run: |
-        cabal build shooter
+        cabal build Small

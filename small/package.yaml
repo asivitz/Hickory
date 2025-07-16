@@ -1,0 +1,11 @@
+name:                Small
+
+dependencies:
+    - base
+
+library:
+  verbatim:
+    default-language: GHC2021
+
+  exposed-modules:
+    - Small.Foo
