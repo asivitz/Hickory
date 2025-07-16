@@ -1,0 +1,69 @@
+name: Win Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: [ 'v*' ]         # build when you push a version tag
+  release:
+    types: [created]       # or when you publish a GitHub Release
+
+jobs:
+  build-windows:
+    runs-on: windows-2025
+    timeout-minutes: 60
+    concurrency:
+      group: ${{ github.workflow }}
+      cancel-in-progress: true
+    env:
+      MSYSTEM: CLANG64
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: CLANG64
+        release: false
+        path-type: inherit
+
+    - name: Install GHC & Cabal
+      # need cabal 3.16, which fixes 'clean' behavior on windows
+      shell: pwsh
+      run: |
+        ghcup install ghc --set 9.10.2
+        ghcup install cabal --set -u https://github.com/haskell/cabal/releases/download/cabal-head/cabal-head-Windows-x86_64.tar.gz head
+        ghc   --version
+        cabal --version
+        cabal update
+
+    - name: Install dependencies
+      shell: pwsh
+      run: |
+        ghcup run --mingw-path -- pacman -Sy --noconfirm --needed `
+                    mingw-w64-clang-x86_64-SDL2 `
+                    mingw-w64-clang-x86_64-pkgconf `
+                    mingw-w64-clang-x86_64-vulkan-devel `
+                    mingw-w64-clang-x86_64-glslang
+
+    - name: Configure Cabal where MSYS2’s libs are
+      run: |
+        cat >> /c/cabal/config <<'EOF'
+        extra-include-dirs: C:\msys64\clang64\include
+        extra-lib-dirs:     C:\msys64\clang64\lib
+        extra-prog-path:    C:\msys64\clang64\bin
+                            C:\msys64\usr\bin
+        EOF
+
+        cat >> cabal.project.local <<'EOF'
+        package sdl2
+            flags: -pkgconfig
+            extra-include-dirs: C:\msys64\clang64\include\SDL2
+        EOF
+
+    - name: Build
+      run: |
+        cabal build shooter
