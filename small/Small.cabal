@@ -20,4 +20,5 @@ library
     , dear-imgui
     , rawstring-qm
     , text
+    , vulkan-utils
   default-language: GHC2021

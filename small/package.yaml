@@ -6,9 +6,9 @@ default-extensions:
 dependencies:
     - base
     - rawstring-qm
-    # - sdl2
     - text
     - dear-imgui
+    - vulkan-utils
 
 library:
   verbatim:
