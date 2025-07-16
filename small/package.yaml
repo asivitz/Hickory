@@ -6,6 +6,7 @@ default-extensions:
 dependencies:
     - base
     - rawstring-qm
+    - sdl2
     - text
 
 library:

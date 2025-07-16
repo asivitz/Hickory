@@ -18,5 +18,6 @@ library
   build-depends:
       base
     , rawstring-qm
+    , sdl2
     , text
   default-language: GHC2021
