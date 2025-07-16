@@ -10,7 +10,7 @@ packages:
   ./Example/Showcase
 
 package dear-imgui
-  flags: -opengl3 +vulkan +sdl +glfw
+  flags: -opengl3 +vulkan +sdl -glfw
 
 constraints:
   wavefront ==0.7.1.4,
