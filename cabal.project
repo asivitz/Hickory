@@ -8,7 +8,6 @@ packages:
   ./FRP
   ./Example/Shooter
   ./Example/Showcase
-  ../oss/sdl2
 
 package dear-imgui
   flags: -opengl3 +vulkan +sdl +glfw
@@ -29,13 +28,18 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/asivitz/haskell-gltf-loader.git
-  tag: 89a798675221546f016365b9204e475c5c09b852
+  location: https://github.com/fieldstrength/aeson-deriving.git
+  tag: e6e1f5066ebf1f37c10687e9bc90e5b0d3b22b0c
 
 source-repository-package
   type: git
-  location: https://github.com/fieldstrength/aeson-deriving.git
-  tag: e6e1f5066ebf1f37c10687e9bc90e5b0d3b22b0c
+  location: https://github.com/asivitz/haskell-gltf-loader.git
+  tag: de721c96d807da9fb1f02c31817e8eacb101444d
+
+source-repository-package
+  type: git
+  location: https://github.com/asivitz/sdl2.git
+  tag: 0c78116f98343199664671ee18eef4bd86557003
 
 extra-lib-dirs:
   /usr/local/lib
