@@ -12,7 +12,7 @@ library
   exposed-modules:
       Small.Foo
   other-modules:
-      Paths_Small
+      Small.QQ
   default-extensions:
       OverloadedStrings
   build-depends:

@@ -3,6 +3,9 @@
 module Small.QQ where
 
 import Data.String.QM (qm)
+import Hickory.Vulkan.Renderer.ShaderDefinitions (staticVertCalc, buildWorldFragShader, header, pushConstantsDef, shadowPushConstantsDef, gbufferPushConstantsDef, worldGlobalsDef, shadowPassGlobalsDef, instancedUniformDef)
+import Hickory.Editor (glslStructDef)
+import GHC.Generics
 
 frag :: String
 frag = [qm|
@@ -14,3 +17,10 @@ void main() {
   outColor = vec4(1, 1, 1, 1);
 }
 |]
+
+data FieldConstants = FieldConstants
+  { member :: Float
+  } deriving Generic
+
+fieldUniformsDef :: String
+fieldUniformsDef = glslStructDef @FieldConstants

@@ -21,3 +21,6 @@ library:
 
   exposed-modules:
     - Small.Foo
+
+  other-modules:
+    - Small.QQ
