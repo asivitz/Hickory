@@ -13,6 +13,10 @@ library
       Small.Foo
   other-modules:
       Paths_Small
+  default-extensions:
+      OverloadedStrings
   build-depends:
       base
+    , rawstring-qm
+    , text
   default-language: GHC2021

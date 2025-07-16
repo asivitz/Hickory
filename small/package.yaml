@@ -1,7 +1,12 @@
 name:                Small
 
+default-extensions:
+  - OverloadedStrings
+
 dependencies:
     - base
+    - rawstring-qm
+    - text
 
 library:
   verbatim:
