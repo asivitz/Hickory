@@ -4,20 +4,19 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           Small
+name:           SmallDep
 version:        0.0.0
 build-type:     Simple
 
 library
   exposed-modules:
-      Small.Foo
+      SmallDep.Foo
   other-modules:
-      Small.QQ
+      Paths_SmallDep
   default-extensions:
       OverloadedStrings
   build-depends:
-      SmallDep
-    , base
+      base
     , dear-imgui
     , rawstring-qm
     , text
