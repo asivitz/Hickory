@@ -9,7 +9,7 @@ dependencies:
     - text
     - dear-imgui
     - vulkan-utils
-    - Hickory
+    # - Hickory
 
 library:
   verbatim:
