@@ -28,7 +28,6 @@ import Data.StateVar (makeStateVar, StateVar)
 import Linear (translation)
 import Hickory.Editor.General (setScale, setRotation, matScale, matEuler)
 import Text.Printf (printf)
-import Hickory.Utils.Utils (deleteAt)
 import Data.Word (Word32)
 
 drawMainEditorUI :: FilePath -> HashMap Word32 Object -> HashMap Word32 Object -> (Word32 -> IO ()) -> IO ()

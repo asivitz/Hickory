@@ -23,27 +23,15 @@ library
       Hickory.Math.Matrix
       Hickory.Math.Vector
       Hickory.Math.VectorMatrix
-      Hickory.Text
-      Hickory.Text.Types
       Hickory.Types
-      Hickory.Utils.Projection
-      Hickory.Utils.Utils
       Hickory.Vulkan.Vulkan
       Hickory.Vulkan.Mesh
-      Hickory.Vulkan.Material
-      Hickory.Vulkan.DescriptorSet
-      Hickory.Vulkan.Textures
-      Hickory.Vulkan.Monad
       Hickory.Vulkan.DynamicMesh
       Hickory.Vulkan.Framing
       Hickory.Vulkan.Frame
       Hickory.Vulkan.Instance
       Hickory.Vulkan.Utils
       Hickory.Vulkan.RenderPass
-      Hickory.Vulkan.StockMesh
-      Hickory.Vulkan.StockTexture
-      Hickory.Vulkan.HDR
-      Hickory.Vulkan.LUT
       Hickory.Vulkan.RenderTarget
       Hickory.Vulkan.Types
       Hickory.ImGUI.Helpers
@@ -71,9 +59,7 @@ library
       GHC2021
   ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
   build-depends:
-      JuicyPixels
-    , JuicyPixels-extra
-    , StateVar
+      StateVar
     , VulkanMemoryAllocator
     , acquire
     , base
@@ -83,16 +69,13 @@ library
     , dear-imgui
     , derive-storable
     , extra
-    , filepath
     , generic-lens
     , hashable
-    , ktx-codec
     , lens
     , linear
     , mtl
     , safe
     , text
-    , time
     , unordered-containers
     , uuid
     , vector

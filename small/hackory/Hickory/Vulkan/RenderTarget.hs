@@ -10,7 +10,6 @@ import VulkanMemoryAllocator (withMappedMemory)
 import Foreign (peek, plusPtr, Bits (..))
 import Control.Exception (bracket)
 import GHC.Generics (Generic)
-import Hickory.Vulkan.DescriptorSet (withDataBuffer)
 import GHC.Word (Word16)
 import Acquire (Acquire)
 import Hickory.Math (Scalar)
@@ -18,29 +17,6 @@ import Vulkan.Zero (Zero(..))
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Traversable (for)
-
-withImageBuffer :: VulkanResources -> Extent2D -> Int -> FramedResource DescriptorSpec -> Acquire (FramedResource ImageBuffer)
-withImageBuffer vulkanResources extent descIdx framedDescriptorSpecs = for framedDescriptorSpecs \descriptorSpec -> do
-  let viewableImage = case descriptorSpec of
-        ImageDescriptor is -> fst (is !! descIdx)
-        _ -> error "Can only copy image from image descriptor of one image"
-  buffer <- withDataBuffer vulkanResources (fromIntegral $ w*h) BUFFER_USAGE_TRANSFER_DST_BIT
-  pure ImageBuffer {..}
-  where
-  Extent2D w h = extent
-  region = BufferImageCopy
-    { bufferOffset = 0
-    , bufferRowLength = 0
-    , bufferImageHeight = 0
-    , imageSubresource = ImageSubresourceLayers
-      { aspectMask = IMAGE_ASPECT_COLOR_BIT
-      , mipLevel = 0
-      , baseArrayLayer = 0
-      , layerCount = 1
-      }
-    , imageOffset = Offset3D 0 0 0
-    , imageExtent = Extent3D w h 1
-    }
 
 -- Copying the whole image, so addressing x,y is (y * rowLength + x) * texelSize
 copyDescriptorImageToBuffer :: CommandBuffer -> ImageBuffer -> IO ()

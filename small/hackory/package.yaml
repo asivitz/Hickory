@@ -23,8 +23,6 @@ default-extensions:
     - GHC2021
 
 dependencies:
-    - JuicyPixels
-    - JuicyPixels-extra
     - StateVar
     - VulkanMemoryAllocator
     - acquire
@@ -35,7 +33,6 @@ dependencies:
     - dear-imgui
     - derive-storable
     - extra
-    - filepath
     - generic-lens
     - hashable
     - lens
@@ -43,14 +40,12 @@ dependencies:
     - mtl
     - safe
     - text
-    - time
     - unordered-containers
     - uuid
     - vector
     - vector-binary-instances
     - vulkan
     - vulkan-utils
-    - ktx-codec
 
 flags:
   production:
@@ -74,28 +69,15 @@ library:
     - Hickory.Math.Matrix
     - Hickory.Math.Vector
     - Hickory.Math.VectorMatrix
-    # - Hickory.Text.ParseFnt
-    - Hickory.Text
-    - Hickory.Text.Types
     - Hickory.Types
-    - Hickory.Utils.Projection
-    - Hickory.Utils.Utils
     - Hickory.Vulkan.Vulkan
     - Hickory.Vulkan.Mesh
-    - Hickory.Vulkan.Material
-    - Hickory.Vulkan.DescriptorSet
-    - Hickory.Vulkan.Textures
-    - Hickory.Vulkan.Monad
     - Hickory.Vulkan.DynamicMesh
     - Hickory.Vulkan.Framing
     - Hickory.Vulkan.Frame
     - Hickory.Vulkan.Instance
     - Hickory.Vulkan.Utils
     - Hickory.Vulkan.RenderPass
-    - Hickory.Vulkan.StockMesh
-    - Hickory.Vulkan.StockTexture
-    - Hickory.Vulkan.HDR
-    - Hickory.Vulkan.LUT
     - Hickory.Vulkan.RenderTarget
     - Hickory.Vulkan.Types
     - Hickory.ImGUI.Helpers
