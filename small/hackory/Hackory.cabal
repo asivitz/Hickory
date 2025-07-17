@@ -19,19 +19,10 @@ flag production
 
 library
   exposed-modules:
-      Hickory.GameLoop
-      Hickory.Graphics
-      Hickory.Graphics.Debug
-      Hickory.Graphics.DrawText
-      Hickory.Graphics.Mesh
-      Hickory.Graphics.MatrixMonad
-      Hickory.Input
       Hickory.Math
-      Hickory.Math.Interpolate
       Hickory.Math.Matrix
       Hickory.Math.Vector
       Hickory.Math.VectorMatrix
-      Hickory.Text.ParseJson
       Hickory.Text
       Hickory.Text.Types
       Hickory.Types
@@ -85,20 +76,16 @@ library
     , StateVar
     , VulkanMemoryAllocator
     , acquire
-    , aeson
     , base
     , binary
     , bitwise-enum
     , bytestring
-    , containers
     , dear-imgui
     , derive-storable
-    , deriving-aeson
     , extra
     , filepath
     , generic-lens
     , hashable
-    , ki
     , ktx-codec
     , lens
     , linear
@@ -112,7 +99,6 @@ library
     , vector-binary-instances
     , vulkan
     , vulkan-utils
-    , wide-word
   if os(osx)
     cc-options: -F/System/Library/Frameworks
   if flag(production)

@@ -5,10 +5,9 @@
 
 module Hickory.Editor.Network where
 
-import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar)
+import Hickory.Math (mkScale, viewTarget, mkTranslation, Scalar)
 import Hickory.Types (Size (..), aspectRatio)
 import Data.Maybe (fromMaybe, isJust)
-import Hickory.Input (Key(..), PointUp(..), InputFrame(..))
 import Linear (axisAngle, identity, Quaternion (..), translation, mkTransformationMat, fromQuaternion, m33_to_m44, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), cross, norm, zero, (^/), _xyz)
 import qualified Data.HashMap.Strict as Map
 import Hickory.Math.Vector (v2angle)
@@ -20,7 +19,6 @@ import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
 import Safe (maximumMay, headMay)
 import Data.Traversable (for)
-import Hickory.Graphics (MatrixMonad)
 import Control.Monad (join, mfilter, void, when)
 import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef', IORef)
 import Control.Applicative ((<|>), asum)

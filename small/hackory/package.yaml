@@ -28,20 +28,16 @@ dependencies:
     - StateVar
     - VulkanMemoryAllocator
     - acquire
-    - aeson
     - base
     - binary
     - bitwise-enum
     - bytestring
-    - containers
     - dear-imgui
     - derive-storable
-    - deriving-aeson
     - extra
     - filepath
     - generic-lens
     - hashable
-    - ki
     - lens
     - linear
     - mtl
@@ -54,7 +50,6 @@ dependencies:
     - vector-binary-instances
     - vulkan
     - vulkan-utils
-    - wide-word
     - ktx-codec
 
 flags:
@@ -75,20 +70,11 @@ library:
       cpp-options: -DPRODUCTION
 
   exposed-modules:
-    - Hickory.GameLoop
-    - Hickory.Graphics
-    - Hickory.Graphics.Debug
-    - Hickory.Graphics.DrawText
-    - Hickory.Graphics.Mesh
-    - Hickory.Graphics.MatrixMonad
-    - Hickory.Input
     - Hickory.Math
-    - Hickory.Math.Interpolate
     - Hickory.Math.Matrix
     - Hickory.Math.Vector
     - Hickory.Math.VectorMatrix
     # - Hickory.Text.ParseFnt
-    - Hickory.Text.ParseJson
     - Hickory.Text
     - Hickory.Text.Types
     - Hickory.Types
