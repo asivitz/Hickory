@@ -4,8 +4,8 @@ module Small.QQ where
 
 import Data.String.QM (qm)
 import GHC.Generics
--- import SmallDep.Foo (glslStructDef)
-import Hickory.Editor (glslStructDef)
+import SmallDep.Foo (glslStructDef)
+-- import Hickory.Editor (glslStructDef)
 
 frag :: String
 frag = [qm|
