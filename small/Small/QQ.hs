@@ -17,10 +17,3 @@ void main() {
   outColor = vec4(1, 1, 1, 1);
 }
 |]
-
-data FieldConstants = FieldConstants
-  { member :: Float
-  } deriving Generic
-
-fieldUniformsDef :: String
-fieldUniformsDef = glslStructDef @FieldConstants

@@ -4,7 +4,7 @@ module Small.Foo where
 
 import Data.String.QM (qt)
 import Data.Text (Text)
-import Small.QQ (frag, fieldUniformsDef)
+import Small.QQ (frag)
 
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 

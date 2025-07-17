@@ -17,13 +17,9 @@ library
       OverloadedStrings
   build-depends:
       Hickory
-    , Hickory-SDL
     , base
     , dear-imgui
-    , file-embed
-    , gltf-loader
     , rawstring-qm
     , text
     , vulkan-utils
-    , yoga
   default-language: GHC2021
