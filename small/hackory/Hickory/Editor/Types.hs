@@ -28,7 +28,6 @@ import qualified Text.Read.Lex as Lex
 import GHC.Read (Read (..))
 import Text.ParserCombinators.ReadPrec (lift)
 import Text.ParserCombinators.ReadP (readS_to_P, between, string, skipSpaces)
-import Hickory.Resources (ResourcesStore)
 import Data.Functor.Identity (Identity (..))
 import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
@@ -49,15 +48,6 @@ data Object = Object
   , components  :: [(String, HashMap String (SomeAttribute Identity))]
   , baseObj :: Maybe Word32
   } deriving (Generic, Show, Read)
-
-data Component m a = Component
-  { attributes :: [SomeAttribute (Const String)]
-  , acquire    :: HashMap String (SomeAttribute Identity) -> VulkanResources -> ResourcesStore -> IO ()
-  , draw       :: HashMap String (SomeAttribute Identity)
-               -> Maybe a
-               -> [(Word32, M44 Scalar)] -- ObjectId and Transform per instance
-               -> m ()
-  }
 
 -- Types which have an 'attribute' representation in the editor
 class Attr a where
@@ -182,105 +172,6 @@ setSomeAttribute newV (SomeAttribute attr _) = case eqAttr attr (mkAttr :: Attri
     Just HRefl -> SomeAttribute attr newV
     Nothing -> error "Wrong type for attribute"
 
-mkComponent2 :: forall a b m state. (Attr a, Attr b) => String -> String -> (a -> b -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> Maybe state -> [(Word32,M44 Scalar)] -> m ()) -> Component m state
-mkComponent2 arg1 arg2 acquire f = Component
-  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
-  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  ]
-  (\attrs -> withAttrVal attrs arg1 \v1 ->
-             withAttrVal attrs arg2 \v2 -> acquire v1 v2)
-  (\attrs state -> withAttrVal attrs arg1 \v1 ->
-                   withAttrVal attrs arg2 \v2 -> f v1 v2 state)
-
-mkComponent3 :: forall a b c m state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
-mkComponent3 arg1 arg2 arg3 acquire f = Component
-  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
-  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
-               withAttrVal attrs arg2 \v2 ->
-               withAttrVal attrs arg3 \v3 -> acquire v1 v2 v3)
-    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
-                      withAttrVal attrs arg2 \v2 ->
-                      withAttrVal attrs arg3 \v3 -> f v1 v2 v3 state
-
-mkComponent4 :: forall a b c d m state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
-mkComponent4 arg1 arg2 arg3 arg4 acquire f = Component
-  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
-  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
-  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
-               withAttrVal attrs arg2 \v2 ->
-               withAttrVal attrs arg3 \v3 ->
-               withAttrVal attrs arg4 \v4 -> acquire v1 v2 v3 v4)
-    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
-                      withAttrVal attrs arg2 \v2 ->
-                      withAttrVal attrs arg3 \v3 ->
-                      withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4 state
-
-mkComponent5 :: forall a b c d e m state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
-mkComponent5 arg1 arg2 arg3 arg4 arg5 acquire f = Component
-  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
-  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
-  , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
-  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
-               withAttrVal attrs arg2 \v2 ->
-               withAttrVal attrs arg3 \v3 ->
-               withAttrVal attrs arg4 \v4 ->
-               withAttrVal attrs arg5 \v5 -> acquire v1 v2 v3 v4 v5)
-    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
-                      withAttrVal attrs arg2 \v2 ->
-                      withAttrVal attrs arg3 \v3 ->
-                      withAttrVal attrs arg4 \v4 ->
-                      withAttrVal attrs arg5 \v5 -> f v1 v2 v3 v4 v5 state
-
-mkComponent6 :: forall a b c d e f m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
-mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
-  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
-  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
-  , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
-  , SomeAttribute (mkAttr :: Attribute f) (Const arg6)
-  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
-               withAttrVal attrs arg2 \v2 ->
-               withAttrVal attrs arg3 \v3 ->
-               withAttrVal attrs arg4 \v4 ->
-               withAttrVal attrs arg5 \v5 ->
-               withAttrVal attrs arg6 \v6 -> acquire v1 v2 v3 v4 v5 v6)
-    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
-                      withAttrVal attrs arg2 \v2 ->
-                      withAttrVal attrs arg3 \v3 ->
-                      withAttrVal attrs arg4 \v4 ->
-                      withAttrVal attrs arg5 \v5 ->
-                      withAttrVal attrs arg6 \v6 -> f v1 v2 v3 v4 v5 v6 state
-
-mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
-mkComponent7 arg1 arg2 arg3 arg4 arg5 arg6 arg7 acquire f = Component
-  [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
-  , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
-  , SomeAttribute (mkAttr :: Attribute c) (Const arg3)
-  , SomeAttribute (mkAttr :: Attribute d) (Const arg4)
-  , SomeAttribute (mkAttr :: Attribute e) (Const arg5)
-  , SomeAttribute (mkAttr :: Attribute f) (Const arg6)
-  , SomeAttribute (mkAttr :: Attribute g) (Const arg7)
-  ] (\attrs -> withAttrVal attrs arg1 \v1 ->
-               withAttrVal attrs arg2 \v2 ->
-               withAttrVal attrs arg3 \v3 ->
-               withAttrVal attrs arg4 \v4 ->
-               withAttrVal attrs arg5 \v5 ->
-               withAttrVal attrs arg6 \v6 ->
-               withAttrVal attrs arg7 \v7 -> acquire v1 v2 v3 v4 v5 v6 v7)
-    $ \attrs state -> withAttrVal attrs arg1 \v1 ->
-                      withAttrVal attrs arg2 \v2 ->
-                      withAttrVal attrs arg3 \v3 ->
-                      withAttrVal attrs arg4 \v4 ->
-                      withAttrVal attrs arg5 \v5 ->
-                      withAttrVal attrs arg6 \v6 ->
-                      withAttrVal attrs arg7 \v7 -> f v1 v2 v3 v4 v5 v6 v7 state
 
 mkSomeAttr :: forall a. Attr a => Proxy a -> String -> SomeAttribute (Const String)
 mkSomeAttr _ name = SomeAttribute (mkAttr :: Attribute a) (Const name)
@@ -352,22 +243,6 @@ class (Generic comp, GRecordAttributes (Rep comp))
 
 instance (Generic comp, GRecordAttributes (Rep comp))
       => HasRecordAttributes comp
-
--- Uses 'Generic' instance to define fields
-mkComponent
-  :: forall comp m state.
-     HasRecordAttributes comp
-  => (comp -> VulkanResources -> ResourcesStore -> IO ())
-  -> (comp -> Maybe state -> [(Word32, M44 Scalar)] -> m ())
-  -> Component m state
-mkComponent acquireF drawF =
-  Component
-    { attributes = toAttributeList @comp
-    , acquire    = \hm vres store ->
-        acquireF (fromHashMap hm) vres store
-    , draw       = \hm mState instances ->
-        drawF (fromHashMap hm) mState instances
-    }
 
 {- Generic GLSL struct definitions -}
 

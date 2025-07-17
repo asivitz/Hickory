@@ -25,34 +25,26 @@ default-extensions:
 dependencies:
     - JuicyPixels
     - JuicyPixels-extra
-    - MonadRandom
     - StateVar
     - VulkanMemoryAllocator
     - acquire
     - aeson
     - base
-    - base-compat
     - binary
     - bitwise-enum
     - bytestring
     - containers
-    - data-default
     - dear-imgui
     - derive-storable
     - deriving-aeson
-    - directory
     - extra
     - filepath
-    - finite-typelits
     - generic-lens
-    - ghc-compact
-    - groom
     - hashable
     - ki
     - lens
     - linear
     - mtl
-    - rawstring-qm
     - safe
     - text
     - time
@@ -60,11 +52,9 @@ dependencies:
     - uuid
     - vector
     - vector-binary-instances
-    - vector-sized
     - vulkan
     - vulkan-utils
     - wide-word
-    - yaml
     - ktx-codec
 
 flags:
@@ -85,9 +75,6 @@ library:
       cpp-options: -DPRODUCTION
 
   exposed-modules:
-    - Hickory.Camera
-    - Hickory.Color
-    - Hickory.Config
     - Hickory.GameLoop
     - Hickory.Graphics
     - Hickory.Graphics.Debug
@@ -100,12 +87,8 @@ library:
     - Hickory.Math.Matrix
     - Hickory.Math.Vector
     - Hickory.Math.VectorMatrix
-    - Hickory.Math.Bezier
-    - Hickory.Resources
-    - Hickory.Serialize
     # - Hickory.Text.ParseFnt
     - Hickory.Text.ParseJson
-    - Hickory.Text.Text
     - Hickory.Text
     - Hickory.Text.Types
     - Hickory.Types
@@ -117,7 +100,6 @@ library:
     - Hickory.Vulkan.DescriptorSet
     - Hickory.Vulkan.Textures
     - Hickory.Vulkan.Monad
-    - Hickory.Vulkan.Text
     - Hickory.Vulkan.DynamicMesh
     - Hickory.Vulkan.Framing
     - Hickory.Vulkan.Frame
@@ -126,26 +108,9 @@ library:
     - Hickory.Vulkan.RenderPass
     - Hickory.Vulkan.StockMesh
     - Hickory.Vulkan.StockTexture
-    - Hickory.Vulkan.PostProcessing
     - Hickory.Vulkan.HDR
     - Hickory.Vulkan.LUT
     - Hickory.Vulkan.RenderTarget
-    - Hickory.Vulkan.Renderer.ObjectPicking
-    - Hickory.Vulkan.Renderer.Renderer
-    - Hickory.Vulkan.Renderer.Types
-    - Hickory.Vulkan.Renderer.GBuffer
-    - Hickory.Vulkan.Renderer.Lights
-    - Hickory.Vulkan.Renderer.Decals
-    - Hickory.Vulkan.Renderer.Direct
-    - Hickory.Vulkan.Renderer.SSAO
-    - Hickory.Vulkan.Renderer.ShadowPass
-    - Hickory.Vulkan.Renderer.DrawingPrimitives
-    - Hickory.Vulkan.Renderer.ShaderDefinitions
-    - Hickory.Vulkan.Renderer.Stats
-    - Hickory.Vulkan.Renderer.Environment
-    - Hickory.Vulkan.Renderer.StockMaterials
-    - Hickory.Vulkan.Renderer.Screenshot
-    - Hickory.Vulkan.Renderer.Blur
     - Hickory.Vulkan.Types
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI
@@ -156,6 +121,3 @@ library:
     - Hickory.Editor.Post
     - Hickory.Editor.Types
     - Hickory.Editor.View
-    - Hickory.Camera.Omniscient
-    - Hickory.Camera.FirstPerson
-    - Hickory.UI

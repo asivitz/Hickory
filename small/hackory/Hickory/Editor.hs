@@ -1,24 +1,10 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Hickory.Editor
-  ( editorScene
-  , editorLayer
-  , drawPostUI
-  , GraphicsParams(..)
-  , Object(..)
-  , drawObjects
-  , defaultGraphicsParams
-  , Component(..)
+  ( Object(..)
   , Attribute(..)
   , SomeAttribute(..)
   , glslStructDef
-  , mkComponent
-  , mkComponent2
-  , mkComponent3
-  , mkComponent4
-  , mkComponent5
-  , mkComponent6
-  , mkComponent7
   , withAttrVal
   , pullAttrValMay
   , setSomeAttribute

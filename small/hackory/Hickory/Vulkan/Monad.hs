@@ -25,8 +25,6 @@ import Data.Generics.Labels ()
 import Data.Maybe (fromMaybe)
 import Data.Word (Word32, Word64)
 import Foreign (Storable, sizeOf)
-import Hickory.Graphics.DrawText (squareIndices)
-import Hickory.Text.Text (transformTextCommandToVerts)
 import Hickory.Vulkan.DescriptorSet (BufferDescriptorSet(..), withBufferDescriptorSet)
 import Hickory.Vulkan.Framing (FramedResource, frameResource)
 import Hickory.Vulkan.Material (withMaterial, PipelineOptions(..))
@@ -39,8 +37,6 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 import qualified Data.ByteString as B
 import Acquire (Acquire)
-import Hickory.Text.ParseJson (Font)
-import Hickory.Text.Types (TextCommand)
 import Hickory.Vulkan.Types (Material (..), PointedDescriptorSet, RenderConfig (..), VulkanResources, Attribute (..), FrameContext, Mesh (..))
 import Linear (liftI2, zero)
 import GHC.List (foldl1')
@@ -165,19 +161,6 @@ instance MonadReader r m => MonadReader r (BatchIOT m) where
 
 packVecs :: (Storable a, Foldable f) => [f a] -> SV.Vector a
 packVecs = SV.fromList . concatMap toList
-
-textMesh :: Font -> TextCommand -> Mesh
-textMesh font tc = case numSquares of
-  0 -> Mesh { indices = Nothing, vertices = [], minPosition = zero, maxPosition = zero, morphTargets = [] }
-  _ -> Mesh { indices = Just (SV.fromList indices)
-            , vertices = [(Position, packVecs posVecs), (TextureCoord, packVecs tcVecs)]
-            , minPosition, maxPosition, morphTargets = []
-            }
-  where
-  (numSquares, posVecs, tcVecs) = transformTextCommandToVerts tc font
-  (indices, _numBlockIndices)   = squareIndices (fromIntegral numSquares)
-  minPosition = foldl1' (liftI2 min) posVecs
-  maxPosition = foldl1' (liftI2 max) posVecs
 
 cmdDrawBufferedMesh :: MonadIO m => CommandBuffer -> Material a -> Word32 -> [(Attribute, Word32)] -> Buffer -> Word32 -> Maybe Word32 -> Word32 -> Word64 -> Maybe Buffer -> Maybe String -> m ()
 cmdDrawBufferedMesh commandBuffer Material {..} (fromIntegral -> vertexOffset) meshOffsets vertexBuffer instanceCount mNumIndices numVertices indexOffset mIndexBuffer mName = do
