@@ -1,0 +1,185 @@
+name:                Hackory
+
+ghc-options:
+    - -Wall
+    - -Werror=incomplete-patterns
+    - -Wunused-packages
+    - -Werror=unused-packages
+
+extra-source-files:
+    - Readme.md
+
+default-extensions:
+    - NamedFieldPuns
+    - Rank2Types
+    - BangPatterns
+    - OverloadedStrings
+    - ScopedTypeVariables
+    - LambdaCase
+    - TupleSections
+    - ViewPatterns
+    - BlockArguments
+    - RecordWildCards
+    - GHC2021
+
+dependencies:
+    - JuicyPixels
+    - JuicyPixels-extra
+    - MonadRandom
+    - StateVar
+    - VulkanMemoryAllocator
+    - acquire
+    - aeson
+    - base
+    - base-compat
+    - binary
+    - bitwise-enum
+    - bytestring
+    - containers
+    - data-default
+    - dear-imgui
+    - derive-storable
+    - deriving-aeson
+    - directory
+    - extra
+    - filepath
+    - finite-typelits
+    - generic-lens
+    - ghc-compact
+    - groom
+    - hashable
+    - ki
+    - lens
+    - linear
+    - megaparsec
+    - mtl
+    - rawstring-qm
+    - safe
+    - scientific
+    - text
+    - time
+    - unordered-containers
+    - uuid
+    - vector
+    - vector-binary-instances
+    - vector-sized
+    - vulkan
+    - vulkan-utils
+    - wavefront
+    - wide-word
+    - yaml
+    - ktx-codec
+
+flags:
+  production:
+    description: Enable production mode
+    manual: true
+    default: false
+
+when:
+    - condition: os(osx)
+      cc-options:         -F/System/Library/Frameworks
+
+library:
+  verbatim:
+    default-language: GHC2021
+  when:
+    - condition: "flag(production)"
+      cpp-options: -DPRODUCTION
+
+  exposed-modules:
+    - Hickory.Camera
+    - Hickory.Color
+    - Hickory.Config
+    - Hickory.GameLoop
+    - Hickory.Graphics
+    - Hickory.Graphics.Debug
+    - Hickory.Graphics.DrawText
+    - Hickory.Graphics.Mesh
+    - Hickory.Graphics.MatrixMonad
+    - Hickory.Input
+    - Hickory.Math
+    - Hickory.Math.Interpolate
+    - Hickory.Math.Matrix
+    - Hickory.Math.Vector
+    - Hickory.Math.VectorMatrix
+    - Hickory.Math.Bezier
+    - Hickory.ModelLoading.Animation
+    - Hickory.ModelLoading.Bvh
+    - Hickory.ModelLoading.DirectX
+    - Hickory.ModelLoading.DirectXModel
+    - Hickory.ModelLoading.Parsing
+    - Hickory.ModelLoading.Wavefront
+    - Hickory.Resources
+    - Hickory.Serialize
+    # - Hickory.Text.ParseFnt
+    - Hickory.Text.ParseJson
+    - Hickory.Text.Text
+    - Hickory.Text
+    - Hickory.Text.Types
+    - Hickory.Types
+    - Hickory.Utils.Projection
+    - Hickory.Utils.Utils
+    - Hickory.Vulkan.Vulkan
+    - Hickory.Vulkan.Mesh
+    - Hickory.Vulkan.Material
+    - Hickory.Vulkan.DescriptorSet
+    - Hickory.Vulkan.Textures
+    - Hickory.Vulkan.Monad
+    - Hickory.Vulkan.Text
+    - Hickory.Vulkan.DynamicMesh
+    - Hickory.Vulkan.Framing
+    - Hickory.Vulkan.Frame
+    - Hickory.Vulkan.Instance
+    - Hickory.Vulkan.Utils
+    - Hickory.Vulkan.RenderPass
+    - Hickory.Vulkan.StockMesh
+    - Hickory.Vulkan.StockTexture
+    - Hickory.Vulkan.PostProcessing
+    - Hickory.Vulkan.HDR
+    - Hickory.Vulkan.LUT
+    - Hickory.Vulkan.RenderTarget
+    - Hickory.Vulkan.Renderer.ObjectPicking
+    - Hickory.Vulkan.Renderer.Renderer
+    - Hickory.Vulkan.Renderer.Types
+    - Hickory.Vulkan.Renderer.GBuffer
+    - Hickory.Vulkan.Renderer.Lights
+    - Hickory.Vulkan.Renderer.Decals
+    - Hickory.Vulkan.Renderer.Direct
+    - Hickory.Vulkan.Renderer.SSAO
+    - Hickory.Vulkan.Renderer.ShadowPass
+    - Hickory.Vulkan.Renderer.DrawingPrimitives
+    - Hickory.Vulkan.Renderer.ShaderDefinitions
+    - Hickory.Vulkan.Renderer.Stats
+    - Hickory.Vulkan.Renderer.Environment
+    - Hickory.Vulkan.Renderer.StockMaterials
+    - Hickory.Vulkan.Renderer.Screenshot
+    - Hickory.Vulkan.Renderer.Blur
+    - Hickory.Vulkan.Types
+    - Hickory.ImGUI.Helpers
+    - Hickory.ImGUI.ImGUI
+    - Hickory.Editor
+    - Hickory.Editor.GUI
+    - Hickory.Editor.General
+    - Hickory.Editor.Network
+    - Hickory.Editor.Post
+    - Hickory.Editor.Types
+    - Hickory.Editor.View
+    - Hickory.Camera.Omniscient
+    - Hickory.Camera.FirstPerson
+    - Hickory.UI
+
+tests:
+    hickory-test:
+        verbatim:
+          default-language: GHC2021
+        main:            Main.hs
+        source-dirs:     test
+        dependencies:
+            - base >=4.7 && <5
+            - test-framework
+            - test-framework-hunit
+            - HUnit
+            - HUnit-approx >= 1.0
+            - Hackory
+            - containers >= 0.5 && < 0.6

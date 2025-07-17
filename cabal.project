@@ -9,7 +9,7 @@ packages:
   ./Example/Shooter
   ./Example/Showcase
   ./small
-  ./small/small-dep
+  ./small/hackory
 
 package dear-imgui
   flags: -opengl3 +vulkan +sdl -glfw
