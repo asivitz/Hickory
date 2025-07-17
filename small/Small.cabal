@@ -16,7 +16,8 @@ library
   default-extensions:
       OverloadedStrings
   build-depends:
-      SmallDep
+      Hickory
+    , SmallDep
     , base
     , dear-imgui
     , rawstring-qm

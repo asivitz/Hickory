@@ -10,6 +10,7 @@ dependencies:
     - dear-imgui
     - vulkan-utils
     - SmallDep
+    - Hickory
 
 library:
   verbatim:
