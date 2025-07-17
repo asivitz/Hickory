@@ -26,42 +26,6 @@ import Control.Lens (ifor_, preview, to, Traversal', over, ix, _2, Identity (..)
 import Safe (headMay)
 import Data.StateVar (makeStateVar, StateVar)
 import Linear (translation)
-import Hickory.Editor.General (setScale, setRotation, matScale, matEuler)
+import Hickory.Editor.General (setScale, matScale, matEuler)
 import Text.Printf (printf)
 import Data.Word (Word32)
-
-drawMainEditorUI :: FilePath -> HashMap Word32 Object -> HashMap Word32 Object -> (Word32 -> IO ()) -> IO ()
-drawMainEditorUI sceneFile selected objects guiPickObjectID =
-  void $ myWithWindow "Editor" do
-    withMenuBarOpen do
-      withMenuOpen "File" do
-        whenM (menuItem "Save Scene") do
-          writeFile sceneFile (show objects)
-
-    let parented = HashMap.fromListWith (++) . mapMaybe (\(k,v) -> (,[k]) <$> v.baseObj) . HashMap.toList $ objects
-
-    for_ (Map.toList objects) \(k, Object {baseObj}) -> when (isNothing baseObj || not (HashMap.member (fromMaybe (-1) baseObj) objects) ) do
-      let children = fromMaybe [] $ HashMap.lookup k parented
-      open <- treeNodeWith (pack $ show k)
-        $   (if Map.member k selected then ImGuiTreeNodeFlags_Selected else zeroBits)
-        .|. (if null children then ImGuiTreeNodeFlags_Leaf else zeroBits)
-
-      whenM (isItemClicked (ImGuiMouseButton 0)) do
-        guiPickObjectID k
-
-      withDragDropTarget zeroBits "obj" \(droppedId :: Int) -> do
-        pure ()
-      withDragDropSource zeroBits "obj" k \_ -> do
-        pure ()
-      when open do
-        for_ children \childId -> do
-          childOpen <- treeNodeWith (pack $ show childId) (ImGuiTreeNodeFlags_Leaf .|. if Map.member childId selected then ImGuiTreeNodeFlags_Selected else zeroBits)
-
-          whenM (isItemClicked (ImGuiMouseButton 0)) do
-            guiPickObjectID childId
-
-          when childOpen do
-            treePop
-
-        treePop
-    pure Nothing

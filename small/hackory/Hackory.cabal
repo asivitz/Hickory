@@ -19,20 +19,12 @@ flag production
 
 library
   exposed-modules:
-      Hickory.Math
-      Hickory.Math.Matrix
-      Hickory.Math.Vector
-      Hickory.Math.VectorMatrix
       Hickory.Types
       Hickory.Vulkan.Vulkan
-      Hickory.Vulkan.Mesh
-      Hickory.Vulkan.DynamicMesh
       Hickory.Vulkan.Framing
-      Hickory.Vulkan.Frame
       Hickory.Vulkan.Instance
       Hickory.Vulkan.Utils
       Hickory.Vulkan.RenderPass
-      Hickory.Vulkan.RenderTarget
       Hickory.Vulkan.Types
       Hickory.ImGUI.Helpers
       Hickory.ImGUI.ImGUI
@@ -63,7 +55,6 @@ library
     , VulkanMemoryAllocator
     , acquire
     , base
-    , binary
     , bitwise-enum
     , bytestring
     , dear-imgui
@@ -79,7 +70,6 @@ library
     , unordered-containers
     , uuid
     , vector
-    , vector-binary-instances
     , vulkan
     , vulkan-utils
   if os(osx)

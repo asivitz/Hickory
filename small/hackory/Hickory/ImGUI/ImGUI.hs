@@ -23,7 +23,6 @@ import qualified DearImGui.Vulkan as ImGui.Vulkan
 import Control.Exception (throw)
 import Vulkan.Exception (VulkanException(..))
 import Vulkan.Zero (Zero(..))
-import Hickory.Vulkan.Mesh (withSingleTimeCommands)
 import Control.Monad (void)
 import Data.Traversable (for)
 import Hickory.Vulkan.RenderPass (createFramebuffer)

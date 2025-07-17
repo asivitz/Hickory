@@ -1,8 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Hickory.Editor
-  ( Object(..)
-  , Attribute(..)
+  ( Attribute(..)
   , SomeAttribute(..)
   , glslStructDef
   , withAttrVal

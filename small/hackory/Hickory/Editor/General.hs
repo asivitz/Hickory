@@ -1,6 +1,5 @@
 module Hickory.Editor.General where
 
-import Hickory.Math (Scalar, mkScale)
 import Linear (M44, column, V3 (..), V2 (..), V4 (..), norm, _x, _y, _z, Epsilon (..))
 import Data.IORef (IORef, readIORef, writeIORef, newIORef)
 import Control.Lens ((^.), (&))
@@ -36,10 +35,3 @@ setScale :: (Floating a, Epsilon a) => V3 a -> M44 a -> M44 a
 setScale v m = m & column _x %~ (^* (v ^. _x)) . normalize . (\x -> if nearZero x then unit _x else x)
                  & column _y %~ (^* (v ^. _y)) . normalize . (\x -> if nearZero x then unit _y else x)
                  & column _z %~ (^* (v ^. _z)) . normalize . (\x -> if nearZero x then unit _z else x)
-
-setRotation :: (RealFloat a, Epsilon a) => V3 a -> M44 a -> V4 (V4 a)
-setRotation (V3 rx ry rz) m = (m33_to_m44 (fromQuaternion quat) !*! mkScale (matScale m)) & translation .~ (m ^. translation)
-  where
-  quat = axisAngle (V3 0 0 1) rz
-       * axisAngle (V3 0 1 0) ry
-       * axisAngle (V3 1 0 0) rx

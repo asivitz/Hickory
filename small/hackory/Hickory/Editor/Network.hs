@@ -5,18 +5,15 @@
 
 module Hickory.Editor.Network where
 
-import Hickory.Math (mkScale, viewTarget, mkTranslation, Scalar)
 import Hickory.Types (Size (..), aspectRatio)
 import Data.Maybe (fromMaybe, isJust)
 import Linear (axisAngle, identity, Quaternion (..), translation, mkTransformationMat, fromQuaternion, m33_to_m44, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), cross, norm, zero, (^/), _xyz)
 import qualified Data.HashMap.Strict as Map
-import Hickory.Math.Vector (v2angle)
 import Control.Lens (traversed, (^.), (&), (%~), (<&>), sumOf)
 import Data.HashMap.Strict (HashMap)
 import Hickory.Editor.Types
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
-import qualified Hickory.Vulkan.Mesh as H
 import Safe (maximumMay, headMay)
 import Data.Traversable (for)
 import Control.Monad (join, mfilter, void, when)
@@ -27,12 +24,6 @@ import qualified Data.Enum.Set as ES
 import Control.Monad.Writer.Strict (Writer)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Word (Word32)
-
-data ObjectManip = ObjectManip
-  { mode       :: Maybe ObjectManipMode
-  , captured   :: Maybe (HashMap Word32 Object, V2 Scalar)
-  , activeAxes :: V3 Scalar
-  }
 
 data Editor = Editor
   { selectedObjectIDs :: [Word32]

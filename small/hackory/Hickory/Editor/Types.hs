@@ -19,7 +19,6 @@ import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
 import Control.Lens (traversed, toListOf, (<&>))
-import Hickory.Math (Scalar)
 import Data.Text (Text, pack, unpack)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
@@ -42,13 +41,6 @@ import GHC.Word (Word32)
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
 
-data Object = Object
-  { transform   :: M44 Scalar
-  -- List of component names and attribute maps
-  , components  :: [(String, HashMap String (SomeAttribute Identity))]
-  , baseObj :: Maybe Word32
-  } deriving (Generic, Show, Read)
-
 -- Types which have an 'attribute' representation in the editor
 class Attr a where
   mkAttr :: Attribute a
@@ -63,32 +55,12 @@ instance Attr String where
 instance Attr Float  where mkAttr = FloatAttribute
 instance Attr Int    where mkAttr = IntAttribute
 instance Attr Bool   where mkAttr = BoolAttribute
-instance Attr (V3 Scalar) where
-  mkAttr = V3Attribute
-  type AttrRef (V3 Scalar) = (Float, Float, Float)
-instance Attr (V2 Scalar) where
-  mkAttr = V2Attribute
-  type AttrRef (V2 Scalar) = (Float, Float)
-instance Attr (V4 Scalar) where
-  mkAttr = ColorAttribute
-  type AttrRef (V4 Scalar) = ImVec4
-instance Attr (M33 Scalar) where
-  mkAttr = Mat3Attribute
-  type AttrRef (M33 Scalar) = Scalar -- TODO
-instance Attr (M44 Scalar) where
-  mkAttr = Mat4Attribute
-  type AttrRef (M44 Scalar) = Scalar -- TODO
 
 data Attribute a where
   StringAttribute :: Attribute String
   FloatAttribute  :: Attribute Float
   IntAttribute    :: Attribute Int
   BoolAttribute   :: Attribute Bool
-  V3Attribute     :: Attribute (V3 Scalar)
-  V2Attribute     :: Attribute (V2 Scalar)
-  ColorAttribute  :: Attribute (V4 Scalar)
-  Mat3Attribute   :: Attribute (M33 Scalar)
-  Mat4Attribute   :: Attribute (M44 Scalar)
 
 typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
@@ -96,11 +68,6 @@ typeOfAttr = \case
   FloatAttribute  -> typeRep
   IntAttribute    -> typeRep
   BoolAttribute   -> typeRep
-  V3Attribute     -> typeRep
-  V2Attribute     -> typeRep
-  ColorAttribute  -> typeRep
-  Mat3Attribute   -> typeRep
-  Mat4Attribute   -> typeRep
 
 data AttrClasses a where
   -- Provides proof of a type having certain instances
@@ -113,11 +80,6 @@ proveAttrClasses = \case
   FloatAttribute  -> AttrClasses
   IntAttribute    -> AttrClasses
   BoolAttribute   -> AttrClasses
-  V3Attribute     -> AttrClasses
-  V2Attribute     -> AttrClasses
-  ColorAttribute  -> AttrClasses
-  Mat3Attribute   -> AttrClasses
-  Mat4Attribute   -> AttrClasses
 
 -- Check if two attributes have the same type
 eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
@@ -131,11 +93,6 @@ instance Show (SomeAttribute Identity) where
     FloatAttribute  -> "FloatAttribute ("  ++ show val ++ ")"
     IntAttribute    -> "IntAttribute ("    ++ show val ++ ")"
     BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
-    V3Attribute     -> "V3Attribute ("   ++ show val ++ ")"
-    V2Attribute     -> "V2Attribute ("   ++ show val ++ ")"
-    ColorAttribute  -> "ColorAttribute ("   ++ show val ++ ")"
-    Mat3Attribute   -> "Mat3Attribute ("   ++ show val ++ ")"
-    Mat4Attribute   -> "Mat4Attribute ("   ++ show val ++ ")"
 
 instance Read (SomeAttribute Identity) where
   readPrec = lift do
@@ -146,11 +103,6 @@ instance Read (SomeAttribute Identity) where
       Ident "FloatAttribute"  -> SomeAttribute FloatAttribute  <$> pars (readS_to_P (reads @(Identity Float)))
       Ident "IntAttribute"    -> SomeAttribute IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
       Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
-      Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Scalar))))
-      Ident "V2Attribute"     -> SomeAttribute V2Attribute     <$> pars (readS_to_P (reads @(Identity (V2 Scalar))))
-      Ident "ColorAttribute"  -> SomeAttribute ColorAttribute  <$> pars (readS_to_P (reads @(Identity (V4 Scalar))))
-      Ident "Mat3Attribute"   -> SomeAttribute Mat3Attribute   <$> pars (readS_to_P (reads @(Identity (M33 Scalar))))
-      Ident "Mat4Attribute"   -> SomeAttribute Mat4Attribute   <$> pars (readS_to_P (reads @(Identity (M44 Scalar))))
       _ -> fail "Invalid attribute type"
 
 -- Look up the value for an attribute
@@ -182,11 +134,6 @@ defaultAttrVal = \case
   FloatAttribute -> 0
   IntAttribute -> 0
   BoolAttribute -> False
-  V3Attribute -> V3 1 0 0
-  V2Attribute -> V2 1 0
-  ColorAttribute -> V4 1 1 1 1
-  Mat3Attribute -> identity
-  Mat4Attribute -> identity
 
 mkDefaultComponent :: [SomeAttribute (Const String)] -> HashMap String (SomeAttribute Identity)
 mkDefaultComponent xs = Map.fromList $ xs <&> \case
@@ -294,11 +241,3 @@ class (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t where
     <> "};\n"
 
 instance (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t
-
-{- Helpers -}
-
-avg :: [V3 Scalar] -> V3 Scalar
-avg vs = sum vs ^/ (fromIntegral $ length vs)
-
-avgObjTranslation :: Traversable t => t Object -> V3 Scalar
-avgObjTranslation objs = avg $ toListOf (traversed . #transform . translation) objs
