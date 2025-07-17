@@ -11,7 +11,6 @@ ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
 dependencies:
     - Hickory
     - Hickory-SDL
-    - GLFW-b
     - base
     - bytestring
     - lens

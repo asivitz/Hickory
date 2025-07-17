@@ -28,8 +28,7 @@ executable shooter
       Rank2Types
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall -threaded
   build-depends:
-      GLFW-b
-    , Hickory
+      Hickory
     , Hickory-SDL
     , acquire
     , base
