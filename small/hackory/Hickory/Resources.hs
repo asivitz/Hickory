@@ -17,7 +17,6 @@ import Acquire (Acquire)
 import Hickory.Vulkan.Vulkan (unWrapAcquire, mkAcquire)
 import Control.Monad (unless, join, (<=<))
 import Control.Lens (view, (^.))
-import Hickory.ModelLoading.DirectXModel (ThreeDModel(..), loadModelFromX)
 import Hickory.Vulkan.Text (TextRenderer, withTextRenderer)
 import Vulkan (Filter (..), SamplerAddressMode (..), SamplerMipmapMode)
 import Hickory.Vulkan.Types (PointedDescriptorSet (..), BufferedMesh (..), VulkanResources, addCleanup, TextureLoadOptions)
@@ -79,7 +78,6 @@ data ResourcesStore = ResourcesStore
   { meshes       :: ResourceStore BufferedMesh
   , textures     :: ResourceStore PointedDescriptorSet
   , fonts        :: ResourceStore TextRenderer
-  , animations   :: ResourceStore ThreeDModel
   , skins        :: ResourceStore (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
   , untyped      :: ResourceStore Dynamic
   } deriving (Generic)
@@ -88,7 +86,6 @@ data Resources = Resources
   { meshes     :: Map.HashMap String BufferedMesh
   , textures   :: Map.HashMap String PointedDescriptorSet
   , fonts      :: Map.HashMap String TextRenderer
-  , animations :: Map.HashMap String ThreeDModel
   , skins      :: Map.HashMap String (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
   , untyped    :: Map.HashMap String Dynamic
   } deriving (Generic)
@@ -110,7 +107,6 @@ loadMeshResource vulkanResources ResourcesStore { meshes } path = do
       True ->
         case path ^. extension of
           ".hmdl" -> fmap Just $ liftIO (loadMeshFromFile path) >>= withBufferedMesh vulkanResources (Just $ path ^. filename)
-          ".x"    -> fmap Just $ liftIO (loadModelFromX   path) >>= withBufferedMesh vulkanResources (Just $ path ^. filename) . packedMesh
           _       -> pure Nothing
       False -> pure Nothing
 
@@ -119,13 +115,6 @@ loadFontResource vulkanResources ResourcesStore { fonts } fontPath imagePath msd
   loadResourceNoReplace fonts (fontPath ^. basename) do
     liftIO ((&&) <$> doesFileExist fontPath <*> doesFileExist imagePath) >>= \case
       True -> Just <$> withTextRenderer vulkanResources fontPath imagePath msdfDist
-      False -> pure Nothing
-
-loadAnimationResource :: VulkanResources -> ResourcesStore -> String -> IO ()
-loadAnimationResource _vulkanResources ResourcesStore { animations } path = do
-  loadResourceNoReplace animations (path ^. filename) do
-    liftIO $ doesFileExist path >>= \case
-      True -> Just <$> loadModelFromX path
       False -> pure Nothing
 
 loadUntypedResource :: Typeable a => VulkanResources -> ResourcesStore -> String -> Acquire (Maybe a) -> IO ()
@@ -137,7 +126,6 @@ withResourcesStore vulkanResources = do
   textures   <- liftIO newResourceStore
   meshes     <- liftIO newResourceStore
   fonts      <- liftIO newResourceStore
-  animations <- liftIO newResourceStore
   skins      <- liftIO newResourceStore
   untyped    <- liftIO newResourceStore
 
@@ -151,7 +139,6 @@ withResourcesStore vulkanResources = do
   mkAcquire (pure ()) (const $ cleanupStore meshes)
   mkAcquire (pure ()) (const $ cleanupStore textures)
   mkAcquire (pure ()) (const $ cleanupStore fonts)
-  mkAcquire (pure ()) (const $ cleanupStore animations)
   mkAcquire (pure ()) (const $ cleanupStore skins)
   mkAcquire (pure ()) (const $ cleanupStore untyped)
 
@@ -162,7 +149,6 @@ getResourcesStoreResources ResourcesStore {..} =
   Resources <$> getResources meshes
             <*> getResources textures
             <*> getResources fonts
-            <*> getResources animations
             <*> getResources skins
             <*> getResources untyped
 
@@ -195,14 +181,6 @@ getSomeFont :: ResourcesMonad m => m TextRenderer
 getSomeFont = do
   fs <- view #fonts <$> askResources
   pure $ fromMaybe (error "No font loaded") . listToMaybe . Map.elems $ fs
-
-getAnimation :: ResourcesMonad m => String -> m ThreeDModel
-getAnimation name = fromMaybe (error $ "Can't find animation: " ++ name) <$> getAnimationMay name
-
-getAnimationMay :: ResourcesMonad m => String -> m (Maybe ThreeDModel)
-getAnimationMay name = do
-  ms <- view #animations <$> askResources
-  pure $ Map.lookup name ms
 
 getSkin :: ResourcesMonad m => String -> m (Map.HashMap String (V.Vector (V.Vector (M44 Float))))
 getSkin name = fromMaybe (error $ "Can't find skin: " ++ name) <$> getSkinMay name
