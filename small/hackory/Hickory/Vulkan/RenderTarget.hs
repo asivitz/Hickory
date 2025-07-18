@@ -12,7 +12,6 @@ import Control.Exception (bracket)
 import GHC.Generics (Generic)
 import GHC.Word (Word16)
 import Acquire (Acquire)
-import Hickory.Math (Scalar)
 import Vulkan.Zero (Zero(..))
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Framing (FramedResource)
@@ -61,24 +60,3 @@ data ImageBuffer = ImageBuffer
   , region :: BufferImageCopy
   , viewableImage :: ViewableImage
   } deriving Generic
-
--- This API obviously needs improvement. Shouldn't assume integer pixels.
--- (x,y) are fractions of width/height
-readPixel :: ImageBuffer -> (Scalar,Scalar) -> IO Word16
-readPixel ImageBuffer {buffer = DataBuffer {..}, region = BufferImageCopy {..}, viewableImage = ViewableImage {..}} (xfrac,yfrac) = do
-  withMappedMemory allocator allocation bracket \bufptr ->
-    peek (plusPtr bufptr address)
-
-  where
-  address :: Int = fromIntegral bufferOffset + (((z * imageHeight) + y) * rowLength + x) * texelSize
-  x = round $ xfrac * realToFrac w
-  y = round $ yfrac * realToFrac h
-  z = 0
-  Extent3D w h _ = imageExtent
-  imageHeight = fromIntegral $ if bufferImageHeight == 0 then h else bufferImageHeight
-  rowLength = fromIntegral $ if bufferRowLength == 0 then w else bufferRowLength
-  texelSize :: Int = case format of
-    FORMAT_R16_UINT -> 2
-    FORMAT_R16G16B16A16_SFLOAT -> 8
-    FORMAT_D32_SFLOAT -> 4
-    _ -> error "Unsupported format"
