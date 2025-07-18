@@ -14,12 +14,11 @@
 
 module Hickory.Editor where
 
-import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..), identity, M33)
+import Linear (M44, V3(..), V4 (..), V2(..), identity, M33)
 import DearImGui (ImVec4 (..))
-import Data.IORef (IORef)
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
-import Control.Lens (traversed, toListOf, (<&>))
-import Data.Text (Text, pack, unpack)
+import Control.Lens ((<&>))
+import Data.Text (Text)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
 import Text.Read.Lex (Lexeme(..))
@@ -35,19 +34,8 @@ import Data.Kind (Type)
 import Hickory.ImGUI (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, imVec4ToV4, v4ToImVec4)
 import Data.Hashable (Hashable)
 import Data.Proxy (Proxy (..))
-import GHC.Word (Word32)
 
 type Scalar = Double
-
-data ObjectManipMode = OTranslate | OScale | ORotate
-  deriving Eq
-
-data Object = Object
-  { transform   :: M44 Scalar
-  -- List of component names and attribute maps
-  , components  :: [(String, HashMap String (SomeAttribute Identity))]
-  , baseObj :: Maybe Word32
-  } deriving (Generic, Show, Read)
 
 -- Types which have an 'attribute' representation in the editor
 class Attr a where
@@ -294,11 +282,3 @@ class (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t where
     <> "};\n"
 
 instance (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t
-
-{- Helpers -}
-
-avg :: [V3 Scalar] -> V3 Scalar
-avg vs = sum vs ^/ (fromIntegral $ length vs)
-
-avgObjTranslation :: Traversable t => t Object -> V3 Scalar
-avgObjTranslation objs = avg $ toListOf (traversed . #transform . translation) objs
