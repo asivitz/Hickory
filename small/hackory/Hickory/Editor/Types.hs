@@ -32,10 +32,15 @@ import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
-import Hickory.ImGUI.Helpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, imVec4ToV4, v4ToImVec4)
 import Data.Hashable (Hashable)
 import Data.Proxy (Proxy (..))
 import GHC.Word (Word32)
+
+instance Eq ImVec4 where
+  a == b = imVec4ToV4 a == imVec4ToV4 b
+
+imVec4ToV4 :: ImVec4 -> V4 Float
+imVec4ToV4 (ImVec4 x y z w) = V4 x y z w
 
 type Scalar = Double
 
@@ -57,50 +62,16 @@ class Attr a where
   type AttrRef a :: Type
   type AttrRef a = a
 
-instance Attr String where
-  mkAttr = StringAttribute
-  type AttrRef String = Text
-instance Attr Float  where mkAttr = FloatAttribute
-instance Attr Int    where mkAttr = IntAttribute
-instance Attr Bool   where mkAttr = BoolAttribute
-instance Attr (V3 Scalar) where
-  mkAttr = V3Attribute
-  type AttrRef (V3 Scalar) = (Float, Float, Float)
-instance Attr (V2 Scalar) where
-  mkAttr = V2Attribute
-  type AttrRef (V2 Scalar) = (Float, Float)
 instance Attr (V4 Scalar) where
   mkAttr = ColorAttribute
   type AttrRef (V4 Scalar) = ImVec4
-instance Attr (M33 Scalar) where
-  mkAttr = Mat3Attribute
-  type AttrRef (M33 Scalar) = Scalar -- TODO
-instance Attr (M44 Scalar) where
-  mkAttr = Mat4Attribute
-  type AttrRef (M44 Scalar) = Scalar -- TODO
 
 data Attribute a where
-  StringAttribute :: Attribute String
-  FloatAttribute  :: Attribute Float
-  IntAttribute    :: Attribute Int
-  BoolAttribute   :: Attribute Bool
-  V3Attribute     :: Attribute (V3 Scalar)
-  V2Attribute     :: Attribute (V2 Scalar)
   ColorAttribute  :: Attribute (V4 Scalar)
-  Mat3Attribute   :: Attribute (M33 Scalar)
-  Mat4Attribute   :: Attribute (M44 Scalar)
 
 typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
-  StringAttribute -> typeRep
-  FloatAttribute  -> typeRep
-  IntAttribute    -> typeRep
-  BoolAttribute   -> typeRep
-  V3Attribute     -> typeRep
-  V2Attribute     -> typeRep
   ColorAttribute  -> typeRep
-  Mat3Attribute   -> typeRep
-  Mat4Attribute   -> typeRep
 
 data AttrClasses a where
   -- Provides proof of a type having certain instances
@@ -109,15 +80,7 @@ data AttrClasses a where
 -- Prove that each attribute has some necessary instances
 proveAttrClasses :: Attribute a -> AttrClasses a
 proveAttrClasses = \case
-  StringAttribute -> AttrClasses
-  FloatAttribute  -> AttrClasses
-  IntAttribute    -> AttrClasses
-  BoolAttribute   -> AttrClasses
-  V3Attribute     -> AttrClasses
-  V2Attribute     -> AttrClasses
   ColorAttribute  -> AttrClasses
-  Mat3Attribute   -> AttrClasses
-  Mat4Attribute   -> AttrClasses
 
 -- Check if two attributes have the same type
 eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
@@ -127,30 +90,14 @@ data SomeAttribute contents = forall a. Attr a => SomeAttribute    { attr :: Att
 
 instance Show (SomeAttribute Identity) where
   show (SomeAttribute attr val) = "SomeAttribute " ++ case attr of
-    StringAttribute -> "StringAttribute (" ++ show val ++ ")"
-    FloatAttribute  -> "FloatAttribute ("  ++ show val ++ ")"
-    IntAttribute    -> "IntAttribute ("    ++ show val ++ ")"
-    BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
-    V3Attribute     -> "V3Attribute ("   ++ show val ++ ")"
-    V2Attribute     -> "V2Attribute ("   ++ show val ++ ")"
     ColorAttribute  -> "ColorAttribute ("   ++ show val ++ ")"
-    Mat3Attribute   -> "Mat3Attribute ("   ++ show val ++ ")"
-    Mat4Attribute   -> "Mat4Attribute ("   ++ show val ++ ")"
 
 instance Read (SomeAttribute Identity) where
   readPrec = lift do
     Lex.expect (Ident "SomeAttribute")
     let pars = between (skipSpaces >> string "(") (skipSpaces >> string ")")
     Lex.lex >>= \case
-      Ident "StringAttribute" -> SomeAttribute StringAttribute <$> pars (readS_to_P (reads @(Identity String)))
-      Ident "FloatAttribute"  -> SomeAttribute FloatAttribute  <$> pars (readS_to_P (reads @(Identity Float)))
-      Ident "IntAttribute"    -> SomeAttribute IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
-      Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
-      Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Scalar))))
-      Ident "V2Attribute"     -> SomeAttribute V2Attribute     <$> pars (readS_to_P (reads @(Identity (V2 Scalar))))
       Ident "ColorAttribute"  -> SomeAttribute ColorAttribute  <$> pars (readS_to_P (reads @(Identity (V4 Scalar))))
-      Ident "Mat3Attribute"   -> SomeAttribute Mat3Attribute   <$> pars (readS_to_P (reads @(Identity (M33 Scalar))))
-      Ident "Mat4Attribute"   -> SomeAttribute Mat4Attribute   <$> pars (readS_to_P (reads @(Identity (M44 Scalar))))
       _ -> fail "Invalid attribute type"
 
 -- Look up the value for an attribute
@@ -178,15 +125,7 @@ mkSomeAttr _ name = SomeAttribute (mkAttr :: Attribute a) (Const name)
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
-  StringAttribute -> ""
-  FloatAttribute -> 0
-  IntAttribute -> 0
-  BoolAttribute -> False
-  V3Attribute -> V3 1 0 0
-  V2Attribute -> V2 1 0
   ColorAttribute -> V4 1 1 1 1
-  Mat3Attribute -> identity
-  Mat4Attribute -> identity
 
 mkDefaultComponent :: [SomeAttribute (Const String)] -> HashMap String (SomeAttribute Identity)
 mkDefaultComponent xs = Map.fromList $ xs <&> \case
@@ -249,13 +188,7 @@ instance (Generic comp, GRecordAttributes (Rep comp))
 class GlslType a where
   glslTypeName :: Proxy a -> String
 
-instance GlslType Bool        where glslTypeName _ = "bool"
-instance GlslType Float       where glslTypeName _ = "float"
-instance GlslType (V2 Float)  where glslTypeName _ = "vec2"
-instance GlslType (V3 Float)  where glslTypeName _ = "vec3"
 instance GlslType (V4 Float)  where glslTypeName _ = "vec4"
-instance GlslType (M33 Float) where glslTypeName _ = "mat3"
-instance GlslType (M44 Float) where glslTypeName _ = "mat4"
 
 class GHasGlslUniformDef (f :: Type -> Type) where
   gGlslLines :: Proxy f -> [String]
