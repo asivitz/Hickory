@@ -39,16 +39,6 @@ import GHC.Word (Word32)
 
 type Scalar = Double
 
-data ObjectManipMode = OTranslate | OScale | ORotate
-  deriving Eq
-
-data Object = Object
-  { transform   :: M44 Scalar
-  -- List of component names and attribute maps
-  , components  :: [(String, HashMap String (SomeAttribute Identity))]
-  , baseObj :: Maybe Word32
-  } deriving (Generic, Show, Read)
-
 -- Types which have an 'attribute' representation in the editor
 class Attr a where
   mkAttr :: Attribute a
@@ -294,11 +284,3 @@ class (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t where
     <> "};\n"
 
 instance (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t
-
-{- Helpers -}
-
-avg :: [V3 Scalar] -> V3 Scalar
-avg vs = sum vs ^/ (fromIntegral $ length vs)
-
-avgObjTranslation :: Traversable t => t Object -> V3 Scalar
-avgObjTranslation objs = avg $ toListOf (traversed . #transform . translation) objs
