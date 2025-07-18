@@ -23,21 +23,16 @@ default-extensions:
     - GHC2021
 
 dependencies:
-    - StateVar
     - VulkanMemoryAllocator
     - acquire
     - base
-    - bitwise-enum
     - bytestring
     - dear-imgui
     - derive-storable
-    - extra
     - generic-lens
     - hashable
     - lens
     - linear
-    - mtl
-    - safe
     - text
     - unordered-containers
     - uuid
@@ -79,9 +74,4 @@ library:
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI
     - Hickory.Editor
-    - Hickory.Editor.GUI
-    - Hickory.Editor.General
-    - Hickory.Editor.Network
-    - Hickory.Editor.Post
     - Hickory.Editor.Types
-    - Hickory.Editor.View

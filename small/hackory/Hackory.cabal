@@ -35,12 +35,7 @@ library
       Hickory.ImGUI.Helpers
       Hickory.ImGUI.ImGUI
       Hickory.Editor
-      Hickory.Editor.GUI
-      Hickory.Editor.General
-      Hickory.Editor.Network
-      Hickory.Editor.Post
       Hickory.Editor.Types
-      Hickory.Editor.View
   other-modules:
       Paths_Hackory
   default-extensions:
@@ -57,21 +52,16 @@ library
       GHC2021
   ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
   build-depends:
-      StateVar
-    , VulkanMemoryAllocator
+      VulkanMemoryAllocator
     , acquire
     , base
-    , bitwise-enum
     , bytestring
     , dear-imgui
     , derive-storable
-    , extra
     , generic-lens
     , hashable
     , lens
     , linear
-    , mtl
-    , safe
     , text
     , unordered-containers
     , uuid
