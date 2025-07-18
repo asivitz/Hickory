@@ -27,7 +27,6 @@ dependencies:
     - VulkanMemoryAllocator
     - acquire
     - base
-    - binary
     - bitwise-enum
     - bytestring
     - dear-imgui
@@ -43,7 +42,6 @@ dependencies:
     - unordered-containers
     - uuid
     - vector
-    - vector-binary-instances
     - vulkan
     - vulkan-utils
 
@@ -71,8 +69,6 @@ library:
     - Hickory.Math.VectorMatrix
     - Hickory.Types
     - Hickory.Vulkan.Vulkan
-    - Hickory.Vulkan.Mesh
-    - Hickory.Vulkan.DynamicMesh
     - Hickory.Vulkan.Framing
     - Hickory.Vulkan.Frame
     - Hickory.Vulkan.Instance

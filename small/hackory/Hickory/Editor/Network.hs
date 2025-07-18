@@ -16,7 +16,6 @@ import Data.HashMap.Strict (HashMap)
 import Hickory.Editor.Types
 import qualified Data.Vector.Storable as SV
 import qualified Hickory.Vulkan.Types as H
-import qualified Hickory.Vulkan.Mesh as H
 import Safe (maximumMay, headMay)
 import Data.Traversable (for)
 import Control.Monad (join, mfilter, void, when)

@@ -3,6 +3,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE DataKinds #-}
 
 module Hickory.ImGUI.ImGUI where
 
@@ -13,8 +14,10 @@ import Vulkan
   , pattern NULL_HANDLE, Result (..), SampleCountFlagBits (..), DescriptorType (..)
   , DescriptorPoolCreateInfo(..), withDescriptorPool, DescriptorPoolSize (..), AttachmentDescription, SubpassDescription, SubpassDependency
   , AttachmentDescription(..), SubpassDescription(..), SubpassDependency(..), AttachmentReference(..)
-  , RenderPassCreateInfo(..), AttachmentLoadOp (..), AttachmentStoreOp (..), ImageLayout (..), PipelineBindPoint (..), Format, pattern SUBPASS_EXTERNAL, PipelineStageFlagBits (..), AccessFlagBits (..), withRenderPass, SurfaceFormatKHR(SurfaceFormatKHR), RenderPass, Rect2D (..), ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (SUBPASS_CONTENTS_INLINE), Framebuffer
+  , RenderPassCreateInfo(..), AttachmentLoadOp (..), AttachmentStoreOp (..), ImageLayout (..), PipelineBindPoint (..), Format, pattern SUBPASS_EXTERNAL, PipelineStageFlagBits (..), AccessFlagBits (..), withRenderPass, SurfaceFormatKHR(SurfaceFormatKHR), RenderPass, Rect2D (..), ClearValue (..), ClearColorValue (..), cmdUseRenderPass, SubpassContents (SUBPASS_CONTENTS_INLINE), Framebuffer, CommandBuffer, CommandBufferAllocateInfo(..),  CommandBufferBeginInfo(..), commandBuffers
   )
+import Vulkan (VertexInputBindingDescription (..), VertexInputRate (..), VertexInputAttributeDescription (..), Format (..), BufferCreateInfo(..), MemoryPropertyFlags, DeviceSize, Buffer, SharingMode (..), BufferUsageFlags, MemoryPropertyFlagBits (..), BufferUsageFlagBits (..), CommandBufferAllocateInfo(..), CommandBufferLevel (..), withCommandBuffers, SubmitInfo(..), BufferCopy(..), useCommandBuffer, cmdCopyBuffer, queueSubmit, commandBufferHandle, pattern COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, CommandBufferBeginInfo(..), queueWaitIdle, CommandBuffer)
+import Vulkan.CStruct.Extends (SomeStruct(..))
 import Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import DearImGui (createContext, destroyContext, render, getDrawData, newFrame)
@@ -23,12 +26,37 @@ import qualified DearImGui.Vulkan as ImGui.Vulkan
 import Control.Exception (throw)
 import Vulkan.Exception (VulkanException(..))
 import Vulkan.Zero (Zero(..))
-import Hickory.Vulkan.Mesh (withSingleTimeCommands)
 import Control.Monad (void)
 import Data.Traversable (for)
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import qualified Data.Vector as V
 import Hickory.Vulkan.Types (FrameContext(..), VulkanResources (..), Swapchain (..), DeviceContext (..), ViewableImage (..))
+import Control.Monad.IO.Class (MonadIO, liftIO)
+
+import VulkanMemoryAllocator (AllocationCreateInfo(requiredFlags), Allocator, Allocation, AllocationInfo, withMappedMemory)
+
+withSingleTimeCommands :: MonadIO m => VulkanResources -> (CommandBuffer -> IO ()) -> m ()
+withSingleTimeCommands VulkanResources {..} f = liftIO $ runAcquire do
+  let DeviceContext {..} = deviceContext
+
+  -- Need a temporary command buffer for copy commands
+  commandBuffer <- V.head <$>
+    let commandBufferAllocateInfo :: CommandBufferAllocateInfo
+        commandBufferAllocateInfo = zero
+          { commandPool        = shortLivedCommandPool
+          , level              = COMMAND_BUFFER_LEVEL_PRIMARY
+          , commandBufferCount = 1
+          }
+    in withCommandBuffers device commandBufferAllocateInfo mkAcquire
+
+  let beginInfo :: CommandBufferBeginInfo '[]
+      beginInfo = zero { flags = COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT }
+  useCommandBuffer commandBuffer beginInfo do
+    liftIO $ f commandBuffer
+
+  let submitInfo = zero { commandBuffers = [commandBufferHandle commandBuffer] }
+  queueSubmit graphicsQueue [SomeStruct submitInfo] zero
+  queueWaitIdle graphicsQueue
 
 data ImGuiResources = ImGuiResources
   { renderPass   :: RenderPass
