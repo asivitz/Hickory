@@ -58,10 +58,6 @@ library:
       cpp-options: -DPRODUCTION
 
   exposed-modules:
-    - Hickory.Math
-    - Hickory.Math.Matrix
-    - Hickory.Math.Vector
-    - Hickory.Math.VectorMatrix
     - Hickory.Types
     - Hickory.Vulkan.Vulkan
     - Hickory.Vulkan.Framing

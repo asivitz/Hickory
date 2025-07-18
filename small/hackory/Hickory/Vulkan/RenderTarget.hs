@@ -12,11 +12,12 @@ import Control.Exception (bracket)
 import GHC.Generics (Generic)
 import GHC.Word (Word16)
 import Acquire (Acquire)
-import Hickory.Math (Scalar)
 import Vulkan.Zero (Zero(..))
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Traversable (for)
+
+type Scalar = Double
 
 -- Copying the whole image, so addressing x,y is (y * rowLength + x) * texelSize
 copyDescriptorImageToBuffer :: CommandBuffer -> ImageBuffer -> IO ()

@@ -21,9 +21,10 @@ module Hickory.Types
    distToEdgeOfRect
    ) where
 
-import Hickory.Math.Vector
 import Linear (V2(..), V4(..), (^*))
 import GHC.Generics (Generic)
+
+type Scalar = Double
 
 data Size a = Size
   { width  :: a

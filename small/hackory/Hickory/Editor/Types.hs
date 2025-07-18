@@ -19,7 +19,6 @@ import DearImGui (ImVec4 (..))
 import Data.IORef (IORef)
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
 import Control.Lens (traversed, toListOf, (<&>))
-import Hickory.Math (Scalar)
 import Data.Text (Text, pack, unpack)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
@@ -38,6 +37,8 @@ import Data.Hashable (Hashable)
 import Hickory.Vulkan.Types (VulkanResources)
 import Data.Proxy (Proxy (..))
 import GHC.Word (Word32)
+
+type Scalar = Double
 
 data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
