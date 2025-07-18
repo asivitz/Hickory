@@ -25,12 +25,8 @@ default-extensions:
 dependencies:
     - base
     - dear-imgui
-    - generic-lens
-    - hashable
-    - lens
     - linear
     - text
-    - unordered-containers
 
 flags:
   production:

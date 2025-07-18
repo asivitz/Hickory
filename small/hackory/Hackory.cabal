@@ -39,12 +39,8 @@ library
   build-depends:
       base
     , dear-imgui
-    , generic-lens
-    , hashable
-    , lens
     , linear
     , text
-    , unordered-containers
   if os(osx)
     cc-options: -F/System/Library/Frameworks
   if flag(production)
