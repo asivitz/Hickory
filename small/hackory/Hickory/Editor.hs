@@ -45,12 +45,6 @@ class Attr a where
   type AttrRef a :: Type
   type AttrRef a = a
 
-instance Attr String where
-  mkAttr = StringAttribute
-  type AttrRef String = Text
-instance Attr Float  where mkAttr = FloatAttribute
-instance Attr Int    where mkAttr = IntAttribute
-instance Attr Bool   where mkAttr = BoolAttribute
 instance Attr (V3 Scalar) where
   mkAttr = V3Attribute
   type AttrRef (V3 Scalar) = (Float, Float, Float)
@@ -68,10 +62,6 @@ instance Attr (M44 Scalar) where
   type AttrRef (M44 Scalar) = Scalar -- TODO
 
 data Attribute a where
-  StringAttribute :: Attribute String
-  FloatAttribute  :: Attribute Float
-  IntAttribute    :: Attribute Int
-  BoolAttribute   :: Attribute Bool
   V3Attribute     :: Attribute (V3 Scalar)
   V2Attribute     :: Attribute (V2 Scalar)
   ColorAttribute  :: Attribute (V4 Scalar)
@@ -80,10 +70,6 @@ data Attribute a where
 
 typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
-  StringAttribute -> typeRep
-  FloatAttribute  -> typeRep
-  IntAttribute    -> typeRep
-  BoolAttribute   -> typeRep
   V3Attribute     -> typeRep
   V2Attribute     -> typeRep
   ColorAttribute  -> typeRep
@@ -97,10 +83,6 @@ data AttrClasses a where
 -- Prove that each attribute has some necessary instances
 proveAttrClasses :: Attribute a -> AttrClasses a
 proveAttrClasses = \case
-  StringAttribute -> AttrClasses
-  FloatAttribute  -> AttrClasses
-  IntAttribute    -> AttrClasses
-  BoolAttribute   -> AttrClasses
   V3Attribute     -> AttrClasses
   V2Attribute     -> AttrClasses
   ColorAttribute  -> AttrClasses
@@ -115,10 +97,6 @@ data SomeAttribute contents = forall a. Attr a => SomeAttribute    { attr :: Att
 
 instance Show (SomeAttribute Identity) where
   show (SomeAttribute attr val) = "SomeAttribute " ++ case attr of
-    StringAttribute -> "StringAttribute (" ++ show val ++ ")"
-    FloatAttribute  -> "FloatAttribute ("  ++ show val ++ ")"
-    IntAttribute    -> "IntAttribute ("    ++ show val ++ ")"
-    BoolAttribute   -> "BoolAttribute ("   ++ show val ++ ")"
     V3Attribute     -> "V3Attribute ("   ++ show val ++ ")"
     V2Attribute     -> "V2Attribute ("   ++ show val ++ ")"
     ColorAttribute  -> "ColorAttribute ("   ++ show val ++ ")"
@@ -130,10 +108,6 @@ instance Read (SomeAttribute Identity) where
     Lex.expect (Ident "SomeAttribute")
     let pars = between (skipSpaces >> string "(") (skipSpaces >> string ")")
     Lex.lex >>= \case
-      Ident "StringAttribute" -> SomeAttribute StringAttribute <$> pars (readS_to_P (reads @(Identity String)))
-      Ident "FloatAttribute"  -> SomeAttribute FloatAttribute  <$> pars (readS_to_P (reads @(Identity Float)))
-      Ident "IntAttribute"    -> SomeAttribute IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
-      Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
       Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Scalar))))
       Ident "V2Attribute"     -> SomeAttribute V2Attribute     <$> pars (readS_to_P (reads @(Identity (V2 Scalar))))
       Ident "ColorAttribute"  -> SomeAttribute ColorAttribute  <$> pars (readS_to_P (reads @(Identity (V4 Scalar))))
@@ -166,10 +140,6 @@ mkSomeAttr _ name = SomeAttribute (mkAttr :: Attribute a) (Const name)
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
-  StringAttribute -> ""
-  FloatAttribute -> 0
-  IntAttribute -> 0
-  BoolAttribute -> False
   V3Attribute -> V3 1 0 0
   V2Attribute -> V2 1 0
   ColorAttribute -> V4 1 1 1 1
