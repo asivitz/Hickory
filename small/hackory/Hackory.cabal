@@ -19,7 +19,6 @@ flag production
 
 library
   exposed-modules:
-      Hickory.Types
       Hickory.ImGUI.Helpers
       Hickory.ImGUI.ImGUI
       Hickory.Editor

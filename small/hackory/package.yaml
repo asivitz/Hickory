@@ -50,7 +50,6 @@ library:
       cpp-options: -DPRODUCTION
 
   exposed-modules:
-    - Hickory.Types
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI
     - Hickory.Editor
