@@ -23,22 +23,14 @@ default-extensions:
     - GHC2021
 
 dependencies:
-    - VulkanMemoryAllocator
-    - acquire
     - base
-    - bytestring
     - dear-imgui
-    - derive-storable
     - generic-lens
     - hashable
     - lens
     - linear
     - text
     - unordered-containers
-    - uuid
-    - vector
-    - vulkan
-    - vulkan-utils
 
 flags:
   production:
@@ -59,14 +51,6 @@ library:
 
   exposed-modules:
     - Hickory.Types
-    - Hickory.Vulkan.Vulkan
-    - Hickory.Vulkan.Framing
-    - Hickory.Vulkan.Frame
-    - Hickory.Vulkan.Instance
-    - Hickory.Vulkan.Utils
-    - Hickory.Vulkan.RenderPass
-    - Hickory.Vulkan.RenderTarget
-    - Hickory.Vulkan.Types
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI
     - Hickory.Editor

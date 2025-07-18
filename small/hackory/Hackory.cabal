@@ -20,14 +20,6 @@ flag production
 library
   exposed-modules:
       Hickory.Types
-      Hickory.Vulkan.Vulkan
-      Hickory.Vulkan.Framing
-      Hickory.Vulkan.Frame
-      Hickory.Vulkan.Instance
-      Hickory.Vulkan.Utils
-      Hickory.Vulkan.RenderPass
-      Hickory.Vulkan.RenderTarget
-      Hickory.Vulkan.Types
       Hickory.ImGUI.Helpers
       Hickory.ImGUI.ImGUI
       Hickory.Editor
@@ -48,22 +40,14 @@ library
       GHC2021
   ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
   build-depends:
-      VulkanMemoryAllocator
-    , acquire
-    , base
-    , bytestring
+      base
     , dear-imgui
-    , derive-storable
     , generic-lens
     , hashable
     , lens
     , linear
     , text
     , unordered-containers
-    , uuid
-    , vector
-    , vulkan
-    , vulkan-utils
   if os(osx)
     cc-options: -F/System/Library/Frameworks
   if flag(production)
