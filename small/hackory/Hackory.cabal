@@ -19,10 +19,8 @@ flag production
 
 library
   exposed-modules:
-      Hickory.ImGUI.Helpers
-      Hickory.ImGUI.ImGUI
+      Hickory.ImGUI
       Hickory.Editor
-      Hickory.Editor.Types
   other-modules:
       Paths_Hackory
   default-extensions:
