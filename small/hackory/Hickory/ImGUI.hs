@@ -9,14 +9,6 @@ import Linear (V3 (..), V4 (..), V2 (..))
 import Control.Lens (iso, Iso')
 
 
-myWithWindow :: String -> IO (Maybe a) -> IO (Maybe a)
-myWithWindow name action = bracket (myBegin name) (const Raw.end) (\b -> if b then action else pure Nothing)
-
-myBegin :: String -> IO Bool
-myBegin name =
-  Text.withCString name \namePtr ->
-    Raw.begin namePtr (Just nullPtr) (Just Raw.ImGuiWindowFlags_MenuBar)
-
 imVec3ToColor :: ImVec3 -> V4 Float
 imVec3ToColor (ImVec3 x y z) = V4 x y z 1
 
