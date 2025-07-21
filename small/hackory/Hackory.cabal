@@ -19,13 +19,6 @@ library
   other-modules:
       Paths_Hackory
   default-extensions:
-      NamedFieldPuns
-      Rank2Types
-      OverloadedStrings
-      ScopedTypeVariables
-      TupleSections
-      BlockArguments
-      RecordWildCards
       GHC2021
   ghc-options: -Wall -Wunused-packages -Werror=unused-packages -O0
   build-depends:

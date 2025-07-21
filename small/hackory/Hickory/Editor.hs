@@ -1,15 +1,10 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Hickory.Editor where
 
@@ -55,17 +50,6 @@ eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
 eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
 
 data SomeAttribute contents = forall a. Attr a => SomeAttribute    { attr :: Attribute a, contents :: contents a }
-
-withAttrVal :: forall a b k. (Attr a, Hashable k) => HashMap k (SomeAttribute Identity) -> k -> (a -> b) -> b
-withAttrVal attrs name f = case Map.lookup name attrs of
-  Just (SomeAttribute attr (Identity v)) -> case eqAttr attr (mkAttr :: Attribute a) of
-    Just HRefl -> f v
-    Nothing -> error "Wrong type for attribute"
-  Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
-
-defaultAttrVal :: Attribute a -> a
-defaultAttrVal = \case
-  ColorAttribute -> V4 1 1 1 1
 
 class GRecordAttributes (f :: Type -> Type) where
   gToAttributeList :: Proxy f -> [SomeAttribute (Const String)]

@@ -10,13 +10,6 @@ extra-source-files:
     - Readme.md
 
 default-extensions:
-    - NamedFieldPuns
-    - Rank2Types
-    - OverloadedStrings
-    - ScopedTypeVariables
-    - TupleSections
-    - BlockArguments
-    - RecordWildCards
     - GHC2021
 
 dependencies:

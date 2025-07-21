@@ -1,3 +1,5 @@
+{-# LANGUAGE BlockArguments #-}
+
 module Hickory.ImGUI where
 
 import DearImGui
