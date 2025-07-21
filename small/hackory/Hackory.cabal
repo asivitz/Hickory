@@ -12,11 +12,6 @@ build-type:     Simple
 extra-source-files:
     Readme.md
 
-flag production
-  description: Enable production mode
-  manual: True
-  default: False
-
 library
   exposed-modules:
       Hickory.ImGUI
@@ -26,16 +21,13 @@ library
   default-extensions:
       NamedFieldPuns
       Rank2Types
-      BangPatterns
       OverloadedStrings
       ScopedTypeVariables
-      LambdaCase
       TupleSections
-      ViewPatterns
       BlockArguments
       RecordWildCards
       GHC2021
-  ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
+  ghc-options: -Wall -Wunused-packages -Werror=unused-packages -O0
   build-depends:
       base
     , dear-imgui
@@ -44,8 +36,4 @@ library
     , lens
     , linear
     , unordered-containers
-  if os(osx)
-    cc-options: -F/System/Library/Frameworks
-  if flag(production)
-    cpp-options: -DPRODUCTION
   default-language: GHC2021

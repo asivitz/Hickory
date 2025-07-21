@@ -2,9 +2,9 @@ name:                Hackory
 
 ghc-options:
     - -Wall
-    - -Werror=incomplete-patterns
     - -Wunused-packages
     - -Werror=unused-packages
+    - -O0
 
 extra-source-files:
     - Readme.md
@@ -12,12 +12,9 @@ extra-source-files:
 default-extensions:
     - NamedFieldPuns
     - Rank2Types
-    - BangPatterns
     - OverloadedStrings
     - ScopedTypeVariables
-    - LambdaCase
     - TupleSections
-    - ViewPatterns
     - BlockArguments
     - RecordWildCards
     - GHC2021
@@ -31,22 +28,9 @@ dependencies:
     - linear
     - unordered-containers
 
-flags:
-  production:
-    description: Enable production mode
-    manual: true
-    default: false
-
-when:
-    - condition: os(osx)
-      cc-options:         -F/System/Library/Frameworks
-
 library:
   verbatim:
     default-language: GHC2021
-  when:
-    - condition: "flag(production)"
-      cpp-options: -DPRODUCTION
 
   exposed-modules:
     - Hickory.ImGUI
