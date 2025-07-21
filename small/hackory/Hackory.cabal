@@ -41,7 +41,6 @@ library
     , dear-imgui
     , generic-lens
     , hashable
-    , lens
     , linear
     , unordered-containers
   if os(osx)

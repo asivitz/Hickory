@@ -16,8 +16,7 @@ module Hickory.Editor where
 
 import Linear (V4(..))
 import DearImGui (ImVec4 (..))
-import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
-import Control.Lens ((<&>))
+import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), C, D, U1 (..))
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
 import Data.Functor.Identity (Identity (..))
@@ -29,11 +28,9 @@ import Hickory.ImGUI ()
 import Data.Hashable (Hashable)
 import Data.Proxy (Proxy (..))
 
--- Types which have an 'attribute' representation in the editor
 class Attr a where
   mkAttr :: Attribute a
 
-  -- Sometimes the storage type differs (e.g. DearIMGui represents Vec3s as a float triple)
   type AttrRef a :: Type
   type AttrRef a = a
 
@@ -48,16 +45,6 @@ typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
   ColorAttribute  -> typeRep
 
-data AttrClasses a where
-  -- Provides proof of a type having certain instances
-  AttrClasses :: (Eq a, Eq (AttrRef a)) => AttrClasses a
-
--- Prove that each attribute has some necessary instances
-proveAttrClasses :: Attribute a -> AttrClasses a
-proveAttrClasses = \case
-  ColorAttribute  -> AttrClasses
-
--- Check if two attributes have the same type
 eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
 eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
 
@@ -75,10 +62,6 @@ defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
   ColorAttribute -> V4 1 1 1 1
 
-mkDefaultComponent :: [SomeAttribute (Const String)] -> HashMap String (SomeAttribute Identity)
-mkDefaultComponent xs = Map.fromList $ xs <&> \case
-  SomeAttribute attr (Const name) -> (name, SomeAttribute attr (Identity $ defaultAttrVal attr))
-
 {- Generics -}
 
 class GRecordAttributes (f :: Type -> Type) where
@@ -95,29 +78,6 @@ instance GRecordAttributes U1 where
 instance GRecordAttributes f => GRecordAttributes (M1 D x f) where
   gToAttributeList _ = gToAttributeList (Proxy :: Proxy f)
   gFromHashMap hm = M1 (gFromHashMap hm)
-
-instance GRecordAttributes f => GRecordAttributes (M1 C x f) where
-  gToAttributeList _ = gToAttributeList (Proxy :: Proxy f)
-  gFromHashMap hm = M1 (gFromHashMap hm)
-
-instance (GRecordAttributes f, GRecordAttributes g)
-      => GRecordAttributes (f :*: g) where
-  gToAttributeList _ =
-    gToAttributeList (Proxy :: Proxy f) ++ gToAttributeList (Proxy :: Proxy g)
-  gFromHashMap hm =
-    let left  = gFromHashMap hm
-        right = gFromHashMap hm
-    in left :*: right
-
--- A single field
-instance (Selector s, Attr a) => GRecordAttributes (M1 S s (K1 i a)) where
-  gToAttributeList _ =
-    let fieldName = selName (undefined :: M1 S s (K1 i a) p)
-     in [ SomeAttribute (mkAttr @a) (Const fieldName) ]
-  gFromHashMap hm =
-    let fieldName = selName (undefined :: M1 S s (K1 i a) p)
-        val = withAttrVal hm fieldName id
-    in M1 (K1 val)
 
 {- Generic GLSL struct definitions -}
 
@@ -137,12 +97,6 @@ instance GHasGlslUniformDef f => GHasGlslUniformDef (M1 D x f) where
 
 instance GHasGlslUniformDef f => GHasGlslUniformDef (M1 C x f) where
   gGlslLines _ = gGlslLines (Proxy :: Proxy f)
-
-instance (GHasGlslUniformDef f, GHasGlslUniformDef g)
-      => GHasGlslUniformDef (f :*: g) where
-  gGlslLines _ =
-    gGlslLines (Proxy :: Proxy f) ++
-    gGlslLines (Proxy :: Proxy g)
 
 instance (Selector s, GlslType a)
       => GHasGlslUniformDef (M1 S s (K1 i a)) where
