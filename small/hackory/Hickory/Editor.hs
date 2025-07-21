@@ -12,7 +12,7 @@ import Linear (V4(..))
 import DearImGui (ImVec4 (..))
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), C, D, U1 (..))
 import Data.Generics.Labels ()
-import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
+import Type.Reflection (TypeRep, typeRep)
 import Data.Kind (Type)
 import Hickory.ImGUI ()
 import Data.Proxy (Proxy (..))
@@ -34,20 +34,8 @@ typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
   ColorAttribute  -> typeRep
 
-data AttrClasses a where
-  AttrClasses :: (Eq a, Eq (AttrRef a)) => AttrClasses a
-
-proveAttrClasses :: Attribute a -> AttrClasses a
-proveAttrClasses = \case
-  ColorAttribute  -> AttrClasses
-
-eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
-eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
-
 class GlslType a where
   glslTypeName :: Proxy a -> String
-
-instance GlslType (V4 Float)  where glslTypeName _ = "vec4"
 
 class GHasGlslUniformDef (f :: Type -> Type) where
   gGlslLines :: Proxy f -> [String]
