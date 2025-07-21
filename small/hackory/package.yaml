@@ -29,7 +29,6 @@ dependencies:
     - hashable
     - lens
     - linear
-    - text
     - unordered-containers
 
 flags:

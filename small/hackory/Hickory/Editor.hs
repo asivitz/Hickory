@@ -14,28 +14,20 @@
 
 module Hickory.Editor where
 
-import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..), identity, M33)
+import Linear (V4(..))
 import DearImGui (ImVec4 (..))
-import Data.IORef (IORef)
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
-import Control.Lens (traversed, toListOf, (<&>))
-import Data.Text (Text, pack, unpack)
+import Control.Lens ((<&>))
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
-import Text.Read.Lex (Lexeme(..))
-import qualified Text.Read.Lex as Lex
-import GHC.Read (Read (..))
-import Text.ParserCombinators.ReadPrec (lift)
-import Text.ParserCombinators.ReadP (readS_to_P, between, string, skipSpaces)
 import Data.Functor.Identity (Identity (..))
 import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
-import Hickory.ImGUI (imVec4ToV4, v4ToImVec4)
+import Hickory.ImGUI ()
 import Data.Hashable (Hashable)
 import Data.Proxy (Proxy (..))
-import GHC.Word (Word32)
 
 -- Types which have an 'attribute' representation in the editor
 class Attr a where
@@ -71,18 +63,6 @@ eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
 
 data SomeAttribute contents = forall a. Attr a => SomeAttribute    { attr :: Attribute a, contents :: contents a }
 
-instance Show (SomeAttribute Identity) where
-  show (SomeAttribute attr val) = "SomeAttribute " ++ case attr of
-    ColorAttribute  -> "ColorAttribute ("   ++ show val ++ ")"
-
-instance Read (SomeAttribute Identity) where
-  readPrec = lift do
-    Lex.expect (Ident "SomeAttribute")
-    let pars = between (skipSpaces >> string "(") (skipSpaces >> string ")")
-    Lex.lex >>= \case
-      Ident "ColorAttribute"  -> SomeAttribute ColorAttribute  <$> pars (readS_to_P (reads @(Identity (V4 Double))))
-      _ -> fail "Invalid attribute type"
-
 -- Look up the value for an attribute
 withAttrVal :: forall a b k. (Attr a, Hashable k) => HashMap k (SomeAttribute Identity) -> k -> (a -> b) -> b
 withAttrVal attrs name f = case Map.lookup name attrs of
@@ -90,21 +70,6 @@ withAttrVal attrs name f = case Map.lookup name attrs of
     Just HRefl -> f v
     Nothing -> error "Wrong type for attribute"
   Nothing -> f $ defaultAttrVal (mkAttr :: Attribute a)
-
-pullAttrValMay :: forall a. Attr a => SomeAttribute Identity -> Maybe a
-pullAttrValMay = \case
-  SomeAttribute attr (Identity v) -> case eqAttr attr (mkAttr :: Attribute a) of
-    Just HRefl -> Just v
-    Nothing -> Nothing
-
-setSomeAttribute :: forall f a. Attr a => f a -> SomeAttribute f -> SomeAttribute f
-setSomeAttribute newV (SomeAttribute attr _) = case eqAttr attr (mkAttr :: Attribute a) of
-    Just HRefl -> SomeAttribute attr newV
-    Nothing -> error "Wrong type for attribute"
-
-
-mkSomeAttr :: forall a. Attr a => Proxy a -> String -> SomeAttribute (Const String)
-mkSomeAttr _ name = SomeAttribute (mkAttr :: Attribute a) (Const name)
 
 defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
@@ -153,18 +118,6 @@ instance (Selector s, Attr a) => GRecordAttributes (M1 S s (K1 i a)) where
     let fieldName = selName (undefined :: M1 S s (K1 i a) p)
         val = withAttrVal hm fieldName id
     in M1 (K1 val)
-
--- User-facing class
-class (Generic comp, GRecordAttributes (Rep comp))
-   => HasRecordAttributes comp where
-  toAttributeList :: [SomeAttribute (Const String)]
-  toAttributeList = gToAttributeList (Proxy :: Proxy (Rep comp))
-
-  fromHashMap :: HashMap String (SomeAttribute Identity) -> comp
-  fromHashMap hm = to (gFromHashMap hm)
-
-instance (Generic comp, GRecordAttributes (Rep comp))
-      => HasRecordAttributes comp
 
 {- Generic GLSL struct definitions -}
 
