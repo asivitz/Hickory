@@ -10,14 +10,12 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DefaultSignatures #-}
 
 module Hickory.Editor where
 
 import Linear (V4(..))
 import DearImGui (ImVec4 (..))
-import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
-import Control.Lens ((<&>))
+import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), C, D, U1 (..))
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
 import Data.Functor.Identity (Identity (..))
@@ -69,25 +67,17 @@ defaultAttrVal :: Attribute a -> a
 defaultAttrVal = \case
   ColorAttribute -> V4 1 1 1 1
 
-mkDefaultComponent :: [SomeAttribute (Const String)] -> HashMap String (SomeAttribute Identity)
-mkDefaultComponent xs = Map.fromList $ xs <&> \case
-  SomeAttribute attr (Const name) -> (name, SomeAttribute attr (Identity $ defaultAttrVal attr))
-
 class GRecordAttributes (f :: Type -> Type) where
   gToAttributeList :: Proxy f -> [SomeAttribute (Const String)]
-  gFromHashMap :: HashMap String (SomeAttribute Identity) -> f p
 
 instance GRecordAttributes U1 where
   gToAttributeList _ = []
-  gFromHashMap _ = U1
 
 instance GRecordAttributes f => GRecordAttributes (M1 D x f) where
   gToAttributeList _ = gToAttributeList (Proxy :: Proxy f)
-  gFromHashMap hm = M1 (gFromHashMap hm)
 
 instance GRecordAttributes f => GRecordAttributes (M1 C x f) where
   gToAttributeList _ = gToAttributeList (Proxy :: Proxy f)
-  gFromHashMap hm = M1 (gFromHashMap hm)
 
 class GlslType a where
   glslTypeName :: Proxy a -> String
@@ -115,7 +105,6 @@ instance (Selector s, GlslType a)
 
 class (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t where
   glslUniformLines :: [String]
-  default glslUniformLines :: (Generic t, GHasGlslUniformDef (Rep t)) => [String]
   glslUniformLines = gGlslLines (Proxy :: Proxy (Rep t))
 
   glslStructDef :: String

@@ -33,7 +33,6 @@ library
     , dear-imgui
     , generic-lens
     , hashable
-    , lens
     , linear
     , unordered-containers
   default-language: GHC2021

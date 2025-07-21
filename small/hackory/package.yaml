@@ -24,7 +24,6 @@ dependencies:
     - dear-imgui
     - generic-lens
     - hashable
-    - lens
     - linear
     - unordered-containers
 
