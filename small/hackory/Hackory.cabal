@@ -25,7 +25,5 @@ library
       base
     , dear-imgui
     , generic-lens
-    , hashable
     , linear
-    , unordered-containers
   default-language: GHC2021

@@ -16,9 +16,7 @@ dependencies:
     - base
     - dear-imgui
     - generic-lens
-    - hashable
     - linear
-    - unordered-containers
 
 library:
   verbatim:

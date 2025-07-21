@@ -12,14 +12,9 @@ import Linear (V4(..))
 import DearImGui (ImVec4 (..))
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), C, D, U1 (..))
 import Data.Generics.Labels ()
-import Data.HashMap.Strict (HashMap)
-import Data.Functor.Identity (Identity (..))
-import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
-import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
 import Hickory.ImGUI ()
-import Data.Hashable (Hashable)
 import Data.Proxy (Proxy (..))
 
 class Attr a where
@@ -48,20 +43,6 @@ proveAttrClasses = \case
 
 eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
 eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
-
-data SomeAttribute contents = forall a. Attr a => SomeAttribute    { attr :: Attribute a, contents :: contents a }
-
-class GRecordAttributes (f :: Type -> Type) where
-  gToAttributeList :: Proxy f -> [SomeAttribute (Const String)]
-
-instance GRecordAttributes U1 where
-  gToAttributeList _ = []
-
-instance GRecordAttributes f => GRecordAttributes (M1 D x f) where
-  gToAttributeList _ = gToAttributeList (Proxy :: Proxy f)
-
-instance GRecordAttributes f => GRecordAttributes (M1 C x f) where
-  gToAttributeList _ = gToAttributeList (Proxy :: Proxy f)
 
 class GlslType a where
   glslTypeName :: Proxy a -> String
