@@ -18,7 +18,7 @@ void main() {
 |]
 
 data FieldConstants = FieldConstants
-  { member :: Float
+  {
   } deriving Generic
 
 fieldUniformsDef :: String
