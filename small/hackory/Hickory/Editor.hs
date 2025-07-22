@@ -19,11 +19,6 @@ import Data.Proxy (Proxy (..))
 isTheyEqual :: ImVec4 -> ImVec4 -> Bool
 isTheyEqual = (==)
 
-class GlslType a where
-  glslTypeName :: Proxy a -> String
-
-instance GlslType (V4 Float)  where glslTypeName _ = "vec4"
-
 class GHasGlslUniformDef (f :: Type -> Type) where
   gGlslLines :: Proxy f -> [String]
 
@@ -36,9 +31,8 @@ instance GHasGlslUniformDef f => GHasGlslUniformDef (M1 D x f) where
 instance GHasGlslUniformDef f => GHasGlslUniformDef (M1 C x f) where
   gGlslLines _ = gGlslLines (Proxy :: Proxy f)
 
-instance (Selector s, GlslType a)
+instance (Selector s)
       => GHasGlslUniformDef (M1 S s (K1 i a)) where
   gGlslLines _ =
     let fieldName = selName (undefined :: M1 S s (K1 i a) p)
-        glslType  = glslTypeName (Proxy @a)
-    in [ "  " <> glslType <> " " <> fieldName <> ";" ]
+    in [ "  " <> fieldName <> ";" ]
