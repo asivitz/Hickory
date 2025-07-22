@@ -12,37 +12,12 @@ import Linear (V4(..))
 import DearImGui (ImVec4 (..))
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), C, D, U1 (..))
 import Data.Generics.Labels ()
-import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import Data.Kind (Type)
 import Hickory.ImGUI ()
 import Data.Proxy (Proxy (..))
 
-class Attr a where
-  mkAttr :: Attribute a
-
-  type AttrRef a :: Type
-  type AttrRef a = a
-
-instance Attr (V4 Double) where
-  mkAttr = ColorAttribute
-  type AttrRef (V4 Double) = ImVec4
-
-data Attribute a where
-  ColorAttribute  :: Attribute (V4 Double)
-
-typeOfAttr :: forall a. Attribute a -> TypeRep a
-typeOfAttr = \case
-  ColorAttribute  -> typeRep
-
-data AttrClasses a where
-  AttrClasses :: (Eq a, Eq (AttrRef a)) => AttrClasses a
-
-proveAttrClasses :: Attribute a -> AttrClasses a
-proveAttrClasses = \case
-  ColorAttribute  -> AttrClasses
-
-eqAttr :: Attribute a1 -> Attribute a2 -> Maybe (a1 :~~: a2)
-eqAttr a b = eqTypeRep (typeOfAttr a) (typeOfAttr b)
+isTheyEqual :: ImVec4 -> ImVec4 -> Bool
+isTheyEqual = (==)
 
 class GlslType a where
   glslTypeName :: Proxy a -> String
