@@ -4,7 +4,8 @@ module Small.QQ where
 
 import Data.String.QM (qm)
 import GHC.Generics
-import Hickory.Editor (glslStructDef)
+import Hickory.Editor (gGlslLines)
+import Data.Proxy (Proxy(..))
 
 frag :: String
 frag = [qm|
@@ -21,6 +22,6 @@ data FieldConstants = FieldConstants
   {
   } deriving Generic
 
-fieldUniformsDef :: String
-fieldUniformsDef = glslStructDef @FieldConstants
+fieldUniformsDef :: [String]
+fieldUniformsDef = gGlslLines (Proxy :: Proxy (Rep FieldConstants))
 

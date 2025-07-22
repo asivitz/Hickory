@@ -42,15 +42,3 @@ instance (Selector s, GlslType a)
     let fieldName = selName (undefined :: M1 S s (K1 i a) p)
         glslType  = glslTypeName (Proxy @a)
     in [ "  " <> glslType <> " " <> fieldName <> ";" ]
-
-class (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t where
-  glslUniformLines :: [String]
-  glslUniformLines = gGlslLines (Proxy :: Proxy (Rep t))
-
-  glslStructDef :: String
-  glslStructDef =
-    "struct " <> "Uniforms" <> "\n{\n"
-    <> unlines (glslUniformLines @t)
-    <> "};\n"
-
-instance (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t
