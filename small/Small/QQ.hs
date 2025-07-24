@@ -1,27 +1,11 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module Small.QQ where
 
-import Data.String.QM (qm)
-import GHC.Generics
-import Hickory.Editor (gGlslLines)
-import Data.Proxy (Proxy(..))
+import qualified DearImGui.Raw as Raw
+import GHC.Ptr (nullPtr)
 
 frag :: String
-frag = [qm|
-#version 450
+frag = "#version 450\nlayout(location = 0) out vec4 outColor;\nvoid main() {\noutColor = vec4(1, 1, 1, 1);\n}"
 
-layout(location = 0) out vec4 outColor;
-
-void main() {
-  outColor = vec4(1, 1, 1, 1);
-}
-|]
-
-data FieldConstants = FieldConstants
-  {
-  } deriving Generic
-
-fieldUniformsDef :: [String]
-fieldUniformsDef = gGlslLines (Proxy :: Proxy (Rep FieldConstants))
+myBegin :: IO Bool
+myBegin = Raw.begin nullPtr (Just nullPtr) Nothing
 

@@ -9,7 +9,6 @@ dependencies:
     - text
     - dear-imgui
     - vulkan-utils
-    - Hackory
 
 library:
   verbatim:
