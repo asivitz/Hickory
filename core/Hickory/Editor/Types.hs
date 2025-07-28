@@ -15,12 +15,10 @@
 module Hickory.Editor.Types where
 
 import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..), identity, M33)
-import DearImGui (ImVec4 (..))
-import Data.IORef (IORef)
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
 import Control.Lens (traversed, toListOf, (<&>))
 import Hickory.Math (Scalar)
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
 import Text.Read.Lex (Lexeme(..))
@@ -34,7 +32,6 @@ import Data.Functor.Const (Const(..))
 import Type.Reflection (TypeRep, typeRep, eqTypeRep, type (:~~:) (..))
 import qualified Data.HashMap.Strict as Map
 import Data.Kind (Type)
-import Hickory.ImGUI.Helpers (v3ToTriple, tripleToV3, tupleToV2, v2ToTuple, imVec4ToV4, v4ToImVec4)
 import Data.Hashable (Hashable)
 import Hickory.Vulkan.Types (VulkanResources)
 import Data.Proxy (Proxy (..))
@@ -81,7 +78,7 @@ instance Attr (V2 Scalar) where
   type AttrRef (V2 Scalar) = (Float, Float)
 instance Attr (V4 Scalar) where
   mkAttr = ColorAttribute
-  type AttrRef (V4 Scalar) = ImVec4
+  type AttrRef (V4 Scalar) = (Float, Float, Float, Float)
 instance Attr (M33 Scalar) where
   mkAttr = Mat3Attribute
   type AttrRef (M33 Scalar) = Scalar -- TODO
