@@ -23,12 +23,18 @@ import qualified DearImGui.Vulkan as ImGui.Vulkan
 import Control.Exception (throw)
 import Vulkan.Exception (VulkanException(..))
 import Vulkan.Zero (Zero(..))
-import Hickory.Vulkan.Mesh (withSingleTimeCommands)
 import Control.Monad (void)
 import Data.Traversable (for)
 import Hickory.Vulkan.RenderPass (createFramebuffer)
 import qualified Data.Vector as V
 import Hickory.Vulkan.Types (FrameContext(..), VulkanResources (..), Swapchain (..), DeviceContext (..), ViewableImage (..))
+import Hickory.Vulkan.Renderer.Stats (Stats(..))
+
+import DearImGui (text)
+import Hickory.ImGUI.Helpers (myWithWindow)
+import Control.Lens (ifor_)
+import Text.Printf (printf)
+import Data.Text (pack)
 
 data ImGuiResources = ImGuiResources
   { renderPass   :: RenderPass
@@ -148,3 +154,18 @@ initDearImGui platformInit platformShutdown vulkanResources@VulkanResources {..}
     , dstStageMask  = PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     , dstAccessMask = ACCESS_COLOR_ATTACHMENT_WRITE_BIT
     }
+
+drawStats :: Stats -> IO ()
+drawStats Stats {..} =
+  void $ myWithWindow "Renderer" do
+    text . pack $ printf "Total lit draw commands: %d" numLitDraws
+    text . pack $ printf "Number commands targeted to gbuffer: %d" numGBuffer
+    text . pack $ printf "Number instances targeted to gbuffer: %d" numGBufferInstances
+    text . pack $ printf "Number instances hitting gbuffer: %d" numGBufferPostCullInstances
+    text . pack $ printf "Number commands casting shadows: %d" numCastingShadows
+    ifor_ numInstancesPerCascade \i n ->
+      text . pack $ printf "Number instances hitting cascade %d: %d" i n
+    text . pack $ printf "Number commands direct: %d" numDirect
+    text . pack $ printf "Total overlay draw commands: %d" numOverlayDraws
+    text . pack $ logMessages
+    pure Nothing

@@ -9,6 +9,16 @@ author:              Axis Sivitz
 maintainer:          aosivitz@gmail.com
 copyright:           2017 Axis Sivitz
 
+flags:
+  production:
+    description: Enable production mode
+    manual: true
+    default: false
+  imgui:
+    description: Use ImGUI
+    manual: true
+    default: true
+
 ghc-options:
     - -Wall
     - -Werror=incomplete-patterns
@@ -46,7 +56,6 @@ dependencies:
     - bytestring
     - containers
     - data-default
-    - dear-imgui
     - derive-storable
     - deriving-aeson
     - directory
@@ -79,11 +88,10 @@ dependencies:
     - yaml
     - ktx-codec
 
-flags:
-  production:
-    description: Enable production mode
-    manual: true
-    default: false
+when:
+  - condition: "flag(imgui)"
+    dependencies:
+    - dear-imgui
 
 when:
     - condition: os(osx)
@@ -165,8 +173,6 @@ library:
     - Hickory.Vulkan.Renderer.Screenshot
     - Hickory.Vulkan.Renderer.Blur
     - Hickory.Vulkan.Types
-    - Hickory.ImGUI.Helpers
-    - Hickory.ImGUI.ImGUI
     - Hickory.Editor
     - Hickory.Editor.GUI
     - Hickory.Editor.General
@@ -177,6 +183,12 @@ library:
     - Hickory.Camera.Omniscient
     - Hickory.Camera.FirstPerson
     - Hickory.UI
+
+  when:
+    - condition: "flag(imgui)"
+      exposed-modules:
+      - Hickory.ImGUI.Helpers
+      - Hickory.ImGUI.ImGUI
 
 tests:
     hickory-test:
