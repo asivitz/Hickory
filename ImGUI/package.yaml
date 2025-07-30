@@ -3,7 +3,6 @@ version:             0.1.0.0
 synopsis:            Tools for building 3D programs in Haskell
 homepage:            https://github.com/asivitz/Hickory
 license:             MIT
-license-file:        LICENSE
 author:              Axis Sivitz
 maintainer:          aosivitz@gmail.com
 copyright:           2017 Axis Sivitz

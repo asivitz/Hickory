@@ -12,7 +12,6 @@ author:         Axis Sivitz
 maintainer:     aosivitz@gmail.com
 copyright:      2017 Axis Sivitz
 license:        MIT
-license-file:   LICENSE
 build-type:     Simple
 
 library
