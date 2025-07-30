@@ -234,7 +234,7 @@ main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
 
   resStore <- loadResources "Example/Shooter/assets/" vulkanResources
 
-  sdlHandles <- liftIO (HSDL.sdlFrameBuilder False)
+  sdlHandles <- liftIO (HSDL.sdlFrameBuilder)
   res <- liftIO $ getResourcesStoreResources resStore
 
   gameState <- liftIO $ newIORef newGame

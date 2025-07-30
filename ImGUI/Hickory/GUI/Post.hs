@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLabels, OverloadedRecordDot #-}
 
-module Hickory.Editor.Post where
+module Hickory.GUI.Post where
 
 import DearImGui
     ( withMenuBarOpen,
@@ -26,52 +26,7 @@ import Hickory.Vulkan.Framing (resourceForFrame)
 import Data.Bits
 import Data.StateVar (makeStateVar, StateVar)
 import Hickory.ImGUI.Helpers (v3ImVec3Iso)
-
-data GraphicsParams = GraphicsParams
-  { exposure        :: Scalar
-  , colorShift      :: V3 Scalar
-  , saturation      :: Scalar
-  , filmGrain       :: Scalar
-  , ambientLight    :: V3 Scalar
-  , ambientStrength :: Scalar
-  , envMapStrength  :: Scalar
-  , irradianceStrength :: Scalar
-  , sunLight        :: V3 Scalar
-  , sunStrength     :: Scalar
-  , sunDirection    :: V3 Scalar
-  , ssaoKernelSize  :: Int
-  , ssaoKernelRadius :: Scalar
-  , shadowBiasSlope :: Scalar
-  , features        :: Features
-  , falseColor      :: Bool
-  , applyLut        :: Bool
-  } deriving (Show, Read, Generic)
-
-defaultGraphicsParams :: GraphicsParams
-defaultGraphicsParams = GraphicsParams
-    { exposure        = 0
-    , colorShift      = V3 1 1 1
-    , saturation      = 1
-    , filmGrain       = 0
-    , ambientLight    = V3 1 1 1
-    , ambientStrength = 1
-    , envMapStrength  = 1
-    , irradianceStrength  = 1
-    , sunLight        = V3 1 1 1
-    , sunStrength     = 1
-    , sunDirection    = V3 (-1) (-1) (-6)
-    , ssaoKernelSize  = 16
-    , ssaoKernelRadius = 0.5
-    , shadowBiasSlope = 0
-    , features = Features
-      { diffuse  = True
-      , specular = True
-      , ssao     = True
-      , shadows  = True
-      }
-    , falseColor = False
-    , applyLut   = True
-    }
+import Hickory.Editor.Types (GraphicsParams(..))
 
 drawPostUI :: IORef GraphicsParams -> (Renderer, FrameContext) -> IO ()
 drawPostUI graphicsParamsRef (Renderer {..}, FrameContext {..}) = do

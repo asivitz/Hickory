@@ -4,6 +4,7 @@ packages:
   ./core
   ./GLFW
   ./SDL
+  ./ImGUI
   ./iOS
   ./FRP
   ./Example/Shooter

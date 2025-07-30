@@ -32,7 +32,6 @@ dependencies:
   - vulkan
   - lens
   - acquire
-  - dear-imgui
   - text
   - bitwise-enum
 

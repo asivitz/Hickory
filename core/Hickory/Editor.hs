@@ -1,10 +1,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Hickory.Editor
-  ( editorScene
-  , editorLayer
-  , drawPostUI
-  , GraphicsParams(..)
+  ( GraphicsParams(..)
   , Object(..)
   , drawObjects
   , defaultGraphicsParams
@@ -27,7 +24,5 @@ module Hickory.Editor
   , Attr
   ) where
 
-import Hickory.Editor.Network
-import Hickory.Editor.Post
 import Hickory.Editor.Types
 import Hickory.Editor.View

@@ -4,41 +4,52 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           Hickory-SDL
+name:           Hickory-ImGUI
 version:        0.1.0.0
+synopsis:       Tools for building 3D programs in Haskell
 homepage:       https://github.com/asivitz/Hickory
 author:         Axis Sivitz
 maintainer:     aosivitz@gmail.com
-copyright:      2024 Axis Sivitz
+copyright:      2017 Axis Sivitz
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 
 library
   exposed-modules:
-      Platforms.SDL
+      Hickory.ImGUI.Helpers
+      Hickory.ImGUI.ImGUI
+      Hickory.GUI.GUI
+      Hickory.GUI.Post
   other-modules:
-      Paths_Hickory_SDL
+      Paths_Hickory_ImGUI
   default-extensions:
       NamedFieldPuns
-      TemplateHaskell
       Rank2Types
       BangPatterns
       OverloadedStrings
+      ScopedTypeVariables
+      LambdaCase
+      TupleSections
+      ViewPatterns
       BlockArguments
-  ghc-options: -Wall -Wunused-packages -Werror=unused-packages
+      RecordWildCards
+      GHC2021
+  ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
   build-depends:
       Hickory
+    , StateVar
     , acquire
     , base
-    , bitwise-enum
-    , bytestring
+    , dear-imgui
+    , extra
     , lens
     , linear
-    , sdl2
+    , safe
     , text
-    , time
     , unordered-containers
     , vector
     , vulkan
+  if os(osx)
+    cc-options: -F/System/Library/Frameworks
   default-language: GHC2021

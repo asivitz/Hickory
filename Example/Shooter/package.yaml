@@ -18,7 +18,6 @@ dependencies:
     - random
     - raw-strings-qq
     - unordered-containers
-    - reactive-banana
     - text
     - groom
     - hashable

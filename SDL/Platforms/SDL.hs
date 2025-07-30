@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE CPP #-}
 
 module Platforms.SDL where
 
@@ -24,7 +25,7 @@ import qualified SDL.Internal.Types as SDL
 import qualified SDL.Raw as SDLRaw
 import qualified Data.Vector as V
 import Data.Foldable (traverse_, for_)
-import SDL (WindowConfig(..), ControllerButtonEventData(..), pollEvents)
+import SDL (WindowConfig(..), ControllerButtonEventData(..))
 import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
 import Vulkan (Instance, SurfaceKHR(..), instanceHandle)
@@ -36,16 +37,14 @@ import Hickory.Vulkan.Utils (initVulkan, buildFrameFunction)
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Data.ByteString as B
 import Vulkan.Extensions (destroySurfaceKHR)
-import Hickory.ImGUI.ImGUI (renderDearImGui, initDearImGui)
-import DearImGui.SDL.Vulkan (sdl2InitForVulkan)
-import DearImGui.SDL (sdl2Shutdown, sdl2NewFrame, pollEventsWithImGui)
 import Control.Monad (void)
 import Data.Functor ((<&>))
 import Foreign.C (CUShort, CUInt)
 import qualified Data.Enum.Set as E
 import SDL.Input.Keyboard.Codes
 import Data.Text.Foreign (withCString)
-import DearImGui (wantCaptureMouse, wantCaptureKeyboard)
+import SDL (pollEvents)
+
 
 --TODO: RawInput Int should instead use a generic engine key type, and then
     --a method of converting GLFW.Key to it
@@ -72,8 +71,11 @@ getCurrentGamePadIds = undefined
 touchPosToScreenPos :: (Double, Double) -> V2 Scalar
 touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
 
-sdlFrameBuilder :: Bool -> IO SDLHandles
-sdlFrameBuilder useImgui = do
+sdlFrameBuilder :: IO SDLHandles
+sdlFrameBuilder = sdlFrameBuilder' pollEvents (pure False) (pure False)
+
+sdlFrameBuilder' :: IO [SDL.Event] -> IO Bool -> IO Bool -> IO SDLHandles
+sdlFrameBuilder' eventPoller wantCaptureMouse wantCaptureKeyboard = do
   cds <- SDL.availableControllers
   gcs <- for cds SDL.openController
   gcids <- for gcs \(SDL.GameController ptr) -> do
@@ -99,9 +101,9 @@ sdlFrameBuilder useImgui = do
 
   inputPoller <- pure do
     time <- getCurrentTime
-    events <- if useImgui then pollEventsWithImGui else pollEvents
-    captureMouse <- if useImgui then wantCaptureMouse else pure False
-    captureKeyboard <- if useImgui then wantCaptureKeyboard else pure False
+    events <- eventPoller
+    captureMouse <- wantCaptureMouse
+    captureKeyboard <- wantCaptureKeyboard
     inputEvs <- catMaybes <$> for events \(SDL.Event _ payload) -> case payload of
           SDL.ControllerButtonEvent SDL.ControllerButtonEventData {..} -> do
             let bs = sdlButtonStateToButtonState controllerButtonEventState
@@ -546,26 +548,6 @@ runFrames win vulkanResources acquireRenderer = do
 
   pure \f -> do
     exeFrame f
-    runCleanup vulkanResources
-
-runFramesWithImGUI
-  :: SDL.Window
-  -> VulkanResources
-  -> (Swapchain -> Acquire renderer) -- ^ Acquire renderer
-  -> Acquire ((renderer -> FrameContext -> IO ()) -> IO ())
-runFramesWithImGUI win vulkanResources acquireRenderer = do
-  let imguiAcquire swap =
-        (,) <$> initDearImGui (void $ sdl2InitForVulkan win) sdl2Shutdown vulkanResources swap
-            <*> acquireRenderer swap
-      imguiRender f (imguiRes, userRes) frameContext = do
-        renderDearImGui imguiRes frameContext sdl2NewFrame do
-          f userRes frameContext
-
-  -- TODO: Option to turn off dear-imgui?
-  exeFrame <- buildFrameFunction vulkanResources ((\(V2 x y) -> Size x y) . fmap fromIntegral <$> SDL.vkGetDrawableSize win) imguiAcquire
-
-  pure \f -> do
-    exeFrame (imguiRender f)
     runCleanup vulkanResources
 
 sdlScreenSize :: MonadIO f => SDL.Window -> f (Size Int)

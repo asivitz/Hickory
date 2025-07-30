@@ -1,0 +1,57 @@
+name:                Hickory-ImGUI
+version:             0.1.0.0
+synopsis:            Tools for building 3D programs in Haskell
+homepage:            https://github.com/asivitz/Hickory
+license:             MIT
+license-file:        LICENSE
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2017 Axis Sivitz
+
+ghc-options:
+    - -Wall
+    - -Werror=incomplete-patterns
+    - -Wunused-packages
+    - -Werror=unused-packages
+
+default-extensions:
+    - NamedFieldPuns
+    - Rank2Types
+    - BangPatterns
+    - OverloadedStrings
+    - ScopedTypeVariables
+    - LambdaCase
+    - TupleSections
+    - ViewPatterns
+    - BlockArguments
+    - RecordWildCards
+    - GHC2021
+
+dependencies:
+    - acquire
+    - base
+    - lens
+    - linear
+    - text
+    - vector
+    - vulkan
+    - dear-imgui
+    - Hickory
+    - extra
+    - StateVar
+    - unordered-containers
+    - safe
+
+when:
+    - condition: os(osx)
+      cc-options:         -F/System/Library/Frameworks
+
+library:
+  verbatim:
+    default-language: GHC2021
+
+  exposed-modules:
+    - Hickory.ImGUI.Helpers
+    - Hickory.ImGUI.ImGUI
+    - Hickory.GUI.GUI
+    - Hickory.GUI.Post

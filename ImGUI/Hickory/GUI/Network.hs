@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 
-module Hickory.Editor.Network where
+module Hickory.GUI.Network where
 
 import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar)
 import Hickory.Types (Size (..), aspectRatio)

@@ -14,10 +14,6 @@ flags:
     description: Enable production mode
     manual: true
     default: false
-  imgui:
-    description: Use ImGUI
-    manual: true
-    default: true
 
 ghc-options:
     - -Wall
@@ -45,7 +41,6 @@ dependencies:
     - JuicyPixels
     - JuicyPixels-extra
     - MonadRandom
-    - StateVar
     - VulkanMemoryAllocator
     - acquire
     - aeson
@@ -87,11 +82,6 @@ dependencies:
     - wide-word
     - yaml
     - ktx-codec
-
-when:
-  - condition: "flag(imgui)"
-    dependencies:
-    - dear-imgui
 
 when:
     - condition: os(osx)
@@ -174,21 +164,12 @@ library:
     - Hickory.Vulkan.Renderer.Blur
     - Hickory.Vulkan.Types
     - Hickory.Editor
-    - Hickory.Editor.GUI
     - Hickory.Editor.General
-    - Hickory.Editor.Network
-    - Hickory.Editor.Post
     - Hickory.Editor.Types
     - Hickory.Editor.View
     - Hickory.Camera.Omniscient
     - Hickory.Camera.FirstPerson
     - Hickory.UI
-
-  when:
-    - condition: "flag(imgui)"
-      exposed-modules:
-      - Hickory.ImGUI.Helpers
-      - Hickory.ImGUI.ImGUI
 
 tests:
     hickory-test:

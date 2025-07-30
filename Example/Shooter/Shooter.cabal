@@ -49,7 +49,6 @@ executable shooter
     , mtl
     , random
     , raw-strings-qq
-    , reactive-banana
     , text
     , time
     , unordered-containers

@@ -4,7 +4,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 
-module Hickory.Editor.GUI where
+module Hickory.GUI.GUI where
 
 import qualified Data.HashMap.Strict as Map
 import DearImGui (withMenuBarOpen, withMenuOpen, menuItem, collapsingHeader, dragFloat3, colorEdit4, treePop, withDragDropTarget, withDragDropSource, isItemClicked, pattern ImGuiTreeNodeFlags_Selected, treeNodeWith, inputText, checkbox, dragFloat, withComboOpen, selectable, button, dragInt, dragFloat2, pattern ImGuiTreeNodeFlags_Leaf, ImGuiMouseButton (..))
