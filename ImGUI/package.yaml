@@ -54,3 +54,4 @@ library:
     - Hickory.ImGUI.ImGUI
     - Hickory.GUI.GUI
     - Hickory.GUI.Post
+    - Hickory.GUI.Network

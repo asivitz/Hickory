@@ -20,6 +20,7 @@ library
       Hickory.ImGUI.ImGUI
       Hickory.GUI.GUI
       Hickory.GUI.Post
+      Hickory.GUI.Network
   other-modules:
       Paths_Hickory_ImGUI
   default-extensions:
