@@ -40,6 +40,8 @@ dependencies:
     - StateVar
     - unordered-containers
     - safe
+    - bitwise-enum
+    - mtl
 
 when:
     - condition: os(osx)

@@ -41,10 +41,12 @@ library
     , StateVar
     , acquire
     , base
+    , bitwise-enum
     , dear-imgui
     , extra
     , lens
     , linear
+    , mtl
     , safe
     , text
     , unordered-containers

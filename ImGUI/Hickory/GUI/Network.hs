@@ -17,7 +17,7 @@ import Hickory.Vulkan.Renderer.Renderer (renderToRenderer, pickObjectID)
 import Control.Lens (traversed, (^.), (&), (%~), (<&>), sumOf)
 import Data.HashMap.Strict (HashMap)
 import Hickory.Editor.Types
-import Hickory.Editor.GUI (drawObjectEditorUI, drawMainEditorUI)
+import Hickory.GUI.GUI (drawObjectEditorUI, drawMainEditorUI)
 import Hickory.Editor.View (editorWorldView, editorOverlayView)
 import Hickory.Vulkan.Renderer.Types (Renderer(..), CommandMonad, RenderSettings (..), OverlayGlobals (..), WorldSettings (..), worldSettingsDefaults, Scene, DrawCommand, Command, SSAOSettings (..), PostConstants (..))
 import qualified Data.Vector.Storable as SV
@@ -25,7 +25,7 @@ import qualified Hickory.Vulkan.Types as H
 import qualified Hickory.Vulkan.Mesh as H
 import Hickory.Resources (ResourcesStore (..), loadResource', ResourcesMonad, runResources, getResourcesStoreResources, Resources)
 import Safe (maximumMay, headMay)
-import Hickory.Editor.Post (GraphicsParams (..))
+import Hickory.Editor.Types (GraphicsParams (..))
 import Data.Traversable (for)
 import Hickory.Camera.Omniscient (omniscientCamera)
 import Hickory.Graphics (MatrixMonad)
