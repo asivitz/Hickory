@@ -39,6 +39,7 @@ library
   ghc-options: -Wall -Werror=incomplete-patterns -Wunused-packages -Werror=unused-packages
   build-depends:
       Hickory
+    , Hickory-SDL
     , StateVar
     , acquire
     , base
@@ -49,6 +50,7 @@ library
     , linear
     , mtl
     , safe
+    , sdl2
     , text
     , unordered-containers
     , vector

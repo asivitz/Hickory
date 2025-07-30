@@ -5,6 +5,17 @@ import Hickory.ImGUI.ImGUI (renderDearImGui, initDearImGui)
 import DearImGui.SDL.Vulkan (sdl2InitForVulkan)
 import DearImGui.SDL (sdl2Shutdown, sdl2NewFrame, pollEventsWithImGui)
 
+import Hickory.Types
+import Linear (V2(..))
+import qualified SDL
+import Acquire (Acquire)
+import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
+import qualified SDL.Video.Vulkan as SDL
+import Hickory.Vulkan.Utils (buildFrameFunction)
+import Control.Monad (void)
+import Platforms.SDL (SDLHandles, sdlFrameBuilder')
+
+
 sdlFrameBuilder :: IO SDLHandles
 sdlFrameBuilder = sdlFrameBuilder' pollEventsWithImGui ImGui.wantCaptureMouse ImGui.wantCaptureKeyboard
 
