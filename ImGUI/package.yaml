@@ -54,6 +54,7 @@ library:
   exposed-modules:
     - Hickory.ImGUI.Helpers
     - Hickory.ImGUI.ImGUI
+    - Hickory.ImGUI.SDL
     - Hickory.GUI.GUI
     - Hickory.GUI.Post
     - Hickory.GUI.Network
