@@ -4,6 +4,7 @@ packages:
   ./core
   ./GLFW
   ./SDL
+  ./SDL3
   ./ImGUI
   ./iOS
   ./FRP
@@ -11,7 +12,7 @@ packages:
   ./Example/Showcase
 
 package dear-imgui
-  flags: -opengl3 +vulkan +sdl +glfw
+  flags: -opengl3 +vulkan +sdl +sdl3 +glfw
 
 constraints:
   wavefront ==0.7.1.4,
@@ -25,7 +26,7 @@ constraints:
 source-repository-package
   type: git
   location: https://github.com/asivitz/dear-imgui.hs.git
-  tag: 3e4a6eae8480de872a9051f9b224f393a32b311b
+  tag: 579d836f1cb1e62223624f298849f0101b21c7c3
 
 source-repository-package
   type: git
@@ -41,6 +42,11 @@ source-repository-package
   type: git
   location: https://github.com/asivitz/sdl2.git
   tag: 0c78116f98343199664671ee18eef4bd86557003
+
+source-repository-package
+  type: git
+  location: https://github.com/asivitz/sdl3-hs.git
+  tag: abf8244c7846502eeab571e26c4f8cac75d7ffda
 
 extra-lib-dirs:
   /usr/local/lib

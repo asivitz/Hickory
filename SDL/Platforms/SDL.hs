@@ -478,10 +478,10 @@ sdlKeyToKey SDL.Keysym {..} = case keysymScancode of
 sdlButtonToGamePadButton :: SDL.ControllerButton -> E.EnumSet GamePadButton
 sdlButtonToGamePadButton = \case
   SDL.ControllerButtonInvalid -> E.empty
-  SDL.ControllerButtonA -> E.fromFoldable [A, Cross]
-  SDL.ControllerButtonB -> E.fromFoldable [B, Circle]
-  SDL.ControllerButtonX -> E.fromFoldable [X, Square]
-  SDL.ControllerButtonY -> E.fromFoldable [Y, Triangle]
+  SDL.ControllerButtonA -> E.singleton South
+  SDL.ControllerButtonB -> E.singleton East
+  SDL.ControllerButtonX -> E.singleton West
+  SDL.ControllerButtonY -> E.singleton North
   SDL.ControllerButtonBack -> E.singleton Back
   SDL.ControllerButtonGuide -> E.singleton Guide
   SDL.ControllerButtonStart -> E.singleton Start

@@ -4,7 +4,6 @@
 module Hickory.Vulkan.Frame where
 
 import Control.Lens (view, (<&>))
-import Control.Monad
 import Vulkan
   ( AttachmentLoadOp (..)
   , AttachmentStoreOp (..)
@@ -99,8 +98,8 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
 
   (res, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
   case res of
-    res' | res' == ERROR_OUT_OF_DATE_KHR || res' == SUBOPTIMAL_KHR -> pure False
-    _ -> do
+    res' | res' == ERROR_OUT_OF_DATE_KHR -> pure False
+    res' -> do
       let image = images V.! fromIntegral imageIndex
       resetFences device [ inFlightFence ]
 
@@ -127,9 +126,9 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
             , signalSemaphores = [renderFinishedSemaphore]
             }
       queueSubmit graphicsQueue [SomeStruct submitInfo] inFlightFence
-      void $ queuePresentKHR presentQueue $ zero
+      presentRes <- queuePresentKHR presentQueue $ zero
         { waitSemaphores = [renderFinishedSemaphore]
         , swapchains     = [swapchainHandle]
         , imageIndices   = [imageIndex]
         }
-      pure True
+      pure . not $ res' == SUBOPTIMAL_KHR || presentRes == SUBOPTIMAL_KHR || presentRes == ERROR_OUT_OF_DATE_KHR

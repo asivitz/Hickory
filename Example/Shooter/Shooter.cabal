@@ -30,7 +30,7 @@ executable shooter
   build-depends:
       GLFW-b
     , Hickory
-    , Hickory-SDL
+    , Hickory-SDL3
     , acquire
     , base
     , bitwise-enum

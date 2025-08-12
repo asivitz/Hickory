@@ -18,6 +18,9 @@ cradle:
     - path: "./SDL/"
       component: "lib:Hickory-SDL"
 
+    - path: "./SDL3/"
+      component: "lib:Hickory-SDL3"
+
     - path: "./core"
       component: "lib:Hickory"
 

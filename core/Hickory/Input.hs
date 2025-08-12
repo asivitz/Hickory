@@ -17,7 +17,6 @@ import qualified Data.Enum.Set as E
 import Data.Word (Word32)
 import Data.Time (NominalDiffTime, getCurrentTime, diffUTCTime)
 import Data.IORef (newIORef, atomicModifyIORef', readIORef, modifyIORef')
-import Data.Foldable (foldl')
 import Data.WideWord.Word128 (Word128)
 import Data.HashMap.Strict (HashMap)
 import GHC.Records (HasField(..))
@@ -56,10 +55,6 @@ data GamePad = GamePad
   , buttons :: E.EnumSet GamePadButton
   } deriving (Show, Generic)
 
-instance HasField "a" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member A buttons
-instance HasField "b" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member B buttons
-instance HasField "x" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member X buttons
-instance HasField "y" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member Y buttons
 instance HasField "leftBumper" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member LeftBumper buttons
 instance HasField "rightBumper" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member RightBumper buttons
 instance HasField "back" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member Back buttons
@@ -71,10 +66,10 @@ instance HasField "dpadUp" GamePad ButtonState where getField GamePad {..} = boo
 instance HasField "dpadRight" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member DPadRight buttons
 instance HasField "dpadDown" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member DPadDown buttons
 instance HasField "dpadLeft" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member DPadLeft buttons
-instance HasField "cross" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member Cross buttons
-instance HasField "circle" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member Circle buttons
-instance HasField "square" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member Square buttons
-instance HasField "triangle" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member Triangle buttons
+instance HasField "south" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member South buttons
+instance HasField "east" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member East buttons
+instance HasField "west" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member West buttons
+instance HasField "north" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member North buttons
 instance HasField "leftStickUp" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member LeftStickUp buttons
 instance HasField "leftStickDown" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member LeftStickDown buttons
 instance HasField "leftStickRight" GamePad ButtonState where getField GamePad {..} = bool Released Pressed $ E.member LeftStickRight buttons
@@ -94,11 +89,7 @@ emptyGamePad = GamePad {..}
   buttons = E.empty
 
 data GamePadButton
-  = A
-  | B
-  | X
-  | Y
-  | LeftBumper
+  = LeftBumper
   | RightBumper
   | Back
   | Start
@@ -109,10 +100,10 @@ data GamePadButton
   | DPadRight
   | DPadDown
   | DPadLeft
-  | Cross
-  | Circle
-  | Square
-  | Triangle
+  | South
+  | East
+  | West
+  | North
   | LeftStickUp
   | LeftStickRight
   | LeftStickDown

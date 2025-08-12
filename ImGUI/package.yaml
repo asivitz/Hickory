@@ -42,8 +42,8 @@ dependencies:
     - safe
     - bitwise-enum
     - mtl
-    - sdl2
-    - Hickory-SDL
+    - sdl3
+    - Hickory-SDL3
 
 when:
     - condition: os(osx)

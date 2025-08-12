@@ -31,6 +31,7 @@ import qualified Hickory.Vulkan.Renderer.Renderer as H
 import Vulkan
   ( pattern FILTER_LINEAR
   , SamplerAddressMode(..), ImageLayout (..), PipelineStageFlagBits (..), AccessFlagBits (..), ImageAspectFlagBits (..)
+  , Extent2D(..)
   )
 
 import Hickory.Vulkan.Vulkan
@@ -47,7 +48,7 @@ import qualified Data.Map.Strict as HashMap
 import Hickory.GameLoop (gameLoop, Scene (..))
 import Data.IORef (newIORef, atomicModifyIORef')
 import Hickory.Vulkan.Types (TextureLoadOptions(..))
-import qualified Platforms.SDL as HSDL
+import qualified Platforms.SDL3 as HSDL
 import Hickory.Vulkan.Textures (imageBarrier)
 
 -- ** GAMEPLAY **
@@ -137,8 +138,8 @@ loadResources path vulkanResources = do
   pure resourcesStore
 
 -- Our render function
-renderGame :: (MonadIO m) => Resources -> Model -> Size Int -> (H.Renderer, H.FrameContext) -> m ()
-renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, frameContext)
+renderGame :: (MonadIO m) => Resources -> Scalar -> Model -> (H.Renderer, H.FrameContext) -> m ()
+renderGame res displayScale Model { playerPos, missiles } (renderer, frameContext)
   = do
     void $ H.renderToRenderer frameContext renderer renderSettings litF overlayF
 
@@ -147,11 +148,12 @@ renderGame res Model { playerPos, missiles } scrSize@(Size w _h) (renderer, fram
                                   (ACCESS_COLOR_ATTACHMENT_READ_BIT .|. ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
                                 IMAGE_ASPECT_COLOR_BIT 1 1 frameContext.colorImage.image
   where
+  scrSize@(Size w _h) = extent2DToSize frameContext.extent
   vm = viewTarget (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0)
-  pm = shotMatrix (Ortho (realToFrac w) 1 100 False) (aspectRatio scrSize)
+  pm = shotMatrix (Ortho (realToFrac w / displayScale) 1 100 False) (aspectRatio scrSize)
   renderSettings = H.RenderSettings
     { worldSettings = H.worldSettingsDefaults
-      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho (realToFrac w) 1 100 True) "Main" Nothing
+      { H.camera = Camera (V3 0 0 (-1)) (V3 0 0 1) (V3 0 (-1) 0) (Ortho (realToFrac w / displayScale) 1 100 True) "Main" Nothing
       }
     , overlayGlobals = OverlayGlobals
       { viewMat = vm
@@ -234,7 +236,7 @@ main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
 
   resStore <- loadResources "Example/Shooter/assets/" vulkanResources
 
-  sdlHandles <- liftIO (HSDL.sdlFrameBuilder)
+  sdlHandles <- liftIO (HSDL.sdlFrameBuilder win)
   res <- liftIO $ getResourcesStoreResources resStore
 
   gameState <- liftIO $ newIORef newGame
@@ -242,9 +244,13 @@ main = HSDL.withWindow 750 750 "Demo" \win -> runAcquire do
   let logicF inputFrame = atomicModifyIORef' gameState $ (\a -> (a,a)) . stepF inputFrame
       renderF mdl =
         renderWrapper \sr fc -> do
-          size <- HSDL.sdlScreenSize win
-          renderGame res mdl size (sr, fc)
+          displayScale <- sdlHandles.displayScale
+          renderGame res displayScale mdl (sr, fc)
       sceneStates = []
       sc = Scene {..}
 
   liftIO $ gameLoop physicsTimeStep sdlHandles.inputPoller sdlHandles.shouldQuit sc (pure Nothing)
+
+
+extent2DToSize :: Extent2D -> Size Int
+extent2DToSize (Extent2D w h) = Size (fromIntegral w) (fromIntegral h)

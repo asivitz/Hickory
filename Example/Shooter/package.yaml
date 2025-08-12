@@ -10,7 +10,7 @@ ghc-options:         -threaded -rtsopts -with-rtsopts=-N -Wall
 
 dependencies:
     - Hickory
-    - Hickory-SDL
+    - Hickory-SDL3
     - GLFW-b
     - base
     - bytestring

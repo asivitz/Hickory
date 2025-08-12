@@ -1,0 +1,39 @@
+name:                Hickory-SDL3
+version:             0.1.0.0
+homepage:            https://github.com/asivitz/Hickory
+license:             MIT
+license-file:        LICENSE
+author:              Axis Sivitz
+maintainer:          aosivitz@gmail.com
+copyright:           2024 Axis Sivitz
+
+ghc-options:
+    - -Wall
+    - -Wunused-packages
+    - -Werror=unused-packages
+
+default-extensions:
+  - NamedFieldPuns
+  - TemplateHaskell
+  - Rank2Types
+  - BangPatterns
+  - OverloadedStrings
+  - BlockArguments
+
+dependencies:
+  - base
+  - sdl3
+  - time
+  - unordered-containers
+  - Hickory
+  - linear
+  - vulkan
+  - lens
+  - acquire
+  - bitwise-enum
+
+library:
+  verbatim:
+    default-language: GHC2021
+  exposed-modules:
+    - Platforms.SDL3
