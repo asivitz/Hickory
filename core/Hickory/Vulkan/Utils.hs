@@ -21,6 +21,7 @@ import Control.Monad.IO.Class (liftIO)
 import Hickory.Vulkan.Instance (withStandardInstance, validationLayers)
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Types (DeviceContext(..), VulkanResources (..), Swapchain, FrameContext)
+import Control.Concurrent (threadDelay)
 
 initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire VulkanResources
 initVulkan extensions surfCreate = do
@@ -58,8 +59,12 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes =
   -- When the window is resized, we have to rebuild the swapchain
   -- Any resources that depend on the swapchain need to be rebuilt as well
   let
-    acquireDynamicResources = do
-      (Size w h) <- liftIO queryFbSize
+    acquireDynamicResources =
+      liftIO queryFbSize >>= sub
+    sub (Size 0 _) = do
+      liftIO $ threadDelay 1000 -- 1 ms
+      liftIO queryFbSize >>= sub
+    sub (Size w h) = do
       swapchain <- acquireSwapchain (w,h)
       userResources <- acqUserRes swapchain
       pure (swapchain, userResources)
