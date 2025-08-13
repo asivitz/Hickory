@@ -61,13 +61,13 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes =
   let
     acquireDynamicResources =
       liftIO queryFbSize >>= sub
-    sub (Size 0 _) = do
-      liftIO $ threadDelay 1000 -- 1 ms
-      liftIO queryFbSize >>= sub
-    sub (Size w h) = do
+    sub (Size w h) | w > 0 && h > 0 = do
       swapchain <- acquireSwapchain (w,h)
       userResources <- acqUserRes swapchain
       pure (swapchain, userResources)
+    sub _ = do
+      liftIO $ threadDelay 1000 -- 1 ms
+      liftIO queryFbSize >>= sub
 
   dynamicResources <- liftIO $ unWrapAcquire acquireDynamicResources >>= newIORef
 
