@@ -68,7 +68,7 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes =
           pure (swapchain, userResources)
         Nothing -> do
           liftIO $ threadDelay 1000 -- 1 ms
-          sub (Size w h)
+          acquireDynamicResources
     sub _ = do
       liftIO $ threadDelay 1000 -- 1 ms
       liftIO queryFbSize >>= sub
