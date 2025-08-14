@@ -247,6 +247,16 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
         else Extent2D (clamp (fromIntegral fbWidth) (minImageExtent.width) (maxImageExtent.width))
                       (clamp (fromIntegral fbHeight) (minImageExtent.height) (maxImageExtent.height))
 
+  liftIO do
+    print "FB"
+    print (fbWidth, fbHeight)
+    print "MIN"
+    print capabilities.minImageExtent
+    print "MAX"
+    print capabilities.maxImageExtent
+    print "final"
+    print extent
+
   swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing mkAcquire
   let imageFormat = surfaceFormat
 
