@@ -26,7 +26,7 @@ import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
 import Vulkan (Instance, SurfaceKHR(..), instanceHandle)
 import Hickory.Vulkan.Vulkan (mkAcquire)
-import Foreign (castPtr, Word16, Word32)
+import Foreign (castPtr, Word8, Word16, Word32)
 import Hickory.Vulkan.Utils (initVulkan, buildFrameFunction)
 import Control.Monad.IO.Class (MonadIO(..))
 import Vulkan.Extensions (destroySurfaceKHR)
@@ -53,6 +53,7 @@ data SDLHandles = SDLHandles
   -- Intensity of the high frequency (right) rumble motor
   -- Duration in ms
   , rumbleController :: Int ->  Word16 -> Word16 -> Word32 -> IO ()
+  , setControllerLED :: Int -> Word8 -> Word8 -> Word8 -> IO ()
   }
 
 getCurrentGamePadIds :: IO [Int]
@@ -98,6 +99,9 @@ sdlFrameBuilder' win eventPoller wantCaptureMouse wantCaptureKeyboard = do
   let rumbleController i left right dur = do
         HashMap.lookup (fromIntegral i) <$> readIORef indat.gamepads >>= traverse_ \(gp,_) -> do
           void $ SDL.sdlRumbleGamepad gp left right dur
+      setControllerLED i r g b = do
+        HashMap.lookup (fromIntegral i) <$> readIORef indat.gamepads >>= traverse_ \(gp,_) -> do
+          void $ SDL.sdlSetGamepadLED gp r g b
 
   initialDisplayScale <- SDL.sdlGetWindowDisplayScale win
   displayScaleRef <- newIORef initialDisplayScale
