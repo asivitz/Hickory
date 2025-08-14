@@ -59,19 +59,13 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes =
   -- When the window is resized, we have to rebuild the swapchain
   -- Any resources that depend on the swapchain need to be rebuilt as well
   let
-    acquireDynamicResources =
-      liftIO queryFbSize >>= sub
-    sub (Size w h) | w > 0 && h > 0 = do
+    acquireDynamicResources = do
+      Size w h <- liftIO queryFbSize
       acquireSwapchain (w,h) >>= \case
         Just swapchain -> do
           userResources <- acqUserRes swapchain
-          pure (swapchain, userResources)
-        Nothing -> do
-          liftIO $ threadDelay 1000 -- 1 ms
-          acquireDynamicResources
-    sub _ = do
-      liftIO $ threadDelay 1000 -- 1 ms
-      liftIO queryFbSize >>= sub
+          pure $ Just (swapchain, userResources)
+        Nothing -> pure Nothing
 
   dynamicResources <- liftIO $ unWrapAcquire acquireDynamicResources >>= newIORef
 
@@ -80,12 +74,19 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes =
     runASingleFrame exeFrame = do
       frameNumber <- atomicModifyIORef frameCounter (\a -> (a+1,a+1))
       let frame = resourceForFrame (fromIntegral frameNumber) frames -- usually we index by swapchainImageIndex, but we don't have it yet
-      ((swapchain, userResources), releaseRes) <- liftIO $ readIORef dynamicResources
-      drawRes <- drawFrame frameNumber frame vulkanResources swapchain (exeFrame userResources)
-      unless drawRes do
-        waitForIdleDevice
-        releaseRes
-        unWrapAcquire acquireDynamicResources >>= writeIORef dynamicResources
+      (mRes, releaseRes) <- liftIO $ readIORef dynamicResources
+      case mRes of
+        Just (swapchain, userResources) -> do
+          drawRes <- drawFrame frameNumber frame vulkanResources swapchain (exeFrame userResources)
+          unless drawRes do
+            waitForIdleDevice
+            releaseRes
+            unWrapAcquire acquireDynamicResources >>= writeIORef dynamicResources
+        Nothing -> do
+          liftIO $ threadDelay 1000 -- 1 ms                                             ..
+          waitForIdleDevice
+          releaseRes
+          unWrapAcquire acquireDynamicResources >>= writeIORef dynamicResources
     cleanup = do
       waitForIdleDevice
       readIORef dynamicResources >>= snd
