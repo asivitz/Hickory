@@ -27,7 +27,7 @@ data VulkanResources = VulkanResources
   , shortLivedCommandPool :: CommandPool -- For, e.g., mem copy commands
   , inst                  :: Instance
   , frames                :: FramedResource Frame
-  , acquireSwapchain      :: (Int,Int) -> Acquire Swapchain
+  , acquireSwapchain      :: (Int,Int) -> Acquire (Maybe Swapchain)
   , cleanupQueue          :: IORef [IO ()]
   }
 

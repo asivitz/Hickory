@@ -212,7 +212,7 @@ withLogicalDevice inst surface = do
 
   pure $ DeviceContext {..}
 
-withSwapchain :: DeviceContext -> SurfaceKHR -> (Int, Int) -> Acquire Swapchain
+withSwapchain :: DeviceContext -> SurfaceKHR -> (Int, Int) -> Acquire (Maybe Swapchain)
 withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
   capabilities <- getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
 
@@ -247,28 +247,21 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
         else Extent2D (clamp (fromIntegral fbWidth) (minImageExtent.width) (maxImageExtent.width))
                       (clamp (fromIntegral fbHeight) (minImageExtent.height) (maxImageExtent.height))
 
-  liftIO do
-    print "FB"
-    print (fbWidth, fbHeight)
-    print "MIN"
-    print capabilities.minImageExtent
-    print "MAX"
-    print capabilities.maxImageExtent
-    print "final"
-    print extent
+  case extent of
+    Extent2D w h | w <= 0 && h <= 0 -> pure Nothing
+    _ -> do
+      swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing mkAcquire
+      let imageFormat = surfaceFormat
 
-  swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing mkAcquire
-  let imageFormat = surfaceFormat
+      (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
+      images <- for rawImages $ \image -> do
+        let form = surfaceFormat.format
+        imageView <- with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image IMAGE_VIEW_TYPE_2D 0 1
+        let (otype, handle) = objectTypeAndHandle imageView in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImageView"))
+        let (otype, handle) = objectTypeAndHandle image in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImage"))
+        pure $ ViewableImage image imageView form
 
-  (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle
-  images <- for rawImages $ \image -> do
-    let form = surfaceFormat.format
-    imageView <- with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image IMAGE_VIEW_TYPE_2D 0 1
-    let (otype, handle) = objectTypeAndHandle imageView in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImageView"))
-    let (otype, handle) = objectTypeAndHandle image in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImage"))
-    pure $ ViewableImage image imageView form
-
-  pure $ Swapchain {..}
+      pure . Just $ Swapchain {..}
 
 withDepthImage :: VulkanResources -> Extent2D -> Format -> SampleCountFlagBits -> ImageUsageFlagBits -> Word32 -> Acquire Image
 withDepthImage VulkanResources { allocator } (Extent2D width height) format samples usage layers = do
