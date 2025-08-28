@@ -10,7 +10,7 @@ import Vulkan
   , Instance
   , InstanceCreateInfo (..)
   , withInstance
-  , pattern API_VERSION_1_2, InstanceCreateFlagBits (..), enumerateInstanceExtensionProperties, layerName, extensionName, enumerateInstanceLayerProperties, ValidationFeaturesEXT (..), ValidationFeatureEnableEXT (..)
+  , pattern API_VERSION_1_3, InstanceCreateFlagBits (..), enumerateInstanceExtensionProperties, layerName, extensionName, enumerateInstanceLayerProperties, ValidationFeaturesEXT (..), ValidationFeatureEnableEXT (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -48,7 +48,7 @@ withStandardInstance (DL.nub -> desiredExtensions) (DL.nub -> desiredLayers) = d
   let
     instanceCreateInfo :: InstanceCreateInfo '[ValidationFeaturesEXT]
     instanceCreateInfo = zero
-      { applicationInfo = Just zero { applicationName = Just "Vulkan Demo", apiVersion = API_VERSION_1_2 }
+      { applicationInfo = Just zero { applicationName = Just "Vulkan Demo", apiVersion = API_VERSION_1_3 }
       , enabledLayerNames     = V.fromList layersToEnable
       , enabledExtensionNames = V.fromList extensionsToEnable
       , flags = INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR

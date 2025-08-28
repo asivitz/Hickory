@@ -1,4 +1,4 @@
-import: https://www.stackage.org/nightly-2025-07-28/cabal.config
+import: https://www.stackage.org/nightly-2025-07-23/cabal.config
 
 packages:
   ./core
