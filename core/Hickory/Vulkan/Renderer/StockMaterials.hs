@@ -12,7 +12,7 @@ import Hickory.Vulkan.Types (DescriptorSpec (..), PointedDescriptorSet, buf, Mat
 import qualified Hickory.Vulkan.Types as HVT
 import Hickory.Vulkan.Text (MSDFMatConstants (..), msdfVertShader, msdfFragShader)
 import Hickory.Vulkan.Renderer.GBuffer (staticGBufferVertShader, staticGBufferFragShader, animatedGBufferVertShader, animatedGBufferFragShader, staticGBufferShadowVertShader, animatedGBufferShadowVertShader)
-import Hickory.Vulkan.Renderer.ShadowPass (whiteFragShader)
+import Hickory.Vulkan.Renderer.ShadowPass (noColorFragShader)
 import Vulkan (BufferUsageFlagBits (..), DescriptorSetLayout, CullModeFlagBits (..), PrimitiveTopology (..))
 import Foreign (Storable, sizeOf)
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet, withDataBuffer)
@@ -76,9 +76,9 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
         , materialSet
         ]
 
-  gbufferMaterial <- withMaterial vulkanResources gbufferRenderConfig attributes pipelineOptions pipelineOptions.cullMode gbufferVertShader gbufferFragShader materialSets perDrawLayout
-  shadowMaterial  <- withMaterial vulkanResources shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } pipelineOptions.shadowCullMode shadowVertShader shadowFragShader materialSets Nothing
-  showSelectionMaterial <- withMaterial vulkanResources currentSelectionRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} pipelineOptions.cullMode gbufferVertShader OP.objectIDFragShader materialSets Nothing
+  gbufferMaterial <- withMaterial vulkanResources "Gbuffer" gbufferRenderConfig attributes pipelineOptions pipelineOptions.cullMode gbufferVertShader gbufferFragShader materialSets perDrawLayout
+  shadowMaterial  <- withMaterial vulkanResources "Shadow" shadowRenderConfig attributes pipelineOptions { depthClampEnable = True } pipelineOptions.shadowCullMode shadowVertShader shadowFragShader materialSets Nothing
+  showSelectionMaterial <- withMaterial vulkanResources "ShowSelection" currentSelectionRenderConfig attributes pipelineOptions { colorBlends = [noBlend]} pipelineOptions.cullMode gbufferVertShader OP.objectIDFragShader materialSets Nothing
 
   debugName vulkanResources gbufferMaterial.pipeline "GBuffer"
   debugName vulkanResources gbufferMaterial.pipelineLayout "GBuffer"
@@ -92,14 +92,14 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
 
 withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
 withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
-  withGBufferMaterialStack vulkanResources renderTargets globalPDS Nothing standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader whiteFragShader
+  withGBufferMaterialStack vulkanResources renderTargets globalPDS Nothing standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader noColorFragShader
 
 withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Scalar)))
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = do
   skinBuffer :: FramedResource (DataBuffer (M44 Scalar))
     <- frameResource $ withDataBuffer vulkanResources (66 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
   let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.buf]
-  config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader whiteFragShader
+  config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader noColorFragShader
   pure (config, skinBuffer)
 
 withDecalMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig DecalConstants)
@@ -140,8 +140,8 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
         , materialSet
         ]
 
-  directMaterial  <- withMaterial vulkanResources directRenderConfig  attributes pipelineOptions pipelineOptions.cullMode directVertShader fragShader materialSets perDrawLayout
-  overlayMaterial <- withMaterial vulkanResources overlayRenderConfig attributes pipelineOptions pipelineOptions.cullMode overlayVertShader fragShader materialSets perDrawLayout
+  directMaterial  <- withMaterial vulkanResources "Direct" directRenderConfig  attributes pipelineOptions pipelineOptions.cullMode directVertShader fragShader materialSets perDrawLayout
+  overlayMaterial <- withMaterial vulkanResources "Overlay" overlayRenderConfig attributes pipelineOptions pipelineOptions.cullMode overlayVertShader fragShader materialSets perDrawLayout
   pure DirectMaterial {..}
 
 withStaticDirectMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig StaticConstants)
@@ -211,6 +211,6 @@ withDecalMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet ex
         , materialSet
         ]
 
-  material <- withMaterial vulkanResources decalRenderConfig attributes pipelineOptions pipelineOptions.cullMode decalVertShader fragShader materialSets perDrawLayout
+  material <- withMaterial vulkanResources "Decal" decalRenderConfig attributes pipelineOptions pipelineOptions.cullMode decalVertShader fragShader materialSets perDrawLayout
   pure DecalMaterial {..}
 

@@ -56,6 +56,7 @@ withBufferedUniformMaterial
   :: forall pushConst uniform
   .  (Storable uniform, Storable pushConst)
   => VulkanResources
+  -> String
   -> RenderConfig
   -> [Attribute]
   -> PipelineOptions
@@ -64,12 +65,12 @@ withBufferedUniformMaterial
   -> FramedResource PointedDescriptorSet -- Global descriptor set
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial pushConst uniform)
-withBufferedUniformMaterial vulkanResources renderConfig attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
+withBufferedUniformMaterial vulkanResources name renderConfig attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
   descriptor <- frameResource $ withBufferDescriptorSet vulkanResources 2048
   let
     materialSet = view #descriptorSet <$> descriptor
     uniformSize = sizeOf (undefined :: uniform)
-  material <- withMaterial vulkanResources renderConfig attributes pipelineOptions pipelineOptions.cullMode vert frag
+  material <- withMaterial vulkanResources name renderConfig attributes pipelineOptions pipelineOptions.cullMode vert frag
     [ globalDescriptorSet
     , materialSet
     ]

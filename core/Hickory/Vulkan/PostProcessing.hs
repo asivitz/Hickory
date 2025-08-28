@@ -25,7 +25,7 @@ withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materia
   postPDS <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
-  withMaterial vulkanResources renderConfig
+  withMaterial vulkanResources "PostProcessing" renderConfig
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just postPDS)
   where
   VulkanResources {..} = vulkanResources

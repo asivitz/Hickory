@@ -46,7 +46,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/asivitz/sdl3-hs.git
-  tag: abf8244c7846502eeab571e26c4f8cac75d7ffda
+  tag: 524e37ad6bcaa7ec8ac5b7ae7a22c5ce52c79454
 
 extra-lib-dirs:
   /usr/local/lib

@@ -122,7 +122,7 @@ withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet ma
       { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"], ImageDescriptor [error "Dummy image"]]
       } Nothing mkAcquire
 
-  withMaterial vulkanResources renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just sunPDS)
+  withMaterial vulkanResources "Lights" renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just sunPDS)
   where
   VulkanResources {..} = vulkanResources
   DeviceContext {..} = deviceContext

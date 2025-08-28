@@ -153,7 +153,7 @@ void main() {
 |])
 
 withPointMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> Acquire (BufferedUniformMaterial Word32 StaticConstants)
-withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
+withPointMaterial vulkanResources renderConfig globalPDS = withBufferedUniformMaterial vulkanResources "Point" renderConfig [Position] pipelineOptions vertShader simpleFragShader globalPDS Nothing
   where
   pipelineOptions = (pipelineDefaults [defaultBlend]) { primitiveTopology = PRIMITIVE_TOPOLOGY_POINT_LIST, depthTestEnable = False }
   vertShader :: ByteString

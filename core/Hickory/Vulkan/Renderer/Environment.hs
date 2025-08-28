@@ -157,7 +157,7 @@ renderEnvironmentMap vulkanResources faceExtent pathToHDR = do
   hdrDescSet <- withDescriptorSet vulkanResources [ImageFileDescriptor (pathToHDR, options)]
 
   renderConfig <- withEnvMapRenderConfig faceExtent
-  material :: Material Mat44 <- withMaterial vulkanResources renderConfig
+  material :: Material Mat44 <- withMaterial vulkanResources "EnvironmentMap" renderConfig
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader cubeMapFragShader [unframedResource hdrDescSet] Nothing
   renderCubeMap vulkanResources faceExtent material [hdrDescSet.descriptorSet]
 
@@ -166,7 +166,7 @@ renderIrradianceMap :: VulkanResources -> Extent2D -> DescriptorSpec -> Acquire 
 renderIrradianceMap vulkanResources faceExtent envMapDescSpec = do
   renderConfig <- withEnvMapRenderConfig faceExtent
   descSet <- withDescriptorSet vulkanResources [envMapDescSpec]
-  material :: Material Mat44 <- withMaterial vulkanResources renderConfig
+  material :: Material Mat44 <- withMaterial vulkanResources "Irradiance" renderConfig
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader irradianceFragShader [unframedResource descSet] Nothing
   renderCubeMap vulkanResources faceExtent material [descSet.descriptorSet]
 

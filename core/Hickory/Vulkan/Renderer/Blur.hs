@@ -164,7 +164,7 @@ void main()
 withBlurMaterial :: VulkanResources -> Format -> Extent2D -> Vector PointedDescriptorSet -> Acquire (Material BlurConstants)
 withBlurMaterial vulkanResources format extent source = do
   renderConfig <- withBlurRenderConfig format extent
-  material <- withMaterial vulkanResources renderConfig
+  material <- withMaterial vulkanResources "Blur" renderConfig
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT blurVertShader blurFragShader [source] Nothing
   pure material
 
@@ -181,6 +181,6 @@ withDepthOfFieldMaterial
   -> Acquire (Material DepthOfFieldConstants)
 withDepthOfFieldMaterial vulkanResources format extent globalSet matSet = do
   renderConfig <- withDepthOfFieldRenderConfig format extent
-  material <- withMaterial vulkanResources renderConfig
+  material <- withMaterial vulkanResources "DepthOfField" renderConfig
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT dofVertShader dofFragShader [globalSet, matSet] Nothing
   pure material

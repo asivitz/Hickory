@@ -56,7 +56,7 @@ data MSDFMatConstants = MSDFMatConstants
     deriving anyclass GStorable
 
 withOverlayMSDFMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> DescriptorSetLayout -> Acquire (BufferedUniformMaterial Word32 MSDFMatConstants)
-withOverlayMSDFMaterial vulkanResources renderConfig globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources renderConfig [Position, TextureCoord] (pipelineDefaults [defaultBlend]) vertShader msdfFragShader globalPds (Just perDrawLayout )
+withOverlayMSDFMaterial vulkanResources renderConfig globalPds perDrawLayout = withBufferedUniformMaterial vulkanResources "OverlayMSDF" renderConfig [Position, TextureCoord] (pipelineDefaults [defaultBlend]) vertShader msdfFragShader globalPds (Just perDrawLayout )
   where
   vertShader :: ByteString
   vertShader = $(compileShaderQ Nothing "vert" Nothing [qm|

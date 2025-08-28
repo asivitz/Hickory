@@ -8,6 +8,7 @@
 module Hickory.Vulkan.Vulkan where
 
 import Control.Monad
+import Vulkan.Utils.Debug (nameObject)
 import Vulkan
   ( ColorSpaceKHR (COLOR_SPACE_SRGB_NONLINEAR_KHR)
   , CompositeAlphaFlagBitsKHR (..)
@@ -66,7 +67,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
+  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -83,6 +84,7 @@ import VulkanMemoryAllocator hiding (getPhysicalDeviceProperties)
 import qualified Vulkan.Dynamic as VD
 import Foreign (castFunPtr)
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
 import Acquire (Acquire (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.List as DL
@@ -189,6 +191,7 @@ withLogicalDevice inst surface = do
     deviceCreateInfo :: DeviceCreateInfo '[ PhysicalDeviceDescriptorIndexingFeatures
                                           , PhysicalDeviceDynamicRenderingFeatures
                                           , PhysicalDevicePortabilitySubsetFeaturesKHR
+                                          , PhysicalDeviceScalarBlockLayoutFeatures
                                           ]
     deviceCreateInfo = zero
       { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
@@ -198,8 +201,9 @@ withLogicalDevice inst surface = do
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
                , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
                , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow
+               , (zero { scalarBlockLayout = True} -- Can use scalar block layout (tight packing) in shaders
                , ()
-               )))
+               ))))
       }
 
   for_ extensionsNotAvailable \e ->
@@ -326,10 +330,10 @@ with2DImageViewMips DeviceContext { device } format flags image mipLevels viewTy
 
 {-- SHADERS --}
 
-createVertShader :: Device -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
+createVertShader :: Device -> String -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
 createVertShader = createShader SHADER_STAGE_VERTEX_BIT
 
-createFragShader :: Device -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
+createFragShader :: Device -> String -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
 createFragShader = createShader SHADER_STAGE_FRAGMENT_BIT
 
 mkAcquire :: IO a -> (a -> IO ()) -> Acquire a
@@ -346,9 +350,10 @@ runAcquire (Acquire acq) = do
 unWrapAcquire :: Acquire a -> IO (a, IO ())
 unWrapAcquire (Acquire acq) = acq
 
-createShader :: ShaderStageFlagBits -> Device -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
-createShader stage dev source = do
+createShader :: ShaderStageFlagBits -> Device -> String -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
+createShader stage dev name source = do
   shaderModule <- withShaderModule dev zero { code = source } Nothing mkAcquire
+  nameObject dev shaderModule (BC.pack name)
 
   pure . SomeStruct $ zero
     { stage = stage

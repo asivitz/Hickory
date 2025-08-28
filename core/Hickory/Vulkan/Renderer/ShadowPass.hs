@@ -142,13 +142,10 @@ void main() {
 |])
 
 -- For the shadowmap, we don't care about pixel color
-whiteFragShader :: ByteString
-whiteFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
+noColorFragShader :: ByteString
+noColorFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 
-layout(location = 0) out vec4 outColor;
-
 void main() {
-  outColor = vec4(1.0,1.0,1.0,1.0);
 }
 |])

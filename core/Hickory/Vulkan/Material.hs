@@ -50,6 +50,7 @@ import GHC.Generics (Generic)
 withMaterial
   :: forall a. Storable a
   => VulkanResources
+  -> String
   -> RenderConfig
   -> [Attribute]
   -> PipelineOptions
@@ -61,6 +62,7 @@ withMaterial
   -> Acquire (Material a)
 withMaterial
   bag@VulkanResources {..}
+  name
   RenderConfig {..}
   (sortOn attrLocation -> attributes)
   pipelineOptions cullMode vertShader fragShader
@@ -82,7 +84,7 @@ withMaterial
 
   pipelineLayout <- withPipelineLayout device pipelineLayoutCreateInfo Nothing mkAcquire
   pipeline <-
-    withGraphicsPipeline bag renderPassInfo 0 samples extent pipelineOptions cullMode vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
+    withGraphicsPipeline bag name renderPassInfo 0 samples extent pipelineOptions cullMode vertShader fragShader pipelineLayout (bindingDescriptions attributes) (attributeDescriptions attributes)
   uuid <- liftIO nextRandom
 
   pure Material {..}
@@ -124,6 +126,7 @@ pipelineDefaults colorBlends = PipelineOptions {..}
 
 withGraphicsPipeline
   :: VulkanResources
+  -> String
   -- Left for traditional renderpass, right for dynamic rendering
   -> Either RenderPass PipelineRenderingCreateInfo
   -> Word32
@@ -138,11 +141,11 @@ withGraphicsPipeline
   -> V.Vector VertexInputAttributeDescription
   -> Acquire Pipeline
 withGraphicsPipeline
-  VulkanResources {..} renderPassInfo subpassIndex samples extent
+  VulkanResources {..} name renderPassInfo subpassIndex samples extent
   pipelineOptions cullMode vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
-  shaderStages   <- V.sequence [ createVertShader device vertShader, createFragShader device fragShader ]
+  shaderStages   <- V.sequence [ createVertShader device name vertShader, createFragShader device name fragShader ]
 
   let
     -- pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
