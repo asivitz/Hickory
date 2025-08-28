@@ -121,18 +121,18 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   currentSelectionRenderConfig  <- withCurrentSelectionRenderConfig vulkanResources swapchain
   currentSelectionRenderFrame <- frameResource $ withCurrentSelectionFrameBuffer vulkanResources currentSelectionRenderConfig
 
-  globalBuffer             <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
-  globalShadowPassBuffer   <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
-  globalWorldBuffer        <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
-  globalOverlayBuffer      <- frameResource $ withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalBuffer             <- frameResource $ withDataBuffer vulkanResources "Global" 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalShadowPassBuffer   <- frameResource $ withDataBuffer vulkanResources "GlobalShadowPass" 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalWorldBuffer        <- frameResource $ withDataBuffer vulkanResources "GlobalWorld" 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  globalOverlayBuffer      <- frameResource $ withDataBuffer vulkanResources "GlobalOverlay" 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   globalDescriptorSet <- for (V.zip5 globalBuffer globalWorldBuffer globalOverlayBuffer globalShadowPassBuffer (pure . snd <$> cascadedShadowMap))
     \(globalBuf, globalWorldBuf, globalOverlayBuf, globalShadowPassBuf, targetDescriptorSpecs) -> do
       withDescriptorSet vulkanResources $
-        [ BufferDescriptor (buf globalBuf)
-        , BufferDescriptor (buf globalWorldBuf)
-        , BufferDescriptor (buf globalOverlayBuf)
-        , BufferDescriptor (buf globalShadowPassBuf)
+        [ BufferDescriptor globalBuf.size globalBuf.buf
+        , BufferDescriptor globalWorldBuf.size globalWorldBuf.buf
+        , BufferDescriptor globalOverlayBuf.size globalOverlayBuf.buf
+        , BufferDescriptor globalShadowPassBuf.size globalShadowPassBuf.buf
         ] ++ targetDescriptorSpecs
 
   for_ globalDescriptorSet \pds ->
@@ -171,7 +171,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
         scale = glerp (scaleFac * scaleFac) 0.1 1
     pure $ v ^* scale
 
-  kernelBuffer :: DataBuffer (VSS.Vector MaxSSAOKernelSizeNat (V3 Scalar)) <- withDataBuffer vulkanResources 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  kernelBuffer :: DataBuffer (VSS.Vector MaxSSAOKernelSizeNat (V3 Scalar)) <- withDataBuffer vulkanResources "Kernel" 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   liftIO $ withMappedMemory kernelBuffer.allocator kernelBuffer.allocation bracket \bufptr -> poke (castPtr bufptr) kernel
 
@@ -184,7 +184,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   imageView <- with2DImageView vulkanResources.deviceContext noiseFormat IMAGE_ASPECT_COLOR_BIT noiseImage IMAGE_VIEW_TYPE_2D 0 1
 
   ssaoMaterialDescriptorSet <- for gbufferFloatDesc $ \gbufFloatDesc -> withDescriptorSet vulkanResources
-    [gbufFloatDesc, BufferDescriptor kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,nearestSampler)]]
+    [gbufFloatDesc, BufferDescriptor kernelBuffer.size kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,nearestSampler)]]
   for_ ssaoMaterialDescriptorSet \pds ->
     debugName vulkanResources pds.descriptorSet "SSAOMatDescSet"
   ssaoMaterial              <- withSSAOMaterial vulkanResources ssaoRenderConfig globalDescriptorSet ssaoMaterialDescriptorSet
@@ -215,7 +215,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
 
-  objectPickingImageBuffer <- withImageBuffer vulkanResources swapchain.extent 0 gbufferUIntDesc
+  objectPickingImageBuffer <- withImageBuffer vulkanResources "ObjectPicking" swapchain.extent 0 gbufferUIntDesc
 
   {- Blur -}
   let blurFormat = swapchain.imageFormat.format

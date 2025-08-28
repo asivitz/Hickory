@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Types where
 
-import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format (..), PhysicalDeviceProperties, Filter (..), SamplerAddressMode (..), SamplerMipmapMode, PipelineRenderingCreateInfo)
+import Vulkan (RenderPass, Framebuffer, Pipeline, PipelineLayout, DescriptorPool, DescriptorSetLayout, DescriptorSet, Buffer, Sampler, Extent2D, SampleCountFlagBits, CommandPool, Instance, CommandBuffer, Fence, Semaphore, PhysicalDevice, Queue, Device, SurfaceFormatKHR, PresentModeKHR, SwapchainKHR, Image, ImageView, Format (..), PhysicalDeviceProperties, Filter (..), SamplerAddressMode (..), SamplerMipmapMode, PipelineRenderingCreateInfo, DeviceSize)
 import qualified Data.Vector as V
 import Data.UUID (UUID)
 import GHC.Generics (Generic)
@@ -153,12 +153,13 @@ data DescriptorSpec
   = ImageDescriptor [(ViewableImage, Sampler)]
   | ImageFileDescriptor (FilePath, TextureLoadOptions)
   | DepthImageDescriptor ViewableImage Sampler
-  | BufferDescriptor Buffer
+  | BufferDescriptor DeviceSize Buffer
 
 data DataBuffer a = DataBuffer
   { buf        :: Buffer
   , allocation :: Allocation
   , allocator  :: Allocator
+  , size       :: DeviceSize
   } deriving Generic
 
 data ImageType = PNG | HDR | KTX2

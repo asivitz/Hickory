@@ -66,7 +66,7 @@ withBufferedUniformMaterial
   -> Maybe DescriptorSetLayout -- Per draw descriptor set
   -> Acquire (BufferedUniformMaterial pushConst uniform)
 withBufferedUniformMaterial vulkanResources name renderConfig attributes pipelineOptions vert frag globalDescriptorSet perDrawDescriptorSetLayout = do
-  descriptor <- frameResource $ withBufferDescriptorSet vulkanResources 2048
+  descriptor <- frameResource $ withBufferDescriptorSet vulkanResources name 2048
   let
     materialSet = view #descriptorSet <$> descriptor
     uniformSize = sizeOf (undefined :: uniform)

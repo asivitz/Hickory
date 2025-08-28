@@ -19,12 +19,12 @@ import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Framing (FramedResource)
 import Data.Traversable (for)
 
-withImageBuffer :: VulkanResources -> Extent2D -> Int -> FramedResource DescriptorSpec -> Acquire (FramedResource ImageBuffer)
-withImageBuffer vulkanResources extent descIdx framedDescriptorSpecs = for framedDescriptorSpecs \descriptorSpec -> do
+withImageBuffer :: VulkanResources -> String -> Extent2D -> Int -> FramedResource DescriptorSpec -> Acquire (FramedResource ImageBuffer)
+withImageBuffer vulkanResources name extent descIdx framedDescriptorSpecs = for framedDescriptorSpecs \descriptorSpec -> do
   let viewableImage = case descriptorSpec of
         ImageDescriptor is -> fst (is !! descIdx)
         _ -> error "Can only copy image from image descriptor of one image"
-  buffer <- withDataBuffer vulkanResources (fromIntegral $ w*h) BUFFER_USAGE_TRANSFER_DST_BIT
+  buffer <- withDataBuffer vulkanResources name (fromIntegral $ w*h) BUFFER_USAGE_TRANSFER_DST_BIT
   pure ImageBuffer {..}
   where
   Extent2D w h = extent

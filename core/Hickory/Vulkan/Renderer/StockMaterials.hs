@@ -59,13 +59,13 @@ withGBufferMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet 
   uuid <- liftIO nextRandom
   extras <- maybe (frameResource $ pure []) pure extraMaterialDescriptors
   descriptor <- flip V.mapM extras \descs -> do
-    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    uniformBuffer   <- withDataBuffer vulkanResources "GBufferUniform" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    idBuffer        <- withDataBuffer vulkanResources "GBufferID" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    instancesBuffer <- withDataBuffer vulkanResources "GBufferInstances" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
     descriptorSet <- withDescriptorSet vulkanResources $
-      [ BufferDescriptor (buf uniformBuffer)
-      , BufferDescriptor (buf idBuffer)
-      , BufferDescriptor (buf instancesBuffer)
+      [ BufferDescriptor uniformBuffer.size uniformBuffer.buf
+      , BufferDescriptor idBuffer.size idBuffer.buf
+      , BufferDescriptor instancesBuffer.size instancesBuffer.buf
       ] ++ descs
     pure MaterialDescriptorSet {..}
 
@@ -97,8 +97,8 @@ withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawL
 withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Scalar)))
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = do
   skinBuffer :: FramedResource (DataBuffer (M44 Scalar))
-    <- frameResource $ withDataBuffer vulkanResources (66 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
-  let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.buf]
+    <- frameResource $ withDataBuffer vulkanResources "Skin" (66 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
+  let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.size buffer.buf]
   config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader noColorFragShader
   pure (config, skinBuffer)
 
@@ -127,10 +127,12 @@ withDirectMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet m
   = DirectConfig <$> do
   uuid <- liftIO nextRandom
   descriptor <- frameResource do
-    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    descriptorSet <- withDescriptorSet vulkanResources [BufferDescriptor (buf uniformBuffer), BufferDescriptor (buf idBuffer), BufferDescriptor (buf instancesBuffer)]
+    uniformBuffer   <- withDataBuffer vulkanResources "DirectUniform" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    idBuffer        <- withDataBuffer vulkanResources "DirectID" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    instancesBuffer <- withDataBuffer vulkanResources "DirectInstances" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    descriptorSet <- withDescriptorSet vulkanResources [ BufferDescriptor uniformBuffer.size uniformBuffer.buf
+                                                       , BufferDescriptor idBuffer.size idBuffer.buf
+                                                       , BufferDescriptor instancesBuffer.size instancesBuffer.buf]
     pure MaterialDescriptorSet {..}
 
   let uniformSize = sizeOf (undefined :: uniform)
@@ -194,13 +196,13 @@ withDecalMaterialStack vulkanResources RenderTargets {..} globalDescriptorSet ex
   uuid <- liftIO nextRandom
   extras <- maybe (frameResource $ pure []) pure extraMaterialDescriptors
   descriptor <- flip V.mapM extras \descs -> do
-    uniformBuffer   <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    idBuffer        <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
-    instancesBuffer <- withDataBuffer vulkanResources maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    uniformBuffer   <- withDataBuffer vulkanResources "DecalUniform" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    idBuffer        <- withDataBuffer vulkanResources "DecalID" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    instancesBuffer <- withDataBuffer vulkanResources "DecalInstances" maxNumDraws BUFFER_USAGE_UNIFORM_BUFFER_BIT
     descriptorSet <- withDescriptorSet vulkanResources $
-      [ BufferDescriptor (buf uniformBuffer)
-      , BufferDescriptor (buf idBuffer)
-      , BufferDescriptor (buf instancesBuffer)
+      [ BufferDescriptor uniformBuffer.size uniformBuffer.buf
+      , BufferDescriptor idBuffer.size idBuffer.buf
+      , BufferDescriptor instancesBuffer.size instancesBuffer.buf
       ] ++ descs
     pure MaterialDescriptorSet {..}
 

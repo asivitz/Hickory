@@ -27,6 +27,8 @@ import Vulkan
   , DescriptorBufferInfo(..)
   , pattern WHOLE_SIZE, BufferUsageFlagBits (..), MemoryPropertyFlagBits (..), Filter
   , pattern IMAGE_ASPECT_COLOR_BIT, SamplerAddressMode, SamplerMipmapMode (..), ImageViewType (..), Sampler
+  , PhysicalDeviceLimits(..)
+  , PhysicalDeviceProperties(..)
   )
 import qualified Vulkan as Writes (WriteDescriptorSet(..))
 import Data.Functor ((<&>))
@@ -50,6 +52,8 @@ import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), Data
 import GHC.Word (Word32)
 import Data.Maybe (isJust, fromMaybe)
 import qualified Data.Vector.Storable as SV
+import Vulkan.Utils.Debug (nameObject)
+import qualified Data.ByteString.Char8 as BC
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
 
@@ -73,7 +77,7 @@ descriptorSetBindings specs = zip [0..] specs <&> \(i, spec) -> case spec of
     , descriptorType  = DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
     , stageFlags      = SHADER_STAGE_FRAGMENT_BIT
     }
-  BufferDescriptor _ -> zero
+  BufferDescriptor _ _ -> zero
     { binding         = i
     , descriptorCount = 1
     , descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
@@ -153,13 +157,13 @@ withDescriptorSet vulkanResources@VulkanResources{..} specs = do
             , imageLayout = IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL
             }]
           }
-        BufferDescriptor buffer -> pure zero
+        BufferDescriptor size buf -> pure zero
           { Writes.dstSet = descriptorSet
           , Writes.dstBinding      = i
           , Writes.dstArrayElement = 0
           , Writes.descriptorType  = DESCRIPTOR_TYPE_UNIFORM_BUFFER
           , Writes.descriptorCount = 1
-          , Writes.bufferInfo      = [ zero { buffer = buffer, range = WHOLE_SIZE } ]
+          , Writes.bufferInfo      = [ zero { buffer = buf, range = min size (fromIntegral deviceContext.properties.limits.maxUniformBufferRange) } ]
           }
   updateDescriptorSets device (V.fromList $ SomeStruct <$> writes) []
 
@@ -210,19 +214,21 @@ descriptorSetBinding bds = ( descriptorSetLayout (resourceForFrame (0 :: Word32)
                            , fmap (view #descriptorSet) bds
                            )
 
-withDataBuffer :: forall a. Storable a => VulkanResources -> Int -> BufferUsageFlagBits -> Acquire (DataBuffer a)
-withDataBuffer VulkanResources {..} num usageBits = do
+withDataBuffer :: forall a. Storable a => VulkanResources -> String -> Int -> BufferUsageFlagBits -> Acquire (DataBuffer a)
+withDataBuffer VulkanResources {..} name num usageBits = do
+  let size = fromIntegral $ sizeOf (undefined :: a) * num
   (buf, allocation, _) <- withBuffer' allocator
     usageBits
     (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
-    (fromIntegral $ sizeOf (undefined :: a) * num)
+    size
+  nameObject deviceContext.device buf (BC.pack name)
   pure DataBuffer {..}
 
-withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> Int -> Acquire (BufferDescriptorSet a)
-withBufferDescriptorSet vulkanResources num = do
-  dataBuffer <- withDataBuffer vulkanResources num BUFFER_USAGE_UNIFORM_BUFFER_BIT
+withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> String -> Int -> Acquire (BufferDescriptorSet a)
+withBufferDescriptorSet vulkanResources name num = do
+  dataBuffer <- withDataBuffer vulkanResources name num BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
-  ds <-  withDescriptorSet vulkanResources [BufferDescriptor (buf dataBuffer)]
+  ds <-  withDescriptorSet vulkanResources [BufferDescriptor dataBuffer.size dataBuffer.buf]
 
   pure BufferDescriptorSet {descriptorSet = ds, ..}
 
