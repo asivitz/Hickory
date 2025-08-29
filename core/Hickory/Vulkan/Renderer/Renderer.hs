@@ -5,8 +5,8 @@
 
 module Hickory.Vulkan.Renderer.Renderer where
 
-import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), MeshType (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), debugName, Features(..))
-import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView)
+import Hickory.Vulkan.Renderer.Types (Renderer (..), DrawCommand (..), MeshType (..), Command, RenderSettings (..), addCommand, CommandMonad, runCommand, highlightObjs, Globals(..), WorldGlobals (..), WorldSettings (..), RenderTargets (..), ShadowGlobals (ShadowGlobals), GBufferMaterialStack(..), DirectMaterial(..), MaterialConfig (..), MaterialDescriptorSet (..), DrawBatch (..), DrawConfig (..), DecalMaterial (..), Features(..))
+import Hickory.Vulkan.Vulkan ( mkAcquire, with2DImageView, debugName)
 import Acquire (Acquire)
 import Hickory.Vulkan.PostProcessing (withPostProcessMaterial)
 import Linear (V4 (..), V2 (..), V3 (..), (!*!), inv44, (!*), _x, _y, _z, _w, (^/), distance, normalize, dot, cross, norm, Epsilon, (^*))
@@ -25,7 +25,7 @@ import Hickory.Vulkan.DescriptorSet (withDescriptorSet, BufferDescriptorSet (..)
 import Control.Lens (view, (^.), (.~), (&), _1, _2, _3, _4, (^?), over, toListOf, each, set)
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource, withResourceForFrame, zipFramedResources)
 import Hickory.Vulkan.Material (cmdBindMaterial, cmdBindDrawDescriptorSet, cmdPushMaterialConstants)
-import Data.List (sortOn, mapAccumL, foldl')
+import Data.List (sortOn, mapAccumL)
 import Data.Foldable (for_)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..), withDynamicBufferedMesh)
 import qualified Data.Vector as V
@@ -105,12 +105,12 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   gbufferRenderConfig   <- withGBufferRenderConfig vulkanResources swapchain
   gbufferRenderFrame    <- for (packAttachments [albedoViewableImage, normalViewableImage, materialViewableImage, objIDViewableImage, depthViewableImage]) $
     createFramebuffer vulkanResources.deviceContext.device (renderConfigRenderPass gbufferRenderConfig) gbufferRenderConfig.extent
-  for_ gbufferRenderFrame $ \fb -> debugName vulkanResources fb "GBufferFrameBuffer"
+  for_ gbufferRenderFrame $ \fb -> debugName device fb "GBufferFrameBuffer"
 
   decalRenderConfig     <- withDecalRenderConfig vulkanResources swapchain
   decalRenderFrame      <- for (packAttachments [albedoViewableImage, normalViewableImage, materialViewableImage]) $
     createFramebuffer vulkanResources.deviceContext.device (renderConfigRenderPass decalRenderConfig) decalRenderConfig.extent
-  for_ decalRenderFrame $ \fb -> debugName vulkanResources fb "DecalFrameBuffer"
+  for_ decalRenderFrame $ \fb -> debugName device fb "DecalFrameBuffer"
 
   ssaoRenderConfig      <- withSSAORenderConfig vulkanResources swapchain
   ssaoRenderFrame       <- ssaoViewableImage & V.mapM (withLightingFrameBuffer vulkanResources ssaoRenderConfig)
@@ -136,12 +136,12 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
         ] ++ targetDescriptorSpecs
 
   for_ globalDescriptorSet \pds ->
-    debugName vulkanResources pds.descriptorSet "GlobalDescSet"
+    debugName device pds.descriptorSet "GlobalDescSet"
 
   -- For debugging
   shadowMapDescriptorSet <- for (map snd . VS.toList . fst <$> cascadedShadowMap) $ withDescriptorSet vulkanResources
   for_ shadowMapDescriptorSet \pds ->
-    debugName vulkanResources pds.descriptorSet "ShadowMapDescSet"
+    debugName device pds.descriptorSet "ShadowMapDescSet"
 
   singleImageSetLayout <- withDescriptorSetLayout device zero
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
@@ -158,7 +158,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
 
   objHighlightDescriptorSet <- for (pure . snd <$> currentSelectionRenderFrame) $ withDescriptorSet vulkanResources
   for_ objHighlightDescriptorSet \pds ->
-    debugName vulkanResources pds.descriptorSet "ObjHighlightDescSet"
+    debugName device pds.descriptorSet "ObjHighlightDescSet"
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources overlayRenderConfig globalDescriptorSet objHighlightDescriptorSet
 
   -- SSAO
@@ -186,12 +186,12 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   ssaoMaterialDescriptorSet <- for gbufferFloatDesc $ \gbufFloatDesc -> withDescriptorSet vulkanResources
     [gbufFloatDesc, BufferDescriptor kernelBuffer.size kernelBuffer.buf, ImageDescriptor [(ViewableImage noiseImage imageView noiseFormat,nearestSampler)]]
   for_ ssaoMaterialDescriptorSet \pds ->
-    debugName vulkanResources pds.descriptorSet "SSAOMatDescSet"
+    debugName device pds.descriptorSet "SSAOMatDescSet"
   ssaoMaterial              <- withSSAOMaterial vulkanResources ssaoRenderConfig globalDescriptorSet ssaoMaterialDescriptorSet
 
   sunMaterialDescriptorSet <- for (V.zipWith (\a b -> [a,b]) gbufferFloatDesc (snd <$> ssaoRenderFrame)) $ withDescriptorSet vulkanResources
   for_ sunMaterialDescriptorSet \pds ->
-    debugName vulkanResources pds.descriptorSet "SunMatDescSet"
+    debugName device pds.descriptorSet "SunMatDescSet"
   sunMaterial              <- withDirectionalLightMaterial vulkanResources lightingRenderConfig globalDescriptorSet sunMaterialDescriptorSet
 
   postMaterialDescriptorSet <- V.zip colorViewableImage depthViewableImage & V.mapM \(color, depth) -> do
@@ -205,12 +205,12 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     let format = swapchain.imageFormat.format
     raw  <- withIntermediateImage vulkanResources format (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT .|. IMAGE_USAGE_SAMPLED_BIT) swapchain.extent SAMPLE_COUNT_1_BIT
     iv <- with2DImageView vulkanResources.deviceContext format IMAGE_ASPECT_COLOR_BIT raw IMAGE_VIEW_TYPE_2D 0 1
-    debugName vulkanResources raw "PostImage"
-    debugName vulkanResources iv "PostImageView"
+    debugName device raw "PostImage"
+    debugName device iv "PostImageView"
     pure $ ViewableImage raw iv format
 
   for_ postMaterialDescriptorSet \pds ->
-    debugName vulkanResources pds.descriptorSet "PostMatDescSet"
+    debugName device pds.descriptorSet "PostMatDescSet"
   postProcessMaterial <- withPostProcessMaterial vulkanResources overlayRenderConfig globalDescriptorSet postMaterialDescriptorSet
 
   dynamicMesh <- frameResource $ withDynamicBufferedMesh vulkanResources 10000 -- For text, need 20 floats per non-whitespace character
@@ -227,8 +227,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
     raw <- withIntermediateImage vulkanResources blurFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT .|. IMAGE_USAGE_SAMPLED_BIT)
       blurExtent SAMPLE_COUNT_1_BIT
     iv <- with2DImageView vulkanResources.deviceContext blurFormat IMAGE_ASPECT_COLOR_BIT raw IMAGE_VIEW_TYPE_2D 0 1
-    debugName vulkanResources raw "BlurImage"
-    debugName vulkanResources iv "BlurImageView"
+    debugName device raw "BlurImage"
+    debugName device iv "BlurImageView"
     pure $ ViewableImage raw iv blurFormat
 
   {- Depth of Field -}

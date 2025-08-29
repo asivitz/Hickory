@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, OverloadedLists #-}
+{-# LANGUAGE PatternSynonyms, OverloadedLists, CPP #-}
 
 module Hickory.Vulkan.Utils where
 
@@ -7,7 +7,6 @@ import Control.Monad
 import Vulkan
   ( Instance
   , SurfaceKHR
-  , pattern KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
   , pattern KHR_SURFACE_EXTENSION_NAME
   , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
   )
@@ -22,13 +21,15 @@ import Hickory.Vulkan.Instance (withStandardInstance, validationLayers)
 import Vulkan.Zero (zero)
 import Hickory.Vulkan.Types (DeviceContext(..), VulkanResources (..), Swapchain, FrameContext)
 import Control.Concurrent (threadDelay)
+import System.Info (os)
 
 initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire VulkanResources
 initVulkan extensions surfCreate = do
-  let defaultExtensions = [ "VK_EXT_debug_utils"
-                          , KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-                          , KHR_SURFACE_EXTENSION_NAME
-                          , KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME -- required by MoltenVK
+  let defaultExtensions = (if os == "darwin" then (KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME:) else id) -- required by MoltenVK
+                          [ KHR_SURFACE_EXTENSION_NAME
+#ifndef PRODUCTION
+                          , "VK_EXT_debug_utils"
+#endif
                           ]
   inst            <- withStandardInstance (extensions ++ defaultExtensions) validationLayers
   surface         <- surfCreate inst

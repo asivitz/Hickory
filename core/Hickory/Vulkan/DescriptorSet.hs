@@ -11,7 +11,7 @@ import Vulkan.Zero (zero)
 import Data.Text (Text, pack)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Hickory.Vulkan.Vulkan (with2DImageViewMips, mkAcquire)
+import Hickory.Vulkan.Vulkan (with2DImageViewMips, mkAcquire, debugName)
 import Vulkan
   ( ShaderStageFlagBits (..)
   , withDescriptorPool
@@ -52,7 +52,6 @@ import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), Data
 import GHC.Word (Word32)
 import Data.Maybe (isJust, fromMaybe)
 import qualified Data.Vector.Storable as SV
-import Vulkan.Utils.Debug (nameObject)
 import qualified Data.ByteString.Char8 as BC
 
 type DescriptorSetBinding = (DescriptorSetLayout, FramedResource DescriptorSet)
@@ -221,7 +220,7 @@ withDataBuffer VulkanResources {..} name num usageBits = do
     usageBits
     (MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. MEMORY_PROPERTY_HOST_COHERENT_BIT)
     size
-  nameObject deviceContext.device buf (BC.pack name)
+  debugName deviceContext.device buf (BC.pack name)
   pure DataBuffer {..}
 
 withBufferDescriptorSet :: forall a. Storable a => VulkanResources -> String -> Int -> Acquire (BufferDescriptorSet a)

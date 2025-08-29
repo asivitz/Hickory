@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.Decals where
 
-import Hickory.Vulkan.Vulkan (mkAcquire)
+import Hickory.Vulkan.Vulkan (mkAcquire, debugName)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -29,19 +29,18 @@ import Hickory.Vulkan.Types
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Hickory.Vulkan.Renderer.Types (debugName)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
 withDecalRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withDecalRenderConfig vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+withDecalRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [albedoAttachmentDescription, normalAttachmentDescription, materialAttachmentDescription]
     , subpasses    = [subpass]
     , dependencies = [dependency]
     } Nothing mkAcquire
-  debugName vulkanResources renderPass "DecalRenderPass"
+  debugName device renderPass "DecalRenderPass"
 
   let samples = SAMPLE_COUNT_1_BIT
       renderPassInfo = Left renderPass

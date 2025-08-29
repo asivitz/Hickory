@@ -37,14 +37,14 @@ import Data.Vector as V
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.UUID.V4 (nextRandom)
 import Data.Generics.Labels ()
-import Control.Lens (view, set)
+import Control.Lens (view)
 import Data.Word (Word32)
 import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.List (sortOn)
 import Acquire (Acquire)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Types (PointedDescriptorSet, Material (..), RenderConfig (..), VulkanResources (..), Attribute, DeviceContext (..), FrameContext (..))
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust)
 import GHC.Generics (Generic)
 
 withMaterial
@@ -145,7 +145,7 @@ withGraphicsPipeline
   pipelineOptions cullMode vertShader fragShader pipelineLayout vertexBindingDescriptions vertexAttributeDescriptions
   = do
   let DeviceContext {..} = deviceContext
-  shaderStages   <- V.sequence [ createVertShader device name vertShader, createFragShader device name fragShader ]
+  shaderStages   <- V.sequence [ createVertShader deviceContext.device name vertShader, createFragShader deviceContext.device name fragShader ]
 
   let
     -- pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]

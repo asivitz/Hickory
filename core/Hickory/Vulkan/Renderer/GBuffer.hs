@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.GBuffer where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView, with2DImageViewMips)
+import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView, with2DImageViewMips, debugName)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -36,7 +36,6 @@ import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.DescriptorSet (withDescriptorSet)
-import Hickory.Vulkan.Renderer.Types (debugName)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -58,24 +57,24 @@ withDepthViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withDepthViewableImage vulkanResources extent = do
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat SAMPLE_COUNT_1_BIT IMAGE_USAGE_SAMPLED_BIT 1
   depthImageView <- with2DImageView vulkanResources.deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources depthImageRaw "DepthImage"
-  debugName vulkanResources depthImageView "DepthImageView"
+  debugName vulkanResources.deviceContext.device depthImageRaw "DepthImage"
+  debugName vulkanResources.deviceContext.device depthImageView "DepthImageView"
   pure $ ViewableImage depthImageRaw depthImageView depthFormat
 
 withAlbedoViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withAlbedoViewableImage vulkanResources extent = do
   albedoImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   albedoImageView <- with2DImageView vulkanResources.deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT albedoImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources albedoImageRaw "AlbedoImage"
-  debugName vulkanResources albedoImageView "AlbedoImageView"
+  debugName vulkanResources.deviceContext.device albedoImageRaw "AlbedoImage"
+  debugName vulkanResources.deviceContext.device albedoImageView "AlbedoImageView"
   pure $ ViewableImage albedoImageRaw albedoImageView hdrFormat
 
 withNormalViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withNormalViewableImage vulkanResources extent = do
   normalImageRaw  <- withIntermediateImage vulkanResources normalFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   normalImageView <- with2DImageView vulkanResources.deviceContext normalFormat IMAGE_ASPECT_COLOR_BIT normalImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources normalImageRaw "NormalImage"
-  debugName vulkanResources normalImageView "NormalImageView"
+  debugName vulkanResources.deviceContext.device normalImageRaw "NormalImage"
+  debugName vulkanResources.deviceContext.device normalImageView "NormalImageView"
   pure $ ViewableImage normalImageRaw normalImageView normalFormat
 
 withMaterialViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
@@ -85,8 +84,8 @@ withObjIDViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
 withObjIDViewableImage vulkanResources extent = do
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent SAMPLE_COUNT_1_BIT
   objIDImageView <- with2DImageView vulkanResources.deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources objIDImageRaw "ObjIDImage"
-  debugName vulkanResources objIDImageView "ObjIDImageView"
+  debugName vulkanResources.deviceContext.device objIDImageRaw "ObjIDImage"
+  debugName vulkanResources.deviceContext.device objIDImageView "ObjIDImageView"
   pure $ ViewableImage objIDImageRaw objIDImageView objIDFormat
 
 withGBufferRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
@@ -96,7 +95,7 @@ withGBufferRenderConfig vulkanResources@VulkanResources { deviceContext = Device
     , subpasses    = [gbufferSubpass]
     , dependencies
     } Nothing mkAcquire
-  debugName vulkanResources renderPass "GBufferRenderPass"
+  debugName vulkanResources.deviceContext.device renderPass "GBufferRenderPass"
 
   let cullModeOverride = Nothing
       samples = SAMPLE_COUNT_1_BIT

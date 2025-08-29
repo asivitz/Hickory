@@ -20,15 +20,11 @@ import Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.List as DL
 import Data.Foldable (for_)
+import GHC.Bits (zeroBits)
+import System.Info (os)
 
 validationLayers :: [B.ByteString]
--- validationLayers = ["VK_LAYER_LUNARG_api_dump", "VK_LAYER_KHRONOS_validation"]
-validationLayers =
-#ifdef PRODUCTION
-  []
-#else
-  ["VK_LAYER_KHRONOS_validation"]
-#endif
+validationLayers = []
 
 withStandardInstance :: [B.ByteString] -> [B.ByteString] -> Acquire Instance
 withStandardInstance (DL.nub -> desiredExtensions) (DL.nub -> desiredLayers) = do
@@ -46,17 +42,12 @@ withStandardInstance (DL.nub -> desiredExtensions) (DL.nub -> desiredLayers) = d
     liftIO . putStrLn $ "Requested extension not available: " ++ show e
 
   let
-    instanceCreateInfo :: InstanceCreateInfo '[ValidationFeaturesEXT]
+    instanceCreateInfo :: InstanceCreateInfo '[]
     instanceCreateInfo = zero
       { applicationInfo = Just zero { applicationName = Just "Vulkan Demo", apiVersion = API_VERSION_1_3 }
       , enabledLayerNames     = V.fromList layersToEnable
       , enabledExtensionNames = V.fromList extensionsToEnable
-      , flags = INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
-      , next = (zero
-        { enabledValidationFeatures =
-          [VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
-          ]
-        },())
+      , flags = if os == "darwin" then INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR else zeroBits
       }
 
   withInstance instanceCreateInfo Nothing mkAcquire

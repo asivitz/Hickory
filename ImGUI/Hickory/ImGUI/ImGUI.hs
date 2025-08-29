@@ -53,7 +53,7 @@ renderDearImGui ImGuiResources {..} FrameContext {..} newPlatformFrame f = do
         { renderPass  = renderPass
         , framebuffer = frameBuffers V.! fromIntegral swapchainImageIndex
         , renderArea  = Rect2D { offset = zero , extent = extent }
-        , clearValues = [Color (Float32 0 0 0 0)]
+        , clearValues = []
         }
   cmdUseRenderPass commandBuffer renderPassBeginInfo SUBPASS_CONTENTS_INLINE do
     render

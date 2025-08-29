@@ -1,5 +1,5 @@
 {-# LANGUAGE BlockArguments, ScopedTypeVariables, RecordWildCards, PatternSynonyms, DuplicateRecordFields, OverloadedRecordDot #-}
-{-# LANGUAGE DataKinds, OverloadedLists #-}
+{-# LANGUAGE DataKinds, OverloadedLists, CPP #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
@@ -8,7 +8,6 @@
 module Hickory.Vulkan.Vulkan where
 
 import Control.Monad
-import Vulkan.Utils.Debug (nameObject)
 import Vulkan
   ( ColorSpaceKHR (COLOR_SPACE_SRGB_NONLINEAR_KHR)
   , CompositeAlphaFlagBitsKHR (..)
@@ -67,7 +66,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
+  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -92,6 +91,7 @@ import Data.Foldable (for_)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types (DeviceContext(..), Swapchain (..), VulkanResources (..), ViewableImage (..))
 import System.Info (os)
+import Data.ByteString (ByteString)
 
 {- DEVICE CREATION -}
 
@@ -178,13 +178,6 @@ withLogicalDevice inst surface = do
     desiredExtensions = (if os == "darwin" then (KHR_PORTABILITY_SUBSET_EXTENSION_NAME:) -- required for moltenvk
                                            else id)
                         [ KHR_SWAPCHAIN_EXTENSION_NAME
-                        , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
-                        , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
-                        , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
-                        , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
-                        , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
-                        , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
-                        , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
                         ]
 
   let
@@ -264,8 +257,9 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
       images <- for rawImages $ \image -> do
         let form = surfaceFormat.format
         imageView <- with2DImageView dc form IMAGE_ASPECT_COLOR_BIT image IMAGE_VIEW_TYPE_2D 0 1
-        let (otype, handle) = objectTypeAndHandle imageView in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImageView"))
-        let (otype, handle) = objectTypeAndHandle image in setDebugUtilsObjectNameEXT device (DebugUtilsObjectNameInfoEXT otype handle (Just "SwapchainImage"))
+
+        debugName device imageView (BC.pack "SwapchainImageView")
+        debugName device image (BC.pack "SwapchainImage")
         pure $ ViewableImage image imageView form
 
       pure . Just $ Swapchain {..}
@@ -356,10 +350,19 @@ unWrapAcquire (Acquire acq) = acq
 createShader :: ShaderStageFlagBits -> Device -> String -> B.ByteString -> Acquire (SomeStruct PipelineShaderStageCreateInfo)
 createShader stage dev name source = do
   shaderModule <- withShaderModule dev zero { code = source } Nothing mkAcquire
-  nameObject dev shaderModule (BC.pack name)
+  debugName dev shaderModule (BC.pack name)
 
   pure . SomeStruct $ zero
     { stage = stage
     , module' = shaderModule
     , name = "main"
     }
+
+debugName :: (MonadIO io, HasObjectType p) => Device -> p -> ByteString -> io ()
+debugName dev a name =
+#ifdef PRODUCTION
+  pure ()
+#else
+  let (otype, handle) = objectTypeAndHandle a
+  in setDebugUtilsObjectNameEXT dev (DebugUtilsObjectNameInfoEXT otype handle (Just name))
+#endif

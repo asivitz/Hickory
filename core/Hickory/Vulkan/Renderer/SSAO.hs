@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.SSAO where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, with2DImageView, debugName)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -33,28 +33,28 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
-import Hickory.Vulkan.Renderer.Types (SSAOSettings, debugName)
+import Hickory.Vulkan.Renderer.Types (SSAOSettings)
 import Hickory.Vulkan.Textures (withIntermediateImage)
 
 hdrFormat :: Format
 hdrFormat = FORMAT_R16_SFLOAT
 
 withSSAOViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
-withSSAOViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext } extent = do
+withSSAOViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext {..} } extent = do
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources hdrImageRaw "SSAOImage"
-  debugName vulkanResources hdrImageView "SSAOImageView"
+  debugName device hdrImageRaw "SSAOImage"
+  debugName device hdrImageView "SSAOImageView"
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withSSAORenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withSSAORenderConfig vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+withSSAORenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [hdrAttachmentDescription]
     , subpasses    = [subpass]
     , dependencies
     } Nothing mkAcquire
-  debugName vulkanResources renderPass "SSAORenderPass"
+  debugName device renderPass "SSAORenderPass"
 
   let samples = SAMPLE_COUNT_1_BIT
       renderPassInfo = Left renderPass

@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.ObjectPicking where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView, debugName)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -41,7 +41,6 @@ import Hickory.Vulkan.Framing (FramedResource)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Hickory.Vulkan.Renderer.Types (debugName)
 
 withCurrentSelectionFrameBuffer :: VulkanResources -> RenderConfig -> Acquire (Framebuffer, DescriptorSpec)
 withCurrentSelectionFrameBuffer vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } rc@RenderConfig {..} = do
@@ -49,13 +48,13 @@ withCurrentSelectionFrameBuffer vulkanResources@VulkanResources { deviceContext 
 
   depthImageRaw  <- withDepthImage vulkanResources extent depthFormat samples zeroBits 1
   depthImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT depthImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources depthImageRaw "CurrentSelectionDepthImage"
-  debugName vulkanResources depthImageView "CurrentSelectionDepthImageView"
+  debugName device depthImageRaw "CurrentSelectionDepthImage"
+  debugName device depthImageView "CurrentSelectionDepthImageView"
 
   objIDImageRaw  <- withIntermediateImage vulkanResources objIDFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_TRANSFER_SRC_BIT) extent samples
   objIDImageView <- with2DImageView deviceContext objIDFormat IMAGE_ASPECT_COLOR_BIT objIDImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources objIDImageRaw "CurrentSelectionImage"
-  debugName vulkanResources objIDImageView "CurrentSelectionImageView"
+  debugName device objIDImageRaw "CurrentSelectionImage"
+  debugName device objIDImageView "CurrentSelectionImageView"
 
   let objIDImage = ViewableImage objIDImageRaw objIDImageView objIDFormat
 
@@ -71,13 +70,13 @@ depthFormat = FORMAT_D16_UNORM
 
 -- For e.g. mouse picking objects in scene
 withCurrentSelectionRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withCurrentSelectionRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } Swapchain {..} = do
+withCurrentSelectionRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [depthDescription, objIDDescription]
     , subpasses    = [subpass]
     , dependencies
     } Nothing mkAcquire
-  debugName vulkanResources renderPass "CurrentSelectionRenderPass"
+  debugName device renderPass "CurrentSelectionRenderPass"
 
   let cullModeOverride = Nothing
       renderPassInfo = Left renderPass

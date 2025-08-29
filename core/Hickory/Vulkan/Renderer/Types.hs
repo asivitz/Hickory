@@ -397,8 +397,3 @@ addCommand = tell . pure
 
 type RenderFunction swapchainResources = Size Int -> (swapchainResources, FrameContext) -> IO ()
 type Scene swapchainResources = InputFrame -> IO (Scalar -> InputFrame -> RenderFunction swapchainResources)
-
-debugName :: (MonadIO io, HasObjectType p) => VulkanResources -> p -> ByteString -> io ()
-debugName vulkanResources a name =
-  let (otype, handle) = objectTypeAndHandle a
-  in setDebugUtilsObjectNameEXT vulkanResources.deviceContext.device (DebugUtilsObjectNameInfoEXT otype handle (Just name))

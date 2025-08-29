@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.Lights where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, with2DImageView, debugName)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -37,7 +37,6 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Material (pipelineDefaults, defaultBlend, withMaterial)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import Hickory.Vulkan.Framing (FramedResource)
-import Hickory.Vulkan.Renderer.Types (debugName)
 import Data.Word (Word32)
 import qualified Data.Vector as V
 import Hickory.Vulkan.DescriptorSet (descriptorSetBindings)
@@ -46,11 +45,11 @@ hdrFormat :: Format
 hdrFormat = FORMAT_R16G16B16A16_SFLOAT
 
 withColorViewableImage :: VulkanResources -> Extent2D -> Acquire ViewableImage
-withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext } extent = do
+withColorViewableImage vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } extent = do
   hdrImageRaw  <- withIntermediateImage vulkanResources hdrFormat (IMAGE_USAGE_COLOR_ATTACHMENT_BIT .|. IMAGE_USAGE_INPUT_ATTACHMENT_BIT) extent SAMPLE_COUNT_1_BIT
   hdrImageView <- with2DImageView deviceContext hdrFormat IMAGE_ASPECT_COLOR_BIT hdrImageRaw IMAGE_VIEW_TYPE_2D 0 1
-  debugName vulkanResources hdrImageRaw "HDRImage"
-  debugName vulkanResources hdrImageView "HDRImageView"
+  debugName device hdrImageRaw "HDRImage"
+  debugName device hdrImageView "HDRImageView"
   pure $ ViewableImage hdrImageRaw hdrImageView hdrFormat
 
 withLightingFrameBuffer :: VulkanResources -> RenderConfig -> ViewableImage -> Acquire (Framebuffer, DescriptorSpec)
@@ -61,18 +60,18 @@ withLightingFrameBuffer vulkanResources@VulkanResources { deviceContext = Device
 
   let descriptorSpec = ImageDescriptor [(colorImage,sampler)]
   fb <- createFramebuffer device (renderConfigRenderPass rc) extent [colorImageView]
-  debugName vulkanResources fb "LightingFrameBuffer"
+  debugName device fb "LightingFrameBuffer"
   pure (fb, descriptorSpec)
 
 withLightingRenderConfig :: VulkanResources -> Swapchain -> Acquire RenderConfig
-withLightingRenderConfig vulkanResources@VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
+withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } Swapchain {..} = do
   renderPass <- withRenderPass device zero
     { attachments  = [hdrAttachmentDescription]
     , subpasses    = [subpass]
     , dependencies
     } Nothing mkAcquire
 
-  debugName vulkanResources renderPass "LightingRenderPass"
+  debugName device renderPass "LightingRenderPass"
 
   let samples = SAMPLE_COUNT_1_BIT
       renderPassInfo = Left renderPass

@@ -4,7 +4,7 @@
 
 module Hickory.Vulkan.Renderer.ShadowPass where
 
-import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView)
+import Hickory.Vulkan.Vulkan (mkAcquire, withDepthImage, with2DImageView, debugName)
 import Vulkan
   ( Format (..)
   , withRenderPass
@@ -38,7 +38,6 @@ import Data.String.QM (qm)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
 import qualified Data.Vector.Sized as VS
 import Data.Finite (getFinite)
-import Hickory.Vulkan.Renderer.Types (debugName)
 
 depthFormat :: Format
 depthFormat = FORMAT_D32_SFLOAT
@@ -57,12 +56,12 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
   shadowmapImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw IMAGE_VIEW_TYPE_2D_ARRAY 0 maxShadowCascades
   let image = ViewableImage shadowmapImageRaw shadowmapImageView depthFormat
   let shadowmapDescriptorSpec = DepthImageDescriptor image sampler
-  debugName vulkanResources shadowmapImageRaw "ShadowmapImage"
-  debugName vulkanResources shadowmapImageView "ShadowmapImageView"
+  debugName device shadowmapImageRaw "ShadowmapImage"
+  debugName device shadowmapImageView "ShadowmapImageView"
 
   cascades <- VS.generateM \(fromIntegral . getFinite -> i) -> do
     cascadeImageView <- with2DImageView deviceContext depthFormat IMAGE_ASPECT_DEPTH_BIT shadowmapImageRaw IMAGE_VIEW_TYPE_2D i 1
-    debugName vulkanResources cascadeImageView "CascadeImageView"
+    debugName device cascadeImageView "CascadeImageView"
     let cascadeImage = ViewableImage shadowmapImageRaw cascadeImageView depthFormat
     let descriptorSpec = DepthImageDescriptor cascadeImage sampler
 
@@ -70,13 +69,13 @@ withShadowMap vulkanResources@VulkanResources { deviceContext = deviceContext@De
   pure (cascades, shadowmapDescriptorSpec)
 
 withShadowRenderConfig :: VulkanResources -> Acquire RenderConfig
-withShadowRenderConfig vulkanResources@VulkanResources { deviceContext = deviceContext@DeviceContext{..} } = do
+withShadowRenderConfig VulkanResources { deviceContext = DeviceContext{..} } = do
   renderPass <- withRenderPass device zero
     { attachments  = [shadowmapAttachmentDescription]
     , subpasses    = [shadowSubpass]
     , dependencies = dependencies
     } Nothing mkAcquire
-  debugName vulkanResources renderPass "ShadowRenderPass"
+  debugName device renderPass "ShadowRenderPass"
 
   let extent = shadowDim
       samples = SAMPLE_COUNT_1_BIT
