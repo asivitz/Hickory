@@ -67,7 +67,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, depthClamp, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
+  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -182,6 +182,7 @@ withLogicalDevice inst surface = do
                         , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
                         , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
                         , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
+                        , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
                         , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
                         , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
                         ]
@@ -192,6 +193,7 @@ withLogicalDevice inst surface = do
 
     deviceCreateInfo :: DeviceCreateInfo '[ PhysicalDeviceDescriptorIndexingFeatures
                                           , PhysicalDeviceDynamicRenderingFeatures
+                                          , PhysicalDevicePortabilitySubsetFeaturesKHR
                                           , PhysicalDeviceScalarBlockLayoutFeatures
                                           ]
     deviceCreateInfo = zero
@@ -201,9 +203,10 @@ withLogicalDevice inst surface = do
       , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True, independentBlend = True }
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
                , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
+               , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow
                , (zero { scalarBlockLayout = True} -- Can use scalar block layout (tight packing) in shaders
                , ()
-               )))
+               ))))
       }
 
   for_ extensionsNotAvailable \e ->
