@@ -190,7 +190,6 @@ withLogicalDevice inst surface = do
 
     deviceCreateInfo :: DeviceCreateInfo '[ PhysicalDeviceDescriptorIndexingFeatures
                                           , PhysicalDeviceDynamicRenderingFeatures
-                                          , PhysicalDevicePortabilitySubsetFeaturesKHR
                                           , PhysicalDeviceScalarBlockLayoutFeatures
                                           ]
     deviceCreateInfo = zero
@@ -200,10 +199,9 @@ withLogicalDevice inst surface = do
       , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True, independentBlend = True }
       , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
                , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
-               , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow
                , (zero { scalarBlockLayout = True} -- Can use scalar block layout (tight packing) in shaders
                , ()
-               ))))
+               )))
       }
 
   for_ extensionsNotAvailable \e ->

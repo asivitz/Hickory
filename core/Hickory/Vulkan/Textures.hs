@@ -412,8 +412,8 @@ withShadowSampler VulkanResources { deviceContext = DeviceContext {..} } =
     , anisotropyEnable = False
     , borderColor = BORDER_COLOR_INT_OPAQUE_BLACK
     , unnormalizedCoordinates = False
-    , compareEnable = True
-    , compareOp = COMPARE_OP_LESS
+    , compareEnable = False
+    -- , compareOp = COMPARE_OP_LESS
     , mipmapMode = SAMPLER_MIPMAP_MODE_LINEAR
     , mipLodBias = 0.0
     , minLod = 0.0

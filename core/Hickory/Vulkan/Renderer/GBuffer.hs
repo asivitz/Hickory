@@ -23,7 +23,7 @@ import Vulkan
   , AccessFlagBits (..)
   , ImageAspectFlagBits (..)
   , ImageUsageFlagBits(..)
-  , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..), ImageViewType (..), AccessFlagBits2 (..)
+  , Filter (..), SamplerAddressMode (..), Extent2D, SamplerMipmapMode (..), ImageViewType (..)
   )
 import Vulkan.Zero
 import Acquire (Acquire)

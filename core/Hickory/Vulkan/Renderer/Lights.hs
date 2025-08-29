@@ -160,7 +160,7 @@ layout (row_major, scalar, set = 0, binding = 0) uniform PostGlobals
   { int frameNumber;
   } postGlobals;
 
-layout (set = 0, binding = 4) uniform sampler2DArrayShadow shadowMap;
+layout (set = 0, binding = 4) uniform sampler2DArray shadowMap;
 layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
 layout (set = 1, binding = 1) uniform sampler2D ssao;
 layout (set = 2, binding = 0) uniform samplerCube envMap;
@@ -189,15 +189,19 @@ vec4 shadowCoord(uint cascadeIndex, vec3 worldPos) {
 
 float sampleShadow(vec4 smTexcoord) {
   float shadow = 0.0;
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2(-1,  1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1,  1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2(-1, -1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1, -1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 0));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 1, 0));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( -1, 0));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, 1));
-  shadow += textureOffset(shadowMap, smTexcoord, ivec2( 0, -1));
+  vec2  uv    = smTexcoord.xy;
+  int   layer = int(smTexcoord.z + 0.5);
+  float ref   = smTexcoord.w;
+  vec3 coord = vec3(uv, layer);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2(-1,  1)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2( 1,  1)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2(-1, -1)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2( 1, -1)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2( 0, 0)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2( 1, 0)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2( -1, 0)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2( 0, 1)).x);
+  shadow += step(ref, textureOffset(shadowMap, coord, ivec2( 0, -1)).x);
   return shadow / 9.0;
 }
 
