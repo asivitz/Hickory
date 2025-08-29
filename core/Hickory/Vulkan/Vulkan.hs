@@ -66,7 +66,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType
+  , PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType, getPhysicalDeviceFeatures, PhysicalDeviceVulkan13Features(..), pattern KHR_PORTABILITY_SUBSET_SPEC_VERSION, pattern KHR_SWAPCHAIN_SPEC_VERSION
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -93,57 +93,22 @@ import Hickory.Vulkan.Types (DeviceContext(..), Swapchain (..), VulkanResources 
 import System.Info (os)
 import Data.ByteString (ByteString)
 
+import Vulkan.Utils.Initialization (pickPhysicalDevice)
+import Vulkan.Utils.Requirements (checkDeviceRequirements, prettyRequirementResult, RequirementResult (..))
+import Vulkan.Requirement (DeviceRequirement(..))
+
 {- DEVICE CREATION -}
 
-selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (PhysicalDevice, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits, PhysicalDeviceProperties)
-selectPhysicalDevice inst surface = do
-  (_, devices)      <- enumeratePhysicalDevices inst
-  elaboratedDevices <- V.mapMaybeM elaborateDevice devices
-
-  pure . project . V.maximumBy (comparing rank) $ elaboratedDevices
+selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (Maybe ((SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits, PhysicalDeviceProperties, SomeStruct DeviceCreateInfo), PhysicalDevice))
+selectPhysicalDevice inst surface = pickPhysicalDevice inst suitability scoring
   where
-  elaborateDevice :: MonadIO m => PhysicalDevice -> m (Maybe (PhysicalDevice, PhysicalDeviceProperties, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits))
-  elaborateDevice dev = do
-    deviceProperties   <- getPhysicalDeviceProperties dev
-    graphicsQueueIndex <- getGraphicsQueueIdx dev
-    presentQueueIndex  <- getPresentQueueIdx dev
-    format             <- getSurfaceFormat dev
-    -- This is supposed to be always available
-    -- If we want something else, like PRESENT_MODE_MAILBOX_KHR, we need to query for it
-    let presentMode    = PRESENT_MODE_FIFO_KHR
-
-    (_, extensions) <- enumerateDeviceExtensionProperties dev Nothing
-    let hasExtension x = V.any ((==x) . extensionName) extensions
-
-    let maxSampleCount = case framebufferColorSampleCounts . limits $ deviceProperties of
-          c | c .&&. SAMPLE_COUNT_64_BIT -> SAMPLE_COUNT_64_BIT
-          c | c .&&. SAMPLE_COUNT_32_BIT -> SAMPLE_COUNT_32_BIT
-          c | c .&&. SAMPLE_COUNT_16_BIT -> SAMPLE_COUNT_16_BIT
-          c | c .&&. SAMPLE_COUNT_8_BIT  -> SAMPLE_COUNT_8_BIT
-          c | c .&&. SAMPLE_COUNT_4_BIT  -> SAMPLE_COUNT_4_BIT
-          c | c .&&. SAMPLE_COUNT_2_BIT  -> SAMPLE_COUNT_2_BIT
-          _                              -> SAMPLE_COUNT_1_BIT
-
-    pure $ guard (hasExtension KHR_SWAPCHAIN_EXTENSION_NAME) >>
-      (,,,,,,) <$> pure dev
-              <*> pure deviceProperties
-              <*> pure format
-              <*> pure presentMode
-              <*> graphicsQueueIndex
-              <*> presentQueueIndex
-              <*> pure maxSampleCount
-  project (dev, props, format, presentMode, graphQIdx, presentQIdx, maxSampleCount) = (dev, format, presentMode, graphQIdx, presentQIdx, maxSampleCount, props)
-
-  vheadMay v = if V.null v then Nothing else Just (V.head v)
-
-  rank :: (PhysicalDevice, PhysicalDeviceProperties, SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits) -> Int
-  rank (_dev, props, _format, _presentMode, _graphQIdx, _presentQIdx, _maxSampleCount) = case deviceType props of
-    PHYSICAL_DEVICE_TYPE_DISCRETE_GPU   -> 5
+  scoring (_surfFormat, _presMode, _, _, _maxSampleCount, props, _) = case deviceType props of
+    PHYSICAL_DEVICE_TYPE_DISCRETE_GPU   -> 5 :: Int
     PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU -> 4
     PHYSICAL_DEVICE_TYPE_CPU            -> 3
     PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU    -> 2
     PHYSICAL_DEVICE_TYPE_OTHER          -> 1
-
+  vheadMay v = if V.null v then Nothing else Just (V.head v)
   getGraphicsQueueIdx :: MonadIO m => PhysicalDevice -> m (Maybe Word32)
   getGraphicsQueueIdx dev = do
     getPhysicalDeviceQueueFamilyProperties dev <&>
@@ -166,51 +131,112 @@ selectPhysicalDevice inst surface = do
     maybe (error "No surface formats available") pure
         $ V.find (\SurfaceFormatKHR { format, colorSpace} -> format == FORMAT_B8G8R8A8_SRGB && colorSpace == COLOR_SPACE_SRGB_NONLINEAR_KHR) formats
       <|> vheadMay formats
+  suitability dev = do
 
+    deviceProperties   <- getPhysicalDeviceProperties dev
+    _deviceFeatures    <- getPhysicalDeviceFeatures dev
+    graphicsQueueIndex <- getGraphicsQueueIdx dev
+    presentQueueIndex  <- getPresentQueueIdx dev
+    format             <- getSurfaceFormat dev
+    -- This is supposed to be always available
+    -- If we want something else, like PRESENT_MODE_MAILBOX_KHR, we need to query for it
+    let presentMode    = PRESENT_MODE_FIFO_KHR
+    let maxSampleCount = case framebufferColorSampleCounts . limits $ deviceProperties of
+          c | c .&&. SAMPLE_COUNT_64_BIT -> SAMPLE_COUNT_64_BIT
+          c | c .&&. SAMPLE_COUNT_32_BIT -> SAMPLE_COUNT_32_BIT
+          c | c .&&. SAMPLE_COUNT_16_BIT -> SAMPLE_COUNT_16_BIT
+          c | c .&&. SAMPLE_COUNT_8_BIT  -> SAMPLE_COUNT_8_BIT
+          c | c .&&. SAMPLE_COUNT_4_BIT  -> SAMPLE_COUNT_4_BIT
+          c | c .&&. SAMPLE_COUNT_2_BIT  -> SAMPLE_COUNT_2_BIT
+          _                              -> SAMPLE_COUNT_1_BIT
+
+    case (graphicsQueueIndex, presentQueueIndex) of
+      (Just graphicsQueueIdx, Just presentQueueIdx) -> do
+        let deviceCreateInfo :: DeviceCreateInfo '[]
+            deviceCreateInfo = zero
+              { queueCreateInfos  = V.fromList $ nub [graphicsQueueIdx, presentQueueIdx] <&> \idx ->
+                  SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
+              , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True, independentBlend = True }
+              }
+            reqRequests :: [DeviceRequirement]
+            reqRequests =
+              (if os == "darwin"
+               then
+                 (RequireDeviceExtension { deviceExtensionLayerName = Nothing
+                                         , deviceExtensionName = KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+                                         , deviceExtensionMinVersion = KHR_PORTABILITY_SUBSET_SPEC_VERSION
+                                         }:)
+               else id
+              )
+              [ RequireDeviceExtension { deviceExtensionLayerName = Nothing
+                                       , deviceExtensionName       = KHR_SWAPCHAIN_EXTENSION_NAME
+                                       , deviceExtensionMinVersion = KHR_SWAPCHAIN_SPEC_VERSION
+                                       }
+              -- Can start render passes without making Render Pass and Framebuffer objects
+              , RequireDeviceFeature { featureName = "DYNAMIC RENDERING"
+                                     , checkFeature = \s -> s.dynamicRendering
+                                     , enableFeature = \s -> s { dynamicRendering = True }
+                                     }
+              -- Needed for global texture array (b/c has unknown size) ,
+              , RequireDeviceFeature { featureName = "RUNTIME DESCRIPTOR ARRAY"
+                                     , checkFeature = \s -> s.runtimeDescriptorArray
+                                     , enableFeature = \s -> s { runtimeDescriptorArray = True }
+                                     }
+              -- Needed for sampler2DShadow
+              , RequireDeviceFeature { featureName = "MUTABLE COMPARISON SAMPLERS"
+                                     , checkFeature = \s -> s.mutableComparisonSamplers
+                                     , enableFeature = \s -> s { mutableComparisonSamplers = True }
+                                     }
+              -- Can use scalar block layout (tight packing) in shaders
+              , RequireDeviceFeature { featureName = "SCALAR BLOCK LAYOUT"
+                                     , checkFeature = \s -> s.scalarBlockLayout
+                                     , enableFeature = \s -> s { scalarBlockLayout = True }
+                                     }
+              ]
+
+            optRequests :: [DeviceRequirement]
+            optRequests = []
+
+        (mDeviceCreateInfoRes, reqResults, optResults) <- checkDeviceRequirements reqRequests optRequests dev deviceCreateInfo
+
+        liftIO do
+          for_ reqResults \res -> do
+            case res of
+              Satisfied -> pure ()
+              a -> putStrLn $ prettyRequirementResult a
+          for_ optResults \res -> do
+            case res of
+              Satisfied -> pure ()
+              a -> putStrLn $ prettyRequirementResult a
+
+        case mDeviceCreateInfoRes of
+          Nothing -> pure Nothing
+          Just deviceCreateInfoRes -> do
+            pure $
+              (,,,,,,) <$> pure format
+                      <*> pure presentMode
+                      <*> graphicsQueueIndex
+                      <*> presentQueueIndex
+                      <*> pure maxSampleCount
+                      <*> pure deviceProperties
+                      <*> pure deviceCreateInfoRes
+      _ -> pure Nothing
 
 withLogicalDevice :: Instance -> SurfaceKHR -> Acquire DeviceContext
 withLogicalDevice inst surface = do
-  (physicalDevice, surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx, maxSampleCount, properties) <- selectPhysicalDevice inst surface
+  mRes <- selectPhysicalDevice inst surface
+  case mRes of
+    Nothing -> liftIO $ ioError (userError "No acceptable device found")
+    Just ((surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx, maxSampleCount, properties, deviceCreateInfo), physicalDevice) -> do
 
-  (_, V.toList . fmap extensionName -> availableExtensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
+      case deviceCreateInfo of
+        SomeStruct ss -> do
+          device <- withDevice physicalDevice ss Nothing mkAcquire
 
-  let
-    desiredExtensions = (if os == "darwin" then (KHR_PORTABILITY_SUBSET_EXTENSION_NAME:) -- required for moltenvk
-                                           else id)
-                        [ KHR_SWAPCHAIN_EXTENSION_NAME
-                        ]
+          graphicsQueue <- getDeviceQueue device graphicsFamilyIdx 0
+          presentQueue  <- getDeviceQueue device presentFamilyIdx 0
 
-  let
-    extensionsToEnable = DL.intersect desiredExtensions availableExtensions
-    extensionsNotAvailable = desiredExtensions DL.\\ extensionsToEnable
-
-    deviceCreateInfo :: DeviceCreateInfo '[ PhysicalDeviceDescriptorIndexingFeatures
-                                          , PhysicalDeviceDynamicRenderingFeatures
-                                          , PhysicalDevicePortabilitySubsetFeaturesKHR
-                                          , PhysicalDeviceScalarBlockLayoutFeatures
-                                          ]
-    deviceCreateInfo = zero
-      { queueCreateInfos  = V.fromList $ nub [graphicsFamilyIdx, presentFamilyIdx] <&> \idx ->
-          SomeStruct $ zero { queueFamilyIndex = idx, queuePriorities = V.fromList [1] }
-      , enabledExtensionNames = V.fromList extensionsToEnable
-      , enabledFeatures = Just $ zero { depthClamp = True, samplerAnisotropy = True, independentBlend = True }
-      , next = ( zero { runtimeDescriptorArray = True } -- Needed for global texture array (b/c has unknown size) ,
-               , (zero { dynamicRendering = True } -- Can start render passes without making Render Pass and Framebuffer objects
-               , (zero { mutableComparisonSamplers = True } -- Needed for sampler2DShadow
-               , (zero { scalarBlockLayout = True} -- Can use scalar block layout (tight packing) in shaders
-               , ()
-               ))))
-      }
-
-  for_ extensionsNotAvailable \e ->
-    liftIO . putStrLn $ "Device extension not available: " ++ show e
-
-  device <- withDevice physicalDevice deviceCreateInfo Nothing mkAcquire
-
-  graphicsQueue <- getDeviceQueue device graphicsFamilyIdx 0
-  presentQueue  <- getDeviceQueue device presentFamilyIdx 0
-
-  pure $ DeviceContext {..}
+          pure $ DeviceContext {..}
 
 withSwapchain :: DeviceContext -> SurfaceKHR -> (Int, Int) -> Acquire (Maybe Swapchain)
 withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do

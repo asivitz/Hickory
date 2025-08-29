@@ -24,7 +24,7 @@ import Vulkan
   , ClearDepthStencilValue (..)
   , RenderingInfo(..)
   , RenderingAttachmentInfo(..)
-  , cmdBeginRenderingKHR
+  , cmdBeginRendering
   , cmdEndRenderingKHR, pattern IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR, pattern IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL_KHR, Extent2D, SampleCountFlagBits (..)
   )
 import Vulkan.Zero
@@ -64,7 +64,7 @@ withFrame DeviceContext {..} = do
 
 useDynamicRenderPass :: MonadIO m => CommandBuffer -> Extent2D -> V4 Float -> ViewableImage -> Maybe ViewableImage -> m () -> m ()
 useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage f = do
-  cmdBeginRenderingKHR commandBuffer zero
+  cmdBeginRendering commandBuffer zero
     { renderArea = Rect2D { offset = zero , extent = swapchainExtent }
     , layerCount = 1
     , colorAttachments = [ zero
