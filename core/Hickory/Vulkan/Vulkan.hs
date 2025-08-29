@@ -67,7 +67,7 @@ import Vulkan
   , PipelineShaderStageCreateInfo(..)
   , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
+  , PhysicalDeviceDynamicRenderingFeatures(..), PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, depthClamp, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..)
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -91,6 +91,7 @@ import qualified Data.List as DL
 import Data.Foldable (for_)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types (DeviceContext(..), Swapchain (..), VulkanResources (..), ViewableImage (..))
+import System.Info (os)
 
 {- DEVICE CREATION -}
 
@@ -174,12 +175,13 @@ withLogicalDevice inst surface = do
   (_, V.toList . fmap extensionName -> availableExtensions) <- enumerateDeviceExtensionProperties physicalDevice Nothing
 
   let
-    desiredExtensions = [ KHR_SWAPCHAIN_EXTENSION_NAME
+    desiredExtensions = (if os == "darwin" then (KHR_PORTABILITY_SUBSET_EXTENSION_NAME:) -- required for moltenvk
+                                           else id)
+                        [ KHR_SWAPCHAIN_EXTENSION_NAME
                         , KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME
                         , EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME -- Larger descriptor sets (e.g. for global images descriptor set)
                         , KHR_MAINTENANCE3_EXTENSION_NAME -- required for descriptor indexing
                         , KHR_DYNAMIC_RENDERING_EXTENSION_NAME -- new api not needing RenderPasses
-                        , KHR_PORTABILITY_SUBSET_EXTENSION_NAME -- required for moltenvk
                         , KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME -- required for the above dynamic rendering extension
                         , KHR_CREATE_RENDERPASS_2_EXTENSION_NAME -- required for the above dynamic rendering extension
                         ]

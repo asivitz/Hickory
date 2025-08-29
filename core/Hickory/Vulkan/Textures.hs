@@ -37,7 +37,6 @@ import Data.Maybe (fromMaybe)
 import Hickory.Vulkan.HDR (PixelRGBAF (..))
 
 import qualified Codec.Ktx2.Read as KTX
-import Data.IORef (newIORef, readIORef, writeIORef)
 import qualified Codec.Ktx2.Level as KTX
 import qualified Codec.Ktx2.Header as KTX
 import qualified Codec.Ktx2.Write as KTX
