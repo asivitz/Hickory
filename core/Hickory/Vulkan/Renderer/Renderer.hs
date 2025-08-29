@@ -828,7 +828,7 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
 
     let currentDepthViewableImage = resourceForFrame swapchainImageIndex depthViewableImage
     -- We use depth as a texture for lighting, but need it for z-testing in forward rendering
-    imageBarrier commandBuffer IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL (PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT) ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+    imageBarrier commandBuffer IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL PIPELINE_STAGE_FRAGMENT_SHADER_BIT ACCESS_SHADER_READ_BIT
                                IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL (PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT)
                                  (ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT .|. ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT)
                                IMAGE_ASPECT_DEPTH_BIT 1 1 currentDepthViewableImage.image
