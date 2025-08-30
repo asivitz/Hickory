@@ -7,14 +7,12 @@
 
 module Hickory.Vulkan.Vulkan where
 
-import Control.Monad
 import Vulkan
   ( ColorSpaceKHR (COLOR_SPACE_SRGB_NONLINEAR_KHR)
   , CompositeAlphaFlagBitsKHR (..)
   , Device (..)
   , DeviceCreateInfo(..)
   , DeviceQueueCreateInfo(..)
-  , ExtensionProperties (..)
   , Extent2D (..)
   , Format (..)
   , ImageAspectFlagBits (..)
@@ -35,8 +33,6 @@ import Vulkan
   , SurfaceKHR
   , SwapchainCreateInfoKHR(..)
 
-  , enumerateDeviceExtensionProperties
-  , enumeratePhysicalDevices
   , getDeviceQueue
   , getPhysicalDeviceProperties
   , getPhysicalDeviceQueueFamilyProperties
@@ -64,13 +60,11 @@ import Vulkan
   , ShaderStageFlagBits (..)
   , withShaderModule
   , PipelineShaderStageCreateInfo(..)
-  , pattern KHR_UNIFORM_BUFFER_STANDARD_LAYOUT_EXTENSION_NAME, pattern EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME, pattern KHR_MAINTENANCE3_EXTENSION_NAME
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, PhysicalDeviceVulkan12Features, samplerFilterMinmax, samplerAnisotropy, independentBlend, pattern KHR_DYNAMIC_RENDERING_EXTENSION_NAME, pattern KHR_DEPTH_STENCIL_RESOLVE_EXTENSION_NAME, pattern KHR_CREATE_RENDERPASS_2_EXTENSION_NAME, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType, getPhysicalDeviceFeatures, PhysicalDeviceVulkan13Features(..), pattern KHR_PORTABILITY_SUBSET_SPEC_VERSION, pattern KHR_SWAPCHAIN_SPEC_VERSION
+  , PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, samplerAnisotropy, independentBlend, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType, getPhysicalDeviceFeatures, PhysicalDeviceVulkan13Features(..), pattern KHR_PORTABILITY_SUBSET_SPEC_VERSION, pattern KHR_SWAPCHAIN_SPEC_VERSION
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
-import Data.Ord (comparing)
 
 import Data.Word (Word32)
 import Vulkan.Utils.Misc ((.&&.))
@@ -86,7 +80,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Acquire (Acquire (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.List as DL
 import Data.Foldable (for_)
 import Data.Bits ((.|.))
 import Hickory.Vulkan.Types (DeviceContext(..), Swapchain (..), VulkanResources (..), ViewableImage (..))
@@ -161,11 +154,17 @@ selectPhysicalDevice inst surface = pickPhysicalDevice inst suitability scoring
             reqRequests :: [DeviceRequirement]
             reqRequests =
               (if os == "darwin"
-               then
-                 (RequireDeviceExtension { deviceExtensionLayerName = Nothing
-                                         , deviceExtensionName = KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-                                         , deviceExtensionMinVersion = KHR_PORTABILITY_SUBSET_SPEC_VERSION
-                                         }:)
+               then (
+                 [ RequireDeviceExtension { deviceExtensionLayerName = Nothing
+                                          , deviceExtensionName = KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+                                          , deviceExtensionMinVersion = KHR_PORTABILITY_SUBSET_SPEC_VERSION
+                                          }
+                   -- Needed for for comparison samplers, e.g. sampler2DShadow, but only in conjunction w/ portability subset
+                 , RequireDeviceFeature { featureName = "MUTABLE COMPARISON SAMPLERS"
+                                        , checkFeature = \s -> s.mutableComparisonSamplers
+                                        , enableFeature = \s -> s { mutableComparisonSamplers = True }
+                                        }
+                 ]++)
                else id
               )
               [ RequireDeviceExtension { deviceExtensionLayerName = Nothing
@@ -181,11 +180,6 @@ selectPhysicalDevice inst surface = pickPhysicalDevice inst suitability scoring
               , RequireDeviceFeature { featureName = "RUNTIME DESCRIPTOR ARRAY"
                                      , checkFeature = \s -> s.runtimeDescriptorArray
                                      , enableFeature = \s -> s { runtimeDescriptorArray = True }
-                                     }
-              -- Needed for sampler2DShadow
-              , RequireDeviceFeature { featureName = "MUTABLE COMPARISON SAMPLERS"
-                                     , checkFeature = \s -> s.mutableComparisonSamplers
-                                     , enableFeature = \s -> s { mutableComparisonSamplers = True }
                                      }
               -- Can use scalar block layout (tight packing) in shaders
               , RequireDeviceFeature { featureName = "SCALAR BLOCK LAYOUT"
