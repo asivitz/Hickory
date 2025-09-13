@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, OverloadedLists, CPP #-}
+{-# LANGUAGE PatternSynonyms, OverloadedLists, CPP, OverloadedRecordDot #-}
 
 module Hickory.Vulkan.Utils where
 
@@ -8,7 +8,7 @@ import Vulkan
   ( Instance
   , SurfaceKHR
   , pattern KHR_SURFACE_EXTENSION_NAME
-  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..)
+  , deviceWaitIdle, pattern KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, CommandPoolCreateInfo(..), withCommandPool, CommandPoolCreateFlagBits (..), waitForFences
   )
 import Hickory.Types (Size (..))
 import Hickory.Vulkan.Framing (resourceForFrame, frameResource)
@@ -19,9 +19,11 @@ import Acquire (Acquire (..))
 import Control.Monad.IO.Class (liftIO)
 import Hickory.Vulkan.Instance (withStandardInstance, validationLayers)
 import Vulkan.Zero (zero)
-import Hickory.Vulkan.Types (DeviceContext(..), VulkanResources (..), Swapchain, FrameContext)
+import Hickory.Vulkan.Types (DeviceContext(..), VulkanResources (..), Swapchain, FrameContext, Frame(..))
 import Control.Concurrent (threadDelay)
 import System.Info (os)
+import Data.Foldable (for_)
+import qualified Control.Concurrent as Thread
 
 initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire VulkanResources
 initVulkan extensions surfCreate = do
@@ -89,6 +91,8 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes =
           releaseRes
           unWrapAcquire acquireDynamicResources >>= writeIORef dynamicResources
     cleanup = do
+      for_ frames \frame -> do
+        void $ waitForFences deviceContext.device [ frame.inFlightFence ] True maxBound
       waitForIdleDevice
       readIORef dynamicResources >>= snd
   Acquire $ pure (runASingleFrame, cleanup)

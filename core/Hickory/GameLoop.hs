@@ -15,6 +15,8 @@ import Data.Time (NominalDiffTime, getCurrentTime, UTCTime, diffUTCTime, addUTCT
 import Control.Concurrent (threadDelay)
 import Control.Monad.Extra (whileM)
 import Data.Foldable (for_)
+import GHC.Conc (atomically)
+import qualified Control.Concurrent as Thread
 
 newGameStateStack :: a -> S.Seq a
 newGameStateStack = S.singleton
@@ -80,7 +82,7 @@ gameLoop physicsTimeStep inputPoller termination initialScene newScenePoll = do
   logicThreadAlive <- newIORef True
 
   Ki.scoped \scope -> do
-    _thr <- Ki.fork scope do
+    logicThread <- Ki.fork scope do
       whileM do
         newScenePoll >>= flip for_ \newScene -> do
           atomicModifyIORef' statesRef \(lft, fn, _, currentScene) -> ((lft, fn, Just currentScene, newScene), ())
@@ -127,4 +129,10 @@ gameLoop physicsTimeStep inputPoller termination initialScene newScenePoll = do
         Just (Scene { renderF = oldRenderF, sceneStates = oldSceneStates }) -> for_ (interpState oldSceneStates) oldRenderF
       not <$> termination
     writeIORef logicThreadAlive False
+    atomically $ Ki.await logicThread
+
+    -- This shouldn't be necessary,
+    -- but seems like resources are hung unto during shutdown (and MoltenVK, at least, dies ungracefully). Are threads actually not finished yet?
+    Thread.threadDelay 100_000
+
     pure exitVal
