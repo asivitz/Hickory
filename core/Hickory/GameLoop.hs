@@ -11,12 +11,13 @@ import Linear (nearZero)
 import Hickory.Input (InputFrame(..), RawInput, inputFrameBuilder)
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef', writeIORef)
 import qualified Ki
-import Data.Time (NominalDiffTime, getCurrentTime, UTCTime, diffUTCTime, addUTCTime)
+import Data.Time (NominalDiffTime, getCurrentTime, UTCTime, diffUTCTime, addUTCTime, nominalDiffTimeToSeconds)
 import Control.Concurrent (threadDelay)
 import Control.Monad.Extra (whileM)
 import Data.Foldable (for_)
 import GHC.Conc (atomically)
 import qualified Control.Concurrent as Thread
+import Control.Monad (when)
 
 newGameStateStack :: a -> S.Seq a
 newGameStateStack = S.singleton
@@ -66,12 +67,13 @@ data Scene = forall a. Interpolatable a => Scene
 -- (Use the StrictData extension)
 gameLoop
   :: NominalDiffTime
+  -> IO (Maybe (NominalDiffTime))
   -> IO [RawInput]
   -> IO Bool
   -> Scene
   -> IO (Maybe Scene)
   -> IO ()
-gameLoop physicsTimeStep inputPoller termination initialScene newScenePoll = do
+gameLoop physicsTimeStep getmRenderFrameCap inputPoller termination initialScene newScenePoll = do
   -- Triple buffer recorded game states
   initialFrameTime <- getCurrentTime
   statesRef :: IORef (UTCTime, Word, Maybe Scene, Scene) <- newIORef (initialFrameTime, 0, Nothing, initialScene)
@@ -103,7 +105,8 @@ gameLoop physicsTimeStep inputPoller termination initialScene newScenePoll = do
 
         (readIORef logicThreadAlive)
 
-    exitVal <- whileM do
+    frameLimiter <- mkFrameLimiter
+    exitVal <- whileM $ frameLimiter getmRenderFrameCap do
       (lastFrameTime, _, oldScene, Scene { renderF = currentRenderF, sceneStates = currentSceneStates} ) <- readIORef statesRef
       input <- inputPoller -- Need to poll input on main thread (on SDL at least)
       atomicModifyIORef' inputsRef \is -> (is ++ input, ())
@@ -136,3 +139,25 @@ gameLoop physicsTimeStep inputPoller termination initialScene newScenePoll = do
     Thread.threadDelay 100_000
 
     pure exitVal
+
+mkFrameLimiter :: IO (IO (Maybe NominalDiffTime) -> IO a -> IO a)
+mkFrameLimiter = do
+  timeRef <- getCurrentTime >>= newIORef
+  pure \getmLimit f -> do
+    mLimit <- getmLimit
+    a <- f
+    case mLimit of
+      Nothing -> pure ()
+      Just limit -> do
+        deadline <- readIORef timeRef
+        now <- getCurrentTime
+        let remaining = diffUTCTime deadline now
+        when (remaining > 0) do
+          Thread.threadDelay (toMicroS remaining)
+        let next1 = addUTCTime limit deadline
+            nextN = until (> now) (addUTCTime limit) next1
+        writeIORef timeRef nextN
+    pure a
+  where
+  toMicroS :: NominalDiffTime -> Int
+  toMicroS x = floor (realToFrac x * 1e6 :: Double)
