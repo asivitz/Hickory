@@ -138,10 +138,13 @@ float screenPixelRange(float sdfPixelRange) {
 void main() {
   Uniforms uniforms = uniformBlock.uniforms[uniformIdx];
 
-  float distance = median(texture(texSampler, texCoord).rgb);
+  float sd = median(textureLod(texSampler, texCoord, 0.0).rgb) - 0.5;
 
   float range = screenPixelRange(uniforms.sdfPixelRange);
-  float screenPixelDistance = range * (distance - 0.5);
+  float od = uniforms.outlineSize / uniforms.sdfPixelRange;
+
+  float covFill    = clamp(range * sd        + 1.0, 0.0, 2.0) * 0.5;
+  float covOutline = clamp(range * (sd + od) + 1.0, 0.0, 2.0) * 0.5;
 
   if (uniforms.outlineSize > 0)
   {
@@ -149,26 +152,17 @@ void main() {
 
     vec4 outerColor = mix( background
                          , uniforms.outlineColor
-                         , clamp( screenPixelDistance + 1 + uniforms.outlineSize
-                           , 0
-                           , 2
-                           ) / 2);
+                         , covOutline);
     outColor = mix( outerColor
                   , uniforms.color
-                  , clamp( screenPixelDistance + 1
-                         , 0
-                         , 2
-                         ) / 2);
+                  , covFill);
   }
   else
   {
     vec4 background = vec4(uniforms.color.rgb, 0);
     outColor = mix( background
                   , uniforms.color
-                  , clamp( screenPixelDistance + 1
-                         , 0
-                         , 2
-                         ) / 2);
+                  , covFill);
   }
   if (outColor.a < 0.0001) discard;
 }
