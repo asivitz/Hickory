@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveFunctor, DeriveGeneric #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Hickory.Types
    (
@@ -24,16 +26,19 @@ module Hickory.Types
 import Hickory.Math.Vector
 import Linear (V2(..), V4(..), (^*))
 import GHC.Generics (Generic)
+import Control.DeepSeq (NFData)
 
 data Size a = Size
   { width  :: a
   , height :: a
   } deriving (Show, Read, Functor, Generic)
+    deriving anyclass NFData
 
 data Rect = Rect
   { center :: V2 Scalar
   , size   :: Size Scalar
   } deriving (Show, Read, Generic)
+    deriving anyclass NFData
 
 instance Num a => Num (Size a) where
   Size w h + Size w' h' = Size (w + w') (h + h')

@@ -54,6 +54,7 @@ dependencies:
     - derive-storable
     - deriving-aeson
     - directory
+    - deepseq
     - extra
     - filepath
     - finite-typelits
