@@ -11,7 +11,6 @@ import GHC.Generics (Generic)
 import Hickory.Vulkan.Framing (FramedResource)
 import VulkanMemoryAllocator (Allocation, Allocator)
 import Linear (V3 (..))
-import Foreign.Storable.Generic (GStorable)
 import GHC.Word (Word32)
 import Acquire (Acquire)
 import qualified Data.Vector.Storable as SV
@@ -44,10 +43,9 @@ data DeviceContext = DeviceContext
   , properties        :: PhysicalDeviceProperties
   }
 
--- |Contains resources needed to render a frame. Need two of these for 'Double Buffering'.
+-- |Contains resources needed to render a frame. Need one of these for each 'frame in flight'
 data Frame = Frame
   { imageAvailableSemaphore :: Semaphore
-  , renderFinishedSemaphore :: Semaphore
   , inFlightFence           :: Fence
   , commandPool             :: CommandPool
   , commandBuffer           :: CommandBuffer
@@ -66,7 +64,7 @@ data FrameContext = FrameContext
 data Swapchain = Swapchain
   { imageFormat       :: SurfaceFormatKHR
   , swapchainHandle   :: SwapchainKHR
-  , images            :: V.Vector ViewableImage
+  , images            :: V.Vector (ViewableImage, Semaphore) -- The semaphore is for submission of the image
   , extent            :: Extent2D
   }
 

@@ -118,7 +118,7 @@ initDearImGui platformInit platformShutdown vulkanResources@VulkanResources {..}
   let acqFonts = void vulkanCreateFontsTexture
   _ <- mkAcquire acqFonts (const vulkanDestroyFontsTexture)
 
-  frameBuffers <- for images \(ViewableImage _img imgView _format) ->
+  frameBuffers <- for images \((ViewableImage _img imgView _format), _) ->
     createFramebuffer device renderPass extent [imgView]
 
   pure ImGuiResources {..}

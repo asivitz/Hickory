@@ -23,13 +23,12 @@ import Hickory.Vulkan.Types (DeviceContext(..), VulkanResources (..), Swapchain,
 import Control.Concurrent (threadDelay)
 import System.Info (os)
 import Data.Foldable (for_)
-import qualified Control.Concurrent as Thread
 
 initVulkan :: [ByteString] -> (Instance -> Acquire SurfaceKHR) -> Acquire VulkanResources
 initVulkan extensions surfCreate = do
   let defaultExtensions = (if os == "darwin" then (KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME:) else id) -- required by MoltenVK
                           [ KHR_SURFACE_EXTENSION_NAME
-#ifndef PRODUCTION
+#ifdef DEBUG
                           , "VK_EXT_debug_utils"
 #endif
                           ]
@@ -76,7 +75,7 @@ buildFrameFunction vulkanResources@VulkanResources {..} queryFbSize acqUserRes =
     waitForIdleDevice = deviceWaitIdle (device deviceContext)
     runASingleFrame exeFrame = do
       frameNumber <- atomicModifyIORef frameCounter (\a -> (a+1,a+1))
-      let frame = resourceForFrame (fromIntegral frameNumber) frames -- usually we index by swapchainImageIndex, but we don't have it yet
+      let frame = resourceForFrame (fromIntegral frameNumber) frames
       (mRes, releaseRes) <- liftIO $ readIORef dynamicResources
       case mRes of
         Just (swapchain, userResources) -> do

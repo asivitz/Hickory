@@ -4,6 +4,7 @@
 {-# HLINT ignore "Redundant <$>" #-}
 {-# HLINT ignore "Redundant <&>" #-}
 {-# HLINT ignore "Use infix" #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Hickory.Vulkan.Vulkan where
 
@@ -61,7 +62,7 @@ import Vulkan
   , withShaderModule
   , PipelineShaderStageCreateInfo(..)
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, samplerAnisotropy, independentBlend, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType, getPhysicalDeviceFeatures, PhysicalDeviceVulkan13Features(..), pattern KHR_PORTABILITY_SUBSET_SPEC_VERSION, pattern KHR_SWAPCHAIN_SPEC_VERSION
+  , PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, samplerAnisotropy, independentBlend, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType, getPhysicalDeviceFeatures, PhysicalDeviceVulkan13Features(..), pattern KHR_PORTABILITY_SUBSET_SPEC_VERSION, pattern KHR_SWAPCHAIN_SPEC_VERSION, withSemaphore
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -81,7 +82,7 @@ import qualified Data.ByteString.Char8 as BC
 import Acquire (Acquire (..))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Foldable (for_)
-import Data.Bits ((.|.))
+import Data.Bits ((.|.), (.&.), zeroBits)
 import Hickory.Vulkan.Types (DeviceContext(..), Swapchain (..), VulkanResources (..), ViewableImage (..))
 import System.Info (os)
 import Data.ByteString (ByteString)
@@ -237,6 +238,13 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
   capabilities <- getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
 
   let
+    compAlpha = case capabilities of
+      SurfaceCapabilitiesKHR {..} ->
+        if | supportedCompositeAlpha .&. COMPOSITE_ALPHA_OPAQUE_BIT_KHR /= zeroBits -> COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+           | supportedCompositeAlpha .&. COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR /= zeroBits -> COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR
+           | supportedCompositeAlpha .&. COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR /= zeroBits -> COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
+           | otherwise -> COMPOSITE_ALPHA_INHERIT_BIT_KHR
+
     swapchainCreateInfo :: SwapchainCreateInfoKHR '[]
     swapchainCreateInfo = zero
       { surface            = surface
@@ -250,7 +258,7 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
       , imageSharingMode   = imageSharingMode
       , queueFamilyIndices = queueFamilyIndices
       , preTransform       = currentTransform capabilities
-      , compositeAlpha     = COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+      , compositeAlpha     = compAlpha
       , presentMode        = presentMode
       , clipped            = True
       }
@@ -268,7 +276,7 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
                       (clamp (fromIntegral fbHeight) (minImageExtent.height) (maxImageExtent.height))
 
   case extent of
-    Extent2D w h | w <= 0 && h <= 0 -> pure Nothing
+    Extent2D w h | w == 0 || h == 0 -> pure Nothing
     _ -> do
       swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing mkAcquire
       let imageFormat = surfaceFormat
@@ -280,7 +288,9 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
 
         debugName device imageView (BC.pack "SwapchainImageView")
         debugName device image (BC.pack "SwapchainImage")
-        pure $ ViewableImage image imageView form
+
+        renderFinishedSemaphore <- withSemaphore device zero Nothing mkAcquire
+        pure (ViewableImage image imageView form, renderFinishedSemaphore)
 
       pure . Just $ Swapchain {..}
 
@@ -380,9 +390,9 @@ createShader stage dev name source = do
 
 debugName :: (MonadIO io, HasObjectType p) => Device -> p -> ByteString -> io ()
 debugName dev a name =
-#ifdef PRODUCTION
-  pure ()
-#else
+#ifdef DEBUG
   let (otype, handle) = objectTypeAndHandle a
   in setDebugUtilsObjectNameEXT dev (DebugUtilsObjectNameInfoEXT otype handle (Just name))
+#else
+  pure ()
 #endif

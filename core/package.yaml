@@ -10,8 +10,8 @@ maintainer:          aosivitz@gmail.com
 copyright:           2017 Axis Sivitz
 
 flags:
-  production:
-    description: Enable production mode
+  debug:
+    description: Enable debug mode
     manual: true
     default: false
 
@@ -92,8 +92,8 @@ library:
   verbatim:
     default-language: GHC2021
   when:
-    - condition: "flag(production)"
-      cpp-options: -DPRODUCTION
+    - condition: "flag(debug)"
+      cpp-options: -DDEBUG
 
   exposed-modules:
     - Hickory.Camera

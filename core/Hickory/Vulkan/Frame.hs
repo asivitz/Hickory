@@ -57,7 +57,6 @@ withFrame DeviceContext {..} = do
     in withCommandBuffers device commandBufferAllocateInfo mkAcquire
 
   imageAvailableSemaphore <- withSemaphore device zero Nothing mkAcquire
-  renderFinishedSemaphore <- withSemaphore device zero Nothing mkAcquire
   inFlightFence           <- withFence device zero { flags = FENCE_CREATE_SIGNALED_BIT } Nothing mkAcquire
 
   pure Frame {..}
@@ -89,6 +88,7 @@ useDynamicRenderPass commandBuffer swapchainExtent (V4 r g b a) image depthImage
 -- |Draw a frame
 -- Handles concerns around synchronizing double buffers
 -- Returns False if swapchain is stale and needs to be refreshed
+-- TODO: Handle ERROR_SURFACE_LOST_KHR by recreating surface (as well as swapchain)
 drawFrame :: MonadIO m => Int -> Frame -> VulkanResources -> Swapchain -> (FrameContext -> IO ()) -> m Bool
 drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
   let Swapchain {..} = swapchain
@@ -98,9 +98,10 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
 
   (res, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
   case res of
-    res' | res' == ERROR_OUT_OF_DATE_KHR -> pure False
+    res' | res' == ERROR_OUT_OF_DATE_KHR
+      -> pure False
     res' -> do
-      let image = images V.! fromIntegral imageIndex
+      let (image, renderFinishedSemaphore) = images V.! fromIntegral imageIndex
       resetFences device [ inFlightFence ]
 
       resetCommandBuffer commandBuffer zero
@@ -131,4 +132,6 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
         , swapchains     = [swapchainHandle]
         , imageIndices   = [imageIndex]
         }
-      pure . not $ res' == SUBOPTIMAL_KHR || presentRes == SUBOPTIMAL_KHR || presentRes == ERROR_OUT_OF_DATE_KHR
+      pure . not $ res' == SUBOPTIMAL_KHR
+                || presentRes == SUBOPTIMAL_KHR
+                || presentRes == ERROR_OUT_OF_DATE_KHR

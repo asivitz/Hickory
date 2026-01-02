@@ -18,8 +18,8 @@ build-type:     Simple
 extra-source-files:
     Readme.md
 
-flag production
-  description: Enable production mode
+flag debug
+  description: Enable debug mode
   manual: True
   default: False
 
@@ -162,8 +162,8 @@ library
     , yaml
   if os(osx)
     cc-options: -F/System/Library/Frameworks
-  if flag(production)
-    cpp-options: -DPRODUCTION
+  if flag(debug)
+    cpp-options: -DDEBUG
   default-language: GHC2021
 
 test-suite hickory-test
