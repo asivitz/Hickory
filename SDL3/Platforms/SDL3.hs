@@ -19,8 +19,8 @@ import Linear (V2(..), (^*))
 import Foreign (nullPtr)
 import Data.HashMap.Strict (HashMap)
 import Data.Traversable (for)
-import qualified SDL
-import qualified SDL.Vulkan as SDL
+import qualified SDL3 as SDL
+import qualified SDL3.Vulkan as SDL
 import Data.Foldable (traverse_, for_)
 import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)

@@ -7,10 +7,10 @@ import DearImGui.SDL3 (sdl3Shutdown, sdl3NewFrame, pollEventsWithImGui)
 
 import Hickory.Types
 import Linear (V2(..))
-import qualified SDL
+import qualified SDL3 as SDL
 import Acquire (Acquire)
 import Hickory.Vulkan.Types (VulkanResources, Swapchain, FrameContext, runCleanup)
-import qualified SDL.Vulkan as SDL
+import qualified SDL3.Vulkan as SDL
 import Hickory.Vulkan.Utils (buildFrameFunction)
 import Control.Monad (void)
 import Platforms.SDL3 (SDLHandles, sdlFrameBuilder')
