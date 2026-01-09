@@ -8,9 +8,12 @@
 
 module Hickory.Vulkan.Vulkan where
 
+#ifdef DEBUG
+import Vulkan (setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), objectTypeAndHandle)
+#endif
+
 import Vulkan
-  ( ColorSpaceKHR (COLOR_SPACE_SRGB_NONLINEAR_KHR)
-  , CompositeAlphaFlagBitsKHR (..)
+  ( HasObjectType
   , Device (..)
   , DeviceCreateInfo(..)
   , DeviceQueueCreateInfo(..)
@@ -25,14 +28,11 @@ import Vulkan
   , PhysicalDevice
   , PhysicalDeviceProperties (..)
   , PhysicalDeviceType (..)
-  , PresentModeKHR (..)
 
   , QueueFlagBits (..)
   , SharingMode (..)
   , SurfaceCapabilitiesKHR(..)
   , SurfaceFormatKHR(..)
-  , SurfaceKHR
-  , SwapchainCreateInfoKHR(..)
 
   , getDeviceQueue
   , getPhysicalDeviceProperties
@@ -40,13 +40,10 @@ import Vulkan
   , getPhysicalDeviceSurfaceCapabilitiesKHR
   , getPhysicalDeviceSurfaceFormatsKHR
   , getPhysicalDeviceSurfaceSupportKHR
-  , getSwapchainImagesKHR
   , pattern KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-  , pattern KHR_SWAPCHAIN_EXTENSION_NAME
   , queueFlags
   , withDevice
   , withImageView
-  , withSwapchainKHR
   , SampleCountFlagBits (..)
   , ImageLayout (..)
   , ImageView
@@ -62,7 +59,7 @@ import Vulkan
   , withShaderModule
   , PipelineShaderStageCreateInfo(..)
   , PhysicalDeviceDescriptorIndexingFeatures (..), ImageCreateInfo(..), ImageType (..), Extent3D (..), ImageTiling (..), MemoryPropertyFlagBits (..), ImageAspectFlags
-  , PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, samplerAnisotropy, independentBlend, objectTypeAndHandle, setDebugUtilsObjectNameEXT, DebugUtilsObjectNameInfoEXT (..), HasObjectType, getPhysicalDeviceFeatures, PhysicalDeviceVulkan13Features(..), pattern KHR_PORTABILITY_SUBSET_SPEC_VERSION, pattern KHR_SWAPCHAIN_SPEC_VERSION, withSemaphore
+  , PhysicalDeviceScalarBlockLayoutFeatures(..), framebufferColorSampleCounts, PhysicalDevicePortabilitySubsetFeaturesKHR(..), depthClamp, samplerAnisotropy, independentBlend, getPhysicalDeviceFeatures, PhysicalDeviceVulkan13Features(..), pattern KHR_PORTABILITY_SUBSET_SPEC_VERSION, withSemaphore
   )
 import Vulkan.Zero
 import qualified Data.Vector as V
@@ -70,7 +67,7 @@ import qualified Data.Vector as V
 import Data.Word (Word32)
 import Vulkan.Utils.Misc ((.&&.))
 import Data.Functor ((<&>))
-import Vulkan.CStruct.Extends (SomeStruct(..))
+import Vulkan.CStruct.Extends (SomeStruct(..), extendSomeStruct, withSomeStruct)
 import Data.List (nub)
 import Control.Applicative ((<|>))
 import Data.Traversable (for)
@@ -91,12 +88,16 @@ import Vulkan.Utils.Initialization (pickPhysicalDevice)
 import Vulkan.Utils.Requirements (checkDeviceRequirements, prettyRequirementResult, RequirementResult (..))
 import Vulkan.Requirement (DeviceRequirement(..))
 
+import Vulkan.Extensions.VK_EXT_full_screen_exclusive as FSE
+import Vulkan.Extensions.VK_KHR_swapchain as SC
+
+
 {- DEVICE CREATION -}
 
-selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (Maybe ((SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits, PhysicalDeviceProperties, SomeStruct DeviceCreateInfo), PhysicalDevice))
+selectPhysicalDevice :: MonadIO m => Instance -> SurfaceKHR -> m (Maybe ((SurfaceFormatKHR, PresentModeKHR, Word32, Word32, SampleCountFlagBits, PhysicalDeviceProperties, SomeStruct DeviceCreateInfo, Bool), PhysicalDevice))
 selectPhysicalDevice inst surface = pickPhysicalDevice inst suitability scoring
   where
-  scoring (_surfFormat, _presMode, _, _, _maxSampleCount, props, _) = case deviceType props of
+  scoring (_surfFormat, _presMode, _, _, _maxSampleCount, props, _, _) = case deviceType props of
     PHYSICAL_DEVICE_TYPE_DISCRETE_GPU   -> 5 :: Int
     PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU -> 4
     PHYSICAL_DEVICE_TYPE_CPU            -> 3
@@ -190,9 +191,19 @@ selectPhysicalDevice inst surface = pickPhysicalDevice inst suitability scoring
               ]
 
             optRequests :: [DeviceRequirement]
-            optRequests = []
+            optRequests = [
+              -- Can we disallow Full Screen Exclusive mode (which seems to crash on windows)
+              RequireDeviceExtension { deviceExtensionLayerName  = Nothing
+                                     , deviceExtensionName       = EXT_FULL_SCREEN_EXCLUSIVE_EXTENSION_NAME
+                                     , deviceExtensionMinVersion = EXT_FULL_SCREEN_EXCLUSIVE_SPEC_VERSION
+                                     }
+              ]
 
         (mDeviceCreateInfoRes, reqResults, optResults) <- checkDeviceRequirements reqRequests optRequests dev deviceCreateInfo
+        let [fseResult] = optResults
+            fullScreenExclusiveExtEnabled = case fseResult of
+              Satisfied -> True
+              _ -> False
 
         liftIO do
           for_ reqResults \res -> do
@@ -208,13 +219,14 @@ selectPhysicalDevice inst surface = pickPhysicalDevice inst suitability scoring
           Nothing -> pure Nothing
           Just deviceCreateInfoRes -> do
             pure $
-              (,,,,,,) <$> pure format
+              (,,,,,,,) <$> pure format
                       <*> pure presentMode
                       <*> graphicsQueueIndex
                       <*> presentQueueIndex
                       <*> pure maxSampleCount
                       <*> pure deviceProperties
                       <*> pure deviceCreateInfoRes
+                      <*> pure fullScreenExclusiveExtEnabled
       _ -> pure Nothing
 
 withLogicalDevice :: Instance -> SurfaceKHR -> Acquire DeviceContext
@@ -222,7 +234,7 @@ withLogicalDevice inst surface = do
   mRes <- selectPhysicalDevice inst surface
   case mRes of
     Nothing -> liftIO $ ioError (userError "No acceptable device found")
-    Just ((surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx, maxSampleCount, properties, deviceCreateInfo), physicalDevice) -> do
+    Just ((surfaceFormat, presentMode, graphicsFamilyIdx, presentFamilyIdx, maxSampleCount, properties, deviceCreateInfo, fullScreenExclusiveExtEnabled), physicalDevice) -> do
 
       case deviceCreateInfo of
         SomeStruct ss -> do
@@ -245,8 +257,8 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
            | supportedCompositeAlpha .&. COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR /= zeroBits -> COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
            | otherwise -> COMPOSITE_ALPHA_INHERIT_BIT_KHR
 
-    swapchainCreateInfo :: SwapchainCreateInfoKHR '[]
-    swapchainCreateInfo = zero
+    swapchainCreateInfoBase :: SomeStruct SwapchainCreateInfoKHR
+    swapchainCreateInfoBase = SomeStruct $ zero
       { surface            = surface
       , minImageCount      = case capabilities of
         SurfaceCapabilitiesKHR {..} -> if maxImageCount > 0 then min maxImageCount (minImageCount + 1) else minImageCount + 1
@@ -263,6 +275,15 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
       , clipped            = True
       }
 
+    -- We want to use this extension to disallow surface from going into Full Screen Exclusive mode on windows
+    -- (b/c it seems to crash, and perhaps it's also deprecated in the windows world?)
+    fseInfo = SurfaceFullScreenExclusiveInfoEXT { FSE.fullScreenExclusive = FULL_SCREEN_EXCLUSIVE_DISALLOWED_EXT }
+    swapchainCreateInfo :: SomeStruct SC.SwapchainCreateInfoKHR
+    swapchainCreateInfo =
+      if fullScreenExclusiveExtEnabled
+      then extendSomeStruct fseInfo swapchainCreateInfoBase
+      else swapchainCreateInfoBase
+
     (imageSharingMode, queueFamilyIndices) = if graphicsQueue == presentQueue
       then ( SHARING_MODE_EXCLUSIVE , [])
       else ( SHARING_MODE_CONCURRENT, [graphicsFamilyIdx, presentFamilyIdx]
@@ -278,7 +299,7 @@ withSwapchain dc@DeviceContext{..} surface (fbWidth, fbHeight) = do
   case extent of
     Extent2D w h | w == 0 || h == 0 -> pure Nothing
     _ -> do
-      swapchainHandle <- withSwapchainKHR device swapchainCreateInfo Nothing mkAcquire
+      swapchainHandle <- withSomeStruct swapchainCreateInfo \sci -> withSwapchainKHR device sci Nothing mkAcquire
       let imageFormat = surfaceFormat
 
       (_, rawImages) <- getSwapchainImagesKHR device swapchainHandle

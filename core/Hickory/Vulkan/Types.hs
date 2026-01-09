@@ -41,6 +41,7 @@ data DeviceContext = DeviceContext
   , presentMode       :: PresentModeKHR
   , maxSampleCount    :: SampleCountFlagBits
   , properties        :: PhysicalDeviceProperties
+  , fullScreenExclusiveExtEnabled :: Bool -- Do we have an extension to control fullscreen exclusive mode
   }
 
 -- |Contains resources needed to render a frame. Need one of these for each 'frame in flight'

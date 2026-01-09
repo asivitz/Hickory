@@ -148,7 +148,7 @@ withGraphicsPipeline
   shaderStages   <- V.sequence [ createVertShader deviceContext.device name vertShader, createFragShader deviceContext.device name fragShader ]
 
   let
-    -- pipelineCreateInfo :: GraphicsPipelineCreateInfo '[]
+    -- pipelineCreateInfoBase :: GraphicsPipelineCreateInfo '[]
     pipelineCreateInfoBase = zero
       { stages             = shaderStages
       , vertexInputState   = Just . SomeStruct $ zero
