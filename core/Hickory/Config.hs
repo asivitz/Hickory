@@ -23,7 +23,7 @@ parseYamlDefault bs = do
 readYamlDefault :: FromYamlDefault a => FilePath -> IO (Either String a)
 readYamlDefault = fmap parseYamlDefault . Data.ByteString.readFile
 
-class FromYamlDefault a where
+class Default a => FromYamlDefault a where
   parseJSONWithDefault :: Value -> Yaml.Parser a
 
   default parseJSONWithDefault ::
@@ -55,7 +55,7 @@ instance GFromYamlDefault f => GFromYamlDefault (M1 C c f) where
   gParseJsonWithDefault val = M1 <$> gParseJsonWithDefault val
 
 -- Metadata for a selector (i.e. a single field) (M1 S)
-instance (Selector s, Default c, FromYamlDefault c) => GFromYamlDefault (M1 S s (K1 i c)) where
+instance (Selector s, FromYamlDefault c) => GFromYamlDefault (M1 S s (K1 i c)) where
   gParseJsonWithDefault = withObject "record" \obj -> do
     let fieldName :: Text
         fieldName = pack (selName (undefined :: M1 S s (K1 i c) p))
