@@ -12,8 +12,11 @@ import Data.Yaml (Value (..), withObject, (.:?))
 import Data.Default (Default(..))
 import Data.Text (pack, Text)
 import Data.ByteString (ByteString, readFile)
-import Data.Aeson.Key (fromText)
+import Data.Aeson.Key (fromText, toText, toString)
 import Data.Bifunctor (first)
+import Control.Applicative ((<|>))
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Types as Yaml
 
 parseYamlDefault :: FromYamlDefault a => ByteString -> Either String a
 parseYamlDefault bs = do
@@ -65,3 +68,33 @@ instance (Selector s, FromYamlDefault c) => GFromYamlDefault (M1 S s (K1 i c)) w
       Just v -> parseJSONWithDefault v
       Nothing -> pure def
     pure $ M1 (K1 v)
+
+-- Sums
+
+class GFromYamlSum f where
+  gParseSumByTag :: KeyMap.Key -> Value -> Yaml.Parser (f p)
+
+instance (GFromYamlSum a, GFromYamlSum b) => GFromYamlSum (a :+: b) where
+  gParseSumByTag tag v
+    =   (L1 <$> gParseSumByTag @a tag v)
+    <|> (R1 <$> gParseSumByTag @b tag v)
+
+instance (Constructor c, GFromYamlDefault f) => GFromYamlSum (M1 C c f) where
+  gParseSumByTag tag v =
+    let myTag = pack (conName (undefined :: M1 C c f p))
+    in if toText tag == myTag
+       then M1 <$> gParseJsonWithDefault v
+       else fail "tag mismatch"
+
+instance GFromYamlSum f => GFromYamlSum (M1 D d f) where
+  gParseSumByTag tag v = M1 <$> gParseSumByTag @f tag v
+
+instance (GFromYamlSum (a :+: b)) => GFromYamlDefault (a :+: b) where
+  gParseJsonWithDefault v = case v of
+    String s -> gParseSumByTag @(a :+: b) (fromText s) Null
+    Object o -> case KeyMap.toList o of
+      [(k, inner)]
+        ->  gParseSumByTag @(a :+: b) k inner
+        <|> fail ("Unknown constructor: " ++ toString k)
+      _ -> fail "Expected an object with exactly one key (the constructor)"
+    _ -> Yaml.typeMismatch "sum (string or single-key object)" v
