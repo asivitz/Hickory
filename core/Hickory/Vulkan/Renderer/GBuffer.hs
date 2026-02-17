@@ -331,7 +331,7 @@ layout(location = 4) out vec4 material;
 layout(location = 8) out mat3 TBN;
 
 void main() {
-  int boneOffset = int(uniforms.skinIdx * 66);
+  int boneOffset = int(uniforms.skinIdx * 70);
   mat4 skinMat
     = inJointWeights.x * skinBlock.boneMat[boneOffset + int(inJointIndices.x)]
     + inJointWeights.y * skinBlock.boneMat[boneOffset + int(inJointIndices.y)]
@@ -376,7 +376,7 @@ layout(location = 0) out vec2 texCoord;
 layout(location = 2) out vec4 color;
 
 void main() {
-  int boneOffset = int(uniforms.skinIdx * 66);
+  int boneOffset = int(uniforms.skinIdx * 70);
   mat4 skinMat
     = inJointWeights.x * skinBlock.boneMat[boneOffset + int(inJointIndices.x)]
     + inJointWeights.y * skinBlock.boneMat[boneOffset + int(inJointIndices.y)]

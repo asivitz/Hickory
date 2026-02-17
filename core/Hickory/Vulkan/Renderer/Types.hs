@@ -244,7 +244,7 @@ data MeshType
 
 data AnimatedMesh = AnimatedMesh
   { albedo   :: PointedDescriptorSet
-  , boneMat  :: VSS.Vector 66 (M44 Float)
+  , boneMat  :: VSS.Vector 70 (M44 Float)
   , colors   :: VSS.Vector 6 (V4 Float)
   }
 

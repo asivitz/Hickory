@@ -98,7 +98,7 @@ withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawL
 withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Scalar)))
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = do
   skinBuffer :: FramedResource (DataBuffer (M44 Scalar))
-    <- frameResource $ withDataBuffer vulkanResources "Skin" (66 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
+    <- frameResource $ withDataBuffer vulkanResources "Skin" (70 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
   let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.size buffer.buf]
   config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader noColorFragShader
   pure (config, skinBuffer)
