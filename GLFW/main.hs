@@ -67,13 +67,15 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           H.addCommand $ DrawCommand
             { instances = [("",[(0,mat)])]
             , mesh = H.Buffered square
-            , pokeData = \_ -> flip poke $ H.StaticConstants
+            , pokeData = \_ ptr -> do
+              poke ptr H.StaticConstants
                 { modelMat    = mat
                 , normalMat   = transpose . inv33 $ mat ^. _m33
                 , color       = white
                 , material    = zero
                 , tiling      = V2 1 1
                 }
+              pure True
             , cull = False
             , doCastShadow = False
             , doBlend = False
@@ -86,13 +88,15 @@ main = withWindow 800 800 "Vulkan Test" \win -> runAcquire do
           H.addCommand $ DrawCommand
             { instances = [("", [(0,mat)])]
             , mesh = H.Buffered square
-            , pokeData = \_ -> flip poke $ H.StaticConstants
+            , pokeData = \_ ptr -> do
+              poke ptr H.StaticConstants
                 { modelMat    = mat
                 , normalMat   = transpose . inv33 $ mat ^. _m33
                 , color       = white
                 , material    = zero
                 , tiling      = V2 1 1
                 }
+              pure True
             , cull = False
             , doCastShadow = False
             , doBlend = False

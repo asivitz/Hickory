@@ -41,7 +41,7 @@ import Data.Word (Word32)
 import Data.UUID (UUID)
 import Control.Monad.State.Class ( MonadState, put, get )
 import qualified Data.UUID as UUID
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe, catMaybes)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
 import Hickory.Math (Scalar, orthographicProjection, transformV3, glerp)
 import Data.Fixed (div')
@@ -599,7 +599,7 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
 
     -- upload uniforms
     -- For each DC we have the starting uniform index
-    gbufDCsGroupedByMaterial :: [[(Word32, Int, Bool, DrawCommand)]] <- for (bucketOn (dcMaterialUUID . snd . snd) allDrawCommands) \group ->
+    gbufDCsGroupedByMaterial :: [[(Word32, Int, Bool, DrawCommand)]] <- fmap catMaybes <$> for (bucketOn (dcMaterialUUID . snd . snd) allDrawCommands) \group ->
       case groupHead group of
         (_, (_, DrawCommand {materialConfig})) ->
           let (materialDS, uniformSize) = case materialConfig of
@@ -612,9 +612,13 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
                      withMappedMemory idBuffer.allocator idBuffer.allocation bracket \idbufptr -> do
                 snd <$> (\f -> mapAccumM f 0 group) \startIdx (ordering, (isOverlay, dc@DrawCommand {pokeData, instances})) -> do
                   let objIds = concatMap (map fst . snd) instances
-                  liftIO $ pokeData startIdx (plusPtr uniformbufptr (uniformSize * fromIntegral startIdx))
-                  liftIO $ pokeArray (plusPtr idbufptr (sizeOf (undefined :: Word32) * fromIntegral startIdx)) objIds
-                  pure (startIdx + fromIntegral (length objIds), (startIdx, ordering, isOverlay, dc))
+                  success <- liftIO $ pokeData startIdx (plusPtr uniformbufptr (uniformSize * fromIntegral startIdx))
+                  if success
+                  then do
+                    liftIO $ pokeArray (plusPtr idbufptr (sizeOf (undefined :: Word32) * fromIntegral startIdx)) objIds
+                    pure (startIdx + fromIntegral (length objIds), Just (startIdx, ordering, isOverlay, dc))
+                  else
+                    pure (startIdx, Nothing)
 
     -- We expand the starting index for each DC into a list of non-culled indices
     -- Ex. A DC has 10 instances, starting at uniform index 17, but only 4 are left after culling. So we give indices 18, 19, 22, 24
@@ -1012,14 +1016,16 @@ drawText materialConfig (font, fontTex, sdfPixelRange) mat color outlineColor ou
     , doBlend         = True
     , descriptorSet   = Just fontTex
     , cull = False
-    , pokeData = \_ -> flip poke $ MSDFMatConstants
-        { modelMat      = mat
-        , color         = color
-        , outlineColor  = outlineColor
-        , outlineSize   = outlineSize
-        , sdfPixelRange = sdfPixelRange
-        , tiling        = V2 1 1
-        }
+    , pokeData = \_ ptr -> do
+        poke ptr MSDFMatConstants
+          { modelMat      = mat
+          , color         = color
+          , outlineColor  = outlineColor
+          , outlineSize   = outlineSize
+          , sdfPixelRange = sdfPixelRange
+          , tiling        = V2 1 1
+          }
+        pure True
     }
 
 pickObjectID :: FrameContext -> Renderer -> (Scalar,Scalar) -> IO Word32

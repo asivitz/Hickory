@@ -19,13 +19,15 @@ drawLine materialConfig color a@(V3 p1x p1y p1z) b@(V3 p2x p2y p2z) = do
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = \_ -> flip poke $ StaticConstants
+    , pokeData = \_ ptr -> do
+      poke ptr StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
         , material    = zero
         , tiling      = zero
         }
+      pure True
     , cull = False
     , doCastShadow = False
     , doBlend = False
@@ -43,13 +45,15 @@ drawPoint materialConfig color (V3 px py pz)  = do
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = \_ -> flip poke $ StaticConstants
+    , pokeData = \_ ptr -> do
+      poke ptr StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
         , material    = zero
         , tiling      = zero
         }
+      pure True
     , cull = False
     , doCastShadow = False
     , doBlend = False
@@ -67,13 +71,15 @@ drawSolidCube materialConfig color = do
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Buffered cube
-    , pokeData = \_ -> flip poke $ StaticConstants
+    , pokeData = \_ ptr -> do
+      poke ptr StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
         , material    = zero
         , tiling      = V2 1 1
         }
+      pure True
     , cull = False
     , doCastShadow = False
     , doBlend = False
@@ -155,13 +161,15 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = \_ -> flip poke $ StaticConstants
+    , pokeData = \_ ptr -> do
+      poke ptr StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
         , material    = zero
         , tiling      = V2 1 1
         }
+      pure True
     , cull = False
     , doCastShadow = False
     , doBlend = True
@@ -201,13 +209,15 @@ drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (
   addCommand $ DrawCommand
     { instances = [("", [(0,mat)])]
     , mesh = Dynamic mesh
-    , pokeData = \_ -> flip poke $ StaticConstants
+    , pokeData = \_ ptr -> do
+      poke ptr StaticConstants
         { modelMat    = mat
         , normalMat   = transpose . inv33 $ mat ^. _m33
         , color       = color
         , material    = zero
         , tiling      = V2 1 1
         }
+      pure True
     , cull = False
     , doCastShadow = False
     , doBlend = True

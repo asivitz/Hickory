@@ -144,13 +144,15 @@ editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
         , cull = False
         , materialConfig = materialConfig
         , descriptorSet = Just tex
-        , pokeData = \_ -> flip poke $ H.StaticConstants
+        , pokeData = \_ ptr -> do
+          poke ptr H.StaticConstants
             { modelMat    = mat
             , normalMat   = transpose . inv33 $ mat ^. _m33
             , color       = black
             , material    = zero
             , tiling      = zero
             }
+          pure True
         }
     where
     diff = p2 - p1

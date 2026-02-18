@@ -170,13 +170,15 @@ renderGame graphicsParams res t scrSize@(Size _ _h) (renderer, frameContext)
     H.addCommand $ DrawCommand
       { instances = [("", [(0,mat)])]
       , mesh = H.Buffered mesh
-      , pokeData = \_ -> flip poke $ H.StaticConstants
+      , pokeData = \_ ptr -> do
+        poke ptr H.StaticConstants
           { modelMat    = mat
           , normalMat   = transpose . inv33 $ mat ^. _m33
           , color       = white
           , material    = V4 ((t `mod'` 5) / 5) 0 0 0
           , tiling      = V2 1 1
           }
+        pure True
       , cull = False
       , doCastShadow = False
       , doBlend = True

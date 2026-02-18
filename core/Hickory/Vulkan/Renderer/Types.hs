@@ -223,7 +223,7 @@ data DrawBatch = DrawBatch
 
 data DrawCommand = forall uniform. DrawCommand
   { materialConfig  :: MaterialConfig uniform
-  , pokeData        :: Word32 -> Ptr uniform -> IO ()
+  , pokeData        :: Word32 -> Ptr uniform -> IO Bool
   , mesh            :: MeshType
   -- This describes the actual draw commands we send to vulkan
   , instances       :: [(Text, [(Word32, M44 Float)])] -- MeshMember Name, [(Id, Transform)]
