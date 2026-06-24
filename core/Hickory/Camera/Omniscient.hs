@@ -12,7 +12,6 @@
 
 module Hickory.Camera.Omniscient where
 
-import Hickory.Math (Scalar)
 import Hickory.Types (Size (..))
 import Data.Maybe (fromMaybe, isJust)
 import Hickory.Input (Key(..), InputFrame(..))
@@ -33,14 +32,14 @@ data CameraViewMode = OrthoTop | OrthoFront | OrthoRight | OrthoLeft | OrthoBack
   deriving Eq
 
 data Omniscient = Omniscient
-  { captured :: Maybe (V2 Scalar, V3 Scalar, ((Scalar, Scalar), Scalar))
-  , zoom     :: Scalar
-  , focusPos :: V3 Scalar
-  , angles   :: (Scalar, Scalar)
+  { captured :: Maybe (V2 Float, V3 Float, ((Float, Float), Float))
+  , zoom     :: Float
+  , focusPos :: V3 Float
+  , angles   :: (Float, Float)
   , viewMode :: CameraViewMode
   } deriving (Generic)
 
-omniscientCamera :: IO (V3 Scalar -> IO (), Size Int -> InputFrame -> IO Camera)
+omniscientCamera :: IO (V3 Float -> IO (), Size Int -> InputFrame -> IO Camera)
 omniscientCamera = do
   stateRef <- newIORef $ Omniscient Nothing 20 zero (-pi/4, -3*pi/4) PerspView
 
@@ -75,7 +74,7 @@ omniscientCamera = do
         clickStart = fst <$> headMay inFr.touchesDown
         clickEnd   = headMay inFr.touchesUp
 
-        eRepositionCamera :: Maybe (V3 Scalar) = mfilter (const $ mode == Pan) $
+        eRepositionCamera :: Maybe (V3 Float) = mfilter (const $ mode == Pan) $
           let f (start, focusPos, triple) v =
                 let angle = buildCameraAngleVec triple
                     xaxis = normalize $ cross (normalize angle) up
@@ -84,11 +83,11 @@ omniscientCamera = do
                 in focusPos - xaxis ^* (vx / realToFrac size.width * orthoSize.width) + yaxis ^* (vy / realToFrac size.height * orthoSize.height)
           in f <$> st.captured <*> clickMove
 
-        eZoomCamera :: Maybe Scalar = mfilter (const $ mode == Zoom) $ ((,) <$> st.captured <*> clickMove ) <&> \((start, _, (_,zoom)), v) ->
+        eZoomCamera :: Maybe Float = mfilter (const $ mode == Zoom) $ ((,) <$> st.captured <*> clickMove ) <&> \((start, _, (_,zoom)), v) ->
           let V2 _vx vy = v - start
           in zoom - vy / 10
 
-        eRotateCamera :: Maybe (Scalar,Scalar) = case (,) <$> st.captured <*> clickMove of
+        eRotateCamera :: Maybe (Float,Float) = case (,) <$> st.captured <*> clickMove of
           Just ((start, _, ((zang,ele),_)), v) ->
             let V2 vx vy = v - start
             in if mode == Rotate
@@ -110,7 +109,7 @@ omniscientCamera = do
         focusPos = fromMaybe st.focusPos eRepositionCamera
         cameraTriple = (angles, zoom)
 
-    let captured :: Maybe (V2 Scalar, V3 Scalar, ((Scalar, Scalar), Scalar)) =
+    let captured :: Maybe (V2 Float, V3 Float, ((Float, Float), Float)) =
           if isJust clickEnd
           then Nothing
           else (clickStart <&> \ps -> (ps, focusPos, cameraTriple)) <|> st.captured
@@ -123,7 +122,7 @@ omniscientCamera = do
              | eOrthoBack -> OrthoBack
              | otherwise -> fromMaybe st.viewMode (PerspView <$ eRotateCamera)
 
-    let cameraAngleVec :: V3 Scalar = buildCameraAngleVec cameraTriple
+    let cameraAngleVec :: V3 Float = buildCameraAngleVec cameraTriple
 
         projection = if isOrthographicViewMode viewMode
                      then Ortho orthoSize.width 0.1 400 True

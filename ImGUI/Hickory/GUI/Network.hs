@@ -5,7 +5,7 @@
 
 module Hickory.GUI.Network where
 
-import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp, Scalar)
+import Hickory.Math (mkScale, viewTarget, mkTranslation, glerp)
 import Hickory.Types (Size (..), aspectRatio)
 import Hickory.Camera (shotMatrix, Projection (..), Camera (..), project, cameraFocusPlaneSize)
 import Data.Maybe (fromMaybe, isJust)
@@ -40,12 +40,12 @@ import Data.Word (Word32)
 
 data ObjectManip = ObjectManip
   { mode       :: Maybe ObjectManipMode
-  , captured   :: Maybe (HashMap Word32 Object, V2 Scalar)
-  , activeAxes :: V3 Scalar
+  , captured   :: Maybe (HashMap Word32 Object, V2 Float)
+  , activeAxes :: V3 Float
   }
 
 objectManip
-  :: IO (Size Int -> InputFrame -> Camera -> HashMap Word32 Object -> Maybe (HashMap Word32 Object) -> IO (Maybe (ObjectManipMode, V3 Scalar), Maybe (HashMap Word32 Object)))
+  :: IO (Size Int -> InputFrame -> Camera -> HashMap Word32 Object -> Maybe (HashMap Word32 Object) -> IO (Maybe (ObjectManipMode, V3 Float), Maybe (HashMap Word32 Object)))
 objectManip = do
   state <- newIORef $
     ObjectManip
@@ -80,7 +80,7 @@ objectManip = do
 
         mode :: Maybe ObjectManipMode = join $ (fmap fst <$> eSelectMode) <|> fmap Just st.mode
 
-    let activeAxes :: V3 Scalar = fromMaybe st.activeAxes $ asum
+    let activeAxes :: V3 Float = fromMaybe st.activeAxes $ asum
           [ V3 1 1 1 <$ eSelectMode
           , whenE (keyHeld Key'LeftShift && keyPressed Key'Z) (Just $ V3 1 1 0)
           , whenE (keyHeld Key'LeftShift && keyPressed Key'X) (Just $ V3 0 1 1)
@@ -92,7 +92,7 @@ objectManip = do
 
     let cursorLoc = fromMaybe zero . fmap fst . headMay $ inFr.touchesLoc
 
-    let captured :: Maybe (HashMap Word32 Object, V2 Scalar) = asum
+    let captured :: Maybe (HashMap Word32 Object, V2 Float) = asum
           [ (,cursorLoc) <$> eInitialObjects
           , st.captured
           ]
@@ -297,7 +297,7 @@ quaternionToEuler (Quaternion w (V3 x y z)) = V3 roll pitch yaw
   cosy_cosp = 1 - 2 * (y * y + z * z)
   yaw = atan2 siny_cosp cosy_cosp
 
-renderSettings :: Size Int -> GraphicsParams -> V4 Scalar -> Camera -> [Word32] -> RenderSettings
+renderSettings :: Size Int -> GraphicsParams -> V4 Float -> Camera -> [Word32] -> RenderSettings
 renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedObjIds = RenderSettings
   { worldSettings = worldSettingsDefaults
     { camera

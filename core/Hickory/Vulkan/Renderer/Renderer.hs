@@ -43,7 +43,7 @@ import Control.Monad.State.Class ( MonadState, put, get )
 import qualified Data.UUID as UUID
 import Data.Maybe (fromMaybe, mapMaybe, catMaybes)
 import Hickory.Vulkan.RenderTarget (copyDescriptorImageToBuffer, withImageBuffer, readPixel)
-import Hickory.Math (Scalar, orthographicProjection, transformV3, glerp)
+import Hickory.Math (orthographicProjection, transformV3, glerp)
 import Data.Fixed (div')
 import Data.Traversable (for)
 import VulkanMemoryAllocator (withMappedMemory)
@@ -162,7 +162,7 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   objHighlightMaterial <- withObjectHighlightMaterial vulkanResources overlayRenderConfig globalDescriptorSet objHighlightDescriptorSet
 
   -- SSAO
-  kernel :: VSS.Vector MaxSSAOKernelSizeNat (V3 Scalar) <- VSS.generateM \(getFinite -> i) -> do
+  kernel :: VSS.Vector MaxSSAOKernelSizeNat (V3 Float) <- VSS.generateM \(getFinite -> i) -> do
     v <- fmap normalize $
          V3 <$> randomRIO (-1,1)
             <*> randomRIO (-1,1)
@@ -171,13 +171,13 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
         scale = glerp (scaleFac * scaleFac) 0.1 1
     pure $ v ^* scale
 
-  kernelBuffer :: DataBuffer (VSS.Vector MaxSSAOKernelSizeNat (V3 Scalar)) <- withDataBuffer vulkanResources "Kernel" 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
+  kernelBuffer :: DataBuffer (VSS.Vector MaxSSAOKernelSizeNat (V3 Float)) <- withDataBuffer vulkanResources "Kernel" 1 BUFFER_USAGE_UNIFORM_BUFFER_BIT
 
   liftIO $ withMappedMemory kernelBuffer.allocator kernelBuffer.allocation bracket \bufptr -> poke (castPtr bufptr) kernel
 
   let noiseDim = 4
       noiseFormat = FORMAT_R32G32B32A32_SFLOAT
-  noiseValues :: SV.Vector (V4 Scalar) <- SV.generateM (fromIntegral $ noiseDim * noiseDim) \_ ->
+  noiseValues :: SV.Vector (V4 Float) <- SV.generateM (fromIntegral $ noiseDim * noiseDim) \_ ->
     normalize <$> (V4 <$> randomRIO (-1,1) <*> randomRIO (-1,1) <*> pure 0 <*> pure 0)
 
   (noiseImage,_) <- withImageFromArray vulkanResources (Extent3D noiseDim noiseDim 1) IMAGE_TYPE_2D noiseFormat False 1 zeroBits noiseValues
@@ -265,7 +265,7 @@ data RegisteredMaterial const extra
   | Universal (BufferedUniformMaterial Word32 const) extra
   | LitAndUnlit (BufferedUniformMaterial Word32 const, extra) (BufferedUniformMaterial Word32 const, extra)
 
-isPointWithinCameraFrustum :: Scalar -> Camera -> V3 Scalar -> Bool
+isPointWithinCameraFrustum :: Float -> Camera -> V3 Float -> Bool
 isPointWithinCameraFrustum _ Camera {projection = Ortho {}} _ = True -- Ortho culling not yet implemented
 isPointWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} p
   =  zInCamSpace > near
@@ -288,11 +288,11 @@ isPointWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} 
   h = zInCamSpace * 2 * tan (fov / 2)
   w = ratio * h
 
-frustumSphereIntersection :: M44 Scalar -> V3 Scalar -> Scalar -> Bool
+frustumSphereIntersection :: M44 Float -> V3 Float -> Float -> Bool
 frustumSphereIntersection viewProjMat center radius =
   not $ any (\plane -> center `dot` plane.xyz + plane.w < -radius) planes
   where
-  planes = normalizePlane <$> [left, right, bottom, top, near, far] :: [V4 Scalar]
+  planes = normalizePlane <$> [left, right, bottom, top, near, far] :: [V4 Float]
   V4 r1 r2 r3 r4 = viewProjMat
   left   = r4 + r1
   right  = r4 - r1
@@ -302,7 +302,7 @@ frustumSphereIntersection viewProjMat center radius =
   far    = r4 - r3
   normalizePlane (V4 x y z w) = let len = norm (V3 x y z) in V4 (x/len) (y/len) (z/len) (w/len)
 
-isSphereWithinCameraFrustum :: Scalar -> Camera -> V3 Scalar -> Scalar -> Bool
+isSphereWithinCameraFrustum :: Float -> Camera -> V3 Float -> Float -> Bool
 isSphereWithinCameraFrustum _ Camera {projection = Ortho {}} = \_ _ -> True -- Ortho culling not yet implemented
 isSphereWithinCameraFrustum ratio cam@Camera {projection = Perspective {..}, ..} = \p radius ->
   let toP = p - camP
@@ -975,7 +975,7 @@ renderToRenderer frameContext@FrameContext {..} Renderer {..} RenderSettings {..
       , logMessages = msgs
       }
 
-meshBoundingSphere :: M44 Scalar -> Text -> MeshType -> (V3 Float, Float)
+meshBoundingSphere :: M44 Float -> Text -> MeshType -> (V3 Float, Float)
 meshBoundingSphere modelMat meshMemberName mesh = (center, norm (max' - center))
   where
   (min', max') = case mesh of
@@ -1028,7 +1028,7 @@ drawText materialConfig (font, fontTex, sdfPixelRange) mat color outlineColor ou
         pure True
     }
 
-pickObjectID :: FrameContext -> Renderer -> (Scalar,Scalar) -> IO Word32
+pickObjectID :: FrameContext -> Renderer -> (Float,Float) -> IO Word32
 pickObjectID FrameContext {..} Renderer{..} = fmap fromIntegral . readPixel (resourceForFrame (swapchainImageIndex - 1) objectPickingImageBuffer)
 
 processDrawCommands

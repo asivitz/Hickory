@@ -5,7 +5,7 @@ import Hickory.Vulkan.Renderer.Types
 import Hickory.Vulkan.Types (Mesh(..), Attribute (..))
 import qualified Data.Vector.Storable as SV
 import Hickory.Resources (getMesh, getTexture, ResourcesMonad)
-import Hickory.Math (Scalar, v2tov3, v2rotate, mkRotation)
+import Hickory.Math (v2tov3, v2rotate, mkRotation)
 import Hickory.Graphics (askMatrix, MatrixMonad, xform)
 import Hickory.Vulkan.Renderer.Renderer (ndcBoundaryPoints)
 import Control.Lens ((^.))
@@ -125,12 +125,12 @@ data ArcStyle = RadialCenter | RadialBegin | RadialEnd
 drawWideArc
   :: (CommandMonad m, MatrixMonad m, ResourcesMonad m)
   => MaterialConfig StaticConstants
-  -> V4 Scalar
+  -> V4 Float
   -> ArcStyle -- Is the radial in the middle or edge of arc
-  -> Scalar -- Distance from front edge of arc to back edge of arc
-  -> V2 Scalar -- Point that the arc curves around
-  -> V2 Scalar -- Vec from center to front edge of arc
-  -> Scalar -- How wide of an arc to draw (0 to 2pi)
+  -> Float -- Distance from front edge of arc to back edge of arc
+  -> V2 Float -- Point that the arc curves around
+  -> V2 Float -- Vec from center to front edge of arc
+  -> Float -- How wide of an arc to draw (0 to 2pi)
   -> Int -- Sections (level of detail)
   -> m ()
 drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do
@@ -180,11 +180,11 @@ drawWideArc materialConfig color arcStyle bandDepth circleCenterPos radial arcWi
 drawLineArc
   :: (CommandMonad m, MatrixMonad m, ResourcesMonad m)
   => MaterialConfig StaticConstants
-  -> V4 Scalar
+  -> V4 Float
   -> ArcStyle -- Is the radial in the middle or edge of arc
-  -> V2 Scalar -- Point that the arc curves around
-  -> V2 Scalar -- Vec from center to front edge of arc
-  -> Scalar -- How wide of an arc to draw (0 to 2pi)
+  -> V2 Float -- Point that the arc curves around
+  -> V2 Float -- Vec from center to front edge of arc
+  -> Float -- How wide of an arc to draw (0 to 2pi)
   -> Int -- Sections (level of detail)
   -> m ()
 drawLineArc materialConfig color arcStyle circleCenterPos radial arcWidthAngle (realToFrac -> sections) = do

@@ -22,7 +22,6 @@ import Hickory.Vulkan.Material (PipelineOptions (..), withMaterial, pipelineDefa
 import qualified Data.Vector as V
 import qualified Hickory.Vulkan.Renderer.ObjectPicking as OP
 import Linear.Matrix (M44)
-import Hickory.Math (Scalar)
 import Data.ByteString (ByteString)
 import Data.UUID.V4 (nextRandom)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (buildDirectVertShader, buildOverlayVertShader)
@@ -95,9 +94,9 @@ withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedRes
 withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
   withGBufferMaterialStack vulkanResources renderTargets globalPDS Nothing standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader noColorFragShader
 
-withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Scalar)))
+withAnimatedGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Float)))
 withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout = do
-  skinBuffer :: FramedResource (DataBuffer (M44 Scalar))
+  skinBuffer :: FramedResource (DataBuffer (M44 Float))
     <- frameResource $ withDataBuffer vulkanResources "Skin" (70 * 14) BUFFER_USAGE_UNIFORM_BUFFER_BIT -- TODO: Enough for 14 skins, but should be dynamic
   let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.size buffer.buf]
   config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout animatedGBufferVertShader animatedGBufferFragShader animatedGBufferShadowVertShader noColorFragShader

@@ -21,7 +21,6 @@ import Hickory.Vulkan.Text (MSDFMatConstants)
 import Hickory.Vulkan.Framing (FramedResource)
 import Hickory.Vulkan.DynamicMesh (DynamicBufferedMesh(..))
 import Data.Functor.Identity (Identity (..))
-import Hickory.Math (Scalar)
 import Control.Monad.Writer.Class (MonadWriter)
 import Control.Monad.Writer.Strict (MonadWriter(..), WriterT (..), Writer)
 import Hickory.Vulkan.RenderTarget (ImageBuffer)
@@ -40,32 +39,32 @@ import Hickory.Vulkan.Renderer.Blur (BlurConstants, DepthOfFieldConstants)
 
 {- Public API -}
 data RenderSettings = RenderSettings
-  { clearColor      :: V4 Scalar
+  { clearColor      :: V4 Float
   , worldSettings   :: WorldSettings
   , overlayGlobals  :: OverlayGlobals
   , postSettings    :: PostConstants
   , highlightObjs   :: [Word32]
   , ssaoSettings    :: SSAOSettings
-  , shadowBiasSlope :: Scalar
+  , shadowBiasSlope :: Float
   , features        :: Features
   , lut             :: Maybe PointedDescriptorSet
   } deriving Generic
 
 data WorldSettings = WorldSettings
   { camera :: Camera
-  , lightTransform :: M44 Scalar
-  , lightDirection :: V3 Scalar
-  , sunColor       :: V3 Scalar -- HDR
-  , ambientColor   :: V3 Scalar -- HDR
+  , lightTransform :: M44 Float
+  , lightDirection :: V3 Float
+  , sunColor       :: V3 Float -- HDR
+  , ambientColor   :: V3 Float -- HDR
   , envMap         :: Maybe PointedDescriptorSet
-  , envMapStrength :: Scalar
-  , irradianceStrength :: Scalar
+  , envMapStrength :: Float
+  , irradianceStrength :: Float
   } deriving Generic
 
 data OverlayGlobals = OverlayGlobals
-  { viewMat        :: M44 Scalar
-  , projMat        :: M44 Scalar
-  , viewProjMat    :: M44 Scalar
+  { viewMat        :: M44 Float
+  , projMat        :: M44 Float
+  , viewProjMat    :: M44 Float
   } deriving Generic
     deriving anyclass GStorable
 
@@ -80,7 +79,7 @@ data PostConstants = PostConstants
 
 data SSAOSettings = SSAOSettings
   { kernelSize :: Word32
-  , kernelRadius :: Scalar
+  , kernelRadius :: Float
   } deriving Generic
     deriving anyclass GStorable
 
@@ -181,7 +180,7 @@ data Renderer = Renderer
   , shadowMapDescriptorSet   :: FramedResource PointedDescriptorSet
   , singleImageSetLayout     :: DescriptorSetLayout
   , uberImageSetLayout       :: DescriptorSetLayout
-  , skinBuffer               :: FramedResource (DataBuffer (M44 Scalar))
+  , skinBuffer               :: FramedResource (DataBuffer (M44 Float))
 
   , defaultEnvMapDescriptorSet :: PointedDescriptorSet
   , defaultLutDescriptorSet    :: PointedDescriptorSet
@@ -337,34 +336,34 @@ data DecalMaterial uniform = DecalMaterial
   }
 
 data WorldGlobals = WorldGlobals
-  { viewMat        :: M44 Scalar
-  , projMat        :: M44 Scalar
-  , viewProjMat    :: M44 Scalar
-  , invViewMat     :: M44 Scalar
-  , invProjMat     :: M44 Scalar
-  , camPos         :: V3 Scalar
-  , envMapStrength :: Scalar
-  , lightDirection :: V3 Scalar
-  , irradianceStrength :: Scalar
-  , sunColor       :: V3 Scalar -- HDR
-  , padding3       :: Scalar
-  , ambientColor   :: V3 Scalar -- HDR
-  , padding4       :: Scalar
-  , gbufferSize    :: V2 Scalar
-  , multiSampleCount :: Scalar
-  , nearPlane      :: Scalar
-  , farPlane       :: Scalar
-  , diffuseMask    :: Scalar
-  , specularMask   :: Scalar
-  , ssaoMask       :: Scalar
-  , shadowsMask    :: Scalar
+  { viewMat        :: M44 Float
+  , projMat        :: M44 Float
+  , viewProjMat    :: M44 Float
+  , invViewMat     :: M44 Float
+  , invProjMat     :: M44 Float
+  , camPos         :: V3 Float
+  , envMapStrength :: Float
+  , lightDirection :: V3 Float
+  , irradianceStrength :: Float
+  , sunColor       :: V3 Float -- HDR
+  , padding3       :: Float
+  , ambientColor   :: V3 Float -- HDR
+  , padding4       :: Float
+  , gbufferSize    :: V2 Float
+  , multiSampleCount :: Float
+  , nearPlane      :: Float
+  , farPlane       :: Float
+  , diffuseMask    :: Float
+  , specularMask   :: Float
+  , ssaoMask       :: Float
+  , shadowsMask    :: Float
   } deriving Generic
     deriving anyclass GStorable
 
 data ShadowGlobals = ShadowGlobals
-  { viewProjMats    :: VS.Vector MaxShadowCascadesNat (M44 Scalar)
-  , splitDepths     :: VS.Vector MaxShadowCascadesNat Scalar -- Far plane of each cascade
-  , shadowBiasSlope :: Scalar
+  { viewProjMats    :: VS.Vector MaxShadowCascadesNat (M44 Float)
+  , splitDepths     :: VS.Vector MaxShadowCascadesNat Float -- Far plane of each cascade
+  , shadowBiasSlope :: Float
   } deriving Generic
     deriving anyclass GStorable
 
@@ -396,4 +395,4 @@ addCommand :: CommandMonad m => DrawCommand -> m ()
 addCommand = tell . pure
 
 type RenderFunction swapchainResources = Size Int -> (swapchainResources, FrameContext) -> IO ()
-type Scene swapchainResources = InputFrame -> IO (Scalar -> InputFrame -> RenderFunction swapchainResources)
+type Scene swapchainResources = InputFrame -> IO (Float -> InputFrame -> RenderFunction swapchainResources)

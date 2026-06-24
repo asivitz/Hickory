@@ -3,13 +3,12 @@
 module Hickory.Graphics.Mesh where
 
 import Data.Foldable (toList)
-import Hickory.Math.Vector
 import Linear (V3(..))
 import qualified Data.Vector.Storable as SV
 
 -- Stock cube mesh
 
-cubeFloats :: SV.Vector Scalar
+cubeFloats :: SV.Vector Float
 cubeFloats = SV.fromList . concatMap toList $ verts
  where
   h     = 0.5

@@ -22,8 +22,8 @@ import Data.String.QM (qm)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.ByteString (ByteString)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
-import Linear (V3 (..), (!*!), inv44)
-import Hickory.Math (Mat44, viewDirection)
+import Linear (V3 (..), (!*!), inv44, M44)
+import Hickory.Math (viewDirection)
 import Hickory.Camera (shotMatrix, Projection (..))
 import Hickory.Vulkan.Framing (unframedResource)
 import Hickory.Vulkan.Textures (transitionImageLayoutMips, withImageSamplerMips, cubeFormat)
@@ -157,7 +157,7 @@ renderEnvironmentMap vulkanResources faceExtent pathToHDR = do
   hdrDescSet <- withDescriptorSet vulkanResources [ImageFileDescriptor (pathToHDR, options)]
 
   renderConfig <- withEnvMapRenderConfig faceExtent
-  material :: Material Mat44 <- withMaterial vulkanResources "EnvironmentMap" renderConfig
+  material :: Material (M44 Float) <- withMaterial vulkanResources "EnvironmentMap" renderConfig
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader cubeMapFragShader [unframedResource hdrDescSet] Nothing
   renderCubeMap vulkanResources faceExtent material [hdrDescSet.descriptorSet]
 
@@ -166,11 +166,11 @@ renderIrradianceMap :: VulkanResources -> Extent2D -> DescriptorSpec -> Acquire 
 renderIrradianceMap vulkanResources faceExtent envMapDescSpec = do
   renderConfig <- withEnvMapRenderConfig faceExtent
   descSet <- withDescriptorSet vulkanResources [envMapDescSpec]
-  material :: Material Mat44 <- withMaterial vulkanResources "Irradiance" renderConfig
+  material :: Material (M44 Float) <- withMaterial vulkanResources "Irradiance" renderConfig
     [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader irradianceFragShader [unframedResource descSet] Nothing
   renderCubeMap vulkanResources faceExtent material [descSet.descriptorSet]
 
-renderCubeMap :: VulkanResources -> Extent2D -> Material Mat44 -> Vector DescriptorSet -> Acquire (ViewableImage, Sampler)
+renderCubeMap :: VulkanResources -> Extent2D -> Material (M44 Float) -> Vector DescriptorSet -> Acquire (ViewableImage, Sampler)
 renderCubeMap vulkanResources@VulkanResources {..} faceExtent material descriptorSets = do
   let cubeImageCreateInfo :: ImageCreateInfo '[]
       cubeImageCreateInfo = zero

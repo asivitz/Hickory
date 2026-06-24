@@ -4,7 +4,7 @@ module Hickory.Editor.View where
 
 import qualified Hickory.Graphics as H
 import Hickory.Color (rgba, black, green, red, blue)
-import Hickory.Math (mkScale, mkRotation, mkTranslation, Scalar, v2angle)
+import Hickory.Math (mkScale, mkRotation, mkTranslation, v2angle)
 import Hickory.Types (Size (..))
 import Linear (V3 (..), V2 (..), (!*!), _x, _y, _z, V4 (..), norm, normalize, (^*), unit, zero, _m33, inv33, transpose)
 import Data.Fixed (div')
@@ -24,7 +24,7 @@ import Data.Maybe (mapMaybe)
 import GHC.Word (Word32)
 import Hickory.Vulkan.Renderer.DrawingPrimitives (drawWireCube)
 
-editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => MaterialConfig H.StaticConstants -> HashMap String (Component m a) -> Camera -> HashMap Word32 Object -> HashMap Word32 Object -> Maybe (ObjectManipMode, V3 Scalar) -> m ()
+editorWorldView :: (ResourcesMonad m, CommandMonad m, MatrixMonad m) => MaterialConfig H.StaticConstants -> HashMap String (Component m a) -> Camera -> HashMap Word32 Object -> HashMap Word32 Object -> Maybe (ObjectManipMode, V3 Float) -> m ()
 editorWorldView lineMatConfig componentDefs cs@Camera {..} selected objects manipMode = do
   let zBias =
         mkTranslation (V3 0 0 (((focusPos - angleVec) ^. _z) * (-0.01))) -- So that if a plane is on z=0, draw the coordinate lines under
@@ -122,7 +122,7 @@ drawObjects componentDefs objects state = do
                  in Just (k, v, fmap (.transform) <$> children)
       Just _ -> Nothing
 
-editorOverlayView :: (ResourcesMonad m, CommandMonad m) => H.MaterialConfig H.StaticConstants -> Size Int -> Camera -> V2 Scalar -> HashMap Word32 Object -> Maybe ObjectManipMode -> m ()
+editorOverlayView :: (ResourcesMonad m, CommandMonad m) => H.MaterialConfig H.StaticConstants -> Size Int -> Camera -> V2 Float -> HashMap Word32 Object -> Maybe ObjectManipMode -> m ()
 editorOverlayView materialConfig scrSize cs cursorLoc selected mode = do
   case mode of
     Nothing -> pure ()

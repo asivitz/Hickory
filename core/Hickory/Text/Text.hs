@@ -19,22 +19,22 @@ lineShiftX width AlignRight = negate width
 lineShiftX width AlignCenter = negate (width / 2)
 lineShiftX _width AlignLeft = 0
 
-kernGlyphs :: HashMap.HashMap (Int,Int) Scalar -> [(Glyph, Maybe GlyphVerts)] -> [((Glyph, Maybe GlyphVerts), Scalar)]
+kernGlyphs :: HashMap.HashMap (Int,Int) Float -> [(Glyph, Maybe GlyphVerts)] -> [((Glyph, Maybe GlyphVerts), Float)]
 kernGlyphs _ [] = []
 kernGlyphs kernMap glyphs = primary ++ [(last glyphs, 0)]
   where
   primary = zip glyphs (drop 1 glyphs) <&> \((g1,gv1), (g2, _)) -> ((g1, gv1), fromMaybe 0 $ HashMap.lookup (unicode g1, unicode g2) kernMap)
 
 data PrintedLine = PrintedLine
-  { printedVerts :: [V3 Scalar]
-  , printedTCs   :: [V2 Scalar]
+  { printedVerts :: [V3 Float]
+  , printedTCs   :: [V2 Float]
   , numPrinted :: Word
-  , xOffset :: Scalar -- Where to position the next character laterally
+  , xOffset :: Float -- Where to position the next character laterally
   }
 
-type Kerned = ((Glyph, Maybe GlyphVerts), Scalar)
+type Kerned = ((Glyph, Maybe GlyphVerts), Float)
 
-transformTextCommandToVerts :: TextCommand -> Font -> (Int, [V3 Scalar], [V2 Scalar])
+transformTextCommandToVerts :: TextCommand -> Font -> (Int, [V3 Float], [V2 Float])
 transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrapWidth) Font {..}
   = (allNum, allVerts, allTCs)
   where
@@ -52,7 +52,7 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
   ended = kernedWordGlyphs <&> fmap (\line -> line ++ [lineEnder])
 
   wordWidthf kerned = sum $ kerned <&> \((g,_), k) -> g.advance + k
-  layoutWrapped :: Scalar -> (Scalar, [[Kerned]]) -> [[Kerned]] -> [[Kerned]]
+  layoutWrapped :: Float -> (Float, [[Kerned]]) -> [[Kerned]] -> [[Kerned]]
   layoutWrapped wrapWidth (xoff, printed) = \case
    [] -> reverse (map reverse printed)
    (w:ws) ->
@@ -65,9 +65,9 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
         [] -> [reverse w]
         ) ws
 
-  allPrinted :: [[[(Int, [V3 Scalar], [V2 Scalar])]]]
+  allPrinted :: [[[(Int, [V3 Float], [V2 Float])]]]
   allPrinted = snd $ (\g -> mapAccumL g (0,0) ended) \(lineNum, cursorLineNum) kernedLine ->
-    let printedLines :: [[(Int, [V3 Scalar], [V2 Scalar])]]
+    let printedLines :: [[(Int, [V3 Float], [V2 Float])]]
         printedLines =
           snd $ (\f -> mapAccumL f 0 (zip [0..] kernedLine)) \wrappedLineCursorX (wrappedLineNum, wrappedLine) ->
             let printLineNum = lineNum + wrappedLineNum
@@ -76,7 +76,7 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
               _ ->
                 let baseY = (realToFrac printLineNum - fromOffset) * realToFrac lineHeight
                     ((totalX,totalCursorX), printedSet) = (\f -> mapAccumL f (0, 0) wrappedLine) \(currentX, currentLineCursorX) ((g, mGVs), kerning) ->
-                      let placeGlyph :: V2 Scalar -> V3 Scalar
+                      let placeGlyph :: V2 Float -> V3 Float
                           placeGlyph (V2 vx vy) = V3 (vx + currentX) (baseY + (vy + yoffset)) 0 ^* size
                           (cursor_num, cursor_verts, cursor_tcs) = case (cursorGlyph, mCursor) of
                             (Just (_cg, Just cgvs), Just (cLine, cCol)) | cursorLineNum == cLine && cCol == currentLineCursorX + wrappedLineCursorX ->
@@ -99,7 +99,7 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
   allVerts = toListOf (each . each . each . _2 . each) allPrinted
   allTCs = toListOf (each . each . each . _3 . each) allPrinted
 
-  splitOnWrapWidth :: Scalar -> [Kerned] -> [[Kerned]]
+  splitOnWrapWidth :: Float -> [Kerned] -> [[Kerned]]
   splitOnWrapWidth wrapWidth incoming =
     let f (finishedLines, currentLine, currentX) cur@((gl, _), kerning) =
           if size * (currentX + gl.advance + kerning) > wrapWidth
@@ -114,7 +114,7 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
     Just (from, to) -> from
     Nothing -> 0
 
-  yoffset :: Scalar = case valign of
+  yoffset :: Float = case valign of
     AlignMiddle      -> ((ascender + descender) / 2 - descender) / 2
     AlignBottom      -> 0
     AlignTop         -> (ascender + descender) / 2 - descender

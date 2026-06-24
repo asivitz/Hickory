@@ -9,7 +9,6 @@ import Data.IORef
 import Data.Time
 import Data.Text (Text)
 import qualified Data.Text.IO as TextIO
-import Hickory.Math.Vector (Scalar)
 
 whenMaybe :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenMaybe a f = maybe (return ()) f a
@@ -60,7 +59,7 @@ chopBy :: Int -> [a] -> [[a]]
 chopBy _ [] = []
 chopBy num lst = take num lst : chopBy num (drop num lst)
 
-makeFPSTicker :: IO (IO Scalar)
+makeFPSTicker :: IO (IO Float)
 makeFPSTicker = do
   initial_time <- getCurrentTime
   ref <- newIORef (0, initial_time, 0)

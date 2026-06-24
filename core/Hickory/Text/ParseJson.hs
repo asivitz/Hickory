@@ -6,7 +6,6 @@
 
 module Hickory.Text.ParseJson where
 
-import Hickory.Math (Scalar)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import Deriving.Aeson
@@ -78,8 +77,8 @@ data MSDFFont = MSDFFont
 
 data Atlas = Atlas
   { type_         :: Text
-  , distanceRange :: Scalar
-  , size          :: Scalar
+  , distanceRange :: Float
+  , size          :: Float
   , width         :: Int
   , height        :: Int
   , yOrigin       :: YOrigin
@@ -93,19 +92,19 @@ data YOrigin = Bottom | Top
   via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] YOrigin
 
 data Metrics = Metrics
-  { emSize             :: Scalar
-  , lineHeight         :: Scalar
-  , ascender           :: Scalar
-  , descender          :: Scalar
-  , underlineY         :: Scalar
-  , underlineThickness :: Scalar
+  { emSize             :: Float
+  , lineHeight         :: Float
+  , ascender           :: Float
+  , descender          :: Float
+  , underlineY         :: Float
+  , underlineThickness :: Float
   } deriving stock Generic
     deriving (FromJSON, ToJSON)
     via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] Metrics
 
 data Glyph = Glyph
   { unicode     :: Int
-  , advance     :: Scalar -- Cursor advancement in world X
+  , advance     :: Float -- Cursor advancement in world X
   , planeBounds :: Maybe Bounds -- World coordinates relative to cursor
   , atlasBounds :: Maybe Bounds -- Position within the texture atlas
   } deriving stock Generic
@@ -115,16 +114,16 @@ data Glyph = Glyph
 data KerningPair = KerningPair
   { unicode1 :: Int
   , unicode2 :: Int
-  , advance  :: Scalar
+  , advance  :: Float
   } deriving stock Generic
     deriving (FromJSON, ToJSON)
     via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] KerningPair
 
 data Bounds = Bounds
-  { left   :: Scalar
-  , bottom :: Scalar
-  , right  :: Scalar
-  , top    :: Scalar
+  { left   :: Float
+  , bottom :: Float
+  , right  :: Float
+  , top    :: Float
   } deriving stock Generic
     deriving (FromJSON, ToJSON)
     via CustomJSON '[FieldLabelModifier '[Rename "type_" "type"], ConstructorTagModifier '[ToLower]] Bounds
@@ -133,12 +132,12 @@ data Font = Font
   { atlas      :: Atlas
   , metrics    :: Metrics
   , glyphMap   :: HashMap.HashMap Int (Glyph, Maybe GlyphVerts)
-  , kerningMap :: HashMap.HashMap (Int,Int) Scalar
+  , kerningMap :: HashMap.HashMap (Int,Int) Float
   } deriving stock Generic
 
 data GlyphVerts = GlyphVerts
-  { verts     :: [V2 Scalar]
-  , texCoords :: [V2 Scalar]
+  { verts     :: [V2 Float]
+  , texCoords :: [V2 Float]
   } deriving Show
 
 makeFont :: ByteString -> Either String Font

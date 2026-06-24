@@ -1,11 +1,10 @@
 module Hickory.Editor.General where
 
-import Hickory.Math (Scalar, mkScale)
-import Linear (M44, column, V3 (..), V2 (..), V4 (..), norm, _x, _y, _z, Epsilon (..))
-import Data.IORef (IORef, readIORef, writeIORef, newIORef)
+import Hickory.Math (mkScale)
+import Linear (M44, column, V3 (..), V4 (..), norm, _x, _y, _z, Epsilon (..))
 import Control.Lens ((^.), (&))
-import Linear (axisAngle, identity, Quaternion (..), M44, translation, mkTransformationMat, fromQuaternion, m33_to_m44, unit, Epsilon(..), column, V3 (..), V2 (..), V4 (..), (!*!), normalize, (^*), _x, _y, _z, cross, norm, zero, (^/), _xyz)
-import Control.Lens (traversed, (^.), (&), (%~), (.~), (^?), ix, (<&>), (?~), at, _Just, sumOf, _2)
+import Linear (axisAngle, translation, fromQuaternion, m33_to_m44, unit, (!*!), normalize, (^*))
+import Control.Lens ((%~), (.~))
 
 -- Move this into better general use modules
 

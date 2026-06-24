@@ -19,7 +19,6 @@ module Hickory.Math.Vector
   , vunpackFractional
   , timeToIntersection
   , intersectionPoint
-  , Scalar
   , v4FromList
   , v3FromList
   , v3map
@@ -40,13 +39,8 @@ import Linear.Epsilon
 import Linear.Metric
 import Data.Foldable (toList)
 import GHC.Records (HasField(..))
-import Data.Generics.Product (field, getField, position, setField)
-import Data.Generics.Sum (_Ctor)
-import Data.Generics.Labels
 
 type Vector v a = (Metric v, Epsilon (v a), Additive v, Floating a, Real a, RealFloat a)
-
-type Scalar = Float
 
 v2tov3 :: V2 a -> a -> V3 a
 v2tov3 (V2 x y) = V3 x y
@@ -64,10 +58,13 @@ vabsangle :: Vector f a => f a -> f a -> a
 -- vabsangle a b = acos $ vdot (vnormalise a) (vnormalise b)
 -- vabsangle a b = acos $ clamp (dot a b / (norm a * norm b)) (-1) 1
 -- This version should be the most accurate
-vabsangle a b = 2 * atan (norm ((a ^* lenb) - (b ^* lena)) / norm (a ^* lenb + b ^* lena))
+vabsangle a b = 2 * atan (sqrt (num / den))
   where
   lena = norm a
   lenb = norm b
+
+  num = quadrance ((a ^* lenb) - (b ^* lena))
+  den = quadrance ((a ^* lenb) + (b ^* lena))
 
 v2angle :: (Epsilon a, RealFloat a) => V2 a -> V2 a -> a
 v2angle a b = if v2clockwise a b then -ang else ang

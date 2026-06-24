@@ -12,20 +12,19 @@ module Hickory.Graphics.MatrixMonad where
 
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (ReaderT(..), MonadReader, ask, local, lift, mapReaderT)
-import Hickory.Math
-import Linear ((!*!), identity)
+import Linear ((!*!), identity, M44)
 import Control.Monad.Trans (MonadTrans)
 import Control.Monad.Writer.Class (MonadWriter (..))
 
 class Monad m => MatrixMonad m where
-  xform :: Mat44 -> m a -> m a
+  xform :: M44 Float -> m a -> m a
   clearXform :: m a -> m a
-  askMatrix :: m Mat44
+  askMatrix :: m (M44 Float)
 
-withXform :: MatrixMonad m => Mat44 -> (Mat44 -> m a) -> m a
+withXform :: MatrixMonad m => M44 Float -> (M44 Float -> m a) -> m a
 withXform mat f = xform mat $ askMatrix >>= f
 
-newtype MatrixT m a = MatrixT { unMatrixT :: ReaderT Mat44 m a }
+newtype MatrixT m a = MatrixT { unMatrixT :: ReaderT (M44 Float) m a }
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadTrans)
 
 mapMatrixT :: (m a -> n b) -> MatrixT m a -> MatrixT n b

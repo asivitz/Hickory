@@ -41,12 +41,6 @@ library
       Hickory.Math.Vector
       Hickory.Math.VectorMatrix
       Hickory.Math.Bezier
-      Hickory.ModelLoading.Animation
-      Hickory.ModelLoading.Bvh
-      Hickory.ModelLoading.DirectX
-      Hickory.ModelLoading.DirectXModel
-      Hickory.ModelLoading.Parsing
-      Hickory.ModelLoading.Wavefront
       Hickory.Resources
       Hickory.Serialize
       Hickory.Text.ParseJson
@@ -143,11 +137,9 @@ library
     , ktx-codec
     , lens
     , linear
-    , megaparsec
     , mtl
     , rawstring-qm
     , safe
-    , scientific
     , text
     , time
     , unordered-containers
@@ -157,7 +149,6 @@ library
     , vector-sized
     , vulkan
     , vulkan-utils
-    , wavefront
     , wide-word
     , yaml
   if os(osx)
@@ -218,11 +209,9 @@ test-suite hickory-test
     , ktx-codec
     , lens
     , linear
-    , megaparsec
     , mtl
     , rawstring-qm
     , safe
-    , scientific
     , test-framework
     , test-framework-hunit
     , text
@@ -234,7 +223,6 @@ test-suite hickory-test
     , vector-sized
     , vulkan
     , vulkan-utils
-    , wavefront
     , wide-word
     , yaml
   if os(osx)

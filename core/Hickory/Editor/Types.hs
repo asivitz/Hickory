@@ -17,7 +17,6 @@ module Hickory.Editor.Types where
 import Linear (M44, (^/), translation, V3(..), V4 (..), V2(..), identity, M33)
 import GHC.Generics (Generic (..), M1 (..), K1 (..), S, Selector (..), (:*:) (..), C, D, U1 (..))
 import Control.Lens (traversed, toListOf, (<&>))
-import Hickory.Math (Scalar)
 import Data.Text (Text)
 import Data.Generics.Labels ()
 import Data.HashMap.Strict (HashMap)
@@ -39,20 +38,20 @@ import GHC.Word (Word32)
 import Hickory.Vulkan.Renderer.Types (Features (..))
 
 data GraphicsParams = GraphicsParams
-  { exposure        :: Scalar
-  , colorShift      :: V3 Scalar
-  , saturation      :: Scalar
-  , filmGrain       :: Scalar
-  , ambientLight    :: V3 Scalar
-  , ambientStrength :: Scalar
-  , envMapStrength  :: Scalar
-  , irradianceStrength :: Scalar
-  , sunLight        :: V3 Scalar
-  , sunStrength     :: Scalar
-  , sunDirection    :: V3 Scalar
+  { exposure        :: Float
+  , colorShift      :: V3 Float
+  , saturation      :: Float
+  , filmGrain       :: Float
+  , ambientLight    :: V3 Float
+  , ambientStrength :: Float
+  , envMapStrength  :: Float
+  , irradianceStrength :: Float
+  , sunLight        :: V3 Float
+  , sunStrength     :: Float
+  , sunDirection    :: V3 Float
   , ssaoKernelSize  :: Int
-  , ssaoKernelRadius :: Scalar
-  , shadowBiasSlope :: Scalar
+  , ssaoKernelRadius :: Float
+  , shadowBiasSlope :: Float
   , features        :: Features
   , falseColor      :: Bool
   , applyLut        :: Bool
@@ -89,7 +88,7 @@ data ObjectManipMode = OTranslate | OScale | ORotate
   deriving Eq
 
 data Object = Object
-  { transform   :: M44 Scalar
+  { transform   :: M44 Float
   -- List of component names and attribute maps
   , components  :: [(String, HashMap String (SomeAttribute Identity))]
   , baseObj :: Maybe Word32
@@ -100,7 +99,7 @@ data Component m a = Component
   , acquire    :: HashMap String (SomeAttribute Identity) -> VulkanResources -> ResourcesStore -> IO ()
   , draw       :: HashMap String (SomeAttribute Identity)
                -> Maybe a
-               -> [(Word32, M44 Scalar)] -- ObjectId and Transform per instance
+               -> [(Word32, M44 Float)] -- ObjectId and Transform per instance
                -> m ()
   }
 
@@ -118,32 +117,32 @@ instance Attr String where
 instance Attr Float  where mkAttr = FloatAttribute
 instance Attr Int    where mkAttr = IntAttribute
 instance Attr Bool   where mkAttr = BoolAttribute
-instance Attr (V3 Scalar) where
+instance Attr (V3 Float) where
   mkAttr = V3Attribute
-  type AttrRef (V3 Scalar) = (Float, Float, Float)
-instance Attr (V2 Scalar) where
+  type AttrRef (V3 Float) = (Float, Float, Float)
+instance Attr (V2 Float) where
   mkAttr = V2Attribute
-  type AttrRef (V2 Scalar) = (Float, Float)
-instance Attr (V4 Scalar) where
+  type AttrRef (V2 Float) = (Float, Float)
+instance Attr (V4 Float) where
   mkAttr = ColorAttribute
-  type AttrRef (V4 Scalar) = (Float, Float, Float, Float)
-instance Attr (M33 Scalar) where
+  type AttrRef (V4 Float) = (Float, Float, Float, Float)
+instance Attr (M33 Float) where
   mkAttr = Mat3Attribute
-  type AttrRef (M33 Scalar) = Scalar -- TODO
-instance Attr (M44 Scalar) where
+  type AttrRef (M33 Float) = Float -- TODO
+instance Attr (M44 Float) where
   mkAttr = Mat4Attribute
-  type AttrRef (M44 Scalar) = Scalar -- TODO
+  type AttrRef (M44 Float) = Float -- TODO
 
 data Attribute a where
   StringAttribute :: Attribute String
   FloatAttribute  :: Attribute Float
   IntAttribute    :: Attribute Int
   BoolAttribute   :: Attribute Bool
-  V3Attribute     :: Attribute (V3 Scalar)
-  V2Attribute     :: Attribute (V2 Scalar)
-  ColorAttribute  :: Attribute (V4 Scalar)
-  Mat3Attribute   :: Attribute (M33 Scalar)
-  Mat4Attribute   :: Attribute (M44 Scalar)
+  V3Attribute     :: Attribute (V3 Float)
+  V2Attribute     :: Attribute (V2 Float)
+  ColorAttribute  :: Attribute (V4 Float)
+  Mat3Attribute   :: Attribute (M33 Float)
+  Mat4Attribute   :: Attribute (M44 Float)
 
 typeOfAttr :: forall a. Attribute a -> TypeRep a
 typeOfAttr = \case
@@ -201,11 +200,11 @@ instance Read (SomeAttribute Identity) where
       Ident "FloatAttribute"  -> SomeAttribute FloatAttribute  <$> pars (readS_to_P (reads @(Identity Float)))
       Ident "IntAttribute"    -> SomeAttribute IntAttribute    <$> pars (readS_to_P (reads @(Identity Int)))
       Ident "BoolAttribute"   -> SomeAttribute BoolAttribute   <$> pars (readS_to_P (reads @(Identity Bool)))
-      Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Scalar))))
-      Ident "V2Attribute"     -> SomeAttribute V2Attribute     <$> pars (readS_to_P (reads @(Identity (V2 Scalar))))
-      Ident "ColorAttribute"  -> SomeAttribute ColorAttribute  <$> pars (readS_to_P (reads @(Identity (V4 Scalar))))
-      Ident "Mat3Attribute"   -> SomeAttribute Mat3Attribute   <$> pars (readS_to_P (reads @(Identity (M33 Scalar))))
-      Ident "Mat4Attribute"   -> SomeAttribute Mat4Attribute   <$> pars (readS_to_P (reads @(Identity (M44 Scalar))))
+      Ident "V3Attribute"     -> SomeAttribute V3Attribute     <$> pars (readS_to_P (reads @(Identity (V3 Float))))
+      Ident "V2Attribute"     -> SomeAttribute V2Attribute     <$> pars (readS_to_P (reads @(Identity (V2 Float))))
+      Ident "ColorAttribute"  -> SomeAttribute ColorAttribute  <$> pars (readS_to_P (reads @(Identity (V4 Float))))
+      Ident "Mat3Attribute"   -> SomeAttribute Mat3Attribute   <$> pars (readS_to_P (reads @(Identity (M33 Float))))
+      Ident "Mat4Attribute"   -> SomeAttribute Mat4Attribute   <$> pars (readS_to_P (reads @(Identity (M44 Float))))
       _ -> fail "Invalid attribute type"
 
 -- Look up the value for an attribute
@@ -227,7 +226,7 @@ setSomeAttribute newV (SomeAttribute attr _) = case eqAttr attr (mkAttr :: Attri
     Just HRefl -> SomeAttribute attr newV
     Nothing -> error "Wrong type for attribute"
 
-mkComponent2 :: forall a b m state. (Attr a, Attr b) => String -> String -> (a -> b -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> Maybe state -> [(Word32,M44 Scalar)] -> m ()) -> Component m state
+mkComponent2 :: forall a b m state. (Attr a, Attr b) => String -> String -> (a -> b -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> Maybe state -> [(Word32,M44 Float)] -> m ()) -> Component m state
 mkComponent2 arg1 arg2 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -237,7 +236,7 @@ mkComponent2 arg1 arg2 acquire f = Component
   (\attrs state -> withAttrVal attrs arg1 \v1 ->
                    withAttrVal attrs arg2 \v2 -> f v1 v2 state)
 
-mkComponent3 :: forall a b c m state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
+mkComponent3 :: forall a b c m state. (Attr a, Attr b, Attr c) => String -> String -> String -> (a -> b -> c -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> Maybe state -> [(Word32, M44 Float)] -> m ()) -> Component m state
 mkComponent3 arg1 arg2 arg3 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -249,7 +248,7 @@ mkComponent3 arg1 arg2 arg3 acquire f = Component
                       withAttrVal attrs arg2 \v2 ->
                       withAttrVal attrs arg3 \v3 -> f v1 v2 v3 state
 
-mkComponent4 :: forall a b c d m state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
+mkComponent4 :: forall a b c d m state. (Attr a, Attr b, Attr c, Attr d) => String -> String -> String -> String -> (a -> b -> c -> d -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> Maybe state -> [(Word32, M44 Float)] -> m ()) -> Component m state
 mkComponent4 arg1 arg2 arg3 arg4 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -264,7 +263,7 @@ mkComponent4 arg1 arg2 arg3 arg4 acquire f = Component
                       withAttrVal attrs arg3 \v3 ->
                       withAttrVal attrs arg4 \v4 -> f v1 v2 v3 v4 state
 
-mkComponent5 :: forall a b c d e m state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
+mkComponent5 :: forall a b c d e m state. (Attr a, Attr b, Attr c, Attr d, Attr e) => String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> Maybe state -> [(Word32, M44 Float)] -> m ()) -> Component m state
 mkComponent5 arg1 arg2 arg3 arg4 arg5 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -282,7 +281,7 @@ mkComponent5 arg1 arg2 arg3 arg4 arg5 acquire f = Component
                       withAttrVal attrs arg4 \v4 ->
                       withAttrVal attrs arg5 \v5 -> f v1 v2 v3 v4 v5 state
 
-mkComponent6 :: forall a b c d e f m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
+mkComponent6 :: forall a b c d e f m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f) => String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> Maybe state -> [(Word32, M44 Float)] -> m ()) -> Component m state
 mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -303,7 +302,7 @@ mkComponent6 arg1 arg2 arg3 arg4 arg5 arg6 acquire f = Component
                       withAttrVal attrs arg5 \v5 ->
                       withAttrVal attrs arg6 \v6 -> f v1 v2 v3 v4 v5 v6 state
 
-mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> [(Word32, M44 Scalar)] -> m ()) -> Component m state
+mkComponent7 :: forall a b c d e f g m state. (Attr a, Attr b, Attr c, Attr d, Attr e, Attr f, Attr g) => String -> String -> String -> String -> String -> String -> String -> (a -> b -> c -> d -> e -> f -> g -> VulkanResources -> ResourcesStore -> IO ()) -> (a -> b -> c -> d -> e -> f -> g -> Maybe state -> [(Word32, M44 Float)] -> m ()) -> Component m state
 mkComponent7 arg1 arg2 arg3 arg4 arg5 arg6 arg7 acquire f = Component
   [ SomeAttribute (mkAttr :: Attribute a) (Const arg1)
   , SomeAttribute (mkAttr :: Attribute b) (Const arg2)
@@ -403,7 +402,7 @@ mkComponent
   :: forall comp m state.
      HasRecordAttributes comp
   => (comp -> VulkanResources -> ResourcesStore -> IO ())
-  -> (comp -> Maybe state -> [(Word32, M44 Scalar)] -> m ())
+  -> (comp -> Maybe state -> [(Word32, M44 Float)] -> m ())
   -> Component m state
 mkComponent acquireF drawF =
   Component
@@ -467,8 +466,8 @@ instance (Generic t, GHasGlslUniformDef (Rep t)) => HasGlslUniformDef t
 
 {- Helpers -}
 
-avg :: [V3 Scalar] -> V3 Scalar
+avg :: [V3 Float] -> V3 Float
 avg vs = sum vs ^/ (fromIntegral $ length vs)
 
-avgObjTranslation :: Traversable t => t Object -> V3 Scalar
+avgObjTranslation :: Traversable t => t Object -> V3 Float
 avgObjTranslation objs = avg $ toListOf (traversed . #transform . translation) objs

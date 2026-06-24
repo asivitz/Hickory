@@ -1,7 +1,5 @@
 module Hickory.Math.Matrix
   ( mkRotation
-  , Mat44
-  , Mat33
   , mat44Lerp
   , m44FromList
   , sizePosMat
@@ -31,9 +29,6 @@ import Hickory.Types
 import Hickory.Math.Vector
 import Text.Printf (printf)
 
-type Mat44 = M44 Scalar
-type Mat33 = M33 Scalar
-
 class MakeMat44 v where
   mkScale       :: Num a => v a -> M44 a
   mkTranslation :: Num a => v a -> M44 a
@@ -52,19 +47,19 @@ mkRotation v ang = mkTransformation (axisAngle v ang) zero
 mkTranslation3 :: (Num a) => V3 a -> M44 a
 mkTranslation3 v = identity & translation .~ v
 
-mat44Lerp :: Scalar -> Mat44 -> Mat44 -> Mat44
+mat44Lerp :: Num a => a -> M44 a -> M44 a -> M44 a
 mat44Lerp x = liftI2 (lerp x)
 
-sizePosMat :: Size Scalar -> V3 Scalar -> Mat44
+sizePosMat :: Num a => Size a -> V3 a -> M44 a
 sizePosMat (Size w h) pos = mkTranslation pos !*! scaled (V4 w h 1 1)
 
-size3PosMat :: V3 Scalar -> V3 Scalar -> Mat44
+size3PosMat :: Num a => V3 a -> V3 a -> M44 a
 size3PosMat (V3 w h d) pos = mkTranslation pos !*! scaled (V4 w h d 1)
 
-sizePosRotMat :: Size Scalar -> V3 Scalar -> Scalar -> Mat44
+sizePosRotMat :: (Num a, Floating a, Epsilon a) => Size a -> V3 a -> a -> M44 a
 sizePosRotMat (Size w h) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h 1 1)
 
-size3PosRotMat :: V3 Scalar -> V3 Scalar -> Scalar -> Mat44
+size3PosRotMat :: (Num a, Floating a, Epsilon a) => V3 a -> V3 a -> a -> M44 a
 size3PosRotMat (V3 w h d) pos rot = mkTranslation pos !*! mkRotation (V3 0 0 1) rot !*! scaled (V4 w h d 1)
 
 -- |Row major, following the convention of the `linear` library

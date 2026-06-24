@@ -2,7 +2,7 @@
 
 module Hickory.GameLoop where
 
-import Hickory.Math (Interpolatable (..), Scalar, clamp)
+import Hickory.Math (Interpolatable (..), clamp)
 import qualified Data.Sequence as S
 import Data.Maybe (fromMaybe)
 import Data.Fixed (mod')
@@ -11,7 +11,7 @@ import Linear (nearZero)
 import Hickory.Input (InputFrame(..), RawInput, inputFrameBuilder)
 import Data.IORef (IORef, newIORef, readIORef, atomicModifyIORef', writeIORef)
 import qualified Ki
-import Data.Time (NominalDiffTime, getCurrentTime, UTCTime, diffUTCTime, addUTCTime, nominalDiffTimeToSeconds)
+import Data.Time (NominalDiffTime, getCurrentTime, UTCTime, diffUTCTime, addUTCTime)
 import Control.Concurrent (threadDelay)
 import Control.Monad.Extra (whileM)
 import Data.Foldable (for_)
@@ -27,7 +27,7 @@ stepGameState f s = let (model', evs) = f lastState in (S.take 500 $ model' S.<|
   where
   lastState = fromMaybe (error "No game states available") . S.lookup 0 $ s
 
-queryGameState :: Interpolatable i => S.Seq i -> Scalar -> i
+queryGameState :: Interpolatable i => S.Seq i -> Float -> i
 queryGameState s (max 0 . min (realToFrac $ S.length s - 1) -> idx) =
   case (from, to) of
     _ | nearZero idx  -> fromMaybe (error "No game states available") $ S.lookup 0 s

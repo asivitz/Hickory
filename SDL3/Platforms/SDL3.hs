@@ -39,7 +39,7 @@ import qualified Data.Enum.Set as E
     --a method of converting GLFW.Key to it
 
 data InputData = InputData
-  { touches  :: IORef (HashMap Int (UTCTime, V2 Scalar))
+  { touches  :: IORef (HashMap Int (UTCTime, V2 Float))
   , keys     :: IORef (HashMap Key UTCTime)
   , gamepads :: IORef (HashMap Word32 (SDL.SDLGamepad, GamePad))
   }
@@ -47,7 +47,7 @@ data InputData = InputData
 data SDLHandles = SDLHandles
   { inputPoller  :: IO [RawInput]
   , shouldQuit   :: IO Bool
-  , displayScale :: IO Scalar
+  , displayScale :: IO Float
   -- The controller
   -- Intensity of the low frequency (left) rumble motor
   -- Intensity of the high frequency (right) rumble motor
@@ -59,7 +59,7 @@ data SDLHandles = SDLHandles
 getCurrentGamePadIds :: IO [Int]
 getCurrentGamePadIds = undefined
 
-touchPosToScreenPos :: (Double, Double) -> V2 Scalar
+touchPosToScreenPos :: (Double, Double) -> V2 Float
 touchPosToScreenPos (x,y) = V2 (realToFrac x) (realToFrac y)
 
 sdlFrameBuilder :: SDL.SDLWindow -> IO SDLHandles

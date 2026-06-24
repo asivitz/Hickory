@@ -34,9 +34,9 @@ data Size a = Size
   } deriving (Show, Read, Functor, Generic)
     deriving anyclass NFData
 
-data Rect = Rect
-  { center :: V2 Scalar
-  , size   :: Size Scalar
+data Rect a = Rect
+  { center :: V2 a
+  , size   :: Size a
   } deriving (Show, Read, Generic)
     deriving anyclass NFData
 
@@ -55,8 +55,8 @@ instance Fractional a => Fractional (Size a) where
 convertSize :: (Real a, Fractional b) => Size a -> Size b
 convertSize (Size a b) = Size (realToFrac a) (realToFrac b)
 
-screenCenter :: Real a => Size a -> V2 Scalar
-screenCenter (Size w h) = V2 (realToFrac w / 2) (realToFrac h / 2)
+screenCenter :: (Real a, Fractional a) => Size a -> V2 a
+screenCenter (Size w h) = V2 (w / 2) (h / 2)
 
 nullSize :: Num a => Size a
 nullSize = Size 0 0
@@ -80,7 +80,7 @@ viewportFromSize (Size w h) = V4 0 0 (fromIntegral w) (fromIntegral h)
 fracSize :: (Real a, Fractional b) => Size a -> Size b
 fracSize (Size w h) = Size (realToFrac w) (realToFrac h)
 
-distToEdgeOfRect :: V2 Scalar -> Rect -> V2 Scalar
+distToEdgeOfRect :: (Ord a, Fractional a) => V2 a -> Rect a -> V2 a
 distToEdgeOfRect (V2 px py) (Rect (V2 ox oy) (Size w h)) = V2 x y
   where
   x = if px < ox
@@ -90,11 +90,11 @@ distToEdgeOfRect (V2 px py) (Rect (V2 ox oy) (Size w h)) = V2 x y
       then oy - h/2 - py
       else py - (oy + h/2)
 
-posInRect :: V2 Scalar -> Rect -> Bool
+posInRect :: (Num a, Ord a, Fractional a) => V2 a -> Rect a -> Bool
 posInRect (V2 px py) (Rect (V2 ox oy) (Size w h)) =
         (abs (ox - px) < (w/2)) && (abs (oy - py) < (h/2))
 
-relativePosInRect :: V2 Scalar -> Rect -> Maybe (V2 Scalar)
+relativePosInRect :: (Num a, Ord a, Fractional a) => V2 a -> Rect a -> Maybe (V2 a)
 relativePosInRect (V2 px py) (Rect (V2 ox oy) (Size w h)) =
         let rx = (px - ox + (w/2)) / w
             ry = (py - oy + (h/2)) / h
@@ -102,15 +102,15 @@ relativePosInRect (V2 px py) (Rect (V2 ox oy) (Size w h)) =
                    then Just $ V2 rx ry
                    else Nothing
 
-rectExtents :: Rect -> (V2 Scalar, V2 Scalar)
+rectExtents :: (Num a, Ord a, Fractional a) => Rect a -> (V2 a, V2 a)
 rectExtents (Rect cen (Size w h)) = (cen - offset, cen + offset)
   where offset = V2 (w/2) (h/2)
 
-rectFromExtents :: (V2 Scalar, V2 Scalar) -> Rect
+rectFromExtents :: (Num a, Fractional a) => (V2 a, V2 a) -> Rect a
 rectFromExtents (ll, ur) = Rect cen (Size (abs w) (abs h))
   where siz@(V2 w h) = ur - ll
         cen = ll + siz ^* 0.5
 
-intersectRect :: Rect -> Rect -> Rect
+intersectRect :: (Fractional a, Ord a) => Rect a -> Rect a -> Rect a
 intersectRect (rectExtents -> (V2 x1 y1, V2 x2 y2)) (rectExtents -> (V2 x3 y3, V2 x4 y4)) =
   rectFromExtents (V2 (max x1 x3) (max y1 y3), V2 (min x2 x4) (min y2 y4))

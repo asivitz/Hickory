@@ -5,15 +5,14 @@
 module Hickory.Vulkan.RenderTarget where
 
 import Vulkan (Format(..), BufferImageCopy (..), ImageSubresourceLayers (..), CommandBuffer, ImageAspectFlagBits (..), Offset3D (..), ImageLayout (..), cmdCopyImageToBuffer, Extent2D (..), Extent3D (..), BufferUsageFlagBits (..), pattern QUEUE_FAMILY_IGNORED, ImageMemoryBarrier(..), ImageSubresourceRange (..), AccessFlagBits (..), PipelineStageFlagBits (..), cmdPipelineBarrier, BufferMemoryBarrier(..), pattern WHOLE_SIZE)
-import Hickory.Vulkan.Types (DescriptorSpec(..), RenderConfig (..), DataBuffer (..), VulkanResources, ViewableImage (..))
+import Hickory.Vulkan.Types (DescriptorSpec(..), DataBuffer (..), VulkanResources, ViewableImage (..))
 import VulkanMemoryAllocator (withMappedMemory)
-import Foreign (peek, plusPtr, Bits (..))
+import Foreign (peek, plusPtr)
 import Control.Exception (bracket)
 import GHC.Generics (Generic)
 import Hickory.Vulkan.DescriptorSet (withDataBuffer)
 import GHC.Word (Word16)
 import Acquire (Acquire)
-import Hickory.Math (Scalar)
 import Vulkan.Zero (Zero(..))
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Hickory.Vulkan.Framing (FramedResource)
@@ -88,7 +87,7 @@ data ImageBuffer = ImageBuffer
 
 -- This API obviously needs improvement. Shouldn't assume integer pixels.
 -- (x,y) are fractions of width/height
-readPixel :: ImageBuffer -> (Scalar,Scalar) -> IO Word16
+readPixel :: ImageBuffer -> (Float,Float) -> IO Word16
 readPixel ImageBuffer {buffer = DataBuffer {..}, region = BufferImageCopy {..}, viewableImage = ViewableImage {..}} (xfrac,yfrac) = do
   withMappedMemory allocator allocation bracket \bufptr ->
     peek (plusPtr bufptr address)

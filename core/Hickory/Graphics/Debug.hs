@@ -10,14 +10,13 @@ module Hickory.Graphics.Debug
 
 import System.IO.Unsafe
 import Data.IORef
-import Hickory.Math.Vector
 import Hickory.Color
 import Linear (V3)
 
-data DebugShape = DebugVector (V3 Scalar)
-                | DebugPoint (V3 Scalar)
-                | DebugLine (V3 Scalar) (V3 Scalar)
-                | DebugAngle Scalar
+data DebugShape = DebugVector (V3 Float)
+                | DebugPoint (V3 Float)
+                | DebugLine (V3 Float) (V3 Float)
+                | DebugAngle Float
 
 {-# NOINLINE lst #-}
 lst :: IORef [(Color, String, DebugShape)]

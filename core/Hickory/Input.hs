@@ -23,22 +23,22 @@ import GHC.Records (HasField(..))
 import Data.Bool (bool)
 import Data.Char (isAsciiLower, toUpper)
 
-type Point = (V2 Scalar, Int) -- Location, Ident
+type Point = (V2 Float, Int) -- Location, Ident
 
 data PointUp = PointUp
- { duration :: Scalar
- , location :: V2 Scalar
- , origLocation :: V2 Scalar
+ { duration :: Float
+ , location :: V2 Float
+ , origLocation :: V2 Float
  , ident :: Int
  } deriving (Show)
 
 -- key is the type used by your platform to represent a key. e.g. GLFW's Key type
 data RawInput = InputTouchesDown [Point]
               | InputTouchesUp [PointUp]
-              | InputTouchesLoc [(V2 Scalar,Int)]
+              | InputTouchesLoc [(V2 Float,Int)]
               | InputKeyDown Key
-              | InputKeyUp Key Scalar
-              | InputKeysHeld (HashMap.HashMap Key Scalar)
+              | InputKeyUp Key Float
+              | InputKeysHeld (HashMap.HashMap Key Float)
               | InputGamePad Int GamePad -- GamePad Index, GamePad
               | InputGamePadButtons ButtonState Int [E.EnumSet GamePadButton]
               | InputGamePadConnection Int Bool -- GamePad Index, True == connected
@@ -48,10 +48,10 @@ data ButtonState = Pressed | Released
   deriving (Eq, Show)
 
 data GamePad = GamePad
-  { leftStick    :: V2 Scalar
-  , rightStick   :: V2 Scalar
-  , leftTrigger  :: Scalar
-  , rightTrigger :: Scalar
+  { leftStick    :: V2 Float
+  , rightStick   :: V2 Float
+  , leftTrigger  :: Float
+  , rightTrigger :: Float
   , buttons :: E.EnumSet GamePadButton
   } deriving (Show, Generic)
 
@@ -358,17 +358,17 @@ type TouchIdent = Int
 
 data TouchEvent = TouchEvent
   { touchIdent :: TouchIdent
-  , loc        :: V2 Scalar
+  , loc        :: V2 Float
   , eventType  :: TouchEventType
   } deriving (Show, Generic)
 
 data TouchEventType
-  = Up Scalar (V2 Scalar) -- Touch ends (w/ duration and initial position)
+  = Up Float (V2 Float) -- Touch ends (w/ duration and initial position)
   | Down            -- Touch begins
   | Loc             -- Touch is moved by user
   deriving (Show, Generic)
 
-mapTouchEvent :: (V2 Scalar -> V2 Scalar) -> TouchEvent -> TouchEvent
+mapTouchEvent :: (V2 Float -> V2 Float) -> TouchEvent -> TouchEvent
 mapTouchEvent = over #loc
 
 makeTimePoller :: IO (IO NominalDiffTime)
