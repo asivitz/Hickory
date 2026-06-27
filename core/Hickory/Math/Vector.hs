@@ -66,9 +66,8 @@ vabsangle a b = 2 * atan (sqrt (num / den))
   num = quadrance ((a ^* lenb) - (b ^* lena))
   den = quadrance ((a ^* lenb) + (b ^* lena))
 
-v2angle :: (Epsilon a, RealFloat a) => V2 a -> V2 a -> a
-v2angle a b = if v2clockwise a b then -ang else ang
-        where ang = vabsangle a b
+v2angle :: RealFloat a => V2 a -> V2 a -> a
+v2angle (V2 ax ay) (V2 bx by) = atan2 (ax * by - ay*bx) (ax * bx + ay * by)
 
 v2clockwise :: (Num a, Ord a) => V2 a -> V2 a -> Bool
 v2clockwise (V2 xa ya) (V2 xb yb) = xa * yb - ya * xb <= 0
