@@ -114,10 +114,11 @@ transformTextCommandToVerts (TextCommand text align valign mCutoff mCursor mWrap
     Just (from, to) -> from
     Nothing -> 0
 
+  numLines = length wordSplit
   yoffset :: Float = case valign of
-    AlignMiddle      -> ((ascender + descender) / 2 - descender) / 2
-    AlignBottom      -> 0
-    AlignTop         -> (ascender + descender) / 2 - descender
+    AlignMiddle      -> ((ascender + descender) * 0.5 - descender) * (1.5 - realToFrac numLines)
+    AlignBottom      -> ((ascender + descender) * 0.5 - descender) * (1 - realToFrac numLines) * 2
+    AlignTop         -> ((ascender + descender) * 0.5 - descender)
 
   cursorGlyph = HashMap.lookup (ord '|') glyphMap
   spaceGlyph = fromMaybe (error "No space glyph in font") $ HashMap.lookup (ord ' ') glyphMap
