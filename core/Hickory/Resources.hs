@@ -73,6 +73,11 @@ loadResource' ref k f = loadResource ref k (Just <$> f)
 getResources :: ResourceStore a -> IO (Map.HashMap String a)
 getResources = fmap (Map.map fst) . readIORef
 
+getResource :: String -> ResourceStore a -> IO (Maybe a)
+getResource name st = do
+  ress <- readIORef st
+  pure $ fst <$> Map.lookup name ress
+
 data ResourcesStore = ResourcesStore
   { meshes       :: ResourceStore BufferedMesh
   , textures     :: ResourceStore PointedDescriptorSet
