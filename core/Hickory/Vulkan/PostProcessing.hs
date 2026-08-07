@@ -57,6 +57,7 @@ layout( push_constant, scalar ) uniform constants
 {
   float exposure;
   vec3 colorShift;
+  vec3 exclusion;
   float saturation;
   float filmGrain;
   bool falseColor;
@@ -113,6 +114,8 @@ void main()
   lowp vec4 origColor = texture(textures[0], texCoordsVarying);
 
   vec3 color = origColor.rgb * exp2(PushConstants.exposure);
+
+  color = color + PushConstants.exclusion - 2 * color * PushConstants.exclusion;
 
   //color = aces_tonemapping(saturated);
   color = filmic_tonemapping(color);

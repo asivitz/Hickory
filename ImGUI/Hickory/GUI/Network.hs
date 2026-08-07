@@ -312,7 +312,7 @@ renderSettings size@(Size w _h) GraphicsParams {..} clearColor camera selectedOb
     , projMat = opm
     , viewProjMat = opm !*! ovm
     }
-  , postSettings = PostConstants exposure colorShift saturation filmGrain falseColor
+  , postSettings = PostConstants exposure colorShift exclusion saturation filmGrain falseColor
   , clearColor = clearColor
   , highlightObjs = selectedObjIds
   , ssaoSettings = SSAOSettings (fromIntegral ssaoKernelSize) ssaoKernelRadius

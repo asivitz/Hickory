@@ -173,16 +173,11 @@ data TextureLoadOptions = TextureLoadOptions
   , fileType             :: ImageType
   , conversionTo3D       :: ConversionTo3D
   , shouldFlipVertically :: Bool
+  , format               :: Format
   }
 
-formatForImageType :: ImageType -> Format
-formatForImageType = \case
-  PNG -> FORMAT_R8G8B8A8_UNORM
-  HDR -> FORMAT_R32G32B32A32_SFLOAT
-  KTX2 -> FORMAT_R32G32B32A32_SFLOAT
-
-pngLoadOptions :: TextureLoadOptions
-pngLoadOptions = TextureLoadOptions
+sRGBPngLoadOptions :: TextureLoadOptions
+sRGBPngLoadOptions = TextureLoadOptions
   { filter = FILTER_LINEAR
   , samplerAddressMode = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   , samplerMipmapMode = Nothing
@@ -190,6 +185,19 @@ pngLoadOptions = TextureLoadOptions
   , fileType = PNG
   , conversionTo3D = Simply2D
   , shouldFlipVertically = True
+  , format = FORMAT_R8G8B8A8_SRGB
+  }
+
+linearPngLoadOptions :: TextureLoadOptions
+linearPngLoadOptions = TextureLoadOptions
+  { filter = FILTER_LINEAR
+  , samplerAddressMode = SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  , samplerMipmapMode = Nothing
+  , isCubemap = False
+  , fileType = PNG
+  , conversionTo3D = Simply2D
+  , shouldFlipVertically = True
+  , format = FORMAT_R8G8B8A8_UNORM
   }
 
 lutLoadOptions :: TextureLoadOptions
@@ -201,6 +209,7 @@ lutLoadOptions = TextureLoadOptions
   , fileType = PNG
   , conversionTo3D = VerticalSlices
   , shouldFlipVertically = False
+  , format = FORMAT_R8G8B8A8_UNORM
   }
 
 hdrCubeMapLoadOptions :: TextureLoadOptions
@@ -212,6 +221,7 @@ hdrCubeMapLoadOptions = TextureLoadOptions
   , fileType = HDR
   , conversionTo3D = Simply2D
   , shouldFlipVertically = False
+  , format = FORMAT_R32G32B32A32_SFLOAT
   }
 
 -- Run this every frame. If a cleanup is queued, it will run in a few

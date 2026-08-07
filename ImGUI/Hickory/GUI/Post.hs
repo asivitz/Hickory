@@ -39,6 +39,7 @@ drawPostUI graphicsParamsRef (Renderer {..}, FrameContext {..}) = do
     void $ checkbox "Apply Lut" (mkVar #applyLut)
     void $ dragFloat "Exposure" (mkVar #exposure) 0.05 (-10) 10
     void $ colorEdit3 "ColorShift" (mkVar (#colorShift . v3ImVec3Iso))
+    void $ colorEdit3 "Exclusion" (mkVar (#exclusion . v3ImVec3Iso))
     void $ dragFloat "Saturation" (mkVar #saturation) 0.05 0 2
     void $ dragFloat "Film Grain" (mkVar #filmGrain) 0.01 0 1
     void $ colorEdit3 "Ambient Light" (mkVar (#ambientLight . v3ImVec3Iso))

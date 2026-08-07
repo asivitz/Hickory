@@ -40,6 +40,7 @@ import Hickory.Vulkan.Renderer.Types (Features (..))
 data GraphicsParams = GraphicsParams
   { exposure        :: Float
   , colorShift      :: V3 Float
+  , exclusion       :: V3 Float
   , saturation      :: Float
   , filmGrain       :: Float
   , ambientLight    :: V3 Float

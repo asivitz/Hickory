@@ -71,6 +71,7 @@ data OverlayGlobals = OverlayGlobals
 data PostConstants = PostConstants
   { exposure    :: Float
   , colorShift  :: V3 Float
+  , exclusion   :: V3 Float
   , saturation  :: Float
   , filmGrain   :: Float
   , falseColor  :: Bool
@@ -96,6 +97,7 @@ postDefaults :: PostConstants
 postDefaults = PostConstants
   { exposure    = 0
   , colorShift  = V3 1 1 1
+  , exclusion   = V3 0 0 0
   , saturation  = 1
   , filmGrain   = 0
   , falseColor  = False

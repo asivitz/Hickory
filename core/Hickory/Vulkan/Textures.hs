@@ -24,7 +24,7 @@ import Control.Exception (bracket)
 import Vulkan.Zero (zero)
 import Vulkan.CStruct.Extends (SomeStruct(..))
 import Acquire (Acquire)
-import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..), TextureLoadOptions(..), ImageType (..), formatForImageType, ConversionTo3D (..), ViewableImage (..))
+import Hickory.Vulkan.Types (VulkanResources(..), DeviceContext (..), TextureLoadOptions(..), ImageType (..), ConversionTo3D (..), ViewableImage (..))
 import Data.Foldable (for_)
 import Vulkan.Utils.Misc ((.&&.))
 import Control.Monad (unless)
@@ -180,7 +180,7 @@ withTextureImage bag shouldGenerateMips options path = do
                 Simply2D         -> IMAGE_TYPE_2D
                 VerticalSlices   -> IMAGE_TYPE_3D
                 HorizontalSlices -> IMAGE_TYPE_3D
-          withImageFromArray bag extent vit (formatForImageType options.fileType) shouldGenerateMips arrayLayers flags dat
+          withImageFromArray bag extent vit options.format shouldGenerateMips arrayLayers flags dat
     HDR -> do
       (width, height, dat :: SV.Vector Float) <-
         if options.isCubemap
@@ -215,7 +215,7 @@ withTextureImage bag shouldGenerateMips options path = do
               _ -> error $ printf "Invalid image type decoded at path %s" path
 
       let extent = Extent3D (fromIntegral width) (fromIntegral height) 1
-      withImageFromArray bag extent IMAGE_TYPE_2D (formatForImageType options.fileType) shouldGenerateMips arrayLayers flags dat
+      withImageFromArray bag extent IMAGE_TYPE_2D options.format shouldGenerateMips arrayLayers flags dat
     KTX2 -> error "Unsupported"
   where
   addAlpha :: Picture.PixelRGBF -> PixelRGBAF

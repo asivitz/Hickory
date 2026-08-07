@@ -48,7 +48,7 @@ import Hickory.Vulkan.Framing (FramedResource, resourceForFrame)
 import Data.Generics.Labels ()
 import Acquire (Acquire)
 import Data.UUID.V4 (nextRandom)
-import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..), TextureLoadOptions(..), formatForImageType, ConversionTo3D (..))
+import Hickory.Vulkan.Types (PointedDescriptorSet(..), DescriptorSpec (..), DataBuffer (..), VulkanResources (..), DeviceContext (..), ViewableImage (..), TextureLoadOptions(..), ConversionTo3D (..))
 import GHC.Word (Word32)
 import Data.Maybe (isJust, fromMaybe)
 import qualified Data.Vector.Storable as SV
@@ -182,7 +182,7 @@ loadImage bag path options = do
   let viewType = if | options.isCubemap -> IMAGE_VIEW_TYPE_CUBE
                     | options.conversionTo3D == Simply2D -> IMAGE_VIEW_TYPE_2D
                     | otherwise -> IMAGE_VIEW_TYPE_3D
-      format = (formatForImageType options.fileType)
+      format = options.format
       layers = if options.isCubemap then 6 else 1
 
   imageView <- with2DImageViewMips deviceContext format IMAGE_ASPECT_COLOR_BIT image mipLevels viewType 0 layers
