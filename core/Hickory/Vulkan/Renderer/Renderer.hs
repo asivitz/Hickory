@@ -252,7 +252,8 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   defaultEnvMapDescriptorSet <- do
     ds1 <- withWhiteCubeImageDescriptor vulkanResources
     ds2 <- withWhiteCubeImageDescriptor vulkanResources
-    withDescriptorSet vulkanResources [ds1, ds2]
+    ds3 <- withWhiteImageDescriptor vulkanResources
+    withDescriptorSet vulkanResources [ds1, ds2, ds3]
 
   defaultLutDescriptorSet <- do
     ds <- withBaseLUT vulkanResources

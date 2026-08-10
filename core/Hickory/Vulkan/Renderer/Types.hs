@@ -59,6 +59,10 @@ data WorldSettings = WorldSettings
   , envMap         :: Maybe PointedDescriptorSet
   , envMapStrength :: Float
   , irradianceStrength :: Float
+  , cloudShadowScale :: Float
+  , cloudShadowDensityOffset :: Float
+  , cloudShadowDensityPower :: Float
+  , cloudShadowWindSpeed :: Float
   } deriving Generic
 
 data OverlayGlobals = OverlayGlobals
@@ -347,6 +351,10 @@ data WorldGlobals = WorldGlobals
   , envMapStrength :: Float
   , lightDirection :: V3 Float
   , irradianceStrength :: Float
+  , cloudShadowScale :: Float
+  , cloudShadowDensityOffset :: Float
+  , cloudShadowDensityPower :: Float
+  , cloudShadowWindSpeed :: Float
   , sunColor       :: V3 Float -- HDR
   , padding3       :: Float
   , ambientColor   :: V3 Float -- HDR
@@ -380,6 +388,10 @@ worldSettingsDefaults = WorldSettings {..}
   envMapStrength = 1
   envMap = Nothing
   irradianceStrength = 0.2
+  cloudShadowScale = 1
+  cloudShadowDensityOffset = 1
+  cloudShadowDensityPower = 1
+  cloudShadowWindSpeed = 1
 
 -- Monad
 

@@ -42,6 +42,10 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     float envMapStrength;
     vec3 lightDirection;
     float irradianceStrength;
+    float cloudShadowScale;
+    float cloudShadowDensityOffset;
+    float cloudShadowDensityPower;
+    float cloudShadowWindSpeed;
     vec3 sunColor;
     float padding3;
     vec3 ambientColor;

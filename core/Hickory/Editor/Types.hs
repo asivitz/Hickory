@@ -47,6 +47,10 @@ data GraphicsParams = GraphicsParams
   , ambientStrength :: Float
   , envMapStrength  :: Float
   , irradianceStrength :: Float
+  , cloudShadowScale :: Float
+  , cloudShadowDensityOffset :: Float
+  , cloudShadowDensityPower :: Float
+  , cloudShadowWindSpeed :: Float
   , sunLight        :: V3 Float
   , sunStrength     :: Float
   , sunDirection    :: V3 Float
@@ -64,10 +68,15 @@ defaultGraphicsParams = GraphicsParams
     , colorShift      = V3 1 1 1
     , saturation      = 1
     , filmGrain       = 0
+    , exclusion       = V3 0 0 0
     , ambientLight    = V3 1 1 1
     , ambientStrength = 1
     , envMapStrength  = 1
     , irradianceStrength  = 1
+    , cloudShadowScale         = 1
+    , cloudShadowDensityOffset = 1
+    , cloudShadowDensityPower  = 1
+    , cloudShadowWindSpeed = 1
     , sunLight        = V3 1 1 1
     , sunStrength     = 1
     , sunDirection    = V3 (-1) (-1) (-6)

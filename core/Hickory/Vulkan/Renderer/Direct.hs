@@ -80,7 +80,7 @@ void main() {
   gl_Position = globals.viewProjMat
               * worldPosition;
 
-  texCoord = inTexCoord;
+  texCoord = inTexCoord * uniforms.tiling;
   color = uniforms.color;
 }
 

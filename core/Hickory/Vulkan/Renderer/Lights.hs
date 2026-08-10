@@ -118,7 +118,7 @@ withLightingRenderConfig VulkanResources { deviceContext = DeviceContext{..} } S
 withDirectionalLightMaterial :: VulkanResources -> RenderConfig -> FramedResource PointedDescriptorSet -> FramedResource PointedDescriptorSet -> Acquire (Material Word32)
 withDirectionalLightMaterial vulkanResources renderConfig globalDescriptorSet materialDescriptorSet = do
   sunPDS <- withDescriptorSetLayout device zero
-      { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"], ImageDescriptor [error "Dummy image"]]
+      { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"], ImageDescriptor [error "Dummy image"], ImageDescriptor [error "Dummy image"]]
       } Nothing mkAcquire
 
   withMaterial vulkanResources "Lights" renderConfig [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just sunPDS)
@@ -164,6 +164,7 @@ layout (set = 1, binding = 0) uniform sampler2D gbuffer[4];
 layout (set = 1, binding = 1) uniform sampler2D ssao;
 layout (set = 2, binding = 0) uniform samplerCube envMap;
 layout (set = 2, binding = 1) uniform samplerCube irradianceMap;
+layout (set = 2, binding = 2) uniform sampler2D noise;
 
 #define PI 3.1415926535
 
@@ -236,6 +237,7 @@ void main()
   if (depth + 0.0001 > 1) {
     vec4 env = texture(envMap, normalize(inWorldRay));
     outColor = vec4(env.rgb * globals.envMapStrength, 1);
+
     return;
   }
 
@@ -257,6 +259,10 @@ void main()
   vec3 directionToLight = -lightDirection;
 
   float shadow = calcShadow(viewPos, worldPos + worldNormal * shadowGlobals.shadowBiasSlope) * mix(0.3,1,albedo.a);
+  vec2 windDir = normalize(vec2(1, 0.3));
+  float cloudShadow = texture(noise, worldPos.xy * 0.008 * globals.cloudShadowScale + windDir * float(postGlobals.frameNumber) * 0.0002 * globals.cloudShadowWindSpeed).r;
+  shadow -= clamp(pow(cloudShadow, globals.cloudShadowDensityPower) - 1.0 + globals.cloudShadowDensityOffset, 0.0, 1.0);
+  shadow = clamp(shadow, 0.0, 1.0);
 
   float nDotL = max(0.0, dot(worldNormal, directionToLight));
   float nDotV = max(0.0, dot(worldNormal, worldFragmentToCamera));
