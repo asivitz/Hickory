@@ -6,7 +6,7 @@ module Hickory.Vulkan.PostProcessing where
 
 import Acquire (Acquire)
 import Data.Generics.Labels ()
-import Hickory.Vulkan.Material (withMaterial, pipelineDefaults, defaultBlend)
+import Hickory.Vulkan.Material (withMaterial, pipelineDefaults, noBlend)
 import Hickory.Vulkan.Framing (FramedResource)
 import Vulkan.Utils.ShaderQQ.GLSL.Glslang (vert)
 import Hickory.Vulkan.Renderer.ShaderDefinitions
@@ -26,7 +26,7 @@ withPostProcessMaterial vulkanResources renderConfig globalDescriptorSet materia
     { bindings = V.fromList $ descriptorSetBindings [ImageDescriptor [error "Dummy image"]]
     } Nothing mkAcquire
   withMaterial vulkanResources "PostProcessing" renderConfig
-    [] (pipelineDefaults [defaultBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just postPDS)
+    [] (pipelineDefaults [noBlend]) CULL_MODE_BACK_BIT vertShader fragShader [globalDescriptorSet, materialDescriptorSet] (Just postPDS)
   where
   VulkanResources {..} = vulkanResources
   DeviceContext {..} = deviceContext

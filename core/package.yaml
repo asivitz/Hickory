@@ -92,6 +92,8 @@ library:
     - condition: "flag(debug)"
       cpp-options: -DDEBUG
 
+  source-dirs: ./
+
   exposed-modules:
     - Hickory.Camera
     - Hickory.Color

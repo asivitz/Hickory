@@ -94,7 +94,11 @@ library
       Hickory.Camera.FirstPerson
       Hickory.UI
   other-modules:
+      Hickory.Vulkan.Renderer.FXAAShader
+      Hickory.Vulkan.Renderer.Shaders
       Paths_Hickory
+  hs-source-dirs:
+      ./
   default-extensions:
       NamedFieldPuns
       Rank2Types

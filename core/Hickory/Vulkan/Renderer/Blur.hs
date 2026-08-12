@@ -20,6 +20,7 @@ import Data.Vector (Vector)
 import GHC.Generics (Generic)
 import Foreign.Storable.Generic (GStorable)
 import Hickory.Vulkan.Framing (FramedResource)
+import Hickory.Vulkan.Renderer.FXAAShader (fxaa)
 
 data BlurConstants = BlurConstants
   { size   :: Word32
@@ -93,7 +94,6 @@ void main()
 }
 |])
 
-
 dofVertShader :: ByteString
 dofVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
 $header
@@ -118,6 +118,13 @@ dofFragShader :: ByteString
 dofFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|
 $header
 $worldGlobalsDef
+
+#define FXAA_PC 1
+#define FXAA_GLSL_130 1
+#define FXAA_QUALITY__PRESET 12
+#define FXAA_GREEN_AS_LUMA 1
+
+$fxaa
 
 layout (location = 0) in vec2 texCoords;
 layout (location = 1) in vec3 viewRay;
@@ -155,10 +162,33 @@ void main()
     float amt = smoothstep(PushConstants.dofMin, PushConstants.dofMax, abs(PushConstants.focalDist - viewPos.z));
     color = mix(orig, blurred, amt);
   } else {
-    color = orig;
+    float screenWidthInPixels = globals.gbufferSize.x;
+    float screenHeightInPixels = globals.gbufferSize.y;
+    vec4 z = vec4(0.0,0.0,0.0,0.0);
+    vec4 fxaacolor = FxaaPixelShader
+      ( texCoords
+      , z
+      , origTex
+      , origTex
+      , origTex
+      , vec2(1.0/screenWidthInPixels, 1.0/screenHeightInPixels)
+      , z
+      , z
+      , z
+      , 0.75
+      , 0.166
+      , 0.0833
+      , 0.0
+      , 0.0
+      , 0.0
+      , z
+      );
+
+    color = fxaacolor.rgb;
   }
   outColor = vec4(color, 1);
 }
+
 |])
 
 withBlurMaterial :: VulkanResources -> Format -> Extent2D -> Vector PointedDescriptorSet -> Acquire (Material BlurConstants)
