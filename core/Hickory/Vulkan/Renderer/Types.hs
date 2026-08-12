@@ -11,7 +11,7 @@
 
 module Hickory.Vulkan.Renderer.Types where
 
-import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage, VulkanResources, device, deviceContext)
+import Hickory.Vulkan.Types (PointedDescriptorSet, RenderConfig, Material, DataBuffer, BufferedMesh, Mesh, FrameContext, DescriptorSpec, ViewableImage)
 import Linear (M44, V4, V2, M33, V3 (..), identity, zero)
 import qualified Data.Vector.Storable.Sized as VSS
 import qualified Data.Vector.Sized as VS
@@ -28,13 +28,11 @@ import GHC.Word (Word32)
 import Hickory.Camera (Camera(..), Projection (..))
 import Foreign (Ptr)
 import Data.UUID (UUID)
-import Vulkan (DescriptorSetLayout, Framebuffer, HasObjectType (..), DebugUtilsObjectNameInfoEXT (..), setDebugUtilsObjectNameEXT, Extent2D)
+import Vulkan (DescriptorSetLayout, Framebuffer, Extent2D)
 import Hickory.Types (Size)
 import Hickory.Input (InputFrame)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (MaxShadowCascadesNat)
 import Data.Text (Text)
-import Control.Monad.IO.Class (MonadIO)
-import Data.ByteString (ByteString)
 import Hickory.Vulkan.Renderer.Blur (BlurConstants, DepthOfFieldConstants)
 
 {- Public API -}
@@ -63,6 +61,7 @@ data WorldSettings = WorldSettings
   , cloudShadowDensityOffset :: Float
   , cloudShadowDensityPower :: Float
   , cloudShadowWindSpeed :: Float
+  , fxaa           :: Bool
   } deriving Generic
 
 data OverlayGlobals = OverlayGlobals
@@ -367,6 +366,7 @@ data WorldGlobals = WorldGlobals
   , specularMask   :: Float
   , ssaoMask       :: Float
   , shadowsMask    :: Float
+  , fxaa           :: Bool
   } deriving Generic
     deriving anyclass GStorable
 
@@ -392,6 +392,7 @@ worldSettingsDefaults = WorldSettings {..}
   cloudShadowDensityOffset = 1
   cloudShadowDensityPower = 1
   cloudShadowWindSpeed = 1
+  fxaa = True
 
 -- Monad
 

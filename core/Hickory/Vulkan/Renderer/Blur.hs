@@ -161,7 +161,7 @@ void main()
 
     float amt = smoothstep(PushConstants.dofMin, PushConstants.dofMax, abs(PushConstants.focalDist - viewPos.z));
     color = mix(orig, blurred, amt);
-  } else {
+  } else if (globals.fxaa) {
     float screenWidthInPixels = globals.gbufferSize.x;
     float screenHeightInPixels = globals.gbufferSize.y;
     vec4 z = vec4(0.0,0.0,0.0,0.0);
@@ -185,6 +185,9 @@ void main()
       );
 
     color = fxaacolor.rgb;
+  }
+  else {
+    color = orig.rgb;
   }
   outColor = vec4(color, 1);
 }

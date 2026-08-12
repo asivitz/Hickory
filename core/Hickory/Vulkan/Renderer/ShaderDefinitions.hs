@@ -58,6 +58,7 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     float specularMask;
     float ssaoMask;
     float shadowsMask;
+    bool fxaa;
   } globals;
   |]
 
