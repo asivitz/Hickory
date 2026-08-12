@@ -99,6 +99,7 @@ drawFrame frameNumber Frame {..} VulkanResources {..} swapchain f = do
   (res, imageIndex) <- acquireNextImageKHR device swapchainHandle maxBound imageAvailableSemaphore zero
   case res of
     res' | res' == ERROR_OUT_OF_DATE_KHR
+         || res' == SUBOPTIMAL_KHR
       -> pure False
     res' -> do
       let (image, renderFinishedSemaphore) = images V.! fromIntegral imageIndex
