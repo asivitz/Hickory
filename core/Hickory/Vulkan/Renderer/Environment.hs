@@ -152,6 +152,7 @@ renderEnvironmentMap vulkanResources faceExtent pathToHDR = do
         , fileType = HDR
         , conversionTo3D = Simply2D
         , shouldFlipVertically = False
+        , format = FORMAT_R32G32B32A32_SFLOAT
         }
 
   hdrDescSet <- withDescriptorSet vulkanResources [ImageFileDescriptor (pathToHDR, options)]

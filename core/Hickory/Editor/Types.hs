@@ -46,6 +46,7 @@ data GraphicsParams = GraphicsParams
   , ambientLight    :: V3 Float
   , ambientStrength :: Float
   , envMapStrength  :: Float
+  , envMapShift     :: V3 Float
   , irradianceStrength :: Float
   , cloudShadowScale :: Float
   , cloudShadowDensityOffset :: Float
@@ -72,6 +73,7 @@ defaultGraphicsParams = GraphicsParams
     , ambientLight    = V3 1 1 1
     , ambientStrength = 1
     , envMapStrength  = 1
+    , envMapShift     = V3 1 1 1
     , irradianceStrength  = 1
     , cloudShadowScale         = 1
     , cloudShadowDensityOffset = 1

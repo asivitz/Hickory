@@ -40,6 +40,7 @@ layout (row_major, scalar, set = 0, binding = 1) uniform GlobalUniform
     mat4 invProjMat;
     vec3 cameraPos;
     float envMapStrength;
+    vec3 envMapShift;
     vec3 lightDirection;
     float irradianceStrength;
     float cloudShadowScale;

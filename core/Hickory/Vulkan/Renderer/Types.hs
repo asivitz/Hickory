@@ -56,6 +56,7 @@ data WorldSettings = WorldSettings
   , ambientColor   :: V3 Float -- HDR
   , envMap         :: Maybe PointedDescriptorSet
   , envMapStrength :: Float
+  , envMapShift    :: V3 Float
   , irradianceStrength :: Float
   , cloudShadowScale :: Float
   , cloudShadowDensityOffset :: Float
@@ -348,6 +349,7 @@ data WorldGlobals = WorldGlobals
   , invProjMat     :: M44 Float
   , camPos         :: V3 Float
   , envMapStrength :: Float
+  , envMapShift    :: V3 Float
   , lightDirection :: V3 Float
   , irradianceStrength :: Float
   , cloudShadowScale :: Float
@@ -386,6 +388,7 @@ worldSettingsDefaults = WorldSettings {..}
   sunColor = V3 1 1 1
   ambientColor = V3 1 1 1
   envMapStrength = 1
+  envMapShift = V3 1 1 1
   envMap = Nothing
   irradianceStrength = 0.2
   cloudShadowScale = 1

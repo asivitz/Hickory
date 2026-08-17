@@ -45,6 +45,7 @@ drawPostUI graphicsParamsRef (Renderer {..}, FrameContext {..}) = do
     void $ colorEdit3 "Ambient Light" (mkVar (#ambientLight . v3ImVec3Iso))
     void $ dragFloat "Ambient Strength" (mkVar #ambientStrength) 0.1 0 10
     void $ dragFloat "Env Map Strength" (mkVar #envMapStrength) 0.1 0 10
+    void $ colorEdit3 "Env Map Shift" (mkVar (#envMapShift . v3ImVec3Iso))
     void $ dragFloat "Irradiance Strength" (mkVar #irradianceStrength) 0.1 0 10
     void $ dragFloat "Cloud Shadow Scale" (mkVar #cloudShadowScale) 0.1 0 100
     void $ dragFloat "Cloud Shadow Density Offset" (mkVar #cloudShadowDensityOffset) 0.1 0 5
