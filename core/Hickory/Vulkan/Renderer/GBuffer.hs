@@ -194,16 +194,15 @@ withGBufferRenderConfig vulkanResources@VulkanResources { deviceContext = Device
 
 loadGBufTextures :: VulkanResources -> FilePath -> FilePath -> Acquire PointedDescriptorSet
 loadGBufTextures vulkanResources albedo normal = do
-  let opts = linearPngLoadOptions
-      form = opts.format
-
   alb <- do
-    (im, mipLevels) <- withTextureImage vulkanResources True linearPngLoadOptions { shouldFlipVertically = False} albedo
+    let form = sRGBPngLoadOptions.format
+    (im, mipLevels) <- withTextureImage vulkanResources True sRGBPngLoadOptions  { shouldFlipVertically = False} albedo
     iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels IMAGE_VIEW_TYPE_2D 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
     pure $ ImageDescriptor [(ViewableImage im iv form, samp)]
 
   nor <- do
+    let form = linearPngLoadOptions.format
     (im, mipLevels) <- withTextureImage vulkanResources True linearPngLoadOptions { shouldFlipVertically = False} normal
     iv <- with2DImageViewMips vulkanResources.deviceContext form IMAGE_ASPECT_COLOR_BIT im mipLevels IMAGE_VIEW_TYPE_2D 0 1
     samp <- withImageSamplerMips vulkanResources mipLevels FILTER_LINEAR SAMPLER_ADDRESS_MODE_REPEAT SAMPLER_MIPMAP_MODE_NEAREST
