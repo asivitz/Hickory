@@ -241,7 +241,6 @@ withRenderer vulkanResources@VulkanResources {deviceContext = DeviceContext{..}}
   let renderTargets = RenderTargets {..}
 
   staticGBufferMaterialConfig   <- withStaticGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just uberImageSetLayout)
-  (animatedGBufferMaterialConfig, skinBuffer) <- withAnimatedGBufferMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just uberImageSetLayout)
   staticDirectMaterialConfig    <- withStaticDirectMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
   msdfMaterialConfig            <- withMSDFMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)
   decalMaterialConfig           <- withDecalMaterialConfig vulkanResources renderTargets globalDescriptorSet (Just singleImageSetLayout)

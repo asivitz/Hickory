@@ -306,8 +306,8 @@ void main() {
 }
 |])
 
-animatedGBufferVertShader :: ByteString
-animatedGBufferVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+animatedGBufferVertShader :: Int -> String
+animatedGBufferVertShader (show -> numBones) = [qm|
 $header
 $worldGlobalsDef
 $gbufferPushConstantsDef
@@ -330,7 +330,7 @@ layout(location = 4) out vec4 material;
 layout(location = 8) out mat3 TBN;
 
 void main() {
-  int boneOffset = int(uniforms.skinIdx * 70);
+  int boneOffset = int(uniforms.skinIdx * $numBones);
   mat4 skinMat
     = inJointWeights.x * skinBlock.boneMat[boneOffset + int(inJointIndices.x)]
     + inJointWeights.y * skinBlock.boneMat[boneOffset + int(inJointIndices.y)]
@@ -354,10 +354,10 @@ void main() {
   TBN = mat3(worldTangent, worldBitangent, worldNormal);
   objectId = objectIds[uniformIdx];
 }
-|])
+|]
 
-animatedGBufferShadowVertShader :: ByteString
-animatedGBufferShadowVertShader = $(compileShaderQ Nothing "vert" Nothing [qm|
+animatedGBufferShadowVertShader :: Int -> String
+animatedGBufferShadowVertShader (show -> numBones) = [qm|
 $header
 $shadowPassGlobalsDef
 $shadowPushConstantsDef
@@ -375,7 +375,7 @@ layout(location = 0) out vec2 texCoord;
 layout(location = 2) out vec4 color;
 
 void main() {
-  int boneOffset = int(uniforms.skinIdx * 70);
+  int boneOffset = int(uniforms.skinIdx * $numBones);
   mat4 skinMat
     = inJointWeights.x * skinBlock.boneMat[boneOffset + int(inJointIndices.x)]
     + inJointWeights.y * skinBlock.boneMat[boneOffset + int(inJointIndices.y)]
@@ -390,7 +390,7 @@ void main() {
 
   texCoord = inTexCoord;
 }
-|])
+|]
 
 animatedGBufferFragShader :: ByteString
 animatedGBufferFragShader = $(compileShaderQ Nothing "frag" Nothing [qm|

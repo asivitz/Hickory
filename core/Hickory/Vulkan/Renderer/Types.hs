@@ -155,7 +155,6 @@ data Renderer = Renderer
   -- , staticShadowMaterial       :: !(BufferedUniformMaterial ShadowPushConsts StaticConstants)
   -- , animatedShadowMaterial     :: !(BufferedUniformMaterial ShadowPushConsts AnimatedConstants)
   , staticGBufferMaterialConfig   :: MaterialConfig StaticConstants
-  , animatedGBufferMaterialConfig :: MaterialConfig AnimatedConstants
   , staticDirectMaterialConfig    :: MaterialConfig StaticConstants
   , lineDirectMaterialConfig      :: MaterialConfig StaticConstants
   , pointDirectMaterialConfig     :: MaterialConfig StaticConstants
@@ -186,7 +185,6 @@ data Renderer = Renderer
   , shadowMapDescriptorSet   :: FramedResource PointedDescriptorSet
   , singleImageSetLayout     :: DescriptorSetLayout
   , uberImageSetLayout       :: DescriptorSetLayout
-  , skinBuffer               :: FramedResource (DataBuffer (M44 Float))
 
   , defaultEnvMapDescriptorSet :: PointedDescriptorSet
   , defaultLutDescriptorSet    :: PointedDescriptorSet
@@ -247,9 +245,9 @@ data MeshType
   = Buffered !BufferedMesh
   | Dynamic !Mesh
 
-data AnimatedMesh = AnimatedMesh
+data AnimatedMesh n = AnimatedMesh
   { albedo   :: PointedDescriptorSet
-  , boneMat  :: VSS.Vector 70 (M44 Float)
+  , boneMat  :: VSS.Vector n (M44 Float)
   , colors   :: VSS.Vector 6 (V4 Float)
   }
 
