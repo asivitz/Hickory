@@ -264,7 +264,13 @@ void main()
   shadow -= clamp(pow(cloudShadow, globals.cloudShadowDensityPower) - 1.0 + globals.cloudShadowDensityOffset, 0.0, 1.0);
   shadow = clamp(shadow, 0.0, 1.0);
 
-  float nDotL = max(0.0, dot(worldNormal, directionToLight));
+  //float nDotL = max(0.0, dot(worldNormal, directionToLight));
+
+  // This expression of nDotL yields smoother transition on light boundaries
+  float nDotL = clamp(dot(worldNormal, directionToLight), -1.0, 1.0);
+  nDotL = nDotL * 0.5 + 0.5;
+  nDotL = nDotL * nDotL; // restores some falloff shape
+
   float nDotV = max(0.0, dot(worldNormal, worldFragmentToCamera));
   vec3 halfVector = normalize(directionToLight + worldFragmentToCamera);
   float hDotV = max(0.0, dot(halfVector, worldFragmentToCamera));
@@ -308,7 +314,7 @@ void main()
 
   // ambient
   vec3 ambientkS = f0 + (max(vec3(1.0 - roughness), f0) - f0) * pow(clamp(1.0 - nDotV, 0.0, 1.0), 5.0);
-  vec3 ambientkD = 1.0 - ambientkS;
+  vec3 ambientkD = (1.0 - ambientkS) * (1.0 - metallic);
   vec3 irradiance = texture(irradianceMap, worldNormal).rgb;
 
   vec3 combined
