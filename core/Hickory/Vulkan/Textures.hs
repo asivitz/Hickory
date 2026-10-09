@@ -36,11 +36,12 @@ import System.FilePath (dropExtension)
 import Data.Maybe (fromMaybe)
 import Hickory.Vulkan.HDR (PixelRGBAF (..))
 
-import qualified Codec.Ktx2.Read as KTX
+import qualified Codec.Ktx2.Read as KTXRead
 import qualified Codec.Ktx2.Level as KTX
 import qualified Codec.Ktx2.Header as KTX
 import qualified Codec.Ktx2.Write as KTX
 import qualified Codec.Ktx2.DFD.Khronos.BasicV2 as KTX
+import qualified Codec.Ktx2 as KTX
 
 withImageFromArray :: forall a. Storable a => VulkanResources -> Extent3D -> Vulkan.ImageType -> Format -> Bool -> Word32 -> ImageCreateFlagBits -> SV.Vector a -> Acquire (Image, Word32)
 withImageFromArray = withImageFromArrayGeneratedMips
@@ -541,10 +542,10 @@ withKtxTexture
   -> FilePath
   -> Acquire (ViewableImage, Sampler)
 withKtxTexture vulkanResources@VulkanResources { allocator } options fp = do
-  ctx <- liftIO $ KTX.open fp
-  let hdr    = KTX.header ctx
+  ctx <- liftIO $ KTXRead.open fp
+  let hdr    = KTXRead.header ctx
       fmt    = Format (fromIntegral hdr.vkFormat)
-  lvls <- liftIO $ KTX.levels ctx
+  lvls <- liftIO $ KTXRead.levels ctx
   let imgW   = fromIntegral hdr.pixelWidth
       imgH   = fromIntegral hdr.pixelHeight
       imgD   = max 1 (fromIntegral hdr.pixelDepth)
@@ -572,7 +573,7 @@ withKtxTexture vulkanResources@VulkanResources { allocator } options fp = do
   liftIO $ withMappedMemory allocator stagingAlloc bracket \basePtr -> (\f -> V.zipWithM_ f lvls levelOffsets) \lvl off -> do
     let IntPtr offInt = ptrToIntPtr off
         dst = basePtr `plusPtr` offInt
-    res <- KTX.readLevelTo ctx.context lvl dst
+    res <- KTXRead.readLevelTo ctx.context lvl dst
     unless res $ fail "Couldn't read KTX2 level"
 
   let imageCreateInfo :: ImageCreateInfo '[]
@@ -720,7 +721,7 @@ writeKtxFile vk@VulkanResources { allocator } img format w0 h0 d0 layersHdr face
       kvd = mempty
       sgd = BS.empty
 
-  KTX.toFile path header (V.singleton dfd) kvd sgd blobs
+  KTX.toFile path (KTX.Ktx2 header (V.singleton dfd) kvd sgd blobs)
 
 cubeFormat :: Format
 cubeFormat = FORMAT_R32G32B32A32_SFLOAT

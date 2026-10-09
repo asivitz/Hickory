@@ -1,4 +1,4 @@
-import: https://www.stackage.org/nightly-2025-07-23/cabal.config
+import: https://www.stackage.org/nightly-2026-10-09/cabal.config
 
 packages:
   ./core
@@ -20,9 +20,7 @@ constraints:
   vulkan-utils ==0.5.10.6,
   VulkanMemoryAllocator ==0.11.0.1,
   derive-storable ==0.3.1.0,
-  acquire ==0.3.6,
-  gltf-codec ==0.1.0.4,
-  ktx-codec ==0.0.2.1
+  acquire ==0.3.6
 
 source-repository-package
   type: git
@@ -38,11 +36,6 @@ source-repository-package
   type: git
   location: https://github.com/asivitz/haskell-gltf-loader.git
   tag: de721c96d807da9fb1f02c31817e8eacb101444d
-
-source-repository-package
-  type: git
-  location: https://github.com/asivitz/sdl2.git
-  tag: 0c78116f98343199664671ee18eef4bd86557003
 
 source-repository-package
   type: git
