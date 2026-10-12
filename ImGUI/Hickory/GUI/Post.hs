@@ -71,7 +71,7 @@ drawPostUI graphicsParamsRef (Renderer {..}, FrameContext {..}) = do
         with (ImVec2 1 1) \uv1 ->
         with (ImVec4 1 1 1 1) \tintCol ->
         with (ImVec4 0 0 0 0) \borderCol ->
-          image (castPtr imagePtr) sizeptr uv0 uv1 tintCol borderCol
+          image (castPtr imagePtr) sizeptr uv0 uv1
 
     whenM (collapsingHeader "Features" (Just True)) do
       void $ checkbox "Diffuse" (mkVar (#features . #diffuse))

@@ -25,7 +25,7 @@ constraints:
 source-repository-package
   type: git
   location: https://github.com/asivitz/dear-imgui.hs.git
-  tag: 844820eb0644a86570f9362040a652778ef185c1
+  tag: 087294ff19a5fb24f9dce14f52b3adadb405b671
 
 source-repository-package
   type: git
@@ -35,7 +35,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/asivitz/haskell-gltf-loader.git
-  tag: de721c96d807da9fb1f02c31817e8eacb101444d
+  tag: d6ab71bd3de13a2d71ebc9f66041bdee98eae922
 
 source-repository-package
   type: git

@@ -18,7 +18,7 @@ import Vulkan
 import Acquire (Acquire)
 import Control.Monad.IO.Class (liftIO)
 import DearImGui (createContext, destroyContext, render, getDrawData, newFrame)
-import DearImGui.Vulkan (vulkanInit, vulkanShutdown, vulkanCreateFontsTexture, vulkanDestroyFontsTexture, vulkanNewFrame, vulkanRenderDrawData)
+import DearImGui.Vulkan (vulkanInit, vulkanShutdown, vulkanNewFrame, vulkanRenderDrawData)
 import qualified DearImGui.Vulkan as ImGui.Vulkan
 import Control.Exception (throw)
 import Vulkan.Exception (VulkanException(..))
@@ -114,9 +114,6 @@ initDearImGui platformInit platformShutdown vulkanResources@VulkanResources {..}
       }
 
   _ <- mkAcquire (liftIO $ vulkanInit initInfo) (liftIO . vulkanShutdown)
-
-  let acqFonts = void vulkanCreateFontsTexture
-  _ <- mkAcquire acqFonts (const vulkanDestroyFontsTexture)
 
   frameBuffers <- for images \((ViewableImage _img imgView _format), _) ->
     createFramebuffer device renderPass extent [imgView]
