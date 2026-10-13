@@ -26,7 +26,7 @@ import Data.ByteString (ByteString)
 import Data.UUID.V4 (nextRandom)
 import Hickory.Vulkan.Renderer.ShaderDefinitions (buildDirectVertShader, buildOverlayVertShader)
 import Hickory.Vulkan.Renderer.Direct (staticDirectVertShader, staticDirectFragShader, simpleFragShader)
-import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ, compileShader)
+import Vulkan.Utils.ShaderQQ.GLSL.Glslang (compileShaderQ)
 import Data.Functor ((<&>))
 import Hickory.Vulkan.Renderer.Decals (decalVertShader, decalFragShader)
 import Hickory.Vulkan.Renderer.Direct (lineVertShader)
@@ -95,26 +95,20 @@ withStaticGBufferMaterialConfig :: VulkanResources -> RenderTargets -> FramedRes
 withStaticGBufferMaterialConfig vulkanResources renderTargets globalPDS perDrawLayout =
   withGBufferMaterialStack vulkanResources renderTargets globalPDS Nothing standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent] perDrawLayout staticGBufferVertShader staticGBufferFragShader staticGBufferShadowVertShader noColorFragShader
 
-withAnimatedGBufferMaterialConfig :: Int -> Int -> VulkanResources -> RenderTargets -> FramedResource PointedDescriptorSet -> Maybe DescriptorSetLayout -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Float)))
-withAnimatedGBufferMaterialConfig numBones numSets vulkanResources renderTargets globalPDS perDrawLayout = do
+withAnimatedGBufferMaterialConfig
+  :: Int
+  -> Int
+  -> ByteString
+  -> ByteString
+  -> VulkanResources
+  -> RenderTargets
+  -> FramedResource PointedDescriptorSet
+  -> Maybe DescriptorSetLayout
+  -> Acquire (MaterialConfig AnimatedConstants, FramedResource (DataBuffer (M44 Float)))
+withAnimatedGBufferMaterialConfig numBones numSets vertShader shadowVertShader vulkanResources renderTargets globalPDS perDrawLayout = do
   skinBuffer :: FramedResource (DataBuffer (M44 Float))
     <- frameResource $ withDataBuffer vulkanResources "Skin" (numBones * numSets) BUFFER_USAGE_UNIFORM_BUFFER_BIT
   let descs = skinBuffer <&> \buffer -> [BufferDescriptor buffer.size buffer.buf]
-
-  vertShader <- liftIO do
-    (warnings, eShader) <- compileShader Nothing Nothing "vert" Nothing (animatedGBufferVertShader numBones)
-    when (not $ null warnings) (print warnings)
-    case eShader of
-      Left errors -> error $ show errors
-      Right shad -> pure shad
-
-  shadowVertShader <- liftIO do
-    (warnings, eShader) <- compileShader Nothing Nothing "vert" Nothing (animatedGBufferShadowVertShader numBones)
-    when (not $ null warnings) (print warnings)
-    case eShader of
-      Left errors -> error $ show errors
-      Right shad -> pure shad
-
 
   config <- withGBufferMaterialStack vulkanResources renderTargets globalPDS (Just descs) standardMaxNumDraws (pipelineDefaults [noBlend, noBlend, noBlend, noBlend]) [HVT.Position, HVT.Normal, HVT.TextureCoord, HVT.Tangent, HVT.JointIndices, HVT.JointWeights] perDrawLayout
     vertShader
