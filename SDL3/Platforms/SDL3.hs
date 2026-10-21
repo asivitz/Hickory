@@ -514,7 +514,7 @@ sdlGamepadButtonToGamePadButton = \case
 
 withWindow :: Int -> Int -> String -> (SDL.SDLWindow -> IO ()) -> IO ()
 withWindow width height title f = do
-  _ <- SDL.sdlInit [SDL.SDL_INIT_VIDEO, SDL.SDL_INIT_EVENTS, SDL.SDL_INIT_GAMEPAD]
+  _ <- SDL.sdlInit [SDL.SDL_INIT_VIDEO, SDL.SDL_INIT_EVENTS, SDL.SDL_INIT_GAMEPAD, SDL.SDL_INIT_AUDIO]
 
   -- PS4/PS5 gamepads need special hint to enable rumble
   _ <- SDL.sdlSetHint "SDL_HINT_JOYSTICK_ENHANCED_REPORTS" "1"
